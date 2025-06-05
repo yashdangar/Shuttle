@@ -1,17 +1,31 @@
 import express, { Request, Response } from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import guestRouter from './routes/guestRouter';
+import adminRouter from './routes/adminRouter';
+import frontdeskRouter from './routes/frontdeskRouter';
+import driverRouter from './routes/driverRouter';
+
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
 app.use(express.json());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+}));
 
-// Routes
 app.get('/', (req: Request, res: Response) => {
-  res.json({ message: 'Welcome to the Express + TypeScript API' });
+  res.json({ message: 'Health API' });
 });
 
-// Start server
+app.use("/guest", guestRouter);
+app.use("/admin", adminRouter);
+app.use("/frontdesk", frontdeskRouter);
+app.use("/driver", driverRouter);
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 }); 
