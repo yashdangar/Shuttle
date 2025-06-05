@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -14,3 +7,151 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Guest {
+  id              Int       @id @default(autoincrement())
+  email           String?
+  firstName       String?
+  lastName        String?
+  phoneNumber     String?
+  arrivalDate     DateTime? // for login
+  confirmationNum String?   @unique
+  reservationId   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  hotelId         Int
+  isNonResident   Boolean   @default(false)
+  hotel           Hotel     @relation(fields: [hotelId], references: [id])
+  trips           Trip[]
+  notifications   Notification[]
+}
+
+enum PaymentMethod {
+  APP
+  FRONTDESK
+  DEPOSIT
+}
+
+model Location {
+  id           Int      @id @default(autoincrement())
+  name         String
+  latitude     Float
+  longitude    Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tripsPickup  Trip[]   @relation("pickup")
+  tripsDropoff Trip[]   @relation("dropoff")
+}
+
+enum TripType {
+  HOTEL_TO_AIRPORT
+  AIRPORT_TO_HOTEL
+}
+
+model Trip {
+  id                Int           @id @default(autoincrement())
+  guestId           Int
+  numberOfPersons   Int
+  numberOfBags      Int
+  pickupLocation    Location?     @relation(fields: [pickupLocationId], references: [id], name: "pickup")
+  pickupLocationId  Int?
+  dropoffLocation   Location?     @relation(fields: [dropoffLocationId], references: [id], name: "dropoff")
+  dropoffLocationId Int?
+  preferredTime     DateTime?
+  paymentMethod     PaymentMethod
+  tripType          TripType
+  isCompleted       Boolean       @default(false)
+  isPaid            Boolean       @default(false)
+  isCancelled       Boolean       @default(false)
+  isRefunded        Boolean       @default(false)
+  shuttleId         Int?
+  shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
+  guest             Guest         @relation(fields: [guestId], references: [id])
+  encryptionKey     String?
+  qrCodePath        String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model FrontDesk {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phoneNumber String
+  email       String   @unique
+  password    String
+  hotelId     Int
+  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  notifications Notification[]
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  hotelId   Int
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notifications Notification[]
+}
+
+model Driver {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  shuttle     Shuttle? @relation(fields: [shuttleId], references: [id])
+  shuttleId   Int?
+  hotelId     Int
+  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  notifications Notification[]
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  driverId  Int?
+  driver    Driver?   @relation(fields: [driverId], references: [id])
+  guestId   Int?
+  guest     Guest?    @relation(fields: [guestId], references: [id])
+  frontDeskId Int?
+  frontDesk FrontDesk? @relation(fields: [frontDeskId], references: [id])
+  adminId   Int?
+  admin     Admin?     @relation(fields: [adminId], references: [id])
+}
+
+model Hotel {
+  id               Int            @id @default(autoincrement())
+  name             String
+  propertyCode     String // Oracle hotelCode
+  ohipClientId     String
+  ohipClientSecret String
+  ohipBaseUrl      String
+  environment      String // "sandbox" or "production"
+  scopes           String[] // reservation.read, profile.read etc
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  shuttles         Shuttle[]
+  guests           Guest[]
+  frontDesks       FrontDesk[]
+  admins           Admin[]
+  drivers          Driver[]
+}
+
+model Shuttle {
+  id            Int      @id @default(autoincrement())
+  hotelId       Int
+  vehicleNumber String
+  driverId      Int
+  driver        Driver[]
+  capacity      Int
+  createdAt     DateTime @default(now())
+  hotel         Hotel    @relation(fields: [hotelId], references: [id])
+  trips         Trip[]
+}
