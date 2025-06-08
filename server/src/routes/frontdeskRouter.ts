@@ -1,8 +1,10 @@
-import express from 'express';
+import express, { RequestHandler } from 'express';
 import controller from '../controller/frontdeskController';
+import { frontdeskAuthMiddleware } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-router.get('/', controller.getFrontdesk);
+// Protected routes
+router.get('/', frontdeskAuthMiddleware as RequestHandler, controller.getFrontdesk as RequestHandler);
 
 export default router; 

@@ -90,8 +90,8 @@ model Admin {
   name      String
   email     String   @unique
   password  String
-  hotelId   Int
-  hotel     Hotel    @relation(fields: [hotelId], references: [id])
+  hotelId   Int?
+  hotel     Hotel?    @relation(fields: [hotelId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   notifications Notification[]
@@ -129,12 +129,6 @@ model Notification {
 model Hotel {
   id               Int            @id @default(autoincrement())
   name             String
-  propertyCode     String // Oracle hotelCode
-  ohipClientId     String
-  ohipClientSecret String
-  ohipBaseUrl      String
-  environment      String // "sandbox" or "production"
-  scopes           String[] // reservation.read, profile.read etc
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   shuttles         Shuttle[]
