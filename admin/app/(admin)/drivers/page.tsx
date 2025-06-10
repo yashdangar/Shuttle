@@ -85,7 +85,10 @@ export default function DriversPage() {
         name: formData.name,
         phoneNumber: formData.phoneNumber,
         hotelId: parseInt(hotels[0]?.id.toString() || ""),
-        assignedShuttle: formData.assignedShuttle === "none" ? undefined : formData.assignedShuttle,
+        assignedShuttle:
+          formData.assignedShuttle === "none"
+            ? undefined
+            : formData.assignedShuttle,
       });
       if (drivers) {
         setDrivers(
@@ -94,7 +97,10 @@ export default function DriversPage() {
               ? {
                   ...driver,
                   ...formData,
-                  assignedShuttle: formData.assignedShuttle === "none" ? undefined : formData.assignedShuttle,
+                  assignedShuttle:
+                    formData.assignedShuttle === "none"
+                      ? undefined
+                      : formData.assignedShuttle,
                 }
               : driver
           )
@@ -106,12 +112,18 @@ export default function DriversPage() {
         name: formData.name,
         phoneNumber: formData.phoneNumber,
         hotelId: parseInt(hotels[0]?.id.toString() || ""),
-        assignedShuttle: formData.assignedShuttle === "none" ? undefined : formData.assignedShuttle,
+        assignedShuttle:
+          formData.assignedShuttle === "none"
+            ? undefined
+            : formData.assignedShuttle,
       });
       const newDriver: Driver = {
         id: response.driver.id,
         ...formData,
-        assignedShuttle: formData.assignedShuttle === "none" ? undefined : formData.assignedShuttle,
+        assignedShuttle:
+          formData.assignedShuttle === "none"
+            ? undefined
+            : formData.assignedShuttle,
         createdAt: new Date().toISOString().split("T")[0],
       };
       setDrivers([...(drivers || []), newDriver]);
@@ -218,11 +230,12 @@ export default function DriversPage() {
                     <SelectValue placeholder="Select hotel" />
                   </SelectTrigger>
                   <SelectContent>
-                    {hotels.map((hotel) => (
-                      <SelectItem key={hotel.id} value={hotel.id.toString()}>
-                        {hotel.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem
+                      key={hotels[0]?.id}
+                      value={hotels[0]?.id.toString()}
+                    >
+                      {hotels[0]?.name}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -291,7 +304,7 @@ export default function DriversPage() {
                 <TableRow key={driver.id}>
                   <TableCell className="font-medium">{driver.name}</TableCell>
                   <TableCell>{driver.phoneNumber}</TableCell>
-                  <TableCell>{driver.hotel}</TableCell>
+                  <TableCell>{hotels[0]?.name}</TableCell>
                   <TableCell>
                     {driver.assignedShuttle ? (
                       <Badge variant="secondary">
