@@ -8,7 +8,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Airport Shuttle Admin Dashboard",
   description: "Admin dashboard for managing airport shuttle operations",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({

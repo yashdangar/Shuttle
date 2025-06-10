@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Get token from Authorization header
-  const authHeader = request.headers.get("Authorization");
-  console.log(authHeader);
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  // Get token from cookies
+  const token = request.cookies.get("adminToken")?.value;
+  
   const isLoginPage = request.nextUrl.pathname === "/login";
 
   // If no token and not on login page, redirect to login
@@ -18,23 +17,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // For protected routes, verify the token
+  // For protected routes, just pass through
   if (token && !isLoginPage) {
-    try {
-      // Create a new response with the token in Authorization header
-      const response = NextResponse.next();
-      response.headers.set("Authorization", `Bearer ${token}`);
-      return response;
-    } catch (error) {
-      // If token is invalid, redirect to login
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
+    return NextResponse.next();
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-  ],
+  matcher: ["/login", "/dashboard", "/hotels", "/frontdesks", "/drivers", "/shuttles"],
 };

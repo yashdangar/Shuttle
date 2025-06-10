@@ -94,10 +94,12 @@ const addFrontdesk = async (req: Request, res: Response) => {
     const frontdesk = await prisma.frontDesk.create({
       data: {
         name,
+        phoneNumber: phoneNumber,
         email,
         password,
         hotelId: parseInt(hotelId),
-        phoneNumber: phoneNumber,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
     res.json({ frontdesk });
@@ -107,12 +109,77 @@ const addFrontdesk = async (req: Request, res: Response) => {
   }
 };
 
-const getAdmin = async (req: Request, res: Response) => {
+const editFrontdesk = async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, hotelId, phoneNumber } = req.body;
+    const id = req.params.id;
+    const frontdesk = await prisma.frontDesk.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        phoneNumber: phoneNumber,
+        email,
+        password,
+        hotelId: parseInt(hotelId),
+        updatedAt: new Date(),
+      },
+    });
+    res.json({ frontdesk });
+  } catch (error) {
+    console.error("Edit frontdesk error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteFrontdesk = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const frontdesk = await prisma.frontDesk.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ frontdesk });
+  } catch (error) {
+    console.error("Delete frontdesk error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+const getFrontdesk = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
+    const frontdesk = await prisma.frontDesk.findMany({
+      where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+    });
+    res.json({ frontdesk });
+  } catch (error) {
+    console.error("Get frontdesk error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// model FrontDesk {
+//     id          Int      @id @default(autoincrement())
+//     name        String
+//     phoneNumber String
+//     email       String   @unique
+//     password    String
+//     hotelId     Int
+//     hotel       Hotel    @relation(fields: [hotelId], references: [id])
+//     createdAt   DateTime @default(now())
+//     updatedAt   DateTime @updatedAt
+//     notifications Notification[]
+//   }
+
+const getAdmin = async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const userId = decoded.userId;
 
     const admin = await prisma.admin.findUnique({
-      where: { id: userId },
+      where: { id: parseInt(userId) },
       select: {
         id: true,
         name: true,
@@ -135,9 +202,8 @@ const getAdmin = async (req: Request, res: Response) => {
 
 const createHotel = async (req: Request, res: Response) => {
   try {
-    const { name, token } = req.body;
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const adminId = decoded.userId;
+    const { name } = req.body;
+    const adminId = (req as any).user.userId;
 
     // Check if admin already has a hotel
     const existingAdmin = await prisma.admin.findUnique({
@@ -168,9 +234,8 @@ const createHotel = async (req: Request, res: Response) => {
 const editHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
-    const { name, token } = req.body;
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const adminId = decoded.userId;
+    const { name } = req.body;
+    const adminId = (req as any).user.userId;
 
     const existingHotel = await prisma.hotel.findUnique({
       where: { id: parseInt(hotelId) },
@@ -214,9 +279,7 @@ const deleteHotel = async (req: Request, res: Response) => {
 };
 const getHotel = async (req: Request, res: Response) => {
   try {
-    const token = req.params.token;
-    const decoded  = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const userId = decoded.userId;
+    const userId = (req as any).user.userId;
 
     const admin = await prisma.admin.findUnique({
       where: { id: parseInt(userId) },
@@ -255,9 +318,12 @@ export default {
   getAdmin,
   login,
   signup,
-  addFrontdesk,
   createHotel,
   editHotel,
   deleteHotel,
   getHotel,
+  addFrontdesk,
+  editFrontdesk,
+  deleteFrontdesk,
+  getFrontdesk,
 };

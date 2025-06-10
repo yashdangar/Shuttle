@@ -39,8 +39,8 @@ export default function LoginPage() {
         password: formData.password,
       });
       
-      // Store token in localStorage
-      localStorage.setItem("adminToken", data.token);
+      // Store token in cookie
+      document.cookie = `adminToken=${data.token}; path=/; max-age=86400; secure; samesite=strict`;
       
       router.push("/dashboard");
     } catch (err) {

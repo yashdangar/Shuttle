@@ -1,7 +1,9 @@
 export const api = {
     async fetch(endpoint: string, options: RequestInit = {}) {
-        // Get token from localStorage
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+        // Get token from cookies
+        const token = typeof document !== 'undefined' 
+            ? document.cookie.split('; ').find(row => row.startsWith('adminToken='))?.split('=')[1]
+            : null;
         
         const headers = {
             'Content-Type': 'application/json',

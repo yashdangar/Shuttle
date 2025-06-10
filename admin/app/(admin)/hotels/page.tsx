@@ -29,6 +29,7 @@ interface Hotel {
   id: string;
   name: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function HotelsPage() {
@@ -40,9 +41,7 @@ export default function HotelsPage() {
 
   useEffect(() => {
     const fetchHotel = async () => {
-      const token = localStorage.getItem("adminToken");
-      
-      const response = await api.get(`/admin/get/hotel/${token}`);
+      const response = await api.get(`/admin/get/hotel`);
       // console.log(response);
       setHotel(response.hotel);
     };
@@ -54,9 +53,8 @@ export default function HotelsPage() {
     if (editingHotel) {
       const response = await api.put(`/admin/edit/hotel/${editingHotel.id}`, {
         name: formData.name,
-        token: localStorage.getItem("adminToken"),
       });
-      console.log(response);
+      // console.log(response);
       setHotel({ ...hotel!, name: formData.name });
       setEditingHotel(null);
     } else {
@@ -64,6 +62,7 @@ export default function HotelsPage() {
         id: Date.now().toString(),
         name: formData.name,
         createdAt: new Date().toISOString().split("T")[0],
+        updatedAt: new Date().toISOString().split("T")[0],
       };
 
       const response = await api.post("/admin/create/hotel", {
@@ -172,6 +171,7 @@ export default function HotelsPage() {
               <TableRow>
                 <TableHead>Hotel Name</TableHead>
                 <TableHead>Created At</TableHead>
+                <TableHead>Updated At</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -181,6 +181,9 @@ export default function HotelsPage() {
                   <TableCell className="font-medium">{hotel.name}</TableCell>
                   <TableCell>
                     {new Date(hotel.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(hotel.updatedAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
