@@ -1,78 +1,119 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Edit, Trash2, Building2 } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus, Edit, Trash2, Building2 } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Hotel {
-  id: string
-  name: string
-  createdAt: string
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export default function HotelsPage() {
-  const [hotels, setHotels] = useState<Hotel[]>([
-    { id: "1", name: "Grand Plaza Hotel", createdAt: "2024-01-15" },
-    { id: "2", name: "Airport Inn", createdAt: "2024-01-20" },
-    { id: "3", name: "Sky View Resort", createdAt: "2024-02-01" },
-    { id: "4", name: "Business Center Hotel", createdAt: "2024-02-10" },
-  ])
+  const [hotel, setHotel] = useState<Hotel | null>(null);
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingHotel, setEditingHotel] = useState<Hotel | null>(null)
-  const [formData, setFormData] = useState({ name: "" })
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
+  const [formData, setFormData] = useState({ name: "" });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  useEffect(() => {
+    const fetchHotel = async () => {
+      const token = localStorage.getItem("adminToken");
+      
+      const response = await api.get(`/admin/get/hotel/${token}`);
+      // console.log(response);
+      setHotel(response.hotel);
+    };
+    fetchHotel();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (editingHotel) {
-      setHotels(hotels.map((hotel) => (hotel.id === editingHotel.id ? { ...hotel, name: formData.name } : hotel)))
-      setEditingHotel(null)
+      const response = await api.put(`/admin/edit/hotel/${editingHotel.id}`, {
+        name: formData.name,
+        token: localStorage.getItem("adminToken"),
+      });
+      console.log(response);
+      setHotel({ ...hotel!, name: formData.name });
+      setEditingHotel(null);
     } else {
       const newHotel: Hotel = {
         id: Date.now().toString(),
         name: formData.name,
         createdAt: new Date().toISOString().split("T")[0],
-      }
-      setHotels([...hotels, newHotel])
+      };
+
+      const response = await api.post("/admin/create/hotel", {
+        name: formData.name,
+        token: localStorage.getItem("adminToken"),
+      });
+      console.log(response);
+      setHotel(newHotel);
     }
-    setFormData({ name: "" })
-    setIsAddDialogOpen(false)
-  }
+    setFormData({ name: "" });
+    setIsAddDialogOpen(false);
+  };
 
-  const handleEdit = (hotel: Hotel) => {
-    setEditingHotel(hotel)
-    setFormData({ name: hotel.name })
-    setIsAddDialogOpen(true)
-  }
+  const handleEdit = async (hotel: Hotel) => {
+    setEditingHotel(hotel);
+    setFormData({ name: hotel.name });
+    setIsAddDialogOpen(true);
+  };
 
-  const handleDelete = (id: string) => {
-    setHotels(hotels.filter((hotel) => hotel.id !== id))
-  }
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await api.delete(`/admin/delete/hotel/${id}`);
+      console.log(response);
+      setHotel(null);
+    } catch (error) {
+      console.error("Delete hotel error:", error);
+    }
+  };
 
   const resetForm = () => {
-    setFormData({ name: "" })
-    setEditingHotel(null)
-  }
+    setFormData({ name: "" });
+    setEditingHotel(null);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Hotels Management</h1>
-          <p className="text-slate-600">Manage hotel partners and their information</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Hotels Management
+          </h1>
+          <p className="text-slate-600">
+            Manage hotel partners and their information
+          </p>
         </div>
         <Dialog
           open={isAddDialogOpen}
           onOpenChange={(open) => {
-            setIsAddDialogOpen(open)
-            if (!open) resetForm()
+            setIsAddDialogOpen(open);
+            if (!open) resetForm();
           }}
         >
           <DialogTrigger asChild>
@@ -83,7 +124,9 @@ export default function HotelsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingHotel ? "Edit Hotel" : "Add New Hotel"}</DialogTitle>
+              <DialogTitle>
+                {editingHotel ? "Edit Hotel" : "Add New Hotel"}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -101,8 +144,8 @@ export default function HotelsPage() {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setIsAddDialogOpen(false)
-                    resetForm()
+                    setIsAddDialogOpen(false);
+                    resetForm();
                   }}
                 >
                   Cancel
@@ -133,13 +176,19 @@ export default function HotelsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {hotels.map((hotel) => (
-                <TableRow key={hotel.id}>
+              {hotel && (
+                <TableRow>
                   <TableCell className="font-medium">{hotel.name}</TableCell>
-                  <TableCell>{new Date(hotel.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {new Date(hotel.createdAt).toLocaleDateString()}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(hotel)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(hotel)}
+                      >
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button
@@ -153,11 +202,11 @@ export default function HotelsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

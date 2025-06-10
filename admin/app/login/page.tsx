@@ -31,17 +31,22 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     try {
       const data = await api.post("/admin/login", {
         email: formData.email,
         password: formData.password,
       });
-      // Store token in cookie
-      document.cookie = `adminToken=${data.token}; path=/; max-age=86400`; // 24 hours
+      
+      // Store token in localStorage
+      localStorage.setItem("adminToken", data.token);
+      
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
