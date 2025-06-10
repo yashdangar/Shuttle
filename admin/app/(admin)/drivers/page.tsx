@@ -40,6 +40,8 @@ interface Driver {
   hotel: string;
   assignedShuttle?: string;
   createdAt: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface Hotel {
@@ -59,12 +61,36 @@ export default function DriversPage() {
     phoneNumber: "",
     hotel: hotels[0]?.id.toString() || "",
     assignedShuttle: "",
+    startTime: "",
+    endTime: "",
   });
+
+  const formatTimeForDB = (time: string) => {
+    if (!time) return null;
+    const today = new Date();
+    const [hours, minutes] = time.split(':');
+    today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    return today.toISOString();
+  };
+
+  const formatTimeForDisplay = (isoString: string | null | undefined) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { 
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   useEffect(() => {
     const fetchDrivers = async () => {
       const response = await api.get("/admin/get/driver");
-      setDrivers(response.driver);
+      setDrivers(response.driver.map((driver: Driver) => ({
+        ...driver,
+        startTime: formatTimeForDisplay(driver.startTime),
+        endTime: formatTimeForDisplay(driver.endTime)
+      })));
     };
     const fetchHotel = async () => {
       const response = await api.get("/admin/get/hotel");
@@ -89,6 +115,8 @@ export default function DriversPage() {
           formData.assignedShuttle === "none"
             ? undefined
             : formData.assignedShuttle,
+        startTime: formatTimeForDB(formData.startTime),
+        endTime: formatTimeForDB(formData.endTime),
       });
       if (drivers) {
         setDrivers(
@@ -116,6 +144,8 @@ export default function DriversPage() {
           formData.assignedShuttle === "none"
             ? undefined
             : formData.assignedShuttle,
+        startTime: formatTimeForDB(formData.startTime),
+        endTime: formatTimeForDB(formData.endTime),
       });
       const newDriver: Driver = {
         id: response.driver.id,
@@ -139,6 +169,8 @@ export default function DriversPage() {
       phoneNumber: driver.phoneNumber,
       hotel: hotels[0]?.id.toString() || "",
       assignedShuttle: driver.assignedShuttle || "",
+      startTime: driver.startTime || "",
+      endTime: driver.endTime || "",
     });
     setIsAddDialogOpen(true);
   };
@@ -158,6 +190,8 @@ export default function DriversPage() {
       phoneNumber: "",
       hotel: hotels[0]?.id.toString() || "",
       assignedShuttle: "",
+      startTime: "",
+      endTime: "",
     });
     setEditingDriver(null);
   };
@@ -260,6 +294,32 @@ export default function DriversPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="startTime">Start Time</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startTime: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <Label htmlFor="endTime">End Time</Label>
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={formData.endTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, endTime: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </div>
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"
@@ -295,6 +355,8 @@ export default function DriversPage() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Hotel</TableHead>
                 <TableHead>Assigned Shuttle</TableHead>
+                <TableHead>Start Time</TableHead>
+                <TableHead>End Time</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -314,6 +376,8 @@ export default function DriversPage() {
                       <span className="text-slate-400">Not assigned</span>
                     )}
                   </TableCell>
+                  <TableCell>{driver.startTime}</TableCell>
+                  <TableCell>{driver.endTime}</TableCell>
                   <TableCell>
                     {new Date(driver.createdAt).toLocaleDateString()}
                   </TableCell>

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "./temp"
 }
 
 datasource db {
@@ -105,6 +106,8 @@ model Driver {
   updatedAt   DateTime @updatedAt
   shuttle     Shuttle? @relation(fields: [shuttleId], references: [id])
   shuttleId   Int?
+  startTime   DateTime?
+  endTime     DateTime?
   hotelId     Int
   hotel       Hotel    @relation(fields: [hotelId], references: [id])
   notifications Notification[]
@@ -143,6 +146,8 @@ model Shuttle {
   hotelId       Int
   vehicleNumber String
   driverId      Int
+  startTime     DateTime
+  endTime       DateTime
   driver        Driver[]
   capacity      Int
   createdAt     DateTime @default(now())

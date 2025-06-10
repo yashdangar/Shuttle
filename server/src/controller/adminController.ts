@@ -317,9 +317,9 @@ const getHotel = async (req: Request, res: Response) => {
 
 const addDriver = async (req: Request, res: Response) => {
   try {
-    const { name, phoneNumber, hotelId } = req.body;
+    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
     const driver = await prisma.driver.create({
-      data: { name, phoneNumber, hotelId: parseInt(hotelId), createdAt: new Date(), updatedAt: new Date() },
+      data: { name, phoneNumber, hotelId: parseInt(hotelId), createdAt: new Date(), updatedAt: new Date(), startTime, endTime  },
     });
     res.json({ driver });
   } catch (error) {
@@ -331,10 +331,10 @@ const addDriver = async (req: Request, res: Response) => {
 const editDriver = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { name, phoneNumber, hotelId } = req.body;
+    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
     const driver = await prisma.driver.update({
       where: { id: parseInt(id) },
-      data: { name, phoneNumber, hotelId: parseInt(hotelId), updatedAt: new Date() },
+      data: { name, phoneNumber, hotelId: parseInt(hotelId), updatedAt: new Date(), startTime, endTime },
     }); 
     res.json({ driver });
   } catch (error) {
@@ -361,6 +361,9 @@ const getDriver = async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
     const driver = await prisma.driver.findMany({
       where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+      include: {
+        shuttle: true,
+      },
     });
     res.json({ driver });
   } catch (error) {
