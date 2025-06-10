@@ -156,18 +156,6 @@ const getFrontdesk = async (req: Request, res: Response) => {
   }
 };
 
-// model FrontDesk {
-//     id          Int      @id @default(autoincrement())
-//     name        String
-//     phoneNumber String
-//     email       String   @unique
-//     password    String
-//     hotelId     Int
-//     hotel       Hotel    @relation(fields: [hotelId], references: [id])
-//     createdAt   DateTime @default(now())
-//     updatedAt   DateTime @updatedAt
-//     notifications Notification[]
-//   }
 
 const getAdmin = async (req: Request, res: Response) => {
   try {
@@ -314,6 +302,73 @@ const getHotel = async (req: Request, res: Response) => {
   }
 };
 
+// model Driver {
+//   id          Int      @id @default(autoincrement())
+//   name        String
+//   phoneNumber String
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//   shuttle     Shuttle? @relation(fields: [shuttleId], references: [id])
+//   shuttleId   Int?
+//   hotelId     Int
+//   hotel       Hotel    @relation(fields: [hotelId], references: [id])
+//   notifications Notification[]
+// }
+
+const addDriver = async (req: Request, res: Response) => {
+  try {
+    const { name, phoneNumber, hotelId } = req.body;
+    const driver = await prisma.driver.create({
+      data: { name, phoneNumber, hotelId: parseInt(hotelId), createdAt: new Date(), updatedAt: new Date() },
+    });
+    res.json({ driver });
+  } catch (error) {
+    console.error("Add driver error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const editDriver = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const { name, phoneNumber, hotelId } = req.body;
+    const driver = await prisma.driver.update({
+      where: { id: parseInt(id) },
+      data: { name, phoneNumber, hotelId: parseInt(hotelId), updatedAt: new Date() },
+    }); 
+    res.json({ driver });
+  } catch (error) {
+    console.error("Edit driver error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteDriver = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const driver = await prisma.driver.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ driver });
+  } catch (error) {
+    console.error("Delete driver error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getDriver = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const driver = await prisma.driver.findMany({
+      where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+    });
+    res.json({ driver });
+  } catch (error) {
+    console.error("Get driver error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -326,4 +381,8 @@ export default {
   editFrontdesk,
   deleteFrontdesk,
   getFrontdesk,
+  addDriver,
+  editDriver,
+  deleteDriver,
+  getDriver,
 };

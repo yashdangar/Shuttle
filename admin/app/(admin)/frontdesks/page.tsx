@@ -271,7 +271,7 @@ export default function FrontDesksPage() {
               <div>
                 <Label htmlFor="hotel">Hotel</Label>
                 <Select
-                  value={formData.hotel}
+                  value={hotels[0]?.id.toString() || "default"}
                   disabled
                 >
                   <SelectTrigger>
@@ -279,6 +279,11 @@ export default function FrontDesksPage() {
                       {hotels[0]?.name || 'Loading...'}
                     </SelectValue>
                   </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={hotels[0]?.id.toString() || "default"}>
+                      {hotels[0]?.name || 'Loading...'}
+                    </SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div className="flex justify-end space-x-2">
