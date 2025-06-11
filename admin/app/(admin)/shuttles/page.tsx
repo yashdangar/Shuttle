@@ -31,23 +31,23 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Truck } from "lucide-react";
-import {api} from "@/lib/api";
-
+import { api } from "@/lib/api";
 
 interface Shuttle {
   id: string;
   vehicleNumber: string;
   driver?: string;
-  hotel: string;
+  hotelId: number;
   seats: number;
   status: "Active" | "Maintenance" | "Inactive";
   createdAt: string;
   startTime: string;
   endTime: string;
+  driverId: string | undefined;
 }
 
 interface Hotel {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -64,7 +64,6 @@ interface Driver {
 export default function ShuttlesPage() {
   const [shuttles, setShuttles] = useState<Shuttle[]>();
 
-
   const [hotels, setHotels] = useState<Hotel[]>();
   const [drivers, setDrivers] = useState<Driver[]>();
   const statuses = ["Active", "Maintenance", "Inactive"];
@@ -73,13 +72,20 @@ export default function ShuttlesPage() {
   const [editingShuttle, setEditingShuttle] = useState<Shuttle | null>(null);
   const [formData, setFormData] = useState({
     vehicleNumber: "",
-    driver: "",
-    hotel: "",
+    driverId: "",
+    hotelId: "",
     seats: "",
     status: "Active" as Shuttle["status"],
     startTime: "",
     endTime: "",
   });
+  const formatTimeForDB = (time: string) => {
+    if (!time) return null;
+    const today = new Date();
+    const [hours, minutes] = time.split(':');
+    today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    return today.toISOString();
+  };
   const formatTimeForDisplay = (isoString: string | null | undefined) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -93,11 +99,14 @@ export default function ShuttlesPage() {
     const fetchDrivers = async () => {
       try {
         const response = await api.get("/admin/get/driver");
-        setDrivers(response.driver.map((driver: Driver) => ({
-        ...driver,
-        startTime: formatTimeForDisplay(driver.startTime),
-        endTime: formatTimeForDisplay(driver.endTime)
-        })));
+        setDrivers(
+          response.driver.map((driver: Driver) => ({
+            ...driver,
+            startTime: formatTimeForDisplay(driver.startTime),
+            endTime: formatTimeForDisplay(driver.endTime),
+          }))
+        );
+        console.log('Fetched drivers:', response.driver);
       } catch (error) {
         console.error("Error fetching drivers:", error);
       }
@@ -107,8 +116,8 @@ export default function ShuttlesPage() {
         const response = await api.get("/admin/get/hotel");
         setHotels([
           {
-          id: response.hotel.id,
-          name: response.hotel.name,
+            id: response.hotel.id,
+            name: response.hotel.name,
           },
         ]);
       } catch (error) {
@@ -118,11 +127,13 @@ export default function ShuttlesPage() {
     const fetchShuttles = async () => {
       try {
         const response = await api.get("/admin/get/shuttle");
-        setShuttles(response.shuttle.map((shuttle: Shuttle) => ({
-        ...shuttle,
-        startTime: formatTimeForDisplay(shuttle.startTime),
-        endTime: formatTimeForDisplay(shuttle.endTime)
-        })));
+        setShuttles(
+          response.shuttle.map((shuttle: Shuttle) => ({
+            ...shuttle,
+            startTime: formatTimeForDisplay(shuttle.startTime),
+            endTime: formatTimeForDisplay(shuttle.endTime),
+          }))
+        );
         console.log(response.shuttle);
       } catch (error) {
         console.error("Error fetching shuttles:", error);
@@ -133,33 +144,54 @@ export default function ShuttlesPage() {
     fetchDrivers();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingShuttle) {
+      const response = await api.put(`/admin/edit/shuttle/${editingShuttle.id}`, {
+        id: editingShuttle.id,
+        vehicleNumber: formData.vehicleNumber,
+        driverId: formData.driverId === "NoDriver" ? undefined : parseInt(formData.driverId),
+        hotelId: parseInt(formData.hotelId),
+        seats: Number.parseInt(formData.seats),
+        status: formData.status,
+        startTime: formatTimeForDB(formData.startTime),
+        endTime: formatTimeForDB(formData.endTime),
+      });
+      const editedShuttle: Shuttle = {
+        id: response.shuttle.id,
+        ...formData,
+        seats: Number.parseInt(formData.seats),
+        driverId: formData.driverId === "NoDriver" ? undefined : formData.driverId,
+        createdAt: response.shuttle.createdAt,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        hotelId: parseInt(formData.hotelId),
+      };
       setShuttles(
         shuttles?.map((shuttle) =>
-          shuttle.id === editingShuttle.id
-            ? {
-                ...shuttle,
-                ...formData,
-                seats: Number.parseInt(formData.seats),
-                driver: formData.driver || undefined,
-                startTime: formData.startTime,
-                endTime: formData.endTime,
-              }
-            : shuttle
+          shuttle.id === editingShuttle.id ? editedShuttle : shuttle
         )
       );
       setEditingShuttle(null);
     } else {
+      const response = await api.post("/admin/add/shuttle", {
+        vehicleNumber: formData.vehicleNumber,
+        driverId: formData.driverId === "NoDriver" ? undefined : parseInt(formData.driverId),
+        hotelId: parseInt(formData.hotelId),
+        seats: Number.parseInt(formData.seats),
+        status: formData.status,
+        startTime: formatTimeForDB(formData.startTime),
+        endTime: formatTimeForDB(formData.endTime),
+      });
       const newShuttle: Shuttle = {
-        id: Date.now().toString(),
+        id: response.shuttle.id,
         ...formData,
         seats: Number.parseInt(formData.seats),
-        driver: formData.driver || undefined,
-        createdAt: new Date().toISOString().split("T")[0],
+        driverId: formData.driverId === "NoDriver" ? undefined : formData.driverId,
+        createdAt: response.shuttle.createdAt,
         startTime: formData.startTime,
         endTime: formData.endTime,
+        hotelId: parseInt(formData.hotelId),
       };
       setShuttles([...(shuttles || []), newShuttle]);
     }
@@ -171,8 +203,8 @@ export default function ShuttlesPage() {
     setEditingShuttle(shuttle);
     setFormData({
       vehicleNumber: shuttle.vehicleNumber,
-      driver: shuttle.driver || "",
-      hotel: shuttle.hotel,
+      driverId: shuttle.driverId || "",
+      hotelId: shuttle.hotelId.toString(),
       seats: shuttle.seats.toString(),
       status: shuttle.status,
       startTime: shuttle.startTime,
@@ -181,15 +213,20 @@ export default function ShuttlesPage() {
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setShuttles(shuttles?.filter((shuttle) => shuttle.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/admin/delete/shuttle/${id}`);
+      setShuttles(shuttles?.filter((shuttle) => shuttle.id !== id));
+    } catch (error) {
+      console.error("Error deleting shuttle:", error);
+    }
   };
 
   const resetForm = () => {
     setFormData({
       vehicleNumber: "",
-      driver: "",
-      hotel: "",
+      driverId: "",
+      hotelId: "",
       seats: "",
       status: "Active",
       startTime: "",
@@ -243,9 +280,9 @@ export default function ShuttlesPage() {
               <div>
                 <Label htmlFor="hotel">Hotel</Label>
                 <Select
-                  value={formData.hotel}
+                  value={formData.hotelId}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, hotel: value })
+                    setFormData({ ...formData, hotelId: value })
                   }
                   required
                 >
@@ -254,7 +291,7 @@ export default function ShuttlesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {hotels && (
-                      <SelectItem key={hotels[0].id} value={hotels[0].id}>
+                      <SelectItem key={hotels[0].id} value={hotels[0].id.toString()}>
                         {hotels[0].name}
                       </SelectItem>
                     )}
@@ -290,70 +327,56 @@ export default function ShuttlesPage() {
               <div>
                 <Label htmlFor="driver">Assign Driver (Optional)</Label>
                 <Select
-                  value={formData.driver}
+                  value={formData.driverId}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, driver: value })
+                    setFormData({ ...formData, driverId: value })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select driver (optional)" />
+                    <SelectValue placeholder="Select driver (optional)">
+                      {formData.driverId && formData.driverId !== "NoDriver" 
+                        ? drivers?.find(d => d.id === formData.driverId)?.name 
+                        : formData.driverId === "NoDriver" 
+                          ? "No driver assigned" 
+                          : "Select driver (optional)"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="NoDriver">No driver assigned</SelectItem>
-                    {drivers && drivers.map((driver) => (
-                      <SelectItem key={driver.id} value={driver.id}>
-                        {driver.name}
-                      </SelectItem>
-                    ))}
+                    {drivers &&
+                      drivers.map((driver) => (
+                        <SelectItem key={driver.id} value={driver.id}>
+                          {driver.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      status: value as Shuttle["status"],
-                    })
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statuses.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+             
               <div>
                 <Label htmlFor="startTime">Start Time</Label>
                 <Input
                   id="startTime"
+                  type="time"
                   value={formData.startTime}
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
-                  placeholder="08:00"
                   required
+                  className="w-full"
                 />
               </div>
               <div>
                 <Label htmlFor="endTime">End Time</Label>
                 <Input
                   id="endTime"
+                  type="time"
                   value={formData.endTime}
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
-                  placeholder="18:00"
                   required
+                  className="w-full"
                 />
               </div>
               <div className="flex justify-end space-x-2">
@@ -391,7 +414,6 @@ export default function ShuttlesPage() {
                 <TableHead>Driver</TableHead>
                 <TableHead>Hotel</TableHead>
                 <TableHead>Seats</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead>Start Time</TableHead>
                 <TableHead>End Time</TableHead>
@@ -399,49 +421,44 @@ export default function ShuttlesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shuttles && shuttles.map((shuttle) => (
-                <TableRow key={shuttle.id}>
-                  <TableCell className="font-medium">
-                    {shuttle.vehicleNumber}
-                  </TableCell>
-                  <TableCell>
-                    {shuttle.driver || (
-                      <span className="text-slate-400">Not assigned</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{shuttle.hotel}</TableCell>
-                  <TableCell>{shuttle.seats} seats</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(shuttle.status)}>
-                      {shuttle.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(shuttle.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>{shuttle.startTime}</TableCell>
-                  <TableCell>{shuttle.endTime}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(shuttle)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(shuttle.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {shuttles &&
+                shuttles.map((shuttle) => (
+                  <TableRow key={shuttle.id}>
+                    <TableCell className="font-medium">
+                      {shuttle.vehicleNumber}
+                    </TableCell>
+                      <TableCell>
+                        {shuttle.driverId ? drivers?.find(d => d.id === shuttle.driverId)?.name : (
+                          <span className="text-slate-400">No driver assigned</span>
+                        )}
+                    </TableCell>
+                    <TableCell>{hotels?.find(h => h.id === shuttle.hotelId)?.name || "Unknown Hotel"}</TableCell>
+                    <TableCell>{shuttle.seats} seats</TableCell>
+                    <TableCell>
+                      {new Date(shuttle.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>{shuttle.startTime}</TableCell>
+                    <TableCell>{shuttle.endTime}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(shuttle)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(shuttle.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>
