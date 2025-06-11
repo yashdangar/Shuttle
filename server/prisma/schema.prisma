@@ -20,7 +20,7 @@ model Guest {
   updatedAt       DateTime       @updatedAt
   hotelId         Int
   isNonResident   Boolean        @default(false)
-  hotel           Hotel          @relation(fields: [hotelId], references: [id])
+  hotel           Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade)
   trips           Trip[]
   notifications   Notification[]
 }
@@ -79,7 +79,7 @@ model FrontDesk {
   email         String         @unique
   password      String
   hotelId       Int
-  hotel         Hotel          @relation(fields: [hotelId], references: [id])
+  hotel         Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
@@ -108,7 +108,7 @@ model Driver {
   startTime     DateTime?
   endTime       DateTime?
   hotelId       Int
-  hotel         Hotel          @relation(fields: [hotelId], references: [id])
+  hotel         Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade )
   notifications Notification[]
 }
 
@@ -133,7 +133,7 @@ model Hotel {
   name       String
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-  shuttles   Shuttle[]
+  shuttles   Shuttle[] 
   guests     Guest[]
   frontDesks FrontDesk[]
   admins     Admin[]
@@ -150,6 +150,6 @@ model Shuttle {
   driver        Driver[]
   seats         Int
   createdAt     DateTime @default(now())
-  hotel         Hotel    @relation(fields: [hotelId], references: [id])
+  hotel         Hotel    @relation(fields: [hotelId], references: [id],onDelete: Cascade)
   trips         Trip[]
 }
