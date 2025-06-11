@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "./temp"
 }
 
 datasource db {
@@ -9,19 +8,19 @@ datasource db {
 }
 
 model Guest {
-  id              Int       @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   email           String?
   firstName       String?
   lastName        String?
   phoneNumber     String?
   arrivalDate     DateTime? // for login
-  confirmationNum String?   @unique
+  confirmationNum String?        @unique
   reservationId   String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   hotelId         Int
-  isNonResident   Boolean   @default(false)
-  hotel           Hotel     @relation(fields: [hotelId], references: [id])
+  isNonResident   Boolean        @default(false)
+  hotel           Hotel          @relation(fields: [hotelId], references: [id])
   trips           Trip[]
   notifications   Notification[]
 }
@@ -74,71 +73,71 @@ model Trip {
 }
 
 model FrontDesk {
-  id          Int      @id @default(autoincrement())
-  name        String
-  phoneNumber String
-  email       String   @unique
-  password    String
-  hotelId     Int
-  hotel       Hotel    @relation(fields: [hotelId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int            @id @default(autoincrement())
+  name          String
+  phoneNumber   String
+  email         String         @unique
+  password      String
+  hotelId       Int
+  hotel         Hotel          @relation(fields: [hotelId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   notifications Notification[]
 }
 
 model Admin {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  hotelId   Int?
-  hotel     Hotel?    @relation(fields: [hotelId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int            @id @default(autoincrement())
+  name          String
+  email         String         @unique
+  password      String
+  hotelId       Int?
+  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   notifications Notification[]
 }
 
 model Driver {
-  id          Int      @id @default(autoincrement())
-  name        String
-  phoneNumber String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  shuttle     Shuttle? @relation(fields: [shuttleId], references: [id])
-  shuttleId   Int?
-  startTime   DateTime?
-  endTime     DateTime?
-  hotelId     Int
-  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  id            Int            @id @default(autoincrement())
+  name          String
+  phoneNumber   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  shuttle       Shuttle?       @relation(fields: [shuttleId], references: [id])
+  shuttleId     Int?
+  startTime     DateTime?
+  endTime       DateTime?
+  hotelId       Int
+  hotel         Hotel          @relation(fields: [hotelId], references: [id])
   notifications Notification[]
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  title     String
-  message   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  driverId  Int?
-  driver    Driver?   @relation(fields: [driverId], references: [id])
-  guestId   Int?
-  guest     Guest?    @relation(fields: [guestId], references: [id])
+  id          Int        @id @default(autoincrement())
+  title       String
+  message     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  driverId    Int?
+  driver      Driver?    @relation(fields: [driverId], references: [id])
+  guestId     Int?
+  guest       Guest?     @relation(fields: [guestId], references: [id])
   frontDeskId Int?
-  frontDesk FrontDesk? @relation(fields: [frontDeskId], references: [id])
-  adminId   Int?
-  admin     Admin?     @relation(fields: [adminId], references: [id])
+  frontDesk   FrontDesk? @relation(fields: [frontDeskId], references: [id])
+  adminId     Int?
+  admin       Admin?     @relation(fields: [adminId], references: [id])
 }
 
 model Hotel {
-  id               Int            @id @default(autoincrement())
-  name             String
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  shuttles         Shuttle[]
-  guests           Guest[]
-  frontDesks       FrontDesk[]
-  admins           Admin[]
-  drivers          Driver[]
+  id         Int         @id @default(autoincrement())
+  name       String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  shuttles   Shuttle[]
+  guests     Guest[]
+  frontDesks FrontDesk[]
+  admins     Admin[]
+  drivers    Driver[]
 }
 
 model Shuttle {
@@ -149,7 +148,7 @@ model Shuttle {
   startTime     DateTime
   endTime       DateTime
   driver        Driver[]
-  capacity      Int
+  seats         Int
   createdAt     DateTime @default(now())
   hotel         Hotel    @relation(fields: [hotelId], references: [id])
   trips         Trip[]

@@ -30,4 +30,10 @@ router.put('/edit/driver/:id', adminAuthMiddleware as RequestHandler, controller
 router.delete('/delete/driver/:id', adminAuthMiddleware as RequestHandler, controller.deleteDriver as RequestHandler);
 router.get('/get/driver', adminAuthMiddleware as RequestHandler, controller.getDriver as RequestHandler);
 
+//shuttle routes
+router.post('/add/shuttle', adminAuthMiddleware as RequestHandler, controller.addShuttle as RequestHandler);
+router.put('/edit/shuttle/:id', adminAuthMiddleware as RequestHandler, controller.editShuttle as RequestHandler);
+router.delete('/delete/shuttle/:id', adminAuthMiddleware as RequestHandler, controller.deleteShuttle as RequestHandler);
+router.get('/get/shuttle', adminAuthMiddleware as RequestHandler, controller.getShuttle as RequestHandler);
+
 export default router;  

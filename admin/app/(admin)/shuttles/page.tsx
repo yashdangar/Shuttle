@@ -1,154 +1,230 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, Truck } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Edit, Trash2, Truck } from "lucide-react";
+import {api} from "@/lib/api";
+
 
 interface Shuttle {
-  id: string
-  vehicleNumber: string
-  driver?: string
-  hotel: string
-  capacity: number
-  status: "Active" | "Maintenance" | "Inactive"
-  createdAt: string
+  id: string;
+  vehicleNumber: string;
+  driver?: string;
+  hotel: string;
+  seats: number;
+  status: "Active" | "Maintenance" | "Inactive";
+  createdAt: string;
+  startTime: string;
+  endTime: string;
 }
 
+interface Hotel {
+  id: string;
+  name: string;
+}
+
+interface Driver {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  hotel: string;
+  assignedShuttle?: string;
+  createdAt: string;
+  startTime: string;
+  endTime: string;
+}
 export default function ShuttlesPage() {
-  const [shuttles, setShuttles] = useState<Shuttle[]>([
-    {
-      id: "1",
-      vehicleNumber: "SH-001",
-      driver: "John Smith",
-      hotel: "Grand Plaza Hotel",
-      capacity: 12,
-      status: "Active",
-      createdAt: "2024-01-15",
-    },
-    {
-      id: "2",
-      vehicleNumber: "SH-002",
-      hotel: "Airport Inn",
-      capacity: 8,
-      status: "Maintenance",
-      createdAt: "2024-01-20",
-    },
-    {
-      id: "3",
-      vehicleNumber: "SH-003",
-      driver: "Maria Garcia",
-      hotel: "Sky View Resort",
-      capacity: 15,
-      status: "Active",
-      createdAt: "2024-02-01",
-    },
-  ])
+  const [shuttles, setShuttles] = useState<Shuttle[]>();
 
-  const hotels = ["Grand Plaza Hotel", "Airport Inn", "Sky View Resort", "Business Center Hotel"]
-  const drivers = ["John Smith", "Maria Garcia", "David Wilson", "Sarah Johnson"]
-  const statuses = ["Active", "Maintenance", "Inactive"]
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingShuttle, setEditingShuttle] = useState<Shuttle | null>(null)
+  const [hotels, setHotels] = useState<Hotel[]>();
+  const [drivers, setDrivers] = useState<Driver[]>();
+  const statuses = ["Active", "Maintenance", "Inactive"];
+
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingShuttle, setEditingShuttle] = useState<Shuttle | null>(null);
   const [formData, setFormData] = useState({
     vehicleNumber: "",
     driver: "",
     hotel: "",
-    capacity: "",
+    seats: "",
     status: "Active" as Shuttle["status"],
-  })
+    startTime: "",
+    endTime: "",
+  });
+  const formatTimeForDisplay = (isoString: string | null | undefined) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { 
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const response = await api.get("/admin/get/driver");
+        setDrivers(response.driver.map((driver: Driver) => ({
+        ...driver,
+        startTime: formatTimeForDisplay(driver.startTime),
+        endTime: formatTimeForDisplay(driver.endTime)
+        })));
+      } catch (error) {
+        console.error("Error fetching drivers:", error);
+      }
+    };
+    const fetchHotel = async () => {
+      try {
+        const response = await api.get("/admin/get/hotel");
+        setHotels([
+          {
+          id: response.hotel.id,
+          name: response.hotel.name,
+          },
+        ]);
+      } catch (error) {
+        console.error("Error fetching hotels:", error);
+      }
+    };
+    const fetchShuttles = async () => {
+      try {
+        const response = await api.get("/admin/get/shuttle");
+        setShuttles(response.shuttle.map((shuttle: Shuttle) => ({
+        ...shuttle,
+        startTime: formatTimeForDisplay(shuttle.startTime),
+        endTime: formatTimeForDisplay(shuttle.endTime)
+        })));
+        console.log(response.shuttle);
+      } catch (error) {
+        console.error("Error fetching shuttles:", error);
+      }
+    };
+    fetchShuttles();
+    fetchHotel();
+    fetchDrivers();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (editingShuttle) {
       setShuttles(
-        shuttles.map((shuttle) =>
+        shuttles?.map((shuttle) =>
           shuttle.id === editingShuttle.id
             ? {
                 ...shuttle,
                 ...formData,
-                capacity: Number.parseInt(formData.capacity),
+                seats: Number.parseInt(formData.seats),
                 driver: formData.driver || undefined,
+                startTime: formData.startTime,
+                endTime: formData.endTime,
               }
-            : shuttle,
-        ),
-      )
-      setEditingShuttle(null)
+            : shuttle
+        )
+      );
+      setEditingShuttle(null);
     } else {
       const newShuttle: Shuttle = {
         id: Date.now().toString(),
         ...formData,
-        capacity: Number.parseInt(formData.capacity),
+        seats: Number.parseInt(formData.seats),
         driver: formData.driver || undefined,
         createdAt: new Date().toISOString().split("T")[0],
-      }
-      setShuttles([...shuttles, newShuttle])
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+      };
+      setShuttles([...(shuttles || []), newShuttle]);
     }
-    resetForm()
-    setIsAddDialogOpen(false)
-  }
+    resetForm();
+    setIsAddDialogOpen(false);
+  };
 
   const handleEdit = (shuttle: Shuttle) => {
-    setEditingShuttle(shuttle)
+    setEditingShuttle(shuttle);
     setFormData({
       vehicleNumber: shuttle.vehicleNumber,
       driver: shuttle.driver || "",
       hotel: shuttle.hotel,
-      capacity: shuttle.capacity.toString(),
+      seats: shuttle.seats.toString(),
       status: shuttle.status,
-    })
-    setIsAddDialogOpen(true)
-  }
+      startTime: shuttle.startTime,
+      endTime: shuttle.endTime,
+    });
+    setIsAddDialogOpen(true);
+  };
 
   const handleDelete = (id: string) => {
-    setShuttles(shuttles.filter((shuttle) => shuttle.id !== id))
-  }
+    setShuttles(shuttles?.filter((shuttle) => shuttle.id !== id));
+  };
 
   const resetForm = () => {
     setFormData({
       vehicleNumber: "",
       driver: "",
       hotel: "",
-      capacity: "",
+      seats: "",
       status: "Active",
-    })
-    setEditingShuttle(null)
-  }
+      startTime: "",
+      endTime: "",
+    });
+    setEditingShuttle(null);
+  };
 
   const getStatusColor = (status: Shuttle["status"]) => {
     switch (status) {
       case "Active":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800";
       case "Maintenance":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-800";
       case "Inactive":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Shuttles Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Shuttles Management
+          </h1>
           <p className="text-slate-600">Manage shuttle fleet and assignments</p>
         </div>
         <Dialog
           open={isAddDialogOpen}
           onOpenChange={(open) => {
-            setIsAddDialogOpen(open)
-            if (!open) resetForm()
+            setIsAddDialogOpen(open);
+            if (!open) resetForm();
           }}
         >
           <DialogTrigger asChild>
@@ -157,27 +233,31 @@ export default function ShuttlesPage() {
               Add New Shuttle
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingShuttle ? "Edit Shuttle" : "Add New Shuttle"}</DialogTitle>
+              <DialogTitle>
+                {editingShuttle ? "Edit Shuttle" : "Add New Shuttle"}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="hotel">Hotel</Label>
                 <Select
                   value={formData.hotel}
-                  onValueChange={(value) => setFormData({ ...formData, hotel: value })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, hotel: value })
+                  }
                   required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select hotel" />
                   </SelectTrigger>
                   <SelectContent>
-                    {hotels.map((hotel) => (
-                      <SelectItem key={hotel} value={hotel}>
-                        {hotel}
+                    {hotels && (
+                      <SelectItem key={hotels[0].id} value={hotels[0].id}>
+                        {hotels[0].name}
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -186,18 +266,22 @@ export default function ShuttlesPage() {
                 <Input
                   id="vehicleNumber"
                   value={formData.vehicleNumber}
-                  onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, vehicleNumber: e.target.value })
+                  }
                   placeholder="SH-001"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="capacity">Capacity</Label>
+                <Label htmlFor="seats">Seats</Label>
                 <Input
-                  id="capacity"
+                  id="seats"
                   type="number"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                  value={formData.seats}
+                  onChange={(e) =>
+                    setFormData({ ...formData, seats: e.target.value })
+                  }
                   placeholder="12"
                   min="1"
                   required
@@ -205,15 +289,20 @@ export default function ShuttlesPage() {
               </div>
               <div>
                 <Label htmlFor="driver">Assign Driver (Optional)</Label>
-                <Select value={formData.driver} onValueChange={(value) => setFormData({ ...formData, driver: value })}>
+                <Select
+                  value={formData.driver}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, driver: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select driver (optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="NoDriver">No driver assigned</SelectItem>
-                    {drivers.map((driver) => (
-                      <SelectItem key={driver} value={driver}>
-                        {driver}
+                    {drivers && drivers.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {driver.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -223,7 +312,12 @@ export default function ShuttlesPage() {
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => setFormData({ ...formData, status: value as Shuttle["status"] })}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      status: value as Shuttle["status"],
+                    })
+                  }
                   required
                 >
                   <SelectTrigger>
@@ -238,13 +332,37 @@ export default function ShuttlesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="startTime">Start Time</Label>
+                <Input
+                  id="startTime"
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startTime: e.target.value })
+                  }
+                  placeholder="08:00"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="endTime">End Time</Label>
+                <Input
+                  id="endTime"
+                  value={formData.endTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, endTime: e.target.value })
+                  }
+                  placeholder="18:00"
+                  required
+                />
+              </div>
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setIsAddDialogOpen(false)
-                    resetForm()
+                    setIsAddDialogOpen(false);
+                    resetForm();
                   }}
                 >
                   Cancel
@@ -272,26 +390,44 @@ export default function ShuttlesPage() {
                 <TableHead>Vehicle Number</TableHead>
                 <TableHead>Driver</TableHead>
                 <TableHead>Hotel</TableHead>
-                <TableHead>Capacity</TableHead>
+                <TableHead>Seats</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created At</TableHead>
+                <TableHead>Start Time</TableHead>
+                <TableHead>End Time</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shuttles.map((shuttle) => (
+              {shuttles && shuttles.map((shuttle) => (
                 <TableRow key={shuttle.id}>
-                  <TableCell className="font-medium">{shuttle.vehicleNumber}</TableCell>
-                  <TableCell>{shuttle.driver || <span className="text-slate-400">Not assigned</span>}</TableCell>
-                  <TableCell>{shuttle.hotel}</TableCell>
-                  <TableCell>{shuttle.capacity} passengers</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(shuttle.status)}>{shuttle.status}</Badge>
+                  <TableCell className="font-medium">
+                    {shuttle.vehicleNumber}
                   </TableCell>
-                  <TableCell>{new Date(shuttle.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {shuttle.driver || (
+                      <span className="text-slate-400">Not assigned</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{shuttle.hotel}</TableCell>
+                  <TableCell>{shuttle.seats} seats</TableCell>
+                  <TableCell>
+                    <Badge className={getStatusColor(shuttle.status)}>
+                      {shuttle.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(shuttle.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>{shuttle.startTime}</TableCell>
+                  <TableCell>{shuttle.endTime}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(shuttle)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(shuttle)}
+                      >
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button
@@ -311,5 +447,5 @@ export default function ShuttlesPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

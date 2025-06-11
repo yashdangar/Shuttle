@@ -156,7 +156,6 @@ const getFrontdesk = async (req: Request, res: Response) => {
   }
 };
 
-
 const getAdmin = async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -302,24 +301,19 @@ const getHotel = async (req: Request, res: Response) => {
   }
 };
 
-// model Driver {
-//   id          Int      @id @default(autoincrement())
-//   name        String
-//   phoneNumber String
-//   createdAt   DateTime @default(now())
-//   updatedAt   DateTime @updatedAt
-//   shuttle     Shuttle? @relation(fields: [shuttleId], references: [id])
-//   shuttleId   Int?
-//   hotelId     Int
-//   hotel       Hotel    @relation(fields: [hotelId], references: [id])
-//   notifications Notification[]
-// }
-
 const addDriver = async (req: Request, res: Response) => {
   try {
     const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
     const driver = await prisma.driver.create({
-      data: { name, phoneNumber, hotelId: parseInt(hotelId), createdAt: new Date(), updatedAt: new Date(), startTime, endTime  },
+      data: {
+        name,
+        phoneNumber,
+        hotelId: parseInt(hotelId),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        startTime,
+        endTime,
+      },
     });
     res.json({ driver });
   } catch (error) {
@@ -334,8 +328,15 @@ const editDriver = async (req: Request, res: Response) => {
     const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
     const driver = await prisma.driver.update({
       where: { id: parseInt(id) },
-      data: { name, phoneNumber, hotelId: parseInt(hotelId), updatedAt: new Date(), startTime, endTime },
-    }); 
+      data: {
+        name,
+        phoneNumber,
+        hotelId: parseInt(hotelId),
+        updatedAt: new Date(),
+        startTime,
+        endTime,
+      },
+    });
     res.json({ driver });
   } catch (error) {
     console.error("Edit driver error:", error);
@@ -372,6 +373,79 @@ const getDriver = async (req: Request, res: Response) => {
   }
 };
 
+const addShuttle = async (req: Request, res: Response) => {
+  try {
+    const { vehicleNumber, driverId, startTime, endTime, hotelId, seats } =
+      req.body;
+    const shuttle = await prisma.shuttle.create({
+      data: {
+        vehicleNumber,
+        driverId,
+        startTime,
+        endTime,
+        hotelId: parseInt(hotelId),
+        seats: parseInt(seats),
+        createdAt: new Date(),
+      },
+    });
+    res.json({ shuttle });
+  } catch (error) {
+    console.error("Add shuttle error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const editShuttle = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const { vehicleNumber, driverId, startTime, endTime, hotelId, seats } =
+      req.body;
+    const shuttle = await prisma.shuttle.update({
+      where: { id: parseInt(id) },
+      data: {
+        vehicleNumber,
+        driverId,
+        startTime,
+        endTime,
+        hotelId: parseInt(hotelId),
+        seats: parseInt(seats),
+      },
+    });
+    res.json({ shuttle });
+  } catch (error) {
+    console.error("Edit shuttle error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+const deleteShuttle = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const shuttle = await prisma.shuttle.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ shuttle });
+  } catch (error) {
+    console.error("Delete shuttle error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getShuttle = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const shuttle = await prisma.shuttle.findMany({
+      where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+      include: {
+        driver: true,
+      },
+    });
+    res.json({ shuttle });
+  } catch (error) {
+    console.error("Get shuttle error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -388,4 +462,8 @@ export default {
   editDriver,
   deleteDriver,
   getDriver,
+  addShuttle,
+  editShuttle,
+  deleteShuttle,
+  getShuttle,
 };
