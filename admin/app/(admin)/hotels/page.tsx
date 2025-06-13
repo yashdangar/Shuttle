@@ -39,10 +39,14 @@ export default function HotelsPage() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
-  const [formData, setFormData] = useState<{ name: string; latitude: number; longitude: number }>({ 
-    name: "", 
-    latitude: 0.0, 
-    longitude: 0.0 
+  const [formData, setFormData] = useState<{
+    name: string;
+    latitude: number;
+    longitude: number;
+  }>({
+    name: "",
+    latitude: 0.0,
+    longitude: 0.0,
   });
 
   const fetchHotelData = async () => {
@@ -68,17 +72,16 @@ export default function HotelsPage() {
           longitude: formData.longitude,
         });
       } else {
-        await api.post("/admin/create/hotel", {
+        await api.post("/admin/add/hotel", {
           name: formData.name,
-          token: localStorage.getItem("adminToken"),
           latitude: formData.latitude,
           longitude: formData.longitude,
         });
       }
-      
+
       // Fetch updated data after successful submission
       await fetchHotelData();
-      
+
       setFormData({ name: "", latitude: 0.0, longitude: 0.0 });
       setIsAddDialogOpen(false);
       setEditingHotel(null);
@@ -89,7 +92,11 @@ export default function HotelsPage() {
 
   const handleEdit = async (hotel: Hotel) => {
     setEditingHotel(hotel);
-    setFormData({ name: hotel.name, latitude: hotel.latitude, longitude: hotel.longitude });
+    setFormData({
+      name: hotel.name,
+      latitude: hotel.latitude,
+      longitude: hotel.longitude,
+    });
     setIsAddDialogOpen(true);
   };
 
@@ -144,7 +151,9 @@ export default function HotelsPage() {
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter hotel name"
                   required
                 />
@@ -156,7 +165,12 @@ export default function HotelsPage() {
                   type="number"
                   step="any"
                   value={formData.latitude}
-                  onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      latitude: parseFloat(e.target.value),
+                    })
+                  }
                   placeholder="Enter latitude"
                   required
                 />
@@ -168,7 +182,12 @@ export default function HotelsPage() {
                   type="number"
                   step="any"
                   value={formData.longitude}
-                  onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      longitude: parseFloat(e.target.value),
+                    })
+                  }
                   placeholder="Enter longitude"
                   required
                 />

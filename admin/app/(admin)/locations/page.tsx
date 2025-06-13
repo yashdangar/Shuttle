@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -35,7 +36,7 @@ interface Location {
 }
 
 export default function HotelsPage() {
-  const [location, setLocation] = useState<Location | null>(null);
+  const [location, setLocation] = useState<Location[] | null>(null);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -51,7 +52,8 @@ export default function HotelsPage() {
 
   const fetchLocationData = async () => {
     try {
-      const response = await api.get(`/admin/get/location`);
+      const response = await api.get(`/admin/get/locations`);
+      console.log(response.location);
       setLocation(response.location);
     } catch (error) {
       console.error("Error fetching location data:", error);
@@ -72,15 +74,13 @@ export default function HotelsPage() {
           longitude: formData.longitude,
         });
       } else {
-        await api.post("/admin/create/location", {
+        await api.post("/admin/add/location", {
           name: formData.name,
-          token: localStorage.getItem("adminToken"),
           latitude: formData.latitude,
           longitude: formData.longitude,
         });
       }
 
-      // Fetch updated data after successful submission
       await fetchLocationData();
 
       setFormData({ name: "", latitude: 0.0, longitude: 0.0 });
@@ -149,6 +149,9 @@ export default function HotelsPage() {
               <DialogTitle>
                 {editingLocation ? "Edit Location" : "Add New Location"}
               </DialogTitle>
+              <DialogDescription>
+                {editingLocation ? "Update the location details below." : "Fill in the details to add a new location."}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -237,13 +240,16 @@ export default function HotelsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {location && (
-                <TableRow>
+              {location && location.map((location: Location) => (
+                <TableRow key={location.id}>
                   <TableCell className="font-medium">{location.name}</TableCell>
                   <TableCell>{location.latitude}</TableCell>
                   <TableCell>{location.longitude}</TableCell>
                   <TableCell>
                     {new Date(location.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(location.updatedAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
@@ -265,7 +271,7 @@ export default function HotelsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </CardContent>

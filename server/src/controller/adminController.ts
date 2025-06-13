@@ -448,6 +448,61 @@ const getShuttle = async (req: Request, res: Response) => {
   }
 };
 
+const getLocation = async (req: Request, res: Response) => {
+  try {
+    const location = await prisma.location.findMany();
+    res.json({ location });
+  } catch (error) {
+    console.error("Get location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const addLocation = async (req: Request, res: Response) => {
+  try {
+    const { name, latitude, longitude } = req.body;
+    const location = await prisma.location.create({ 
+      data: {
+        name,
+        latitude,
+        longitude,
+      },
+    }); 
+    res.json({ location });
+  } catch (error) {
+    console.error("Add location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const editLocation = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const { name, latitude, longitude } = req.body;
+    const location = await prisma.location.update({
+      where: { id: parseInt(id) },
+      data: { name, latitude, longitude },
+    });
+    res.json({ location });
+  } catch (error) {
+    console.error("Edit location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteLocation = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const location = await prisma.location.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ location });
+  } catch (error) {
+    console.error("Delete location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -468,4 +523,8 @@ export default {
   editShuttle,
   deleteShuttle,
   getShuttle,
+  addLocation,
+  editLocation,
+  deleteLocation,
+  getLocation,
 };

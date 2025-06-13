@@ -13,7 +13,7 @@ router.get('/', adminAuthMiddleware as RequestHandler, controller.getAdmin as Re
 
 
 //hotel routes
-router.post('/create/hotel', adminAuthMiddleware as RequestHandler, controller.createHotel as RequestHandler);
+router.post('/add/hotel', adminAuthMiddleware as RequestHandler, controller.createHotel as RequestHandler);
 router.put('/edit/hotel/:id', adminAuthMiddleware as RequestHandler, controller.editHotel as RequestHandler);
 router.delete('/delete/hotel/:id', adminAuthMiddleware as RequestHandler, controller.deleteHotel as RequestHandler);
 router.get('/get/hotel', adminAuthMiddleware as RequestHandler, controller.getHotel as RequestHandler);
@@ -35,5 +35,11 @@ router.post('/add/shuttle', adminAuthMiddleware as RequestHandler, controller.ad
 router.put('/edit/shuttle/:id', adminAuthMiddleware as RequestHandler, controller.editShuttle as RequestHandler);
 router.delete('/delete/shuttle/:id', adminAuthMiddleware as RequestHandler, controller.deleteShuttle as RequestHandler);
 router.get('/get/shuttle', adminAuthMiddleware as RequestHandler, controller.getShuttle as RequestHandler);
+
+//location routes
+router.post('/add/location', adminAuthMiddleware as RequestHandler, controller.addLocation as RequestHandler);
+router.put('/edit/location/:id', adminAuthMiddleware as RequestHandler, controller.editLocation as RequestHandler);
+router.delete('/delete/location/:id', adminAuthMiddleware as RequestHandler, controller.deleteLocation as RequestHandler);
+router.get('/get/locations', adminAuthMiddleware as RequestHandler, controller.getLocation as RequestHandler); 
 
 export default router;  
