@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Building2, Users, Car, Truck, Route } from "lucide-react"
+import { LayoutDashboard, Building2, Users, Car, Truck, Route, MapPin } from "lucide-react"
 
 const navigation = [
   {
@@ -30,6 +30,11 @@ const navigation = [
     name: "Shuttles",
     href: "/shuttles",
     icon: Truck,
+  },
+  {
+    name: "Locations",
+    href: "/locations",
+    icon: MapPin,
   },
   {
     name: "Trips",
