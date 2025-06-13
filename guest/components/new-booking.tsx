@@ -128,7 +128,10 @@ export default function NewBooking({
           `${formData.createdAt} ${formData.preferredTime}`
         ),
         paymentMethod: formData.paymentMethod.toUpperCase(),
-        tripType: tripDirection === "hotel-to-airport" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL",
+        tripType:
+          tripDirection === "hotel-to-airport"
+            ? "HOTEL_TO_AIRPORT"
+            : "AIRPORT_TO_HOTEL",
         // Set pickup and dropoff based on trip direction
         ...(tripDirection === "hotel-to-airport"
           ? {
@@ -149,6 +152,12 @@ export default function NewBooking({
       try {
         const response = await api.post("/guest/create-trip", tripData);
         console.log(response);
+        
+        if (response.trip) {
+          onBookingCreated(response.trip);
+        }
+
+        setIsSubmitting(false);
       } catch (error) {
         console.error("Error creating trip:", error);
       }

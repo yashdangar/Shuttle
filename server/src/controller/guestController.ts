@@ -142,4 +142,20 @@ const createTrip = async (req: Request, res: Response) => {
   }
 };
 
-export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip };
+const getTrips = async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId;
+  const trips = await prisma.trip.findMany({
+    where: { guestId: userId },
+  });
+  res.json({ trips });
+};
+
+const getTrip = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const trip = await prisma.trip.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json({ trip });
+};
+
+export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip };

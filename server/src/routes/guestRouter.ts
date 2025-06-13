@@ -15,5 +15,7 @@ router.get('/get-locations', guestAuthMiddleware as RequestHandler, controller.g
 
 //trip routes
 router.post('/create-trip', guestAuthMiddleware as RequestHandler, controller.createTrip as RequestHandler);
+router.get('/get-trips', guestAuthMiddleware as RequestHandler, controller.getTrips as RequestHandler);
+router.get('/get-trip/:id', guestAuthMiddleware as RequestHandler, controller.getTrip as RequestHandler);
 
 export default router; 

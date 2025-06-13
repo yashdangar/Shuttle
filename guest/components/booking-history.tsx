@@ -5,13 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MapPin, Clock, Users, MoreHorizontal } from "lucide-react"
+import { api } from "@/lib/api"
 
 export default function BookingHistory() {
   const [bookings, setBookings] = useState<any[]>([])
 
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem("bookingHistory") || "[]")
-    setBookings(history)
+    const getHistory = async () => {
+      const response = await api.get("/guest/get-trips")
+      setBookings(response.trips)
+    }
+    getHistory()
+    //  setBookings(history)
   }, [])
 
   const getStatusColor = (status: string) => {
