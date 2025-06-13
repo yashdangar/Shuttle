@@ -30,6 +30,8 @@ interface Hotel {
   name: string;
   createdAt: string;
   updatedAt: string;
+  latitude: number;
+  longitude: number;
 }
 
 export default function HotelsPage() {
@@ -37,63 +39,72 @@ export default function HotelsPage() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
-  const [formData, setFormData] = useState({ name: "" });
+  const [formData, setFormData] = useState<{ name: string; latitude: number; longitude: number }>({ 
+    name: "", 
+    latitude: 0.0, 
+    longitude: 0.0 
+  });
+
+  const fetchHotelData = async () => {
+    try {
+      const response = await api.get(`/admin/get/hotel`);
+      setHotel(response.hotel);
+    } catch (error) {
+      console.error("Error fetching hotel data:", error);
+    }
+  };
 
   useEffect(() => {
-    const fetchHotel = async () => {
-      const response = await api.get(`/admin/get/hotel`);
-      // console.log(response);
-      setHotel(response.hotel);
-    };
-    fetchHotel();
+    fetchHotelData();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingHotel) {
-      const response = await api.put(`/admin/edit/hotel/${editingHotel.id}`, {
-        name: formData.name,
-      });
-      // console.log(response);
-      setHotel({ ...hotel!, name: formData.name });
+    try {
+      if (editingHotel) {
+        await api.put(`/admin/edit/hotel/${editingHotel.id}`, {
+          name: formData.name,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+        });
+      } else {
+        await api.post("/admin/create/hotel", {
+          name: formData.name,
+          token: localStorage.getItem("adminToken"),
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+        });
+      }
+      
+      // Fetch updated data after successful submission
+      await fetchHotelData();
+      
+      setFormData({ name: "", latitude: 0.0, longitude: 0.0 });
+      setIsAddDialogOpen(false);
       setEditingHotel(null);
-    } else {
-      const newHotel: Hotel = {
-        id: Date.now().toString(),
-        name: formData.name,
-        createdAt: new Date().toISOString().split("T")[0],
-        updatedAt: new Date().toISOString().split("T")[0],
-      };
-
-      const response = await api.post("/admin/create/hotel", {
-        name: formData.name,
-        token: localStorage.getItem("adminToken"),
-      });
-      console.log(response);
-      setHotel(newHotel);
+    } catch (error) {
+      console.error("Error submitting hotel data:", error);
     }
-    setFormData({ name: "" });
-    setIsAddDialogOpen(false);
   };
 
   const handleEdit = async (hotel: Hotel) => {
     setEditingHotel(hotel);
-    setFormData({ name: hotel.name });
+    setFormData({ name: hotel.name, latitude: hotel.latitude, longitude: hotel.longitude });
     setIsAddDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await api.delete(`/admin/delete/hotel/${id}`);
-      console.log(response);
-      setHotel(null);
+      await api.delete(`/admin/delete/hotel/${id}`);
+      // Fetch updated data after successful deletion
+      await fetchHotelData();
     } catch (error) {
       console.error("Delete hotel error:", error);
     }
   };
 
   const resetForm = () => {
-    setFormData({ name: "" });
+    setFormData({ name: "", latitude: 0.0, longitude: 0.0 });
     setEditingHotel(null);
   };
 
@@ -133,8 +144,32 @@ export default function HotelsPage() {
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ name: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Enter hotel name"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  type="number"
+                  step="any"
+                  value={formData.latitude}
+                  onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
+                  placeholder="Enter latitude"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  type="number"
+                  step="any"
+                  value={formData.longitude}
+                  onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
+                  placeholder="Enter longitude"
                   required
                 />
               </div>
@@ -170,6 +205,8 @@ export default function HotelsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Hotel Name</TableHead>
+                <TableHead>Latitude</TableHead>
+                <TableHead>Longitude</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead>Updated At</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -179,6 +216,8 @@ export default function HotelsPage() {
               {hotel && (
                 <TableRow>
                   <TableCell className="font-medium">{hotel.name}</TableCell>
+                  <TableCell>{hotel.latitude}</TableCell>
+                  <TableCell>{hotel.longitude}</TableCell>
                   <TableCell>
                     {new Date(hotel.createdAt).toLocaleDateString()}
                   </TableCell>

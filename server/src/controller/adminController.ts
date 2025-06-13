@@ -189,7 +189,7 @@ const getAdmin = async (req: Request, res: Response) => {
 
 const createHotel = async (req: Request, res: Response) => {
   try {
-    const { name } = req.body;
+    const { name, latitude, longitude } = req.body;
     const adminId = (req as any).user.userId;
 
     // Check if admin already has a hotel
@@ -209,6 +209,8 @@ const createHotel = async (req: Request, res: Response) => {
     const hotel = await prisma.hotel.create({
       data: {
         name,
+        latitude,
+        longitude,
         admins: { connect: { id: parseInt(adminId) } },
       },
     });
@@ -221,7 +223,7 @@ const createHotel = async (req: Request, res: Response) => {
 const editHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
-    const { name } = req.body;
+    const { name, latitude, longitude } = req.body;
     const adminId = (req as any).user.userId;
 
     const existingHotel = await prisma.hotel.findUnique({
@@ -244,7 +246,7 @@ const editHotel = async (req: Request, res: Response) => {
     }
     const hotel = await prisma.hotel.update({
       where: { id: parseInt(hotelId) },
-      data: { name, updatedAt: new Date() },
+      data: { name, latitude, longitude, updatedAt: new Date() },
     });
     res.json({ hotel });
   } catch (error) {
