@@ -1,36 +1,51 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, QrCode, History, Plus } from "lucide-react"
-import CurrentBooking from "@/components/current-booking"
-import BookingHistory from "@/components/booking-history"
-import NewBooking from "@/components/new-booking"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, QrCode, History, Plus } from "lucide-react";
+import CurrentBooking from "@/components/current-booking";
+import BookingHistory from "@/components/booking-history";
+import NewBooking from "@/components/new-booking";
+import { useRouter, useParams } from "next/navigation";
+import { api } from "@/lib/api";
 
-export default function HotelPage({ params }: { params: { hotelId: string } }) {
-  const router = useRouter()
-  const [selectedHotel, setSelectedHotel] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState("current")
-  const [currentBooking, setCurrentBooking] = useState<any>(null)
+interface Hotel {
+  id: number;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+export default function HotelPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [activeTab, setActiveTab] = useState("current");
+  const [currentBooking, setCurrentBooking] = useState<any>(null);
 
   useEffect(() => {
-    const hotelId = params.hotelId
+    const hotelId = params.id as string;
+    console.log(hotelId);
     if (hotelId) {
-      setSelectedHotel(hotelId)
-    }else{
-      router.push("/select-hotel")
+      const fetchHotel = async () => {
+        const response = await api.get(`/guest/get-hotel/${hotelId}`);
+        console.log(response);
+        setSelectedHotel(response.hotel.hotel)
+      };
+      fetchHotel();
+    } else {
+      router.push("/select-hotel");
     }
 
     // Check for current booking
-    const booking = localStorage.getItem("currentBooking")
+    const booking = localStorage.getItem("currentBooking");
     if (booking) {
-      setCurrentBooking(JSON.parse(booking))
+      setCurrentBooking(JSON.parse(booking));
     }
-  }, [])
+  }, []);
 
   if (!selectedHotel) {
-    return <div>Loading...</div>
+    return <div>Loading...</div>;
   }
 
   return (
@@ -44,8 +59,8 @@ export default function HotelPage({ params }: { params: { hotelId: string } }) {
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Hotel Name</h1>
-                <p className="text-sm text-gray-600">Hotel Address</p>
+                <h1 className="text-xl font-bold text-gray-900">{selectedHotel.name}</h1>
+                <p className="text-sm text-gray-600">{selectedHotel.address}</p>
               </div>
             </div>
             <Badge variant="secondary" className="text-sm">
@@ -105,19 +120,22 @@ export default function HotelPage({ params }: { params: { hotelId: string } }) {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
         {activeTab === "current" && (
-          <CurrentBooking booking={currentBooking} onNewBooking={() => setActiveTab("new")} />
+          <CurrentBooking
+            booking={currentBooking}
+            onNewBooking={() => setActiveTab("new")}
+          />
         )}
         {activeTab === "new" && (
           <NewBooking
             hotel={selectedHotel}
             onBookingCreated={(booking) => {
-              setCurrentBooking(booking)
-              setActiveTab("current")
+              setCurrentBooking(booking);
+              setActiveTab("current");
             }}
           />
         )}
         {activeTab === "history" && <BookingHistory />}
       </div>
     </div>
-  )
+  );
 }

@@ -1,27 +1,27 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function AuthCallback() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get("token")
-    const hotelId = searchParams.get("hotelId")
+    const token = searchParams.get("token");
+    const hotelId = searchParams.get("hotelId");
     if (!token) {
-      router.push("/login")
+      router.push("/login");
     } else {
-      localStorage.setItem("token", token)
+      document.cookie = `guestToken=${token}; path=/; max-age=86400; secure; samesite=strict`;
+      
       if (hotelId) {
-          router.push(`/hotel/${hotelId}`)
-      }else{
-        router.push("/select-hotel")
+        router.push(`/hotel/${hotelId}`);
+      } else {
+        router.push("/select-hotel");
       }
-
-    } 
-  }, [searchParams, router])
+    }
+  }, [searchParams, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -30,5 +30,5 @@ export default function AuthCallback() {
         <p className="text-gray-600">Completing sign in...</p>
       </div>
     </div>
-  )
-} 
+  );
+}

@@ -57,7 +57,7 @@ passport.deserializeUser(async (id: string, done) => {
 
 // Google OAuth routes
 router.get('/google', (req, res, next) => {
-  console.log('state:', req.query.hotelId);  // this will now show correctly when you visit /auth/google?state=123
+  // console.log('state:', req.query.hotelId);  // this will now show correctly when you visit /auth/google?state=123
 
   // Dynamically pass state into authenticate middleware
   passport.authenticate('google', {
@@ -72,14 +72,16 @@ router.get('/google/callback',
   (req, res) => {
     const user = req.user as any;
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email,},
       process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
     // console.log(req.query.state)
-    if (req.query.state) {
+    
+    if (req.query.state || user.hotelId) {
       // Redirect to frontend with token
-      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&hotelId=${req.query.state}`);
+      const hotelId = req.query.state ? req.query.state : user.hotelId;
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&hotelId=${hotelId}`);
     } else {
       // Redirect to frontend with token
       res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
