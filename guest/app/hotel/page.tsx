@@ -6,16 +6,20 @@ import { MapPin, QrCode, History, Plus } from "lucide-react"
 import CurrentBooking from "@/components/current-booking"
 import BookingHistory from "@/components/booking-history"
 import NewBooking from "@/components/new-booking"
+import { useRouter } from "next/navigation"
 
-export default function HotelPage() {
-  const [selectedHotel, setSelectedHotel] = useState<any>(null)
+export default function HotelPage({ params }: { params: { hotelId: string } }) {
+  const router = useRouter()
+  const [selectedHotel, setSelectedHotel] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("current")
   const [currentBooking, setCurrentBooking] = useState<any>(null)
 
   useEffect(() => {
-    const hotel = localStorage.getItem("selectedHotel")
-    if (hotel) {
-      setSelectedHotel(JSON.parse(hotel))
+    const hotelId = params.hotelId
+    if (hotelId) {
+      setSelectedHotel(hotelId)
+    }else{
+      router.push("/select-hotel")
     }
 
     // Check for current booking
@@ -40,8 +44,8 @@ export default function HotelPage() {
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{selectedHotel.name}</h1>
-                <p className="text-sm text-gray-600">{selectedHotel.address}</p>
+                <h1 className="text-xl font-bold text-gray-900">Hotel Name</h1>
+                <p className="text-sm text-gray-600">Hotel Address</p>
               </div>
             </div>
             <Badge variant="secondary" className="text-sm">

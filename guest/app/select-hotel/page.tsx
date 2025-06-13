@@ -54,10 +54,14 @@ export default function SelectHotelPage() {
   }
 
   const handleContinue = () => {
+
     if (selectedHotel) {
       const hotel = hotels.find((h) => h.id === selectedHotel)
-      localStorage.setItem("selectedHotel", JSON.stringify(hotel))
-      router.push("/hotel")
+      if (hotel) {
+        // localStorage.setItem("hotelId", hotel.id.toString())
+        
+        router.push(`/hotel/${hotel.id}`)
+      }
     }
   }
 

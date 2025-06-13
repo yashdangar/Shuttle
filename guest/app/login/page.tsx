@@ -13,16 +13,8 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
-    // Simulate Google login
-    setTimeout(() => {
-      // Check if user has selected hotel before
-      const hasSelectedHotel = localStorage.getItem("selectedHotel")
-      if (hasSelectedHotel) {
-        router.push("/hotel")
-      } else {
-        router.push("/select-hotel")
-      }
-    }, 2000)
+    // Redirect to backend OAuth endpoint``
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`
   }
 
   return (

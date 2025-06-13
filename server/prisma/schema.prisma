@@ -9,7 +9,8 @@ datasource db {
 
 model Guest {
   id              Int            @id @default(autoincrement())
-  email           String?
+  email           String?        @unique
+  googleId        String?
   firstName       String?
   lastName        String?
   phoneNumber     String?
@@ -18,9 +19,9 @@ model Guest {
   reservationId   String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
-  hotelId         Int
+  hotelId         Int?
   isNonResident   Boolean        @default(false)
-  hotel           Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade)
+  hotel           Hotel?         @relation(fields: [hotelId], references: [id],onDelete: Cascade)
   trips           Trip[]
   notifications   Notification[]
 }
@@ -133,6 +134,8 @@ model Hotel {
   name       String
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+  latitude   Float?
+  longitude  Float?
   shuttles   Shuttle[] 
   guests     Guest[]
   frontDesks FrontDesk[]
@@ -153,3 +156,4 @@ model Shuttle {
   hotel         Hotel    @relation(fields: [hotelId], references: [id],onDelete: Cascade)
   trips         Trip[]
 }
+
