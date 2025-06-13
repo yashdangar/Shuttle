@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../db/prisma";
 import axios from "axios";
+import { PaymentMethod, TripType } from "@prisma/client";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -21,16 +22,17 @@ const getAddressFromCoordinates = async (lat: number, lon: number) => {
 const getHotels = async (req: Request, res: Response) => {
   try {
     const hotels = await prisma.hotel.findMany();
-    
+
     // Convert coordinates to addresses for each hotel
     const hotelsWithAddresses = await Promise.all(
       hotels.map(async (hotel) => {
-        const address = hotel.latitude && hotel.longitude 
-          ? await getAddressFromCoordinates(hotel.latitude, hotel.longitude)
-          : null;
+        const address =
+          hotel.latitude && hotel.longitude
+            ? await getAddressFromCoordinates(hotel.latitude, hotel.longitude)
+            : null;
         return {
           ...hotel,
-          address: address || "Address not available"
+          address: address || "Address not available",
         };
       })
     );
@@ -74,4 +76,70 @@ const getHotel = async (req: Request, res: Response) => {
   res.json({ hotel });
 };
 
-export default { getGuest, getHotels, setHotel, getHotel };
+const getLocations = async (req: Request, res: Response) => {
+  try {
+    const locations = await prisma.location.findMany();
+    res.json({ locations });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch locations" });
+  }
+};
+// model Trip {
+//   id                Int           @id @default(autoincrement())
+//   guestId           Int
+//   numberOfPersons   Int
+//   numberOfBags      Int
+//   pickupLocation    Location?     @relation(fields: [pickupLocationId], references: [id], name: "pickup")
+//   pickupLocationId  Int?
+//   dropoffLocation   Location?     @relation(fields: [dropoffLocationId], references: [id], name: "dropoff")
+//   dropoffLocationId Int?
+//   preferredTime     DateTime?
+//   paymentMethod     PaymentMethod
+//   tripType          TripType
+//   isCompleted       Boolean       @default(false)
+//   isPaid            Boolean       @default(false)
+//   isCancelled       Boolean       @default(false)
+//   isRefunded        Boolean       @default(false)
+//   shuttleId         Int?
+//   shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
+//   guest             Guest         @relation(fields: [guestId], references: [id])
+//   encryptionKey     String?
+//   qrCodePath        String?
+//   createdAt         DateTime      @default(now())
+//   updatedAt         DateTime      @updatedAt
+// }
+const createTrip = async (req: Request, res: Response) => {
+  const {
+    numberOfPersons,
+    numberOfBags,
+    preferredTime,
+    paymentMethod,
+    tripType,
+    pickupLocationId,
+    dropoffLocationId,
+  } = req.body;
+  const userId = (req as any).user.userId;
+
+  try {
+    const trip = await prisma.trip.create({
+      data: {
+        numberOfPersons,
+        numberOfBags,
+        preferredTime: new Date(preferredTime),
+        paymentMethod: paymentMethod as PaymentMethod,
+        tripType: tripType as TripType,
+        pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
+        dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
+        guestId: userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    res.json({ trip });
+  } catch (error) {
+    console.error("Error creating trip:", error);
+    res.status(500).json({ error: "Failed to create trip" });
+  }
+};
+
+export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip };

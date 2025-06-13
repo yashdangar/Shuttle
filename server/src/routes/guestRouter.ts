@@ -10,4 +10,10 @@ router.get('/hotels', guestAuthMiddleware as RequestHandler, controller.getHotel
 router.post('/set-hotel', guestAuthMiddleware as RequestHandler, controller.setHotel as RequestHandler);
 router.get('/get-hotel/:id', guestAuthMiddleware as RequestHandler, controller.getHotel as RequestHandler);
 
+//location routes
+router.get('/get-locations', guestAuthMiddleware as RequestHandler, controller.getLocations as RequestHandler);
+
+//trip routes
+router.post('/create-trip', guestAuthMiddleware as RequestHandler, controller.createTrip as RequestHandler);
+
 export default router; 
