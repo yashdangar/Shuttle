@@ -2,8 +2,7 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import prisma from "../db/prisma";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+import { env } from "../config/env";
 
 const signup = async (req: Request, res: Response) => {
   try {
@@ -40,7 +39,7 @@ const signup = async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign({ userId: admin.id, role: "admin" }, JWT_SECRET, {
+    const token = jwt.sign({ userId: admin.id, role: "admin" }, env.jwt.secret, {
       expiresIn: "24h",
     });
 
@@ -77,7 +76,7 @@ const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: admin.id, role: "admin" }, JWT_SECRET, {
+    const token = jwt.sign({ userId: admin.id, role: "admin", hotelId: admin.hotelId }, env.jwt.secret, {
       expiresIn: "24h",
     });
 
@@ -162,7 +161,7 @@ const getAdmin = async (req: Request, res: Response) => {
     if (!token) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, env.jwt.secret) as { userId: string };
     const userId = decoded.userId;
 
     const admin = await prisma.admin.findUnique({

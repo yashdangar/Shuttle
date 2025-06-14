@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { env } from "../config/env";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 interface JWTPayload {
   userId: string;
@@ -20,7 +20,7 @@ const adminAuthMiddleware = (
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
 
     if (decoded.role !== "admin") {
       return res
@@ -47,7 +47,7 @@ const guestAuthMiddleware = (
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
     // Add user info to request
     (req as any).user = decoded;
     next();
@@ -68,7 +68,7 @@ const frontdeskAuthMiddleware = (
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
 
     if (decoded.role !== "frontdesk") {
       return res
@@ -83,4 +83,31 @@ const frontdeskAuthMiddleware = (
   }
 };
 
-export { adminAuthMiddleware, frontdeskAuthMiddleware, guestAuthMiddleware };
+const driverAuthMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
+
+    if (decoded.role !== "driver") {
+      return res
+        .status(403)
+        .json({ message: "Access denied. Driver role required." });
+    }
+    // Add user info to request
+    (req as any).user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+};
+
+export { adminAuthMiddleware, frontdeskAuthMiddleware, guestAuthMiddleware, driverAuthMiddleware };
