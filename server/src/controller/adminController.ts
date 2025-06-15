@@ -304,16 +304,17 @@ const getHotel = async (req: Request, res: Response) => {
 
 const addDriver = async (req: Request, res: Response) => {
   try {
-    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
+    const { name, phoneNumber, hotelId, email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
     const driver = await prisma.driver.create({
       data: {
         name,
         phoneNumber,
         hotelId: parseInt(hotelId),
+        email,
+        password: hashedPassword,
         createdAt: new Date(),
         updatedAt: new Date(),
-        startTime,
-        endTime,
       },
     });
     res.json({ driver });
@@ -326,7 +327,7 @@ const addDriver = async (req: Request, res: Response) => {
 const editDriver = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
+    const { name, phoneNumber, hotelId } = req.body;
     const driver = await prisma.driver.update({
       where: { id: parseInt(id) },
       data: {
@@ -334,8 +335,6 @@ const editDriver = async (req: Request, res: Response) => {
         phoneNumber,
         hotelId: parseInt(hotelId),
         updatedAt: new Date(),
-        startTime,
-        endTime,
       },
     });
     res.json({ driver });
@@ -364,7 +363,7 @@ const getDriver = async (req: Request, res: Response) => {
     const driver = await prisma.driver.findMany({
       where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
       include: {
-        shuttle: true,
+        schedules: true,
       },
     });
     res.json({ driver });
@@ -381,9 +380,6 @@ const addShuttle = async (req: Request, res: Response) => {
     const shuttle = await prisma.shuttle.create({
       data: {
         vehicleNumber,
-        driverId,
-        startTime,
-        endTime,
         hotelId: parseInt(hotelId),
         seats: parseInt(seats),
         createdAt: new Date(),
@@ -399,15 +395,12 @@ const addShuttle = async (req: Request, res: Response) => {
 const editShuttle = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { vehicleNumber, driverId, startTime, endTime, hotelId, seats } =
+    const { vehicleNumber, hotelId, seats } =
       req.body;
     const shuttle = await prisma.shuttle.update({
       where: { id: parseInt(id) },
       data: {
         vehicleNumber,
-        driverId,
-        startTime,
-        endTime,
         hotelId: parseInt(hotelId),
         seats: parseInt(seats),
       },
@@ -437,7 +430,7 @@ const getShuttle = async (req: Request, res: Response) => {
     const shuttle = await prisma.shuttle.findMany({
       where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
       include: {
-        driver: true,
+        schedules: true,
       },
     });
     res.json({ shuttle });
