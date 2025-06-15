@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Users, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
+import { Loader } from "@/components/ui/loader";
+import { TableLoader } from "../../../components/ui/table-loader";
 
 interface Hotel {
   id: number;
@@ -50,6 +52,7 @@ interface FrontDesk {
 
 export default function FrontDesksPage() {
   const [frontDesks, setFrontDesks] = useState<FrontDesk[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [hotels, setHotels] = useState<Hotel[]>([]);
 
@@ -68,19 +71,31 @@ export default function FrontDesksPage() {
 
   useEffect(() => {
     const fetchFrontDesks = async () => {
-      const response = await api.get(`/admin/get/frontdesk`);
-      setFrontDesks(response.frontdesk);
+      try {
+        const response = await api.get(`/admin/get/frontdesk`);
+        setFrontDesks(response.frontdesk);
+      } catch (error) {
+        console.error("Error fetching frontdesks:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     const fetchHotel = async () => {
-      const response = await api.get(`/admin/get/hotel`);
-      setHotels([{
-        id: response.hotel.id,
-        name: response.hotel.name,
-      }]);
-      setFormData(prev => ({
-        ...prev,
-        hotel: response.hotel.id.toString()
-      }));
+      try {
+        const response = await api.get(`/admin/get/hotel`);
+        setHotels([
+          {
+            id: response.hotel.id,
+            name: response.hotel.name,
+          },
+        ]);
+        setFormData((prev) => ({
+          ...prev,
+          hotel: response.hotel.id.toString(),
+        }));
+      } catch (error) {
+        console.error("Error fetching hotels:", error);
+      }
     };
     fetchFrontDesks();
     fetchHotel();
@@ -94,18 +109,19 @@ export default function FrontDesksPage() {
         {
           name: formData.name,
           email: formData.email,
-          password: formData.password,
           hotelId: parseInt(formData.hotel),
           phoneNumber: formData.phoneNumber,
         }
       );
       setFrontDesks(
         frontDesks.map((fd) =>
-          fd.id === editingFrontDesk.id ? { 
-            ...fd, 
-            ...formData, 
-            hotel: parseInt(formData.hotel) 
-          } : fd
+          fd.id === editingFrontDesk.id
+            ? {
+                ...fd,
+                ...formData,
+                hotel: parseInt(formData.hotel),
+              }
+            : fd
         )
       );
       setEditingFrontDesk(null);
@@ -164,6 +180,48 @@ export default function FrontDesksPage() {
     });
     setEditingFrontDesk(null);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 mt-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Front Desk Management
+            </h1>
+            <p className="text-slate-600">
+              Manage front desk staff across all hotel partners
+            </p>
+          </div>
+        </div>
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="w-5 h-5 text-green-600" />
+              <span>Front Desk Staff</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Hotel</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableLoader columns={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -240,7 +298,7 @@ export default function FrontDesksPage() {
                   required
                 />
               </div>
-              <div>
+              <div className={editingFrontDesk ? "hidden" : ""}>
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Input
@@ -270,18 +328,13 @@ export default function FrontDesksPage() {
               </div>
               <div>
                 <Label htmlFor="hotel">Hotel</Label>
-                <Select
-                  value={hotels[0]?.id.toString() || "default"}
-                  disabled
-                >
+                <Select value={hotels[0]?.id.toString() || "default"} disabled>
                   <SelectTrigger>
-                    <SelectValue>
-                      {hotels[0]?.name || 'Loading...'}
-                    </SelectValue>
+                    <SelectValue>{hotels[0]?.name || "Loading..."}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={hotels[0]?.id.toString() || "default"}>
-                      {hotels[0]?.name || 'Loading...'}
+                      {hotels[0]?.name || "Loading..."}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -333,7 +386,7 @@ export default function FrontDesksPage() {
                   </TableCell>
                   <TableCell>{frontDesk.phoneNumber}</TableCell>
                   <TableCell>{frontDesk.email}</TableCell>
-                  <TableCell>{hotels[0]?.name || 'N/A'}</TableCell>
+                  <TableCell>{hotels[0]?.name || "N/A"}</TableCell>
                   <TableCell>
                     {new Date(frontDesk.createdAt).toLocaleDateString()}
                   </TableCell>

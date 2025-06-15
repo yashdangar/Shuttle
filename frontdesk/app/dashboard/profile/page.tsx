@@ -1,50 +1,130 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useToast } from "@/hooks/use-toast"
-import { Edit, Save, X, MapPin, Phone, Mail, Building } from "lucide-react"
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/hooks/use-toast";
+import { Edit, Save, X, MapPin, Phone, Mail, Building } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
+import { withAuth } from "@/components/withAuth";
+import { Loader } from "@/components/ui/loader";
 
-export default function ProfilePage() {
-  const [isEditing, setIsEditing] = useState(false)
-  const [profileData, setProfileData] = useState({
-    name: "John Doe",
-    email: "john.doe@hotel.com",
-    phone: "+1 234-567-8900",
-    position: "Front Desk Manager",
-  })
-  const [hotelData] = useState({
-    name: "Grand Plaza Hotel",
-    address: "123 Main Street, Downtown City, ST 12345",
-    phone: "+1 234-567-8901",
-    email: "info@grandplaza.com",
-    totalRooms: 250,
-    rating: 4.5,
-  })
-  const { toast } = useToast()
+interface FrontdeskProfile {
+  id: number;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  hotelId: number;
+  createdAt: string;
+}
 
-  const handleSave = () => {
-    setIsEditing(false)
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been successfully updated.",
-    })
-  }
+interface HotelData {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+function ProfilePage() {
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<FrontdeskProfile | null>(null);
+  const [hotelData, setHotelData] = useState<HotelData | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const response = await fetchWithAuth("/frontdesk/profile");
+        const data = await response.json();
+        setProfileData(data.frontdesk);
+        setHotelData(data.hotel);
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile data. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [toast]);
+
+  const handleSave = async () => {
+    if (!profileData) return;
+
+    try {
+      const response = await fetchWithAuth("/frontdesk/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: profileData.name,
+          phoneNumber: profileData.phoneNumber,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update profile");
+      }
+
+      setIsEditing(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been successfully updated.",
+      });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleCancel = () => {
-    setIsEditing(false)
+    setIsEditing(false);
     // Reset form data if needed
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+          <p className="text-gray-600">
+            Manage your personal information and hotel details
+          </p>
+        </div>
+        <Card>
+          <CardContent>
+            <Loader />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!profileData || !hotelData) {
+    return <div>No profile data available</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-        <p className="text-gray-600">Manage your personal information and hotel details</p>
+        <p className="text-gray-600">
+          Manage your personal information and hotel details
+        </p>
       </div>
 
       {/* User Profile Card */}
@@ -74,10 +154,19 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center md:items-start">
               <Avatar className="h-24 w-24 mb-4">
                 <AvatarImage src="/placeholder-user.jpg" alt="Profile" />
-                <AvatarFallback className="text-2xl">JD</AvatarFallback>
+                <AvatarFallback className="text-2xl">
+                  {profileData.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </AvatarFallback>
               </Avatar>
-              <h2 className="text-xl font-semibold text-center md:text-left">{profileData.name}</h2>
-              <p className="text-gray-600 text-center md:text-left">{profileData.position}</p>
+              <h2 className="text-xl font-semibold text-center md:text-left">
+                {profileData.name}
+              </h2>
+              <p className="text-gray-600 text-center md:text-left">
+                Front Desk Staff
+              </p>
             </div>
             <div className="flex-1 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -87,41 +176,30 @@ export default function ProfilePage() {
                     <Input
                       id="name"
                       value={profileData.name}
-                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, name: e.target.value })
+                      }
                     />
                   ) : (
-                    <p className="text-gray-900 font-medium">{profileData.name}</p>
+                    <p className="text-gray-900 font-medium">
+                      {profileData.name}
+                    </p>
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="position">Position</Label>
-                  {isEditing ? (
-                    <Input
-                      id="position"
-                      value={profileData.position}
-                      onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
-                    />
-                  ) : (
-                    <p className="text-gray-900 font-medium">{profileData.position}</p>
-                  )}
+                  <p className="text-gray-900 font-medium">Front Desk Staff</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  {isEditing ? (
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-gray-500" />
-                      <p className="text-gray-900 font-medium">{profileData.email}</p>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <p className="text-gray-900 font-medium">
+                      {profileData.email}
+                    </p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
@@ -129,13 +207,20 @@ export default function ProfilePage() {
                     <Input
                       id="phone"
                       type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                      value={profileData.phoneNumber}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          phoneNumber: e.target.value,
+                        })
+                      }
                     />
                   ) : (
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-500" />
-                      <p className="text-gray-900 font-medium">{profileData.phone}</p>
+                      <p className="text-gray-900 font-medium">
+                        {profileData.phoneNumber}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -155,49 +240,45 @@ export default function ProfilePage() {
             <div className="flex items-start gap-4">
               <Building className="h-6 w-6 text-blue-600 mt-1" />
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">{hotelData.name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {hotelData.name}
+                </h3>
                 <div className="flex items-center gap-2 mt-1">
                   <MapPin className="h-4 w-4 text-gray-500" />
-                  <p className="text-gray-600">{hotelData.address}</p>
+                  <p className="text-gray-600">
+                    Latitude: {hotelData.latitude}, Longitude:{" "}
+                    {hotelData.longitude}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-600">Phone</span>
-                </div>
-                <p className="font-semibold">{hotelData.phone}</p>
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Mail className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-600">Email</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    Email
+                  </span>
                 </div>
-                <p className="font-semibold">{hotelData.email}</p>
+                <p className="font-semibold">{profileData.email}</p>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Building className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-600">Total Rooms</span>
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-600">
+                    Phone
+                  </span>
                 </div>
-                <p className="font-semibold">{hotelData.totalRooms}</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-600">Rating</span>
-                </div>
-                <p className="font-semibold">{hotelData.rating}/5.0 ⭐</p>
+                <p className="font-semibold">{profileData.phoneNumber}</p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
+
+export default withAuth(ProfilePage);

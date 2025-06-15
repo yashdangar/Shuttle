@@ -117,6 +117,7 @@ model Notification {
   id          Int        @id @default(autoincrement())
   title       String
   message     String
+  isRead      Boolean    @default(false)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   driverId    Int?
@@ -132,8 +133,7 @@ model Notification {
 model Hotel {
   id         Int         @id @default(autoincrement())
   name       String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+
   latitude   Float?
   longitude  Float?
   shuttles   Shuttle[] 
@@ -141,6 +141,9 @@ model Hotel {
   frontDesks FrontDesk[]
   admins     Admin[]
   drivers    Driver[]
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model Shuttle {

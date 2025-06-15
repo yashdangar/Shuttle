@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { Loader } from "@/components/ui/loader";
+import { TableLoader } from "../../../components/ui/table-loader";
+import { EmptyState } from "../../../components/ui/empty-state";
 
 interface Hotel {
   id: string;
@@ -36,6 +39,7 @@ interface Hotel {
 
 export default function HotelsPage() {
   const [hotel, setHotel] = useState<Hotel | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null);
@@ -55,6 +59,8 @@ export default function HotelsPage() {
       setHotel(response.hotel);
     } catch (error) {
       console.error("Error fetching hotel data:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,6 +120,48 @@ export default function HotelsPage() {
     setFormData({ name: "", latitude: 0.0, longitude: 0.0 });
     setEditingHotel(null);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Hotels Management
+            </h1>
+            <p className="text-slate-600">
+              Manage hotel partners and their information
+            </p>
+          </div>
+        </div>
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <span>Hotels List</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hotel Name</TableHead>
+                  <TableHead>Latitude</TableHead>
+                  <TableHead>Longitude</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead>Updated At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableLoader columns={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -220,19 +268,25 @@ export default function HotelsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Hotel Name</TableHead>
-                <TableHead>Latitude</TableHead>
-                <TableHead>Longitude</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead>Updated At</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {hotel && (
+          {!hotel ? (
+            <EmptyState
+              icon={Building2}
+              title="No hotels available"
+              description="Add your first hotel to start managing your partners."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hotel Name</TableHead>
+                  <TableHead>Latitude</TableHead>
+                  <TableHead>Longitude</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead>Updated At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 <TableRow>
                   <TableCell className="font-medium">{hotel.name}</TableCell>
                   <TableCell>{hotel.latitude}</TableCell>
@@ -263,9 +317,9 @@ export default function HotelsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

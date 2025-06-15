@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { Loader } from "@/components/ui/loader";
+import { TableLoader } from "../../../components/ui/table-loader";
 
 interface Location {
   id: string;
@@ -37,6 +39,7 @@ interface Location {
 
 export default function HotelsPage() {
   const [location, setLocation] = useState<Location[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -57,6 +60,8 @@ export default function HotelsPage() {
       setLocation(response.location);
     } catch (error) {
       console.error("Error fetching location data:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -120,6 +125,48 @@ export default function HotelsPage() {
     setEditingLocation(null);
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6 mt-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Locations Management
+            </h1>
+            <p className="text-slate-600">
+              Manage locations and their information
+            </p>
+          </div>
+        </div>
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <span>Locations List</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Location Name</TableHead>
+                  <TableHead>Latitude</TableHead>
+                  <TableHead>Longitude</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead>Updated At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableLoader columns={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -150,7 +197,9 @@ export default function HotelsPage() {
                 {editingLocation ? "Edit Location" : "Add New Location"}
               </DialogTitle>
               <DialogDescription>
-                {editingLocation ? "Update the location details below." : "Fill in the details to add a new location."}
+                {editingLocation
+                  ? "Update the location details below."
+                  : "Fill in the details to add a new location."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -240,38 +289,41 @@ export default function HotelsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {location && location.map((location: Location) => (
-                <TableRow key={location.id}>
-                  <TableCell className="font-medium">{location.name}</TableCell>
-                  <TableCell>{location.latitude}</TableCell>
-                  <TableCell>{location.longitude}</TableCell>
-                  <TableCell>
-                    {new Date(location.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(location.updatedAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(location)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(location.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {location &&
+                location.map((location: Location) => (
+                  <TableRow key={location.id}>
+                    <TableCell className="font-medium">
+                      {location.name}
+                    </TableCell>
+                    <TableCell>{location.latitude}</TableCell>
+                    <TableCell>{location.longitude}</TableCell>
+                    <TableCell>
+                      {new Date(location.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(location.updatedAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(location)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(location.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>

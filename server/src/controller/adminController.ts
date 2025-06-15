@@ -90,12 +90,13 @@ const login = async (req: Request, res: Response) => {
 const addFrontdesk = async (req: Request, res: Response) => {
   try {
     const { name, email, password, hotelId, phoneNumber } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
     const frontdesk = await prisma.frontDesk.create({
       data: {
         name,
         phoneNumber: phoneNumber,
         email,
-        password,
+        password: hashedPassword,
         hotelId: parseInt(hotelId),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -110,7 +111,7 @@ const addFrontdesk = async (req: Request, res: Response) => {
 
 const editFrontdesk = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, hotelId, phoneNumber } = req.body;
+    const { name, email, hotelId, phoneNumber } = req.body;
     const id = req.params.id;
     const frontdesk = await prisma.frontDesk.update({
       where: { id: parseInt(id) },
@@ -118,7 +119,6 @@ const editFrontdesk = async (req: Request, res: Response) => {
         name,
         phoneNumber: phoneNumber,
         email,
-        password,
         hotelId: parseInt(hotelId),
         updatedAt: new Date(),
       },

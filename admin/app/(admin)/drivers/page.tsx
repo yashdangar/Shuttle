@@ -30,8 +30,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Car } from "lucide-react";
+import { Plus, Edit, Trash2, Car, User } from "lucide-react";
 import { api } from "@/lib/api";
+import { Loader } from "@/components/ui/loader";
+import { TableLoader } from "../../../components/ui/table-loader";
+import { EmptyState } from "../../../components/ui/empty-state";
 
 interface Driver {
   id: string;
@@ -65,45 +68,60 @@ export default function DriversPage() {
     endTime: "",
   });
 
+  const [loading, setLoading] = useState(true);
+
   const formatTimeForDB = (time: string) => {
     if (!time) return null;
     const today = new Date();
-    const [hours, minutes] = time.split(':');
+    const [hours, minutes] = time.split(":");
     today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
     return today.toISOString();
   };
 
   const formatTimeForDisplay = (isoString: string | null | undefined) => {
-    if (!isoString) return '';
+    if (!isoString) return "";
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { 
+    return date.toLocaleTimeString("en-US", {
       hour12: false,
-      hour: '2-digit',
-      minute: '2-digit'
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   useEffect(() => {
     const fetchDrivers = async () => {
-      const response = await api.get("/admin/get/driver");
-      setDrivers(response.driver.map((driver: Driver) => ({
-        ...driver,
-        startTime: formatTimeForDisplay(driver.startTime),
-        endTime: formatTimeForDisplay(driver.endTime)
-      })));
+      try {
+        const response = await api.get("/admin/get/driver");
+        setDrivers(
+          response.driver.map((driver: Driver) => ({
+            ...driver,
+            startTime: formatTimeForDisplay(driver.startTime),
+            endTime: formatTimeForDisplay(driver.endTime),
+          }))
+        );
+      } catch (error) {
+        console.error("Error fetching drivers:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     const fetchHotel = async () => {
-      const response = await api.get("/admin/get/hotel");
-      setHotels([
-        {
-          id: response.hotel.id,
-          name: response.hotel.name,
-        },
-      ]);
+      try {
+        const response = await api.get("/admin/get/hotel");
+        setHotels([
+          {
+            id: response.hotel.id,
+            name: response.hotel.name,
+          },
+        ]);
+      } catch (error) {
+        console.error("Error fetching hotels:", error);
+      }
     };
     fetchDrivers();
     fetchHotel();
   }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingDriver) {
@@ -195,6 +213,48 @@ export default function DriversPage() {
     });
     setEditingDriver(null);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Drivers Management
+            </h1>
+            <p className="text-slate-600">
+              Manage shuttle drivers and their assignments
+            </p>
+          </div>
+        </div>
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="w-5 h-5 text-blue-600" />
+              <span>Drivers List</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableLoader columns={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -343,67 +403,73 @@ export default function DriversPage() {
       <Card className="border-slate-200">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Car className="w-5 h-5 text-purple-600" />
+            <User className="w-5 h-5 text-blue-600" />
             <span>Drivers List</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Hotel</TableHead>
-                <TableHead>Assigned Shuttle</TableHead>
-                <TableHead>Start Time</TableHead>
-                <TableHead>End Time</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {drivers?.map((driver) => (
-                <TableRow key={driver.id}>
-                  <TableCell className="font-medium">{driver.name}</TableCell>
-                  <TableCell>{driver.phoneNumber}</TableCell>
-                  <TableCell>{hotels[0]?.name}</TableCell>
-                  <TableCell>
-                    {driver.assignedShuttle ? (
-                      <Badge variant="secondary">
-                        {driver.assignedShuttle}
-                      </Badge>
-                    ) : (
-                      <span className="text-slate-400">Not assigned</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{driver.startTime}</TableCell>
-                  <TableCell>{driver.endTime}</TableCell>
-                  <TableCell>
-                    {new Date(driver.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(driver)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(driver.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {!drivers || drivers.length === 0 ? (
+            <EmptyState
+              icon={User}
+              title="No drivers available"
+              description="Add your first driver to start managing your fleet."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {drivers?.map((driver) => (
+                  <TableRow key={driver.id}>
+                    <TableCell className="font-medium">{driver.name}</TableCell>
+                    <TableCell>{driver.phoneNumber}</TableCell>
+                    <TableCell>{hotels[0]?.name}</TableCell>
+                    <TableCell>
+                      {driver.assignedShuttle ? (
+                        <Badge variant="secondary">
+                          {driver.assignedShuttle}
+                        </Badge>
+                      ) : (
+                        <span className="text-slate-400">Not assigned</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{driver.startTime}</TableCell>
+                    <TableCell>{driver.endTime}</TableCell>
+                    <TableCell>
+                      {new Date(driver.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(driver)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(driver.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
