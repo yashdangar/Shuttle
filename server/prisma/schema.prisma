@@ -22,7 +22,7 @@ model Guest {
   hotelId         Int?
   isNonResident   Boolean        @default(false)
   hotel           Hotel?         @relation(fields: [hotelId], references: [id],onDelete: Cascade)
-  trips           Trip[]
+  bookings        Booking[]
   notifications   Notification[]
 }
 
@@ -39,16 +39,16 @@ model Location {
   longitude    Float
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  tripsPickup  Trip[]   @relation("pickup")
-  tripsDropoff Trip[]   @relation("dropoff")
+  bookingsPickup  Booking[]   @relation("pickup")
+  bookingsDropoff Booking[]   @relation("dropoff")
 }
 
-enum TripType {
+enum BookingType {
   HOTEL_TO_AIRPORT
   AIRPORT_TO_HOTEL
 }
 
-model Trip {
+model Booking {
   id                Int           @id @default(autoincrement())
   guestId           Int
   numberOfPersons   Int
@@ -59,7 +59,7 @@ model Trip {
   dropoffLocationId Int?
   preferredTime     DateTime?
   paymentMethod     PaymentMethod
-  tripType          TripType
+  bookingType          BookingType
   isCompleted       Boolean       @default(false)
   isPaid            Boolean       @default(false)
   isCancelled       Boolean       @default(false)
@@ -102,15 +102,37 @@ model Driver {
   id            Int            @id @default(autoincrement())
   name          String
   phoneNumber   String
+  email         String         @unique
+  password      String
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  shuttle       Shuttle?       @relation(fields: [shuttleId], references: [id])
-  shuttleId     Int?
-  startTime     DateTime?
-  endTime       DateTime?
-  hotelId       Int
-  hotel         Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade )
   notifications Notification[]
+  schedules     Schedule[]     @relation("DriverSchedules")
+  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
+  hotelId       Int?
+}
+
+model Shuttle {
+  id            Int      @id @default(autoincrement())
+  hotelId       Int
+  vehicleNumber String
+  seats         Int
+  createdAt     DateTime @default(now())
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  schedules     Schedule[] @relation("ShuttleSchedules")
+  bookings      Booking[]
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  driverId  Int
+  shuttleId Int
+  startTime DateTime
+  endTime   DateTime
+  driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id])
+  shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id])
+
+  @@unique([driverId, startTime]) // Ensure a driver cannot have overlapping schedules
 }
 
 model Notification {
@@ -133,7 +155,10 @@ model Notification {
 model Hotel {
   id         Int         @id @default(autoincrement())
   name       String
-
+  address    String?
+  phoneNumber String?
+  email      String?
+  
   latitude   Float?
   longitude  Float?
   shuttles   Shuttle[] 
@@ -144,19 +169,5 @@ model Hotel {
 
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-}
-
-model Shuttle {
-  id            Int      @id @default(autoincrement())
-  hotelId       Int
-  vehicleNumber String
-  driverId      Int
-  startTime     DateTime
-  endTime       DateTime
-  driver        Driver[]
-  seats         Int
-  createdAt     DateTime @default(now())
-  hotel         Hotel    @relation(fields: [hotelId], references: [id],onDelete: Cascade)
-  trips         Trip[]
 }
 
