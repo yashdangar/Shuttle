@@ -1,15 +1,28 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
-import { Calendar, X, CreditCard } from "lucide-react"
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/hooks/use-toast";
+import { Calendar, X, CreditCard } from "lucide-react";
 
 const bookings = [
   {
@@ -51,62 +64,71 @@ const bookings = [
     paymentMethod: "DEPOSIT",
     status: "In Progress",
   },
-]
+];
 
 export default function BookingsPage() {
-  const [selectedBooking, setSelectedBooking] = useState<(typeof bookings)[0] | null>(null)
-  const [actionType, setActionType] = useState<"cancel" | "reschedule" | "payment" | null>(null)
-  const [rescheduleTime, setRescheduleTime] = useState("")
-  const { toast } = useToast()
+  const [selectedBooking, setSelectedBooking] = useState<
+    (typeof bookings)[0] | null
+  >(null);
+  const [actionType, setActionType] = useState<
+    "cancel" | "reschedule" | "payment" | null
+  >(null);
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const { toast } = useToast();
 
-  const handleAction = (booking: (typeof bookings)[0], action: "cancel" | "reschedule" | "payment") => {
-    setSelectedBooking(booking)
-    setActionType(action)
+  const handleAction = (
+    booking: (typeof bookings)[0],
+    action: "cancel" | "reschedule" | "payment"
+  ) => {
+    setSelectedBooking(booking);
+    setActionType(action);
     if (action === "reschedule") {
-      setRescheduleTime(booking.preferredTime)
+      setRescheduleTime(booking.preferredTime);
     }
-  }
+  };
 
   const confirmAction = () => {
-    if (!selectedBooking || !actionType) return
+    if (!selectedBooking || !actionType) return;
 
     switch (actionType) {
       case "cancel":
         toast({
           title: "Booking Cancelled",
           description: `Booking for ${selectedBooking.guestName} has been cancelled.`,
-        })
-        break
+        });
+        break;
       case "reschedule":
         toast({
           title: "Booking Rescheduled",
           description: `Booking for ${selectedBooking.guestName} has been rescheduled.`,
-        })
-        break
+        });
+        break;
       case "payment":
         toast({
           title: "Payment Confirmed",
           description: `Payment for ${selectedBooking.guestName} has been confirmed.`,
-        })
-        break
+        });
+        break;
     }
 
-    setSelectedBooking(null)
-    setActionType(null)
-    setRescheduleTime("")
-  }
+    setSelectedBooking(null);
+    setActionType(null);
+    setRescheduleTime("");
+  };
 
   const closeDialog = () => {
-    setSelectedBooking(null)
-    setActionType(null)
-    setRescheduleTime("")
-  }
+    setSelectedBooking(null);
+    setActionType(null);
+    setRescheduleTime("");
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-        <p className="text-gray-600">Manage shuttle bookings and reservations</p>
+        <p className="text-gray-600">
+          Manage shuttle bookings and reservations
+        </p>
       </div>
 
       {/* Desktop Table */}
@@ -131,7 +153,9 @@ export default function BookingsPage() {
             <TableBody>
               {bookings.map((booking) => (
                 <TableRow key={booking.id}>
-                  <TableCell className="font-medium">{booking.guestName}</TableCell>
+                  <TableCell className="font-medium">
+                    {booking.guestName}
+                  </TableCell>
                   <TableCell>{booking.shuttleNumber}</TableCell>
                   <TableCell>{booking.numberOfPersons}</TableCell>
                   <TableCell>{booking.numberOfBags}</TableCell>
@@ -140,9 +164,17 @@ export default function BookingsPage() {
                       {booking.pickupLocation} → {booking.dropoffLocation}
                     </div>
                   </TableCell>
-                  <TableCell>{new Date(booking.preferredTime).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant={booking.paymentStatus === "Paid" ? "default" : "secondary"}>
+                    {new Date(booking.preferredTime).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        booking.paymentStatus === "Paid"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
                       {booking.paymentStatus}
                     </Badge>
                   </TableCell>
@@ -156,16 +188,17 @@ export default function BookingsPage() {
                       >
                         <Calendar className="h-4 w-4" />
                       </Button>
-                      {booking.paymentMethod === "FRONTDESK" && booking.paymentStatus === "Pending" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleAction(booking, "payment")}
-                          title="Confirm Payment"
-                        >
-                          <CreditCard className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {booking.paymentMethod === "FRONTDESK" &&
+                        booking.paymentStatus === "Pending" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleAction(booking, "payment")}
+                            title="Confirm Payment"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
+                        )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -190,37 +223,59 @@ export default function BookingsPage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold">{booking.guestName}</h3>
-                <Badge variant={booking.paymentStatus === "Paid" ? "default" : "secondary"}>
+                <Badge
+                  variant={
+                    booking.paymentStatus === "Paid" ? "default" : "secondary"
+                  }
+                >
                   {booking.paymentStatus}
                 </Badge>
               </div>
               <div className="space-y-2 text-sm text-gray-600 mb-4">
                 <p>
-                  <span className="font-medium">Shuttle:</span> {booking.shuttleNumber}
+                  <span className="font-medium">Shuttle:</span>{" "}
+                  {booking.shuttleNumber}
                 </p>
                 <p>
-                  <span className="font-medium">Persons:</span> {booking.numberOfPersons} |{" "}
-                  <span className="font-medium">Bags:</span> {booking.numberOfBags}
+                  <span className="font-medium">Persons:</span>{" "}
+                  {booking.numberOfPersons} |{" "}
+                  <span className="font-medium">Bags:</span>{" "}
+                  {booking.numberOfBags}
                 </p>
                 <p>
-                  <span className="font-medium">Route:</span> {booking.pickupLocation} → {booking.dropoffLocation}
+                  <span className="font-medium">Route:</span>{" "}
+                  {booking.pickupLocation} → {booking.dropoffLocation}
                 </p>
                 <p>
-                  <span className="font-medium">Time:</span> {new Date(booking.preferredTime).toLocaleString()}
+                  <span className="font-medium">Time:</span>{" "}
+                  {new Date(booking.preferredTime).toLocaleString()}
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleAction(booking, "reschedule")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAction(booking, "reschedule")}
+                >
                   <Calendar className="h-4 w-4 mr-1" />
                   Reschedule
                 </Button>
-                {booking.paymentMethod === "FRONTDESK" && booking.paymentStatus === "Pending" && (
-                  <Button variant="outline" size="sm" onClick={() => handleAction(booking, "payment")}>
-                    <CreditCard className="h-4 w-4 mr-1" />
-                    Payment
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={() => handleAction(booking, "cancel")}>
+                {booking.paymentMethod === "FRONTDESK" &&
+                  booking.paymentStatus === "Pending" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAction(booking, "payment")}
+                    >
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      Payment
+                    </Button>
+                  )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAction(booking, "cancel")}
+                >
                   <X className="h-4 w-4 mr-1" />
                   Cancel
                 </Button>
@@ -244,16 +299,20 @@ export default function BookingsPage() {
           {actionType === "cancel" && (
             <div className="py-4">
               <p>
-                Are you sure you want to cancel the booking for <strong>{selectedBooking?.guestName}</strong>?
+                Are you sure you want to cancel the booking for{" "}
+                <strong>{selectedBooking?.guestName}</strong>?
               </p>
-              <p className="text-sm text-gray-600 mt-2">This action cannot be undone.</p>
+              <p className="text-sm text-gray-600 mt-2">
+                This action cannot be undone.
+              </p>
             </div>
           )}
 
           {actionType === "reschedule" && (
             <div className="py-4 space-y-4">
               <p>
-                Reschedule booking for <strong>{selectedBooking?.guestName}</strong>
+                Reschedule booking for{" "}
+                <strong>{selectedBooking?.guestName}</strong>
               </p>
               <div className="space-y-2">
                 <Label htmlFor="reschedule-time">New Preferred Time</Label>
@@ -270,9 +329,12 @@ export default function BookingsPage() {
           {actionType === "payment" && (
             <div className="py-4">
               <p>
-                Confirm payment received for <strong>{selectedBooking?.guestName}</strong>?
+                Confirm payment received for{" "}
+                <strong>{selectedBooking?.guestName}</strong>?
               </p>
-              <p className="text-sm text-gray-600 mt-2">This will mark the booking as paid.</p>
+              <p className="text-sm text-gray-600 mt-2">
+                This will mark the booking as paid.
+              </p>
             </div>
           )}
 
@@ -289,5 +351,5 @@ export default function BookingsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

@@ -21,7 +21,7 @@ model Guest {
   updatedAt       DateTime       @updatedAt
   hotelId         Int?
   isNonResident   Boolean        @default(false)
-  hotel           Hotel?         @relation(fields: [hotelId], references: [id],onDelete: Cascade)
+  hotel           Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   bookings        Booking[]
   notifications   Notification[]
 }
@@ -65,8 +65,8 @@ model Booking {
   isCancelled       Boolean       @default(false)
   isRefunded        Boolean       @default(false)
   shuttleId         Int?
-  shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
-  guest             Guest         @relation(fields: [guestId], references: [id])
+  shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id], onDelete: SetNull)
+  guest             Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
   encryptionKey     String?
   qrCodePath        String?
   createdAt         DateTime      @default(now())
@@ -80,7 +80,7 @@ model FrontDesk {
   email         String         @unique
   password      String
   hotelId       Int
-  hotel         Hotel          @relation(fields: [hotelId], references: [id],onDelete: Cascade)
+  hotel         Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
@@ -92,7 +92,7 @@ model Admin {
   email         String         @unique
   password      String
   hotelId       Int?
-  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
+  hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
@@ -108,7 +108,7 @@ model Driver {
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
   schedules     Schedule[]     @relation("DriverSchedules")
-  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
+  hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   hotelId       Int?
 }
 
@@ -129,8 +129,8 @@ model Schedule {
   shuttleId Int
   startTime DateTime
   endTime   DateTime
-  driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id])
-  shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id])
+  driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id], onDelete: Cascade)
+  shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
 
   @@unique([driverId, startTime]) // Ensure a driver cannot have overlapping schedules
 }
@@ -143,13 +143,13 @@ model Notification {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   driverId    Int?
-  driver      Driver?    @relation(fields: [driverId], references: [id])
+  driver      Driver?    @relation(fields: [driverId], references: [id], onDelete: Cascade)
   guestId     Int?
-  guest       Guest?     @relation(fields: [guestId], references: [id])
+  guest       Guest?     @relation(fields: [guestId], references: [id], onDelete: Cascade)
   frontDeskId Int?
-  frontDesk   FrontDesk? @relation(fields: [frontDeskId], references: [id])
+  frontDesk   FrontDesk? @relation(fields: [frontDeskId], references: [id], onDelete: Cascade)
   adminId     Int?
-  admin       Admin?     @relation(fields: [adminId], references: [id])
+  admin       Admin?     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
 
 model Hotel {
@@ -159,8 +159,8 @@ model Hotel {
   phoneNumber String?
   email      String?
   
-  latitude   Float?
-  longitude  Float?
+  latitude   Float? // Set by Google Maps picker
+  longitude  Float? // Set by Google Maps picker
   shuttles   Shuttle[] 
   guests     Guest[]
   frontDesks FrontDesk[]
