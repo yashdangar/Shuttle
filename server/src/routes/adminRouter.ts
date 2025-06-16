@@ -31,6 +31,11 @@ router.delete(
   adminAuthMiddleware as RequestHandler,
   controller.deleteHotel as RequestHandler
 );
+router.delete(
+  "/delete/hotel/:id/confirm",
+  adminAuthMiddleware as RequestHandler,
+  controller.deleteHotelWithConfirmation as RequestHandler
+);
 router.get(
   "/get/hotel",
   adminAuthMiddleware as RequestHandler,
@@ -101,6 +106,28 @@ router.get(
   "/get/shuttle",
   adminAuthMiddleware as RequestHandler,
   controller.getShuttle as RequestHandler
+);
+
+//schedule routes
+router.post(
+  "/add/schedule",
+  adminAuthMiddleware as RequestHandler,
+  controller.addSchedule as RequestHandler
+);
+router.put(
+  "/edit/schedule/:id",
+  adminAuthMiddleware as RequestHandler,
+  controller.editSchedule as RequestHandler
+);
+router.delete(
+  "/delete/schedule/:id",
+  adminAuthMiddleware as RequestHandler,
+  controller.deleteSchedule as RequestHandler
+);
+router.get(
+  "/get/schedule",
+  adminAuthMiddleware as RequestHandler,
+  controller.getSchedule as RequestHandler
 );
 
 //location routes

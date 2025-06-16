@@ -1,15 +1,21 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useToast } from "@/hooks/use-toast"
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useToast } from "@/components/hooks/use-toast";
 
 const locations = [
   "Hotel Lobby",
@@ -18,16 +24,18 @@ const locations = [
   "Airport Terminal 3",
   "Downtown Station",
   "Conference Center",
-]
+];
 
 const paymentMethods = [
   { value: "APP", label: "Mobile App" },
   { value: "FRONTDESK", label: "Front Desk" },
   { value: "DEPOSIT", label: "Deposit" },
-]
+];
 
 export default function NewBookingPage() {
-  const [guestType, setGuestType] = useState<"resident" | "non-resident">("resident")
+  const [guestType, setGuestType] = useState<"resident" | "non-resident">(
+    "resident"
+  );
   const [formData, setFormData] = useState({
     numberOfPersons: "",
     numberOfBags: "",
@@ -39,15 +47,15 @@ export default function NewBookingPage() {
     guestName: "",
     guestPhone: "",
     confirmationNumber: "",
-  })
-  const { toast } = useToast()
+  });
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     toast({
       title: "Booking Created",
       description: "New trip booking has been successfully created.",
-    })
+    });
     // Reset form
     setFormData({
       numberOfPersons: "",
@@ -60,8 +68,8 @@ export default function NewBookingPage() {
       guestName: "",
       guestPhone: "",
       confirmationNumber: "",
-    })
-  }
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -81,7 +89,9 @@ export default function NewBookingPage() {
               <Label>Guest Type</Label>
               <RadioGroup
                 value={guestType}
-                onValueChange={(value) => setGuestType(value as "resident" | "non-resident")}
+                onValueChange={(value) =>
+                  setGuestType(value as "resident" | "non-resident")
+                }
                 className="flex gap-6"
               >
                 <div className="flex items-center space-x-2">
@@ -103,7 +113,9 @@ export default function NewBookingPage() {
                   <Input
                     id="guestName"
                     value={formData.guestName}
-                    onChange={(e) => setFormData({ ...formData, guestName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, guestName: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -113,19 +125,28 @@ export default function NewBookingPage() {
                     id="guestPhone"
                     type="tel"
                     value={formData.guestPhone}
-                    onChange={(e) => setFormData({ ...formData, guestPhone: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, guestPhone: e.target.value })
+                    }
                     required
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="confirmationNumber">Search by Name or Confirmation Number</Label>
+                <Label htmlFor="confirmationNumber">
+                  Search by Name or Confirmation Number
+                </Label>
                 <Input
                   id="confirmationNumber"
                   placeholder="Enter guest name or confirmation number"
                   value={formData.confirmationNumber}
-                  onChange={(e) => setFormData({ ...formData, confirmationNumber: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmationNumber: e.target.value,
+                    })
+                  }
                 />
               </div>
             )}
@@ -139,7 +160,12 @@ export default function NewBookingPage() {
                   type="number"
                   min="1"
                   value={formData.numberOfPersons}
-                  onChange={(e) => setFormData({ ...formData, numberOfPersons: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      numberOfPersons: e.target.value,
+                    })
+                  }
                   required
                 />
               </div>
@@ -150,7 +176,9 @@ export default function NewBookingPage() {
                   type="number"
                   min="0"
                   value={formData.numberOfBags}
-                  onChange={(e) => setFormData({ ...formData, numberOfBags: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, numberOfBags: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -160,7 +188,9 @@ export default function NewBookingPage() {
                 <Label>Pickup Location *</Label>
                 <Select
                   value={formData.pickupLocation}
-                  onValueChange={(value) => setFormData({ ...formData, pickupLocation: value })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, pickupLocation: value })
+                  }
                   required
                 >
                   <SelectTrigger>
@@ -179,7 +209,9 @@ export default function NewBookingPage() {
                 <Label>Dropoff Location *</Label>
                 <Select
                   value={formData.dropoffLocation}
-                  onValueChange={(value) => setFormData({ ...formData, dropoffLocation: value })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, dropoffLocation: value })
+                  }
                   required
                 >
                   <SelectTrigger>
@@ -203,7 +235,9 @@ export default function NewBookingPage() {
                   id="preferredTime"
                   type="datetime-local"
                   value={formData.preferredTime}
-                  onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, preferredTime: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -211,15 +245,21 @@ export default function NewBookingPage() {
                 <Label>Trip Type *</Label>
                 <Select
                   value={formData.tripType}
-                  onValueChange={(value) => setFormData({ ...formData, tripType: value })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, tripType: value })
+                  }
                   required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select trip type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hotel-to-airport">Hotel to Airport</SelectItem>
-                    <SelectItem value="airport-to-hotel">Airport to Hotel</SelectItem>
+                    <SelectItem value="hotel-to-airport">
+                      Hotel to Airport
+                    </SelectItem>
+                    <SelectItem value="airport-to-hotel">
+                      Airport to Hotel
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -229,7 +269,9 @@ export default function NewBookingPage() {
               <Label>Payment Method *</Label>
               <Select
                 value={formData.paymentMethod}
-                onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, paymentMethod: value })
+                }
                 required
               >
                 <SelectTrigger>
@@ -252,5 +294,5 @@ export default function NewBookingPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

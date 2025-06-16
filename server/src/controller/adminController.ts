@@ -39,9 +39,13 @@ const signup = async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign({ userId: admin.id, role: "admin" }, env.jwt.secret, {
-      expiresIn: "24h",
-    });
+    const token = jwt.sign(
+      { userId: admin.id, role: "admin" },
+      env.jwt.secret,
+      {
+        expiresIn: "24h",
+      }
+    );
 
     res.status(201).json({
       message: "Admin created successfully",
@@ -68,17 +72,23 @@ const login = async (req: Request, res: Response) => {
     });
 
     if (!admin) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      console.log("No admin found");
+      return res.status(401).json({ message: "Admin not found" });
     }
 
     const isValidPassword = await bcrypt.compare(password, admin.password);
     if (!isValidPassword) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      console.log("Invalid password");
+      return res.status(401).json({ message: "Invalid password" });
     }
 
-    const token = jwt.sign({ userId: admin.id, role: "admin", hotelId: admin.hotelId }, env.jwt.secret, {
-      expiresIn: "24h",
-    });
+    const token = jwt.sign(
+      { userId: admin.id, role: "admin", hotelId: admin.hotelId },
+      env.jwt.secret,
+      {
+        expiresIn: "24h",
+      }
+    );
 
     res.json({ token });
   } catch (error) {
@@ -188,8 +198,14 @@ const getAdmin = async (req: Request, res: Response) => {
 
 const createHotel = async (req: Request, res: Response) => {
   try {
-    const { name, latitude, longitude } = req.body;
+    const { name, latitude, longitude, address, phoneNumber, email } = req.body;
     const adminId = (req as any).user.userId;
+
+    if (!name || !address || !phoneNumber || !email) {
+      return res.status(400).json({
+        message: "Name, address, phone number, and email are required",
+      });
+    }
 
     // Check if admin already has a hotel
     const existingAdmin = await prisma.admin.findUnique({
@@ -210,6 +226,9 @@ const createHotel = async (req: Request, res: Response) => {
         name,
         latitude,
         longitude,
+        address,
+        phoneNumber,
+        email,
         admins: { connect: { id: parseInt(adminId) } },
       },
     });
@@ -222,8 +241,14 @@ const createHotel = async (req: Request, res: Response) => {
 const editHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
-    const { name, latitude, longitude } = req.body;
+    const { name, latitude, longitude, address, phoneNumber, email } = req.body;
     const adminId = (req as any).user.userId;
+
+    if (!name || !address || !phoneNumber || !email) {
+      return res.status(400).json({
+        message: "Name, address, phone number, and email are required",
+      });
+    }
 
     const existingHotel = await prisma.hotel.findUnique({
       where: { id: parseInt(hotelId) },
@@ -245,7 +270,15 @@ const editHotel = async (req: Request, res: Response) => {
     }
     const hotel = await prisma.hotel.update({
       where: { id: parseInt(hotelId) },
-      data: { name, latitude, longitude, updatedAt: new Date() },
+      data: {
+        name,
+        latitude,
+        longitude,
+        address,
+        phoneNumber,
+        email,
+        updatedAt: new Date(),
+      },
     });
     res.json({ hotel });
   } catch (error) {
@@ -256,15 +289,74 @@ const editHotel = async (req: Request, res: Response) => {
 const deleteHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
-    const hotel = await prisma.hotel.delete({
+    await prisma.hotel.delete({
       where: { id: parseInt(hotelId) },
     });
-    res.json({ hotel });
+    res.json({ message: "Hotel deleted successfully" });
   } catch (error) {
     console.error("Delete hotel error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+const deleteHotelWithConfirmation = async (req: Request, res: Response) => {
+  try {
+    const hotelId = req.params.id;
+    const { adminPassword, confirmDelete } = req.body;
+    const adminId = (req as any).user.userId;
+
+    // Validate required fields
+    if (!adminPassword || confirmDelete === null) {
+      return res.status(400).json({
+        message: "Admin password and confirmation are required",
+      });
+    }
+
+    // Validate confirmation flag
+    if (confirmDelete !== true) {
+      return res.status(400).json({
+        message: "Deletion confirmation is required",
+      });
+    }
+
+    // Get admin and verify password
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(adminId) },
+      include: { hotel: true },
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Verify admin password
+    const isValidPassword = await bcrypt.compare(adminPassword, admin.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid admin password" });
+    }
+
+    // Verify admin owns this hotel
+    if (!admin.hotelId || admin.hotelId !== parseInt(hotelId)) {
+      return res.status(403).json({
+        message: "You are not authorized to delete this hotel",
+      });
+    }
+
+    // Delete the hotel (cascading will handle all related data)
+    await prisma.hotel.delete({
+      where: { id: parseInt(hotelId) },
+    });
+
+    res.json({
+      message: "Hotel and all related data deleted successfully",
+      redirectToLogin: true,
+    });
+  } catch (error) {
+    console.error("Delete hotel with confirmation error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const getHotel = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
@@ -304,16 +396,17 @@ const getHotel = async (req: Request, res: Response) => {
 
 const addDriver = async (req: Request, res: Response) => {
   try {
-    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
+    const { name, phoneNumber, email, password, hotelId } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
     const driver = await prisma.driver.create({
       data: {
         name,
         phoneNumber,
+        email,
+        password: hashedPassword,
         hotelId: parseInt(hotelId),
         createdAt: new Date(),
         updatedAt: new Date(),
-        startTime,
-        endTime,
       },
     });
     res.json({ driver });
@@ -325,17 +418,16 @@ const addDriver = async (req: Request, res: Response) => {
 
 const editDriver = async (req: Request, res: Response) => {
   try {
+    const { name, phoneNumber, email, hotelId } = req.body;
     const id = req.params.id;
-    const { name, phoneNumber, hotelId, startTime, endTime } = req.body;
     const driver = await prisma.driver.update({
       where: { id: parseInt(id) },
       data: {
         name,
         phoneNumber,
+        email,
         hotelId: parseInt(hotelId),
         updatedAt: new Date(),
-        startTime,
-        endTime,
       },
     });
     res.json({ driver });
@@ -361,13 +453,17 @@ const deleteDriver = async (req: Request, res: Response) => {
 const getDriver = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
-    const driver = await prisma.driver.findMany({
+    const drivers = await prisma.driver.findMany({
       where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
       include: {
-        shuttle: true,
+        schedules: {
+          include: {
+            shuttle: true,
+          },
+        },
       },
     });
-    res.json({ driver });
+    res.json({ drivers });
   } catch (error) {
     console.error("Get driver error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -376,14 +472,10 @@ const getDriver = async (req: Request, res: Response) => {
 
 const addShuttle = async (req: Request, res: Response) => {
   try {
-    const { vehicleNumber, driverId, startTime, endTime, hotelId, seats } =
-      req.body;
+    const { vehicleNumber, hotelId, seats } = req.body;
     const shuttle = await prisma.shuttle.create({
       data: {
         vehicleNumber,
-        driverId,
-        startTime,
-        endTime,
         hotelId: parseInt(hotelId),
         seats: parseInt(seats),
         createdAt: new Date(),
@@ -399,15 +491,11 @@ const addShuttle = async (req: Request, res: Response) => {
 const editShuttle = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { vehicleNumber, driverId, startTime, endTime, hotelId, seats } =
-      req.body;
+    const { vehicleNumber, hotelId, seats } = req.body;
     const shuttle = await prisma.shuttle.update({
       where: { id: parseInt(id) },
       data: {
         vehicleNumber,
-        driverId,
-        startTime,
-        endTime,
         hotelId: parseInt(hotelId),
         seats: parseInt(seats),
       },
@@ -434,13 +522,17 @@ const deleteShuttle = async (req: Request, res: Response) => {
 const getShuttle = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
-    const shuttle = await prisma.shuttle.findMany({
+    const shuttles = await prisma.shuttle.findMany({
       where: { hotel: { admins: { some: { id: parseInt(userId) } } } },
       include: {
-        driver: true,
+        schedules: {
+          include: {
+            driver: true,
+          },
+        },
       },
     });
-    res.json({ shuttle });
+    res.json({ shuttles });
   } catch (error) {
     console.error("Get shuttle error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -460,13 +552,13 @@ const getLocation = async (req: Request, res: Response) => {
 const addLocation = async (req: Request, res: Response) => {
   try {
     const { name, latitude, longitude } = req.body;
-    const location = await prisma.location.create({ 
+    const location = await prisma.location.create({
       data: {
         name,
         latitude,
         longitude,
       },
-    }); 
+    });
     res.json({ location });
   } catch (error) {
     console.error("Add location error:", error);
@@ -502,6 +594,91 @@ const deleteLocation = async (req: Request, res: Response) => {
   }
 };
 
+const addSchedule = async (req: Request, res: Response) => {
+  try {
+    const { driverId, shuttleId, startTime, endTime } = req.body;
+
+    const schedule = await prisma.schedule.create({
+      data: {
+        driverId: parseInt(driverId),
+        shuttleId: parseInt(shuttleId),
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+    res.json({ schedule });
+  } catch (error) {
+    console.error("Add schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const editSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const { driverId, shuttleId, startTime, endTime } = req.body;
+
+    const schedule = await prisma.schedule.update({
+      where: { id: parseInt(id) },
+      data: {
+        driverId: parseInt(driverId),
+        shuttleId: parseInt(shuttleId),
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+    res.json({ schedule });
+  } catch (error) {
+    console.error("Edit schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const schedule = await prisma.schedule.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ schedule });
+  } catch (error) {
+    console.error("Delete schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getSchedule = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        OR: [
+          { driver: { hotel: { admins: { some: { id: parseInt(userId) } } } } },
+          {
+            shuttle: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+          },
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+    res.json({ schedules });
+  } catch (error) {
+    console.error("Get schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -509,6 +686,7 @@ export default {
   createHotel,
   editHotel,
   deleteHotel,
+  deleteHotelWithConfirmation,
   getHotel,
   addFrontdesk,
   editFrontdesk,
@@ -522,6 +700,10 @@ export default {
   editShuttle,
   deleteShuttle,
   getShuttle,
+  addSchedule,
+  editSchedule,
+  deleteSchedule,
+  getSchedule,
   addLocation,
   editLocation,
   deleteLocation,

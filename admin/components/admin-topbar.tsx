@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import { Bell, Search, User } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Bell, Search, User, PanelLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,18 +10,23 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
-export function AdminTopbar() {
+export function AdminTopbar({
+  onToggleSidebar,
+}: {
+  onToggleSidebar?: () => void;
+}) {
   return (
     <header className="bg-white border-b border-slate-200 px-6 py-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-1 items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <Input placeholder="Search..." className="pl-10 w-80 bg-slate-50 border-slate-200" />
-          </div>
+          {onToggleSidebar && (
+            <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
+              <PanelLeft className="w-5 h-5" />
+            </Button>
+          )}
         </div>
 
         <div className="flex items-center space-x-4">
@@ -56,5 +61,5 @@ export function AdminTopbar() {
         </div>
       </div>
     </header>
-  )
+  );
 }

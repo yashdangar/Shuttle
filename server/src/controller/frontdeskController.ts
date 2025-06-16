@@ -67,13 +67,7 @@ const getShuttle = async (req: Request, res: Response) => {
         hotelId: hotelId,
       },
       include: {
-        driver: {
-          select: {
-            id: true,
-            name: true,
-            phoneNumber: true,
-          },
-        },
+        schedules: true,
       },
     });
     res.json({ shuttles });
@@ -95,14 +89,7 @@ const getDriver = async (req: Request, res: Response) => {
         id: true,
         name: true,
         phoneNumber: true,
-        startTime: true,
-        endTime: true,
-        shuttle: {
-          select: {
-            id: true,
-            vehicleNumber: true,
-          },
-        },
+        schedules: true,
       },
     });
     res.json({ drivers });

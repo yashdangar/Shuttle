@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../db/prisma";
 import axios from "axios";
-import { PaymentMethod, TripType } from "@prisma/client";
+import { PaymentMethod, BookingType } from "@prisma/client";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -114,20 +114,20 @@ const createTrip = async (req: Request, res: Response) => {
     numberOfBags,
     preferredTime,
     paymentMethod,
-    tripType,
+    bookingType,
     pickupLocationId,
     dropoffLocationId,
   } = req.body;
   const userId = (req as any).user.userId;
 
   try {
-    const trip = await prisma.trip.create({
+    const trip = await prisma.booking.create({
       data: {
         numberOfPersons,
         numberOfBags,
         preferredTime: new Date(preferredTime),
         paymentMethod: paymentMethod as PaymentMethod,
-        tripType: tripType as TripType,
+        bookingType: bookingType as BookingType,
         pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
         dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
         guestId: userId,
@@ -144,7 +144,7 @@ const createTrip = async (req: Request, res: Response) => {
 
 const getTrips = async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
-  const trips = await prisma.trip.findMany({
+  const trips = await prisma.booking.findMany({
     where: { guestId: userId },
   });
   res.json({ trips });
@@ -152,7 +152,7 @@ const getTrips = async (req: Request, res: Response) => {
 
 const getTrip = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const trip = await prisma.trip.findUnique({
+  const trip = await prisma.booking.findUnique({
     where: { id: parseInt(id) },
   });
   res.json({ trip });

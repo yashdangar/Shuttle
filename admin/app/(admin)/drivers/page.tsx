@@ -30,21 +30,31 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Car, User } from "lucide-react";
+import { Plus, Edit, Trash2, User } from "lucide-react";
 import { api } from "@/lib/api";
 import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "../../../components/ui/table-loader";
 import { EmptyState } from "../../../components/ui/empty-state";
+import { toast } from "sonner";
 
 interface Driver {
   id: string;
   name: string;
   phoneNumber: string;
+  email: string;
   hotel: string;
-  assignedShuttle?: string;
   createdAt: string;
+  schedules?: Schedule[];
+}
+
+interface Schedule {
+  id: string;
   startTime: string;
   endTime: string;
+  shuttle: {
+    id: string;
+    vehicleNumber: string;
+  };
 }
 
 interface Hotel {
@@ -55,52 +65,28 @@ interface Hotel {
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>();
   const [hotels, setHotels] = useState<Hotel[]>([]);
-  const shuttles = ["SH-001", "SH-002", "SH-003", "SH-004", "SH-005"];
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     phoneNumber: "",
-    hotel: hotels[0]?.id.toString() || "",
-    assignedShuttle: "",
-    startTime: "",
-    endTime: "",
+    email: "",
+    password: "",
+    hotel: "",
   });
-
-  const [loading, setLoading] = useState(true);
-
-  const formatTimeForDB = (time: string) => {
-    if (!time) return null;
-    const today = new Date();
-    const [hours, minutes] = time.split(":");
-    today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    return today.toISOString();
-  };
-
-  const formatTimeForDisplay = (isoString: string | null | undefined) => {
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    return date.toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   useEffect(() => {
     const fetchDrivers = async () => {
       try {
         const response = await api.get("/admin/get/driver");
-        setDrivers(
-          response.driver.map((driver: Driver) => ({
-            ...driver,
-            startTime: formatTimeForDisplay(driver.startTime),
-            endTime: formatTimeForDisplay(driver.endTime),
-          }))
-        );
+        setDrivers(response.drivers);
       } catch (error) {
         console.error("Error fetching drivers:", error);
+        toast.error("Failed to fetch drivers");
       } finally {
         setLoading(false);
       }
@@ -116,6 +102,7 @@ export default function DriversPage() {
         ]);
       } catch (error) {
         console.error("Error fetching hotels:", error);
+        toast.error("Failed to fetch hotel information");
       }
     };
     fetchDrivers();
@@ -124,60 +111,63 @@ export default function DriversPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingDriver) {
-      const response = await api.put(`/admin/edit/driver/${editingDriver.id}`, {
-        name: formData.name,
-        phoneNumber: formData.phoneNumber,
-        hotelId: parseInt(hotels[0]?.id.toString() || ""),
-        assignedShuttle:
-          formData.assignedShuttle === "none"
-            ? undefined
-            : formData.assignedShuttle,
-        startTime: formatTimeForDB(formData.startTime),
-        endTime: formatTimeForDB(formData.endTime),
-      });
-      if (drivers) {
-        setDrivers(
-          drivers.map((driver) =>
-            driver.id === editingDriver.id
-              ? {
-                  ...driver,
-                  ...formData,
-                  assignedShuttle:
-                    formData.assignedShuttle === "none"
-                      ? undefined
-                      : formData.assignedShuttle,
-                }
-              : driver
-          )
+    setSubmitting(true);
+
+    try {
+      if (editingDriver) {
+        const response = await api.put(
+          `/admin/edit/driver/${editingDriver.id}`,
+          {
+            name: formData.name,
+            phoneNumber: formData.phoneNumber,
+            email: formData.email,
+            hotelId: parseInt(hotels[0]?.id.toString() || ""),
+          }
         );
-        setEditingDriver(null);
+        if (drivers) {
+          setDrivers(
+            drivers.map((driver) =>
+              driver.id === editingDriver.id
+                ? {
+                    ...driver,
+                    name: formData.name,
+                    phoneNumber: formData.phoneNumber,
+                    email: formData.email,
+                  }
+                : driver
+            )
+          );
+          setEditingDriver(null);
+        }
+        toast.success("Driver updated successfully");
+      } else {
+        const response = await api.post("/admin/add/driver", {
+          name: formData.name,
+          phoneNumber: formData.phoneNumber,
+          email: formData.email,
+          password: formData.password,
+          hotelId: parseInt(hotels[0]?.id.toString() || ""),
+        });
+        const newDriver: Driver = {
+          id: response.driver.id,
+          name: formData.name,
+          phoneNumber: formData.phoneNumber,
+          email: formData.email,
+          hotel: hotels[0]?.name || "",
+          createdAt: new Date().toISOString().split("T")[0],
+          schedules: [],
+        };
+        setDrivers([...(drivers || []), newDriver]);
+        toast.success("Driver added successfully");
       }
-    } else {
-      const response = await api.post("/admin/add/driver", {
-        name: formData.name,
-        phoneNumber: formData.phoneNumber,
-        hotelId: parseInt(hotels[0]?.id.toString() || ""),
-        assignedShuttle:
-          formData.assignedShuttle === "none"
-            ? undefined
-            : formData.assignedShuttle,
-        startTime: formatTimeForDB(formData.startTime),
-        endTime: formatTimeForDB(formData.endTime),
-      });
-      const newDriver: Driver = {
-        id: response.driver.id,
-        ...formData,
-        assignedShuttle:
-          formData.assignedShuttle === "none"
-            ? undefined
-            : formData.assignedShuttle,
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setDrivers([...(drivers || []), newDriver]);
+      resetForm();
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error("Error submitting driver:", error);
+      toast.error("Failed to save driver");
+    } finally {
+      setSubmitting(false);
     }
-    resetForm();
-    setIsAddDialogOpen(false);
   };
 
   const handleEdit = (driver: Driver) => {
@@ -185,20 +175,24 @@ export default function DriversPage() {
     setFormData({
       name: driver.name,
       phoneNumber: driver.phoneNumber,
+      email: driver.email,
+      password: "", // Don't pre-fill password for security
       hotel: hotels[0]?.id.toString() || "",
-      assignedShuttle: driver.assignedShuttle || "",
-      startTime: driver.startTime || "",
-      endTime: driver.endTime || "",
     });
     setIsAddDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    setDeleting(id);
     try {
       const response = await api.delete(`/admin/delete/driver/${id}`);
       setDrivers(drivers?.filter((driver) => driver.id !== id) || []);
+      toast.success("Driver deleted successfully");
     } catch (error) {
       console.error("Delete driver error:", error);
+      toast.error("Failed to delete driver");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -206,10 +200,9 @@ export default function DriversPage() {
     setFormData({
       name: "",
       phoneNumber: "",
+      email: "",
+      password: "",
       hotel: hotels[0]?.id.toString() || "",
-      assignedShuttle: "",
-      startTime: "",
-      endTime: "",
     });
     setEditingDriver(null);
   };
@@ -223,7 +216,7 @@ export default function DriversPage() {
               Drivers Management
             </h1>
             <p className="text-slate-600">
-              Manage shuttle drivers and their assignments
+              Manage shuttle drivers and their information
             </p>
           </div>
         </div>
@@ -241,7 +234,7 @@ export default function DriversPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -264,7 +257,7 @@ export default function DriversPage() {
             Drivers Management
           </h1>
           <p className="text-slate-600">
-            Manage shuttle drivers and their assignments
+            Manage shuttle drivers and their information
           </p>
         </div>
         <Dialog
@@ -297,6 +290,21 @@ export default function DriversPage() {
                   }
                   placeholder="Enter full name"
                   required
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  placeholder="driver@example.com"
+                  required
+                  disabled={submitting}
                 />
               </div>
               <div>
@@ -309,8 +317,25 @@ export default function DriversPage() {
                   }
                   placeholder="+1-555-0123"
                   required
+                  disabled={submitting}
                 />
               </div>
+              {!editingDriver && (
+                <div>
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Enter password"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+              )}
               <div>
                 <Label htmlFor="hotel">Hotel</Label>
                 <Select
@@ -319,6 +344,7 @@ export default function DriversPage() {
                     setFormData({ ...formData, hotel: value })
                   }
                   required
+                  disabled={submitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select hotel" />
@@ -333,53 +359,6 @@ export default function DriversPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="shuttle">Assigned Shuttle (Optional)</Label>
-                <Select
-                  value={formData.assignedShuttle}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, assignedShuttle: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select shuttle (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No shuttle assigned</SelectItem>
-                    {shuttles.map((shuttle) => (
-                      <SelectItem key={shuttle} value={shuttle}>
-                        {shuttle}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="startTime">Start Time</Label>
-                <Input
-                  id="startTime"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                  required
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <Label htmlFor="endTime">End Time</Label>
-                <Input
-                  id="endTime"
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                  required
-                  className="w-full"
-                />
-              </div>
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"
@@ -388,11 +367,25 @@ export default function DriversPage() {
                     setIsAddDialogOpen(false);
                     resetForm();
                   }}
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  {editingDriver ? "Update Driver" : "Add Driver"}
+                <Button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader className="w-4 h-4 mr-2" />
+                      {editingDriver ? "Updating..." : "Adding..."}
+                    </>
+                  ) : editingDriver ? (
+                    "Update Driver"
+                  ) : (
+                    "Add Driver"
+                  )}
                 </Button>
               </div>
             </form>
@@ -421,7 +414,7 @@ export default function DriversPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -430,19 +423,25 @@ export default function DriversPage() {
                 {drivers?.map((driver) => (
                   <TableRow key={driver.id}>
                     <TableCell className="font-medium">{driver.name}</TableCell>
+                    <TableCell>{driver.email}</TableCell>
                     <TableCell>{driver.phoneNumber}</TableCell>
-                    <TableCell>{hotels[0]?.name}</TableCell>
                     <TableCell>
-                      {driver.assignedShuttle ? (
-                        <Badge variant="secondary">
-                          {driver.assignedShuttle}
-                        </Badge>
+                      {driver.schedules && driver.schedules.length > 0 ? (
+                        <div className="space-y-1">
+                          {driver.schedules.map((schedule) => (
+                            <Badge
+                              key={schedule.id}
+                              variant="secondary"
+                              className="mr-1"
+                            >
+                              {schedule.shuttle.vehicleNumber}
+                            </Badge>
+                          ))}
+                        </div>
                       ) : (
-                        <span className="text-slate-400">Not assigned</span>
+                        <span className="text-slate-400">No schedules</span>
                       )}
                     </TableCell>
-                    <TableCell>{driver.startTime}</TableCell>
-                    <TableCell>{driver.endTime}</TableCell>
                     <TableCell>
                       {new Date(driver.createdAt).toLocaleDateString()}
                     </TableCell>
@@ -452,6 +451,7 @@ export default function DriversPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEdit(driver)}
+                          disabled={deleting === driver.id}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -460,8 +460,13 @@ export default function DriversPage() {
                           size="sm"
                           onClick={() => handleDelete(driver.id)}
                           className="text-red-600 hover:text-red-700"
+                          disabled={deleting === driver.id}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {deleting === driver.id ? (
+                            <Loader className="w-4 h-4" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>
