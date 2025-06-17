@@ -230,6 +230,8 @@ const createHotel = async (req: Request, res: Response) => {
         phoneNumber,
         email,
         admins: { connect: { id: parseInt(adminId) } },
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
     res.json({ hotel });
@@ -286,7 +288,6 @@ const editHotel = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 const deleteHotel = async (req: Request, res: Response) => {
   try {
