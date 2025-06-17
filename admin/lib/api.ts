@@ -1,7 +1,7 @@
 export const api = {
     async fetch(endpoint: string, options: RequestInit = {}) {
         // Get token from cookies
-        const token = localStorage.getItem("token") || null;
+        const token = localStorage.getItem("adminToken") || null;
         const headers = {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

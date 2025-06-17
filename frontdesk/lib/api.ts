@@ -4,7 +4,7 @@ export async function fetchWithAuth(
   endpoint: string,
   options: RequestInit = {}
 ) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("frontdeskToken");
 
   if (!token) {
     window.location.href = "/";

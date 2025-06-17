@@ -38,7 +38,7 @@ export function LoginForm() {
 
       if (response.ok) {
         // Store token in localStorage
-        localStorage.setItem("token", data.token);
+        localStorage.setItem("frontdeskToken", data.token);
 
         toast({
           title: "Login successful",
