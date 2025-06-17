@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, MapPin, Users, CreditCard, Navigation } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const nextTripData = {
   time: "2:30 PM",
@@ -61,26 +61,21 @@ const nextTripPassengers = [
 ];
 
 export default function NextTripPage() {
-  const { toast } = useToast();
-
   const handleCardClick = (passengerName: string) => {
-    toast({
-      title: passengerName,
-      description: "Viewing passenger details...",
-    });
+    toast.error("Failed to fetch next trip");
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <h1 className="text-3xl font-bold">Next Trip</h1>
+      <h1 className="text-3xl font-bold text-foreground">Next Trip</h1>
 
       {/* Trip Details */}
-      <Card>
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="p-2 bg-muted rounded-lg">
-              <Clock className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+              <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             Trip Details
           </CardTitle>
@@ -88,52 +83,52 @@ export default function NextTripPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-sm font-medium text-foreground">
                 Departure Time
               </p>
-              <p className="text-3xl font-bold">{nextTripData.time}</p>
+              <p className="text-3xl font-bold text-foreground">{nextTripData.time}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-sm font-medium text-foreground">
                 Duration
               </p>
-              <p className="text-xl font-semibold">
+              <p className="text-xl font-semibold text-foreground">
                 {nextTripData.estimatedDuration}
               </p>
             </div>
           </div>
 
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Route</p>
-            <p className="font-bold text-lg">{nextTripData.route}</p>
+            <p className="text-sm font-medium text-foreground">Route</p>
+            <p className="font-bold text-lg text-foreground">{nextTripData.route}</p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
+              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-foreground">
                 {nextTripData.totalPassengers} passengers
               </span>
             </div>
-            <Badge>Scheduled</Badge>
+            <Badge className="bg-blue-600 dark:bg-blue-500 text-white">Scheduled</Badge>
           </div>
         </CardContent>
       </Card>
 
       {/* Route Map Preview */}
-      <Card>
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Navigation className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Navigation className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             Route Preview
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
+          <div className="aspect-video bg-blue-50 dark:bg-blue-950 rounded-xl flex items-center justify-center">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium">Route Map Preview</p>
-              <p className="text-sm text-muted-foreground">
+              <MapPin className="h-16 w-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
+              <p className="text-lg font-medium text-foreground">Route Map Preview</p>
+              <p className="text-sm text-foreground">
                 Downtown Hotels to Terminal B
               </p>
             </div>
@@ -143,50 +138,50 @@ export default function NextTripPage() {
 
       {/* Passenger List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">
+        <h2 className="text-xl font-bold text-foreground">
           Passengers ({nextTripPassengers.length})
         </h2>
         <div className="grid gap-3">
           {nextTripPassengers.map((passenger) => (
             <Card
               key={passenger.id}
-              className="hover:shadow-md transition-all cursor-pointer"
+              className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
               onClick={() => handleCardClick(passenger.name)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
-                      <h3 className="font-bold text-lg">{passenger.name}</h3>
-                      <Badge variant="outline">Scheduled</Badge>
+                      <h3 className="font-bold text-lg text-foreground">{passenger.name}</h3>
+                      <Badge variant="outline" className="border-blue-200 dark:border-blue-800 text-foreground">Scheduled</Badge>
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="font-medium">{passenger.pickup}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Users className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span>
                           {passenger.persons} passengers • {passenger.bags} bags
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CreditCard className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span>{passenger.paymentMethod}</span>
                       </div>
                     </div>
                   </div>
 
-                  <Clock className="h-6 w-6" />
+                  <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
 
-                <div className="mt-4 pt-3 border-t">
-                  <p className="text-sm font-medium text-muted-foreground">
+                <div className="mt-4 pt-3 border-t border-border">
+                  <p className="text-sm font-medium text-foreground">
                     Drop-off:
                   </p>
-                  <p className="text-sm">{passenger.dropoff}</p>
+                  <p className="text-sm text-foreground">{passenger.dropoff}</p>
                 </div>
               </CardContent>
             </Card>

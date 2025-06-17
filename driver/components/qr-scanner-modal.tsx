@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { QrCode, Camera, CheckCircle, X, User, AlertTriangle } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface QRScannerModalProps {
   onClose: () => void
@@ -18,7 +18,6 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
   const [scanResult, setScanResult] = useState<any>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { toast } = useToast()
 
   useEffect(() => {
     startCamera()
@@ -40,17 +39,10 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
       }
-      toast({
-        title: "📷 Camera ready",
-        description: "Point camera at QR code to scan",
-      })
+      toast.success("📷 Camera ready")
     } catch (error) {
       console.error("Error accessing camera:", error)
-      toast({
-        title: "❌ Camera error",
-        description: "Unable to access camera. Using simulation mode.",
-        variant: "destructive",
-      })
+      toast.error("❌ Camera error")
     }
   }
 
@@ -75,10 +67,7 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
       setIsScanning(false)
       stopCamera()
 
-      toast({
-        title: "✅ QR Code scanned!",
-        description: `Found ${mockPassenger.name} in passenger list`,
-      })
+      toast.success("✅ QR Code scanned!")
     } else {
       simulateInvalidScan()
     }
@@ -97,11 +86,7 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
     setIsScanning(false)
     stopCamera()
 
-    toast({
-      title: "❌ Invalid QR Code",
-      description: "This passenger is not in your current trip",
-      variant: "destructive",
-    })
+    toast.error("❌ Invalid QR Code")
   }
 
   const handleConfirmCheckIn = () => {
@@ -115,10 +100,7 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
     setIsScanning(true)
     setScanResult(null)
     startCamera()
-    toast({
-      title: "🔄 Restarting scanner",
-      description: "Camera is ready for scanning",
-    })
+    toast.success("🔄 Restarting scanner")
   }
 
   return (

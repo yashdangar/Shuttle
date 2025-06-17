@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ShuffleIcon as Shuttle, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -28,7 +28,6 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -51,17 +50,10 @@ export default function SignupPage() {
       ) {
         localStorage.setItem("driverLoggedIn", "true");
         localStorage.setItem("driverName", formData.name);
-        toast({
-          title: "Account created successfully",
-          description: `Welcome aboard, ${formData.name}!`,
-        });
+        toast.success(`Welcome aboard, ${formData.name}!`);
         router.push("/dashboard");
       } else {
-        toast({
-          title: "Signup failed",
-          description: "Please fill in all fields",
-          variant: "destructive",
-        });
+        toast.error("Signup failed");
       }
       setIsLoading(false);
     }, 1000);

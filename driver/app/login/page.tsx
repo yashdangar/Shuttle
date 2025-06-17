@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ShuffleIcon as Shuttle, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,7 +24,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,17 +34,10 @@ export default function LoginPage() {
       if (email && password) {
         localStorage.setItem("driverLoggedIn", "true");
         localStorage.setItem("driverName", "John Smith");
-        toast({
-          title: "Login successful",
-          description: "Welcome back, John!",
-        });
+        toast.success("Login successful");
         router.push("/dashboard");
       } else {
-        toast({
-          title: "Login failed",
-          description: "Please enter valid credentials",
-          variant: "destructive",
-        });
+        toast.error("Invalid credentials");
       }
       setIsLoading(false);
     }, 1000);

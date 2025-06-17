@@ -1,32 +1,34 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertTriangle, Info, Clock } from "lucide-react";
+import { Bell, CheckCircle, AlertTriangle, Info, Clock } from "lucide-react";
 import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const recentNotifications = [
   {
     id: 1,
-    title: "New Passenger Added",
-    message: "Sarah Johnson added to current trip",
-    time: "2 min ago",
+    title: "New Trip Assigned",
+    message: "You have been assigned to Trip #1234",
+    time: "5 minutes ago",
     type: "info",
+    read: false,
   },
   {
     id: 2,
-    title: "Route Update",
-    message: "Traffic detected on Main Street",
-    time: "5 min ago",
+    title: "Trip Reminder",
+    message: "Your next trip starts in 30 minutes",
+    time: "1 hour ago",
     type: "warning",
+    read: false,
   },
   {
     id: 3,
-    title: "Passenger Check-in",
-    message: "Mike Chen checked in successfully",
-    time: "8 min ago",
+    title: "System Update",
+    message: "New features have been added to the dashboard",
+    time: "2 hours ago",
     type: "success",
+    read: true,
   },
 ];
 
@@ -35,72 +37,75 @@ interface NotificationDropdownProps {
 }
 
 export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
-  const { toast } = useToast();
-
   const getIcon = (type: string) => {
     switch (type) {
       case "success":
-        return <CheckCircle className="h-4 w-4" />;
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "warning":
-        return <AlertTriangle className="h-4 w-4" />;
+        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
       case "info":
+        return <Info className="h-5 w-5 text-blue-500" />;
       default:
-        return <Info className="h-4 w-4" />;
+        return <Bell className="h-5 w-5 text-gray-500" />;
     }
   };
 
   return (
-    <Card className="absolute right-0 top-14 w-80 max-w-[calc(100vw-2rem)] z-50">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Recent Notifications</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Notifications</h3>
+          <button
+            className="text-sm text-blue-600 hover:text-blue-700"
+            onClick={() => {
+              toast.error("Failed to clear notifications");
+            }}
+          >
+            Clear all
+          </button>
+        </div>
+      </div>
+      <div className="max-h-[400px] overflow-y-auto">
         {recentNotifications.map((notification) => (
           <div
             key={notification.id}
-            className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
+            className={cn(
+              "flex items-start gap-3 p-3 hover:bg-slate-50 transition-colors cursor-pointer",
+              !notification.read && "bg-blue-50"
+            )}
             onClick={() => {
-              toast({
-                title: notification.title,
-                description: notification.message,
-              });
+              toast.error("Failed to mark notification as read");
             }}
           >
-            <div className="flex-shrink-0 mt-1">
-              {getIcon(notification.type)}
-            </div>
+            <div className="mt-1">{getIcon(notification.type)}</div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm">{notification.title}</h4>
-              <p className="text-xs text-muted-foreground line-clamp-2">
+              <p className="text-sm font-medium text-slate-900">
+                {notification.title}
+              </p>
+              <p className="text-sm text-slate-500 truncate">
                 {notification.message}
               </p>
-              <div className="flex items-center gap-1 mt-1">
-                <Clock className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 mt-1">
+                <Clock className="h-3 w-3 text-slate-400" />
+                <span className="text-xs text-slate-400">
                   {notification.time}
                 </span>
               </div>
             </div>
           </div>
         ))}
-
-        <div className="pt-3 border-t">
-          <Link href="/dashboard/notifications" onClick={onClose}>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                toast({
-                  title: "All notifications",
-                  description: "Opening notifications page...",
-                });
-              }}
-            >
-              View All Notifications
-            </Button>
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="p-3 border-t bg-slate-50">
+        <Link
+          href="/dashboard/notifications"
+          className="block text-center text-sm text-blue-600 hover:text-blue-700"
+          onClick={() => {
+            toast.error("Failed to clear notifications");
+          }}
+        >
+          View all notifications
+        </Link>
+      </div>
+    </div>
   );
 }

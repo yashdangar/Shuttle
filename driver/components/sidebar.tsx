@@ -17,49 +17,36 @@ import {
   Sun,
   ChevronLeft,
   ChevronRight,
+  MapPin,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const navItems = [
   {
-    href: "/dashboard",
+    title: "Dashboard",
     icon: Home,
-    label: "Dashboard",
-    badge: null,
+    href: "/dashboard",
   },
   {
+    title: "Current Trip",
+    icon: MapPin,
     href: "/dashboard/current-trip",
-    icon: Car,
-    label: "Current Trip",
-    badge: "6",
   },
   {
+    title: "Next Trip",
+    icon: MapPin,
     href: "/dashboard/next-trip",
-    icon: Clock,
-    label: "Next Trip",
-    badge: null,
-  },
-  {
-    href: "/dashboard/notifications",
-    icon: Bell,
-    label: "Notifications",
-    badge: "3",
-  },
-  {
-    href: "/dashboard/profile",
-    icon: User,
-    label: "Profile",
-    badge: null,
   },
 ];
 
 export function Sidebar() {
-  const pathname = usePathname();
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const { toast } = useToast();
   const [driverName, setDriverName] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -68,159 +55,89 @@ export function Sidebar() {
     setDriverName(name);
   }, []);
 
-  const handleLogout = () => {
+  const handleSignOut = () => {
     localStorage.removeItem("driverLoggedIn");
     localStorage.removeItem("driverName");
-    toast({
-      title: "Logged out successfully",
-      description: "See you next time!",
-    });
+    toast.error("Failed to sign out");
     router.push("/login");
   };
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
-    toast({
-      title: "Theme changed",
-      description: `Switched to ${newTheme} mode`,
-    });
+    toast.success(`Switched to ${newTheme} mode`);
   };
 
   return (
     <div
       className={cn(
-        "flex flex-col h-screen bg-card border-r transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
+        "flex flex-col h-screen border-r border-border bg-background",
+        isCollapsed ? "w-[70px]" : "w-[240px]"
       )}
     >
-      {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-xl">
-                <Shuttle className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg">Shuttle Pro</h2>
-                <p className="text-xs text-muted-foreground">
-                  Driver Dashboard
-                </p>
-              </div>
+      <div className="flex flex-col flex-1">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-semibold">S</span>
             </div>
-          )}
+            {!isCollapsed && (
+              <span className="font-semibold text-lg text-foreground">Shuttle</span>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8"
+            className="hover:bg-blue-50 dark:hover:bg-blue-950"
           >
             {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             )}
           </Button>
         </div>
-      </div>
 
-      {/* Driver Info */}
-      {!isCollapsed && (
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-muted rounded-full flex items-center justify-center">
-              <User className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-semibold">{driverName}</p>
-              <p className="text-xs text-muted-foreground font-medium">
-                ● Online
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              onClick={() => {
-                toast({
-                  title: item.label,
-                  description: "Navigating to page...",
-                });
-              }}
-            >
-              <Icon
+        {/* Navigation */}
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-2">
+            {navItems.map((item) => (
+              <Button
+                key={item.href}
+                variant="ghost"
                 className={cn(
-                  "h-5 w-5 transition-transform group-hover:scale-110"
+                  "w-full justify-start gap-2 hover:bg-blue-50 dark:hover:bg-blue-950",
+                  pathname === item.href && "bg-blue-100 dark:bg-blue-900"
                 )}
-              />
-              {!isCollapsed && (
-                <>
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <Badge
-                      className={cn(
-                        "ml-auto text-xs",
-                        isActive
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : ""
-                      )}
-                    >
-                      {item.badge}
-                    </Badge>
-                  )}
-                </>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+                onClick={() => {
+                  router.push(item.href);
+                  toast.success("Navigating to " + item.title);
+                }}
+              >
+                <item.icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                {!isCollapsed && <span className="text-foreground">{item.title}</span>}
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
 
-      {/* Footer */}
-      <div className="p-4 border-t space-y-2">
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start gap-3",
-            isCollapsed && "justify-center"
-          )}
-          onClick={toggleTheme}
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-          {!isCollapsed && <span>Toggle Theme</span>}
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10",
-            isCollapsed && "justify-center"
-          )}
-          onClick={handleLogout}
-        >
-          <LogOut className="h-5 w-5" />
-          {!isCollapsed && <span>Logout</span>}
-        </Button>
+        {/* Footer */}
+        <div className="p-4 border-t border-border space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 hover:bg-blue-50 dark:hover:bg-blue-950"
+            onClick={toggleTheme}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <Moon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            )}
+            {!isCollapsed && <span className="text-foreground">Toggle Theme</span>}
+          </Button>
+        </div>
       </div>
     </div>
   );

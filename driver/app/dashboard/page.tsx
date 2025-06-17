@@ -6,24 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, MapPin, Users, Clock, Car, TrendingUp } from "lucide-react";
 import { NotificationDropdown } from "@/components/notification-dropdown";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const [driverName, setDriverName] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
-  const { toast } = useToast();
 
   useEffect(() => {
     const name = localStorage.getItem("driverName") || "Driver";
     setDriverName(name);
 
     // Welcome toast
-    toast({
-      title: "Welcome back!",
+    toast.success("Welcome back!", {
       description: "Your dashboard is ready",
     });
-  }, [toast]);
+  }, []);
 
   const currentTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -31,47 +29,20 @@ export default function DashboardPage() {
   });
 
   const handleCardClick = (cardName: string) => {
-    toast({
-      title: cardName,
+    toast.loading(cardName, {
       description: "Loading detailed information...",
     });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-background">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Welcome back,</h1>
-          <p className="text-xl font-semibold text-muted-foreground">
+          <h1 className="text-3xl font-bold text-foreground">Welcome back,</h1>
+          <p className="text-xl font-semibold text-foreground">
             {driverName}
           </p>
-        </div>
-        <div className="relative">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-11 w-11"
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              toast({
-                title: "Notifications",
-                description: showNotifications
-                  ? "Closing notifications"
-                  : "Opening notifications",
-              });
-            }}
-          >
-            <Bell className="h-5 w-5" />
-            {notificationCount > 0 && (
-              <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs">
-                {notificationCount}
-              </Badge>
-            )}
-          </Button>
-          {showNotifications && (
-            <NotificationDropdown onClose={() => setShowNotifications(false)} />
-          )}
         </div>
       </div>
 
@@ -79,23 +50,23 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Current Trip Status */}
         <Card
-          className="hover:shadow-md transition-all cursor-pointer"
+          className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
           onClick={() => handleCardClick("Current Trip Status")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-muted rounded-lg">
-                <Car className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <Car className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Current Trip Status
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-2xl font-bold">Active</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-2xl font-bold text-foreground">Active</p>
+            <p className="text-sm text-foreground">
               Terminal A → Downtown Hotels
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-foreground">
               Started: {currentTime}
             </p>
           </CardContent>
@@ -103,23 +74,23 @@ export default function DashboardPage() {
 
         {/* Next Trip */}
         <Card
-          className="hover:shadow-md transition-all cursor-pointer"
+          className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
           onClick={() => handleCardClick("Next Trip")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-muted rounded-lg">
-                <Clock className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Next Trip
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-2xl font-bold">2:30 PM</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-2xl font-bold text-foreground">2:30 PM</p>
+            <p className="text-sm text-foreground">
               Downtown → Terminal B
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-foreground">
               8 passengers scheduled
             </p>
           </CardContent>
@@ -127,25 +98,25 @@ export default function DashboardPage() {
 
         {/* Total Passengers */}
         <Card
-          className="hover:shadow-md transition-all cursor-pointer"
+          className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
           onClick={() => handleCardClick("Current Trip Passengers")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-muted rounded-lg">
-                <Users className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Current Passengers
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-2xl font-bold">6 / 12</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-2xl font-bold text-foreground">6 / 12</p>
+            <p className="text-sm text-foreground">
               4 checked in, 2 pending
             </p>
-            <div className="w-full bg-muted rounded-full h-2">
+            <div className="w-full bg-blue-100 dark:bg-blue-900 rounded-full h-2">
               <div
-                className="bg-primary h-2 rounded-full transition-all duration-500"
+                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
                 style={{ width: "50%" }}
               ></div>
             </div>
@@ -154,34 +125,33 @@ export default function DashboardPage() {
 
         {/* Next Passenger */}
         <Card
-          className="hover:shadow-md transition-all cursor-pointer"
+          className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
           onClick={() => handleCardClick("Next Passenger")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 bg-muted rounded-lg">
-                <MapPin className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Next Passenger
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="font-semibold">Sarah Johnson</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">Sarah Johnson</p>
+              <p className="text-sm text-foreground">
                 Hilton Downtown Hotel
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-foreground">
                 2 passengers, 3 bags
               </p>
             </div>
             <Button
               size="sm"
-              className="w-full"
+              className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
               onClick={(e) => {
                 e.stopPropagation();
-                toast({
-                  title: "Opening map",
+                toast.loading("Opening map", {
                   description: "Loading passenger location...",
                 });
               }}
@@ -194,26 +164,26 @@ export default function DashboardPage() {
       </div>
 
       {/* Performance Stats */}
-      <Card>
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             Today's Performance
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold">12</p>
-              <p className="text-sm text-muted-foreground">Trips Completed</p>
+              <p className="text-2xl font-bold text-foreground">12</p>
+              <p className="text-sm text-foreground">Trips Completed</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold">48</p>
-              <p className="text-sm text-muted-foreground">Passengers Served</p>
+              <p className="text-2xl font-bold text-foreground">48</p>
+              <p className="text-sm text-foreground">Passengers Served</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold">4.9</p>
-              <p className="text-sm text-muted-foreground">Rating</p>
+              <p className="text-2xl font-bold text-foreground">4.9</p>
+              <p className="text-sm text-foreground">Rating</p>
             </div>
           </div>
         </CardContent>

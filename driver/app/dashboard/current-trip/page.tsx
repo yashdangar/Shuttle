@@ -16,7 +16,7 @@ import {
   Navigation,
 } from "lucide-react";
 import { QRScannerModal } from "@/components/qr-scanner-modal";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const passengers = [
   {
@@ -68,7 +68,6 @@ const passengers = [
 export default function CurrentTripPage() {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [passengerList, setPassengerList] = useState(passengers);
-  const { toast } = useToast();
 
   const checkedInCount = passengerList.filter(
     (p) => p.status === "checked-in"
@@ -86,26 +85,20 @@ export default function CurrentTripPage() {
           : p
       )
     );
-    toast({
-      title: "Check-in successful!",
-      description: `${passengerData.name} checked in. Seat ${passengerData.seatNumber} assigned.`,
-    });
+    toast.success("Check-in successful!");
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Current Trip</h1>
+        <h1 className="text-3xl font-bold text-foreground">Current Trip</h1>
         <Button
           onClick={() => {
             setShowQRScanner(true);
-            toast({
-              title: "QR Scanner",
-              description: "Opening camera scanner...",
-            });
+            toast.error("Failed to fetch trip details");
           }}
-          className="h-11"
+          className="h-11 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
         >
           <QrCode className="h-5 w-5 mr-2" />
           Scan QR
@@ -113,26 +106,26 @@ export default function CurrentTripPage() {
       </div>
 
       {/* Trip Overview */}
-      <Card>
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="p-2 bg-muted rounded-lg">
-              <Users className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             Trip Overview
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-foreground">
               Shuttle Occupancy
             </span>
-            <span className="font-bold text-lg">
+            <span className="font-bold text-lg text-foreground">
               {checkedInCount} / {passengerList.length} passengers
             </span>
           </div>
-          <Progress value={occupancyPercentage} className="h-3" />
-          <div className="text-sm text-muted-foreground">
+          <Progress value={occupancyPercentage} className="h-3 bg-blue-100 dark:bg-blue-900" />
+          <div className="text-sm text-foreground">
             Total persons: {totalPassengers} | Checked in: {checkedInCount}
           </div>
         </CardContent>
@@ -140,33 +133,31 @@ export default function CurrentTripPage() {
 
       {/* Next Passenger Highlight */}
       {nextPassenger && (
-        <Card className="border-2">
+        <Card className="border-2 border-blue-200 dark:border-blue-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-2 bg-primary rounded-lg">
-                <Navigation className="h-5 w-5 text-primary-foreground" />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <div className="p-2 bg-blue-600 dark:bg-blue-500 rounded-lg">
+                <Navigation className="h-5 w-5 text-white" />
               </div>
               Next Pickup - Priority
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="font-bold text-xl">{nextPassenger.name}</p>
-              <p className="text-muted-foreground font-medium">
+              <p className="font-bold text-xl text-foreground">{nextPassenger.name}</p>
+              <p className="text-foreground font-medium">
                 {nextPassenger.pickup}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-foreground">
                 {nextPassenger.persons} passengers • {nextPassenger.bags} bags
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 size="sm"
+                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
                 onClick={() =>
-                  toast({
-                    title: "Opening map",
-                    description: "Loading pickup location...",
-                  })
+                  toast.error("Failed to fetch trip details")
                 }
               >
                 <MapPin className="h-4 w-4 mr-2" />
@@ -175,11 +166,9 @@ export default function CurrentTripPage() {
               <Button
                 size="sm"
                 variant="outline"
+                className="border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950"
                 onClick={() =>
-                  toast({
-                    title: "Opening navigation",
-                    description: "Launching Google Maps...",
-                  })
+                  toast.error("Failed to update trip status")
                 }
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -191,30 +180,27 @@ export default function CurrentTripPage() {
       )}
 
       {/* Google Maps Embed */}
-      <Card>
+      <Card className="border-border">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             Route Map
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
+          <div className="aspect-video bg-blue-50 dark:bg-blue-950 rounded-xl flex items-center justify-center">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium">Google Maps Integration</p>
-              <p className="text-sm text-muted-foreground">
+              <MapPin className="h-16 w-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
+              <p className="text-lg font-medium text-foreground">Google Maps Integration</p>
+              <p className="text-sm text-foreground">
                 Showing pickup locations and route
               </p>
             </div>
           </div>
           <Button
-            className="w-full mt-4"
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
             onClick={() =>
-              toast({
-                title: "Full map",
-                description: "Opening detailed route map...",
-              })
+              toast.error("Failed to start trip")
             }
           >
             <MapPin className="h-4 w-4 mr-2" />
@@ -225,26 +211,23 @@ export default function CurrentTripPage() {
 
       {/* Passenger List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">
+        <h2 className="text-xl font-bold text-foreground">
           Passengers ({passengerList.length})
         </h2>
         <div className="grid gap-3">
           {passengerList.map((passenger) => (
             <Card
               key={passenger.id}
-              className="hover:shadow-md transition-all cursor-pointer"
+              className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
               onClick={() =>
-                toast({
-                  title: passenger.name,
-                  description: "Viewing passenger details...",
-                })
+                toast.error("Failed to fetch trip details")
               }
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
-                      <h3 className="font-bold text-lg">{passenger.name}</h3>
+                      <h3 className="font-bold text-lg text-foreground">{passenger.name}</h3>
                       <Badge
                         variant={
                           passenger.status === "checked-in"
@@ -252,6 +235,13 @@ export default function CurrentTripPage() {
                             : passenger.status === "next"
                             ? "secondary"
                             : "outline"
+                        }
+                        className={
+                          passenger.status === "checked-in"
+                            ? "bg-blue-600 dark:bg-blue-500 text-white"
+                            : passenger.status === "next"
+                            ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                            : "border-blue-200 dark:border-blue-800 text-foreground"
                         }
                       >
                         {passenger.status === "checked-in"
@@ -263,23 +253,23 @@ export default function CurrentTripPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="font-medium">{passenger.pickup}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Users className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span>
                           {passenger.persons} passengers • {passenger.bags} bags
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CreditCard className="h-4 w-4" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span>{passenger.paymentMethod}</span>
                       </div>
                       {passenger.seatNumber && (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle className="h-4 w-4" />
+                        <div className="flex items-center gap-2 text-foreground">
+                          <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           <span>Seat: {passenger.seatNumber}</span>
                         </div>
                       )}
@@ -299,8 +289,8 @@ export default function CurrentTripPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t">
-                  <p className="text-sm font-medium text-muted-foreground">
+                <div className="mt-4 pt-3 border-t border-border">
+                  <p className="text-sm font-medium text-foreground">
                     Drop-off:
                   </p>
                   <p className="text-sm">{passenger.dropoff}</p>
