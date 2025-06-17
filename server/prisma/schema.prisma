@@ -10,11 +10,10 @@ datasource db {
 model Guest {
   id              Int            @id @default(autoincrement())
   email           String?        @unique
-  googleId        String?
   firstName       String?
   lastName        String?
   phoneNumber     String?
-  arrivalDate     DateTime? // for login
+  arrivalDate     DateTime?
   confirmationNum String?        @unique
   reservationId   String?
   createdAt       DateTime       @default(now())
@@ -23,6 +22,7 @@ model Guest {
   isNonResident   Boolean        @default(false)
   hotel           Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   bookings        Booking[]
+  googleId        String?
   notifications   Notification[]
 }
 
@@ -33,14 +33,14 @@ enum PaymentMethod {
 }
 
 model Location {
-  id           Int      @id @default(autoincrement())
-  name         String
-  latitude     Float
-  longitude    Float
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  bookingsPickup  Booking[]   @relation("pickup")
-  bookingsDropoff Booking[]   @relation("dropoff")
+  id              Int       @id @default(autoincrement())
+  name            String
+  latitude        Float
+  longitude       Float
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  bookingsPickup  Booking[] @relation("pickup")
+  bookingsDropoff Booking[] @relation("dropoff")
 }
 
 enum BookingType {
@@ -53,13 +53,11 @@ model Booking {
   guestId           Int
   numberOfPersons   Int
   numberOfBags      Int
-  pickupLocation    Location?     @relation(fields: [pickupLocationId], references: [id], name: "pickup")
   pickupLocationId  Int?
-  dropoffLocation   Location?     @relation(fields: [dropoffLocationId], references: [id], name: "dropoff")
   dropoffLocationId Int?
   preferredTime     DateTime?
   paymentMethod     PaymentMethod
-  bookingType          BookingType
+  bookingType       BookingType
   isCompleted       Boolean       @default(false)
   isPaid            Boolean       @default(false)
   isCancelled       Boolean       @default(false)
@@ -71,6 +69,8 @@ model Booking {
   qrCodePath        String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
+  pickupLocation    Location?     @relation("pickup", fields: [pickupLocationId], references: [id])
 }
 
 model FrontDesk {
@@ -113,12 +113,12 @@ model Driver {
 }
 
 model Shuttle {
-  id            Int      @id @default(autoincrement())
+  id            Int        @id @default(autoincrement())
   hotelId       Int
   vehicleNumber String
   seats         Int
-  createdAt     DateTime @default(now())
-  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+  hotel         Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   schedules     Schedule[] @relation("ShuttleSchedules")
   bookings      Booking[]
 }
@@ -139,7 +139,6 @@ model Notification {
   id          Int        @id @default(autoincrement())
   title       String
   message     String
-  isRead      Boolean    @default(false)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   driverId    Int?
@@ -153,21 +152,17 @@ model Notification {
 }
 
 model Hotel {
-  id         Int         @id @default(autoincrement())
-  name       String
-  address    String?
+  id          Int     @id @default(autoincrement())
+  name        String
+  address     String?
   phoneNumber String?
-  email      String?
-  
+  email       String?
+
   latitude   Float? // Set by Google Maps picker
   longitude  Float? // Set by Google Maps picker
-  shuttles   Shuttle[] 
+  shuttles   Shuttle[]
   guests     Guest[]
   frontDesks FrontDesk[]
   admins     Admin[]
   drivers    Driver[]
-
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
 }
-
