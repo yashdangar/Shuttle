@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import type React from "react";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,29 +20,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Eye, Users } from "lucide-react";
+import { Eye, User } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
-import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "@/components/ui/table-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 
-interface Shuttle {
-  id: number;
-  vehicleNumber: string;
-}
-
 interface Driver {
-  id: number;
+  id: string;
   name: string;
   phoneNumber: string;
+  email: string;
+  createdAt: string;
+  schedules?: Schedule[];
+}
+
+interface Schedule {
+  id: string;
   startTime: string;
   endTime: string;
-  shuttle: Shuttle | null;
+  shuttle: {
+    id: string;
+    vehicleNumber: string;
+  };
 }
 
 function DriversPage() {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>();
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -60,38 +66,34 @@ function DriversPage() {
     fetchDrivers();
   }, []);
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
-          <p className="text-gray-600">Manage your driver team</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Drivers Management
+          </h1>
+          <p className="text-slate-600">
+            View shuttle drivers and their information
+          </p>
         </div>
-
-        {/* Desktop Table */}
-        <Card className="hidden md:block">
+        <Card className="border-slate-200">
           <CardHeader>
-            <CardTitle>Driver Team</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="w-5 h-5 text-blue-600" />
+              <span>Drivers List</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Driver Name</TableHead>
-                  <TableHead>Phone Number</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Assigned Shuttle</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Assigned Schedules</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,24 +102,6 @@ function DriversPage() {
             </Table>
           </CardContent>
         </Card>
-
-        {/* Mobile Cards */}
-        <div className="grid gap-4 md:hidden">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index}>
-              <CardContent className="p-4">
-                <div className="animate-pulse space-y-3">
-                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       </div>
     );
   }
@@ -125,105 +109,83 @@ function DriversPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
-        <p className="text-gray-600">Manage your driver team</p>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Drivers Management
+        </h1>
+        <p className="text-slate-600">
+          View shuttle drivers and their information
+        </p>
       </div>
 
-      {drivers.length === 0 ? (
-        <Card>
-          <CardContent>
+      <Card className="border-slate-200">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <User className="w-5 h-5 text-blue-600" />
+            <span>Drivers List</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!drivers || drivers.length === 0 ? (
             <EmptyState
-              icon={Users}
+              icon={User}
               title="No drivers available"
-              description="Add your first driver to start managing your team."
+              description="No drivers have been assigned to this hotel yet."
             />
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Desktop Table */}
-          <Card className="hidden md:block">
-            <CardHeader>
-              <CardTitle>Driver Team</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Driver Name</TableHead>
-                    <TableHead>Phone Number</TableHead>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>End Time</TableHead>
-                    <TableHead>Assigned Shuttle</TableHead>
-                    <TableHead>Actions</TableHead>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Assigned Schedules</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {drivers?.map((driver) => (
+                  <TableRow key={driver.id}>
+                    <TableCell className="font-medium">{driver.name}</TableCell>
+                    <TableCell>{driver.email}</TableCell>
+                    <TableCell>{driver.phoneNumber}</TableCell>
+                    <TableCell>
+                      {driver.schedules && driver.schedules.length > 0 ? (
+                        <div className="space-y-1">
+                          {driver.schedules.map((schedule) => (
+                            <Badge
+                              key={schedule.id}
+                              variant="secondary"
+                              className="mr-1"
+                            >
+                              {schedule.shuttle.vehicleNumber}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">No schedules</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(driver.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedDriver(driver)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {drivers.map((driver) => (
-                    <TableRow key={driver.id}>
-                      <TableCell className="font-medium">
-                        {driver.name}
-                      </TableCell>
-                      <TableCell>{driver.phoneNumber}</TableCell>
-                      <TableCell>{formatTime(driver.startTime)}</TableCell>
-                      <TableCell>{formatTime(driver.endTime)}</TableCell>
-                      <TableCell>
-                        {driver.shuttle?.vehicleNumber || "Not Assigned"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setSelectedDriver(driver)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Mobile Cards */}
-          <div className="grid gap-4 md:hidden">
-            {drivers.map((driver) => (
-              <Card key={driver.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">{driver.name}</h3>
-                  </div>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p>
-                      <span className="font-medium">Phone:</span>{" "}
-                      {driver.phoneNumber}
-                    </p>
-                    <p>
-                      <span className="font-medium">Schedule:</span>{" "}
-                      {formatTime(driver.startTime)} -{" "}
-                      {formatTime(driver.endTime)}
-                    </p>
-                    <p>
-                      <span className="font-medium">Shuttle:</span>{" "}
-                      {driver.shuttle?.vehicleNumber || "Not Assigned"}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 w-full"
-                    onClick={() => setSelectedDriver(driver)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Driver Details Modal */}
       <Dialog
@@ -245,36 +207,84 @@ function DriversPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">
-                    Phone
+                    Email
                   </label>
-                  <p className="font-semibold">{selectedDriver.phoneNumber}</p>
+                  <p className="font-semibold">{selectedDriver.email}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">
-                    Start Time
+                    Phone
                   </label>
-                  <p className="font-semibold">
-                    {formatTime(selectedDriver.startTime)}
-                  </p>
+                  <p className="font-semibold">{selectedDriver.phoneNumber}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">
-                    End Time
+                    Created At
                   </label>
                   <p className="font-semibold">
-                    {formatTime(selectedDriver.endTime)}
+                    {new Date(selectedDriver.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">
-                  Assigned Shuttle
+                  Assigned Schedules
                 </label>
-                <p className="font-semibold">
-                  {selectedDriver.shuttle?.vehicleNumber || "Not Assigned"}
-                </p>
+                {selectedDriver.schedules &&
+                selectedDriver.schedules.length > 0 ? (
+                  <div className="space-y-2 mt-2">
+                    {selectedDriver.schedules.map((schedule) => (
+                      <div key={schedule.id} className="border rounded-lg p-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Shuttle
+                            </label>
+                            <p className="font-medium">
+                              {schedule.shuttle.vehicleNumber}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Start Time
+                            </label>
+                            <p className="font-medium">
+                              {new Date(schedule.startTime).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                }
+                              )}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              End Time
+                            </label>
+                            <p className="font-medium">
+                              {new Date(schedule.endTime).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                }
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 mt-2">No schedules assigned</p>
+                )}
               </div>
             </div>
           )}

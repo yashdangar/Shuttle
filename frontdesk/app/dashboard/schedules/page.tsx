@@ -4,16 +4,6 @@ import type React from "react";
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -27,24 +17,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Calendar,
-  Clock,
-  TableIcon,
-  BarChart3,
-} from "lucide-react";
-import { api } from "@/lib/api";
-import { Loader } from "@/components/ui/loader";
-import { TableLoader } from "../../../components/ui/table-loader";
-import { EmptyState } from "../../../components/ui/empty-state";
-import { toast } from "sonner";
+import { Calendar, Clock, TableIcon, BarChart3 } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
+import { TableLoader } from "@/components/ui/table-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { withAuth } from "@/components/withAuth";
 
 interface Schedule {
@@ -89,25 +68,9 @@ function SchedulesPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [shuttles, setShuttles] = useState<Shuttle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [formData, setFormData] = useState({
-    driverId: "",
-    shuttleId: "",
-    startTime: "",
-    endTime: "",
-  });
-
-  const formatTimeForDB = (date: string, time: string) => {
-    if (!time) return null;
-    const today = new Date(date || new Date());
-    const [hours, minutes] = time.split(":");
-    today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    return today.toISOString();
-  };
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
+    null
+  );
 
   const formatTimeForDisplay = (isoString: string | null | undefined) => {
     if (!isoString) return "";
@@ -183,17 +146,20 @@ function SchedulesPage() {
     const fetchData = async () => {
       try {
         const [schedulesRes, driversRes, shuttlesRes] = await Promise.all([
-          api.get("/admin/get/schedule"),
-          api.get("/admin/get/driver"),
-          api.get("/admin/get/shuttle"),
+          fetchWithAuth("/frontdesk/schedule"),
+          fetchWithAuth("/frontdesk/driver"),
+          fetchWithAuth("/frontdesk/shuttle"),
         ]);
 
-        setSchedules(schedulesRes.schedules);
-        setDrivers(driversRes.drivers);
-        setShuttles(shuttlesRes.shuttles);
+        const schedulesData = await schedulesRes.json();
+        const driversData = await driversRes.json();
+        const shuttlesData = await shuttlesRes.json();
+
+        setSchedules(schedulesData.schedules);
+        setDrivers(driversData.drivers);
+        setShuttles(shuttlesData.shuttles);
       } catch (error) {
         console.error("Error fetching data:", error);
-        toast.error("Failed to fetch schedules data");
       } finally {
         setLoading(false);
       }
@@ -201,87 +167,6 @@ function SchedulesPage() {
 
     fetchData();
   }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-
-    try {
-      const today = new Date().toISOString().split("T")[0];
-
-      if (editingSchedule) {
-        const response = await api.put(
-          `/admin/edit/schedule/${editingSchedule.id}`,
-          {
-            driverId: parseInt(formData.driverId),
-            shuttleId: parseInt(formData.shuttleId),
-            startTime: formatTimeForDB(today, formData.startTime),
-            endTime: formatTimeForDB(today, formData.endTime),
-          }
-        );
-
-        setSchedules(
-          schedules?.map((schedule) =>
-            schedule.id === editingSchedule.id ? response.schedule : schedule
-          )
-        );
-        setEditingSchedule(null);
-        toast.success("Schedule updated successfully");
-      } else {
-        const response = await api.post("/admin/add/schedule", {
-          driverId: parseInt(formData.driverId),
-          shuttleId: parseInt(formData.shuttleId),
-          startTime: formatTimeForDB(today, formData.startTime),
-          endTime: formatTimeForDB(today, formData.endTime),
-        });
-
-        setSchedules([...(schedules || []), response.schedule]);
-        toast.success("Schedule added successfully");
-      }
-      resetForm();
-      setIsAddDialogOpen(false);
-    } catch (error) {
-      console.error("Error submitting schedule:", error);
-      toast.error("Failed to save schedule");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleEdit = (schedule: Schedule) => {
-    setEditingSchedule(schedule);
-    setFormData({
-      driverId: schedule.driver.id,
-      shuttleId: schedule.shuttle.id,
-      startTime: formatTimeForDisplay(schedule.startTime),
-      endTime: formatTimeForDisplay(schedule.endTime),
-    });
-    setIsAddDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    setDeleting(id);
-    try {
-      await api.delete(`/admin/delete/schedule/${id}`);
-      setSchedules(schedules?.filter((schedule) => schedule.id !== id));
-      toast.success("Schedule deleted successfully");
-    } catch (error) {
-      console.error("Error deleting schedule:", error);
-      toast.error("Failed to delete schedule");
-    } finally {
-      setDeleting(null);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      driverId: "",
-      shuttleId: "",
-      startTime: "",
-      endTime: "",
-    });
-    setEditingSchedule(null);
-  };
 
   if (loading) {
     return (
@@ -291,9 +176,7 @@ function SchedulesPage() {
             <h1 className="text-2xl font-bold text-slate-900">
               Schedules Management
             </h1>
-            <p className="text-slate-600">
-              Manage driver and shuttle schedules
-            </p>
+            <p className="text-slate-600">View driver and shuttle schedules</p>
           </div>
         </div>
         <Card className="border-slate-200">
@@ -304,21 +187,82 @@ function SchedulesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Shuttle</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableLoader columns={6} />
-              </TableBody>
-            </Table>
+            <div className="w-full">
+              {/* Loading Tabs Skeleton */}
+              <div className="grid w-full grid-cols-2 h-auto mb-6 bg-slate-100 rounded-lg p-1">
+                <div className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm py-2 lg:py-3 px-3 bg-white rounded-md shadow-sm">
+                  <div className="w-3 h-3 lg:w-4 lg:h-4 bg-slate-300 rounded animate-pulse"></div>
+                  <div className="hidden sm:block w-20 h-4 bg-slate-300 rounded animate-pulse"></div>
+                  <div className="sm:hidden w-16 h-4 bg-slate-300 rounded animate-pulse"></div>
+                </div>
+                <div className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm py-2 lg:py-3 px-3">
+                  <div className="w-3 h-3 lg:w-4 lg:h-4 bg-slate-300 rounded animate-pulse"></div>
+                  <div className="hidden sm:block w-16 h-4 bg-slate-300 rounded animate-pulse"></div>
+                  <div className="sm:hidden w-12 h-4 bg-slate-300 rounded animate-pulse"></div>
+                </div>
+              </div>
+
+              {/* Loading Timeline Content */}
+              <div className="space-y-4 lg:space-y-6">
+                {/* Legend Skeleton */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 lg:gap-4 p-3 lg:p-4 bg-slate-50 rounded-lg">
+                  <div className="w-32 h-4 bg-slate-300 rounded animate-pulse col-span-full lg:w-full mb-1 lg:mb-2"></div>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 min-w-0"
+                    >
+                      <div className="w-3 h-3 lg:w-4 lg:h-4 rounded border-2 bg-slate-300 animate-pulse flex-shrink-0"></div>
+                      <div className="w-16 h-3 bg-slate-300 rounded animate-pulse"></div>
+                      <div className="w-12 h-3 bg-slate-300 rounded animate-pulse flex-shrink-0"></div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mobile scroll hint skeleton */}
+                <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
+                  <div className="w-48 h-3 bg-slate-300 rounded animate-pulse mx-auto"></div>
+                </div>
+
+                {/* Timeline Container Skeleton */}
+                <div className="relative bg-white border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[1200px] p-3 lg:p-6">
+                      {/* Hour markers skeleton */}
+                      <div className="relative h-6 lg:h-8 border-b border-slate-200 mb-3 lg:mb-4">
+                        {Array.from({ length: 24 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="absolute text-[10px] lg:text-xs -translate-x-1/2"
+                            style={{ left: `${(i / 24) * 100}%` }}
+                          >
+                            <div className="w-8 h-3 bg-slate-300 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Timeline tracks skeleton */}
+                      <div className="space-y-3 lg:space-y-4">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <div key={index} className="relative">
+                            {/* Shuttle header skeleton */}
+                            <div className="flex items-center mb-2">
+                              <div className="w-2 h-2 lg:w-3 lg:h-3 rounded border-2 mr-2 flex-shrink-0 bg-slate-300 animate-pulse"></div>
+                              <div className="w-20 h-4 bg-slate-300 rounded animate-pulse"></div>
+                              <div className="w-16 h-3 bg-slate-300 rounded animate-pulse ml-2"></div>
+                            </div>
+                            {/* Timeline track skeleton */}
+                            <div className="relative h-12 lg:h-16 bg-slate-50 border border-slate-200 rounded-lg mb-2">
+                              <div className="absolute top-2 left-4 right-4 bottom-2 bg-slate-300 rounded animate-pulse"></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -335,132 +279,8 @@ function SchedulesPage() {
           <h1 className="text-2xl font-bold text-slate-900">
             Schedules Management
           </h1>
-          <p className="text-slate-600">Manage driver and shuttle schedules</p>
+          <p className="text-slate-600">View driver and shuttle schedules</p>
         </div>
-        <Dialog
-          open={isAddDialogOpen}
-          onOpenChange={(open) => {
-            setIsAddDialogOpen(open);
-            if (!open) resetForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Schedule
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingSchedule ? "Edit Schedule" : "Add New Schedule"}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="driver">Driver</Label>
-                <Select
-                  value={formData.driverId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, driverId: value })
-                  }
-                  required
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select driver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {drivers.map((driver) => (
-                      <SelectItem key={driver.id} value={driver.id}>
-                        {driver.name} ({driver.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="shuttle">Shuttle</Label>
-                <Select
-                  value={formData.shuttleId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, shuttleId: value })
-                  }
-                  required
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select shuttle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shuttles.map((shuttle) => (
-                      <SelectItem key={shuttle.id} value={shuttle.id}>
-                        {shuttle.vehicleNumber} ({shuttle.seats} seats)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="startTime">Start Time</Label>
-                <Input
-                  id="startTime"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                  required
-                  className="w-full"
-                  disabled={submitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="endTime">End Time</Label>
-                <Input
-                  id="endTime"
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                  required
-                  className="w-full"
-                  disabled={submitting}
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAddDialogOpen(false);
-                    resetForm();
-                  }}
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader className="w-4 h-4 mr-2" />
-                      {editingSchedule ? "Updating..." : "Adding..."}
-                    </>
-                  ) : editingSchedule ? (
-                    "Update Schedule"
-                  ) : (
-                    "Add Schedule"
-                  )}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <Card className="border-slate-200">
@@ -496,7 +316,7 @@ function SchedulesPage() {
                 <EmptyState
                   icon={Calendar}
                   title="No schedules available"
-                  description="Create your first schedule to assign drivers to shuttles."
+                  description="No schedules have been created for this hotel yet."
                 />
               ) : (
                 <div className="space-y-4 lg:space-y-6">
@@ -533,7 +353,7 @@ function SchedulesPage() {
                   {/* Timeline Container */}
                   <div className="relative bg-white border border-slate-200 rounded-lg overflow-hidden">
                     <div className="overflow-x-auto">
-                      <div className="min-w-[1200px] p-3 lg:p-6">
+                      <div className="relative min-w-[1200px] p-3 lg:p-6">
                         {/* Hour markers */}
                         <div className="relative h-6 lg:h-8 border-b border-slate-200 mb-3 lg:mb-4">
                           {hourMarkers.map((marker) => (
@@ -547,18 +367,16 @@ function SchedulesPage() {
                           ))}
                         </div>
 
-                        {/* Timeline grid lines */}
-                        <div className="absolute inset-0 pointer-events-none">
-                          {hourMarkers
-                            .filter((m) => m.hour % 6 === 0)
-                            .map((marker) => (
-                              <div
-                                key={marker.hour}
-                                className="absolute top-0 bottom-0 w-px bg-slate-200 opacity-50 lg:opacity-100"
-                                style={{ left: `${marker.position}%` }}
-                              />
-                            ))}
-                        </div>
+                        {/* Timeline grid lines - positioned within scrollable content */}
+                        {hourMarkers
+                          .filter((m) => m.hour % 6 === 0)
+                          .map((marker) => (
+                            <div
+                              key={marker.hour}
+                              className="absolute top-0 bottom-0 w-px bg-slate-200 opacity-50 lg:opacity-100 pointer-events-none"
+                              style={{ left: `${marker.position}%` }}
+                            />
+                          ))}
 
                         {/* Timeline tracks for each shuttle */}
                         <div className="space-y-3 lg:space-y-4 relative">
@@ -607,14 +425,16 @@ function SchedulesPage() {
                                             8
                                           )}%`, // Minimum width for visibility
                                         }}
-                                        onClick={() => handleEdit(schedule)}
+                                        onClick={() =>
+                                          setSelectedSchedule(schedule)
+                                        }
                                         title={`${
                                           schedule.driver.name
                                         } - ${formatTimeForDisplay(
                                           schedule.startTime
                                         )} to ${formatTimeForDisplay(
                                           schedule.endTime
-                                        )}`}
+                                        )} (Click for details)`}
                                       >
                                         <div className="p-0.5 lg:p-1 text-[10px] lg:text-xs font-medium h-full overflow-hidden">
                                           <div className="truncate leading-tight">
@@ -657,7 +477,7 @@ function SchedulesPage() {
                 <EmptyState
                   icon={Calendar}
                   title="No schedules available"
-                  description="Create your first schedule to assign drivers to shuttles."
+                  description="No schedules have been created for this hotel yet."
                 />
               ) : (
                 <Table>
@@ -668,7 +488,6 @@ function SchedulesPage() {
                       <TableHead>Start Time</TableHead>
                       <TableHead>End Time</TableHead>
                       <TableHead>Duration</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -730,31 +549,6 @@ function SchedulesPage() {
                           <TableCell>
                             <Badge variant="outline">{duration}h</Badge>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(schedule)}
-                                disabled={deleting === schedule.id}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(schedule.id)}
-                                className="text-red-600 hover:text-red-700"
-                                disabled={deleting === schedule.id}
-                              >
-                                {deleting === schedule.id ? (
-                                  <Loader className="w-4 h-4" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -765,6 +559,115 @@ function SchedulesPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Schedule Details Modal */}
+      <Dialog
+        open={!!selectedSchedule}
+        onOpenChange={() => setSelectedSchedule(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule Details</DialogTitle>
+          </DialogHeader>
+          {selectedSchedule && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Driver Name
+                  </label>
+                  <p className="font-semibold">
+                    {selectedSchedule.driver.name}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Driver Email
+                  </label>
+                  <p className="font-semibold">
+                    {selectedSchedule.driver.email}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Shuttle Vehicle
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded border-2 ${getShuttleColor(
+                        selectedSchedule.shuttle.id
+                      )}`}
+                    ></div>
+                    <p className="font-semibold">
+                      {selectedSchedule.shuttle.vehicleNumber}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Shuttle Capacity
+                  </label>
+                  <p className="font-semibold">
+                    {selectedSchedule.shuttle.seats} seats
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Start Time
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-green-600" />
+                    <p className="font-semibold">
+                      {formatTimeForDisplay(selectedSchedule.startTime)}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    End Time
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-red-600" />
+                    <p className="font-semibold">
+                      {formatTimeForDisplay(selectedSchedule.endTime)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">
+                  Duration
+                </label>
+                <div className="mt-1">
+                  {(() => {
+                    const startTime = new Date(selectedSchedule.startTime);
+                    const endTime = new Date(selectedSchedule.endTime);
+                    const duration =
+                      Math.round(
+                        ((endTime.getTime() - startTime.getTime()) /
+                          (1000 * 60 * 60)) *
+                          10
+                      ) / 10;
+                    return <Badge variant="outline">{duration}h</Badge>;
+                  })()}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">
+                  Schedule Date
+                </label>
+                <p className="font-semibold">
+                  {formatDateForDisplay(selectedSchedule.startTime)}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

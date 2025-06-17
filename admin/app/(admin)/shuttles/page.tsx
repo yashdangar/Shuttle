@@ -36,6 +36,7 @@ import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "@/components/ui/table-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
+import { withAuth } from "@/components/withAuth";
 
 interface Shuttle {
   id: string;
@@ -61,7 +62,7 @@ interface Hotel {
   name: string;
 }
 
-export default function ShuttlesPage() {
+function ShuttlesPage() {
   const [shuttles, setShuttles] = useState<Shuttle[]>();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -443,3 +444,5 @@ export default function ShuttlesPage() {
     </div>
   );
 }
+
+export default withAuth(ShuttlesPage);

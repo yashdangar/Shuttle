@@ -38,10 +38,7 @@ export default function LoginPage() {
         email: formData.email,
         password: formData.password,
       });
-      
-      // Store token in cookie
-      document.cookie = `adminToken=${data.token}; path=/; max-age=86400; secure; samesite=strict`;
-      
+      localStorage.setItem("token", data.token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
