@@ -33,6 +33,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Shuttles", href: "/dashboard/shuttles", icon: Car },
   { name: "Drivers", href: "/dashboard/drivers", icon: Users },
+  { name: "Schedules", href: "/dashboard/schedules", icon: Calendar },
   { name: "New Booking", href: "/dashboard/new-booking", icon: Plus },
   { name: "Bookings", href: "/dashboard/bookings", icon: Calendar },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },

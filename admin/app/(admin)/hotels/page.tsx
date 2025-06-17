@@ -49,6 +49,7 @@ import { TableLoader } from "../../../components/ui/table-loader";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { withAuth } from "@/components/withAuth";
 
 interface Hotel {
   id: string;
@@ -69,7 +70,7 @@ declare global {
   }
 }
 
-export default function HotelsPage() {
+function HotelsPage() {
   const router = useRouter();
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -871,3 +872,5 @@ export default function HotelsPage() {
     </div>
   );
 }
+
+export default withAuth(HotelsPage);

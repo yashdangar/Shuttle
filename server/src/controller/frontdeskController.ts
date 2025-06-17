@@ -67,7 +67,11 @@ const getShuttle = async (req: Request, res: Response) => {
         hotelId: hotelId,
       },
       include: {
-        schedules: true,
+        schedules: {
+          include: {
+            driver: true,
+          },
+        },
       },
     });
     res.json({ shuttles });
@@ -85,11 +89,12 @@ const getDriver = async (req: Request, res: Response) => {
       where: {
         hotelId: hotelId,
       },
-      select: {
-        id: true,
-        name: true,
-        phoneNumber: true,
-        schedules: true,
+      include: {
+        schedules: {
+          include: {
+            shuttle: true,
+          },
+        },
       },
     });
     res.json({ drivers });
@@ -269,6 +274,29 @@ const deleteNotification = async (req: Request, res: Response) => {
   }
 };
 
+const getSchedule = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        OR: [
+          { driver: { hotelId: hotelId } },
+          { shuttle: { hotelId: hotelId } },
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+    res.json({ schedules });
+  } catch (error) {
+    console.error("Get schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -279,4 +307,5 @@ export default {
   getNotifications,
   markNotificationAsRead,
   deleteNotification,
+  getSchedule,
 };

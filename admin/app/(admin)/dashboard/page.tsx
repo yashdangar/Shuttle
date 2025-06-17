@@ -1,7 +1,9 @@
+"use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { withAuth } from "@/components/withAuth"
 import { Building2, Users, Car, Truck, UserCheck, CheckCircle, Clock, AlertTriangle } from "lucide-react"
 
-export default function DashboardPage() {
+function DashboardPage() {
   const stats = [
     {
       title: "Total Hotels",
@@ -156,3 +158,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+export default withAuth(DashboardPage);
