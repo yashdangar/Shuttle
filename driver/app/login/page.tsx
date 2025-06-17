@@ -16,31 +16,36 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ShuffleIcon as Shuttle, Eye, EyeOff, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
 
-    // Simulate login
-    setTimeout(() => {
-      if (email && password) {
-        localStorage.setItem("driverLoggedIn", "true");
-        localStorage.setItem("driverName", "John Smith");
-        toast.success("Login successful");
-        router.push("/dashboard");
-      } else {
-        toast.error("Invalid credentials");
-      }
+    try {
+      const data = await api.post("/driver/login", {
+        email: formData.email,
+        password: formData.password,
+      });
+      localStorage.setItem("token", data.token);
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -50,29 +55,39 @@ export default function LoginPage() {
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-600 dark:bg-blue-500">
             <Shuttle className="h-10 w-10 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold text-black dark:text-white">Driver Login</CardTitle>
+          <CardTitle className="text-3xl font-bold text-black dark:text-white">
+            Driver Login
+          </CardTitle>
           <CardDescription className="text-base text-gray-600 dark:text-gray-300">
             Sign in to access your shuttle dashboard
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-black dark:text-white">
+              <Label
+                htmlFor="email"
+                className="text-sm font-medium text-black dark:text-white"
+              >
                 Email
               </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="driver@airport.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 className="h-12 text-base bg-white dark:bg-blue-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-black dark:text-white">
+              <Label
+                htmlFor="password"
+                className="text-sm font-medium text-black dark:text-white"
+              >
                 Password
               </Label>
               <div className="relative">
@@ -80,8 +95,10 @@ export default function LoginPage() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                   className="h-12 text-base pr-12 bg-white dark:bg-blue-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                   required
                 />
