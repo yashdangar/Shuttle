@@ -44,21 +44,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen bg-blue-50 dark:bg-blue-950 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-blue-200 dark:border-blue-800">
         <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary">
-            <Shuttle className="h-10 w-10 text-primary-foreground" />
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-600 dark:bg-blue-500">
+            <Shuttle className="h-10 w-10 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold">Driver Login</CardTitle>
-          <CardDescription className="text-base">
+          <CardTitle className="text-3xl font-bold text-black dark:text-white">Driver Login</CardTitle>
+          <CardDescription className="text-base text-gray-600 dark:text-gray-300">
             Sign in to access your shuttle dashboard
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
+              <Label htmlFor="email" className="text-sm font-medium text-black dark:text-white">
                 Email
               </Label>
               <Input
@@ -67,12 +67,12 @@ export default function LoginPage() {
                 placeholder="driver@airport.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-12 text-base"
+                className="h-12 text-base bg-white dark:bg-blue-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
+              <Label htmlFor="password" className="text-sm font-medium text-black dark:text-white">
                 Password
               </Label>
               <div className="relative">
@@ -82,14 +82,14 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 text-base pr-12"
+                  className="h-12 text-base pr-12 bg-white dark:bg-blue-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                   required
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent"
+                  className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent text-blue-600 dark:text-blue-400"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -102,7 +102,7 @@ export default function LoginPage() {
             </div>
             <Button
               type="submit"
-              className="w-full h-12 text-base"
+              className="w-full h-12 text-base bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -116,11 +116,11 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Don't have an account?{" "}
               <Link
                 href="/signup"
-                className="font-medium text-primary hover:underline"
+                className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Sign up here
               </Link>
