@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -31,6 +31,19 @@ export function DriverTopbar({
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [shouldShowToast, setShouldShowToast] = useState(false);
+
+  useEffect(() => {
+    if (shouldShowToast) {
+      toast.success(
+        showNotifications ? "Closing notifications" : "Opening notifications",
+        {
+          description: "You can view your notifications here",
+        }
+      );
+      setShouldShowToast(false);
+    }
+  }, [showNotifications, shouldShowToast]);
 
   return (
     <>
@@ -57,14 +70,7 @@ export function DriverTopbar({
                 className="relative hover:bg-blue-50 dark:hover:bg-blue-950"
                 onClick={() => {
                   setShowNotifications(!showNotifications);
-                  toast.success(
-                    showNotifications
-                      ? "Closing notifications"
-                      : "Opening notifications",
-                    {
-                      description: "You can view your notifications here",
-                    }
-                  );
+                  setShouldShowToast(true);
                 }}
               >
                 <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
