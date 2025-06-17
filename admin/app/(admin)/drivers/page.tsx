@@ -36,7 +36,6 @@ import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "../../../components/ui/table-loader";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
-import { withAuth } from "@/components/withAuth";
 
 interface Driver {
   id: string;
@@ -63,7 +62,7 @@ interface Hotel {
   name: string;
 }
 
-function DriversPage() {
+export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -481,5 +480,3 @@ function DriversPage() {
     </div>
   );
 }
-
-export default withAuth(DriversPage);

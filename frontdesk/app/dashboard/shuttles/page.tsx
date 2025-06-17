@@ -1,10 +1,9 @@
 "use client";
 
-import type React from "react";
-
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -19,35 +18,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Eye, Truck } from "lucide-react";
+import { Eye } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
+import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "@/components/ui/table-loader";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Truck } from "lucide-react";
 
-interface Shuttle {
-  id: string;
-  vehicleNumber: string;
-  hotelId: number;
-  seats: number;
-  createdAt: string;
-  schedules?: Schedule[];
+interface Driver {
+  id: number;
+  name: string;
+  phoneNumber: string;
 }
 
-interface Schedule {
-  id: string;
+interface Shuttle {
+  id: number;
+  vehicleNumber: string;
+  driver: Driver[];
   startTime: string;
   endTime: string;
-  driver: {
-    id: string;
-    name: string;
-    phoneNumber: string;
-  };
+  seats: number;
+  createdAt: string;
 }
 
 function ShuttlesPage() {
-  const [shuttles, setShuttles] = useState<Shuttle[]>();
+  const [shuttles, setShuttles] = useState<Shuttle[]>([]);
   const [selectedShuttle, setSelectedShuttle] = useState<Shuttle | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,39 +63,64 @@ function ShuttlesPage() {
     fetchShuttles();
   }, []);
 
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Shuttles Management
-          </h1>
-          <p className="text-slate-600">View shuttle fleet information</p>
+          <h1 className="text-2xl font-bold text-gray-900">Shuttles</h1>
+          <p className="text-gray-600">Manage your shuttle fleet</p>
         </div>
-        <Card className="border-slate-200">
+
+        {/* Desktop Table */}
+        <Card className="hidden md:block">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Truck className="w-5 h-5 text-orange-600" />
-              <span>Shuttles Fleet</span>
-            </CardTitle>
+            <CardTitle>Shuttle Fleet</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Vehicle Number</TableHead>
-                  <TableHead>Seats</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Driver Name</TableHead>
+                  <TableHead>Start Time</TableHead>
+                  <TableHead>End Time</TableHead>
+                  <TableHead>Total Seats</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableLoader columns={5} />
+                <TableLoader columns={6} />
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+
+        {/* Mobile Cards */}
+        <div className="grid gap-4 md:hidden">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-4">
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -107,82 +128,105 @@ function ShuttlesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Shuttles Management
-        </h1>
-        <p className="text-slate-600">View shuttle fleet information</p>
+        <h1 className="text-2xl font-bold text-gray-900">Shuttles</h1>
+        <p className="text-gray-600">Manage your shuttle fleet</p>
       </div>
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Truck className="w-5 h-5 text-orange-600" />
-            <span>Shuttles Fleet</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!shuttles || shuttles.length === 0 ? (
+      {shuttles.length === 0 ? (
+        <Card>
+          <CardContent>
             <EmptyState
               icon={Truck}
               title="No shuttles available"
-              description="No shuttles have been assigned to this hotel yet."
+              description="Add your first shuttle to start managing your fleet."
             />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vehicle Number</TableHead>
-                  <TableHead>Seats</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shuttles &&
-                  shuttles.map((shuttle) => (
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <Card className="hidden md:block">
+            <CardHeader>
+              <CardTitle>Shuttle Fleet</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vehicle Number</TableHead>
+                    <TableHead>Driver Name</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead>Total Seats</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shuttles.map((shuttle) => (
                     <TableRow key={shuttle.id}>
                       <TableCell className="font-medium">
                         {shuttle.vehicleNumber}
                       </TableCell>
-                      <TableCell>{shuttle.seats} seats</TableCell>
                       <TableCell>
-                        {shuttle.schedules && shuttle.schedules.length > 0 ? (
-                          <div className="space-y-1">
-                            {shuttle.schedules.map((schedule) => (
-                              <Badge
-                                key={schedule.id}
-                                variant="secondary"
-                                className="mr-1"
-                              >
-                                {schedule.driver.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">No schedules</span>
-                        )}
+                        {shuttle.driver[0]?.name || "No Driver Assigned"}
                       </TableCell>
+                      <TableCell>{formatTime(shuttle.startTime)}</TableCell>
+                      <TableCell>{formatTime(shuttle.endTime)}</TableCell>
+                      <TableCell>{shuttle.seats}</TableCell>
                       <TableCell>
-                        {new Date(shuttle.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setSelectedShuttle(shuttle)}
                         >
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
+                          <Eye className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Mobile Cards */}
+          <div className="grid gap-4 md:hidden">
+            {shuttles.map((shuttle) => (
+              <Card key={shuttle.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold">{shuttle.vehicleNumber}</h3>
+                  </div>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>
+                      <span className="font-medium">Driver:</span>{" "}
+                      {shuttle.driver[0]?.name || "No Driver Assigned"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Schedule:</span>{" "}
+                      {formatTime(shuttle.startTime)} -{" "}
+                      {formatTime(shuttle.endTime)}
+                    </p>
+                    <p>
+                      <span className="font-medium">Seats:</span>{" "}
+                      {shuttle.seats}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full"
+                    onClick={() => setSelectedShuttle(shuttle)}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Shuttle Details Modal */}
       <Dialog
@@ -204,86 +248,50 @@ function ShuttlesPage() {
                     {selectedShuttle.vehicleNumber}
                   </p>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Driver Name
+                  </label>
+                  <p className="font-semibold">
+                    {selectedShuttle.driver[0]?.name || "No Driver Assigned"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Phone
+                  </label>
+                  <p className="font-semibold">
+                    {selectedShuttle.driver[0]?.phoneNumber || "N/A"}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Start Time
+                  </label>
+                  <p className="font-semibold">
+                    {formatTime(selectedShuttle.startTime)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    End Time
+                  </label>
+                  <p className="font-semibold">
+                    {formatTime(selectedShuttle.endTime)}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">
                     Total Seats
                   </label>
                   <p className="font-semibold">{selectedShuttle.seats}</p>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">
-                  Assigned Schedules
-                </label>
-                {selectedShuttle.schedules &&
-                selectedShuttle.schedules.length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {selectedShuttle.schedules.map((schedule) => (
-                      <div key={schedule.id} className="border rounded-lg p-3">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-xs font-medium text-gray-500">
-                              Driver Name
-                            </label>
-                            <p className="font-medium">
-                              {schedule.driver.name}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500">
-                              Phone
-                            </label>
-                            <p className="font-medium">
-                              {schedule.driver.phoneNumber}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 mt-2">
-                          <div>
-                            <label className="text-xs font-medium text-gray-500">
-                              Start Time
-                            </label>
-                            <p className="font-medium">
-                              {new Date(schedule.startTime).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              )}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-gray-500">
-                              End Time
-                            </label>
-                            <p className="font-medium">
-                              {new Date(schedule.endTime).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-400 mt-2">No schedules assigned</p>
-                )}
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">
-                  Created At
-                </label>
-                <p className="font-semibold">
-                  {new Date(selectedShuttle.createdAt).toLocaleDateString()}
-                </p>
               </div>
             </div>
           )}

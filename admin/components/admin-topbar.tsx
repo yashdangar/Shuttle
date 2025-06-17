@@ -12,20 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
 
 export function AdminTopbar({
   onToggleSidebar,
 }: {
   onToggleSidebar?: () => void;
 }) {
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
-  };
-
-  const router = useRouter();
-
   return (
     <header className="bg-white border-b border-slate-200 px-6 py-4">
       <div className="flex flex-1 items-center justify-between">
@@ -63,7 +55,7 @@ export function AdminTopbar({
               <DropdownMenuItem>Profile Settings</DropdownMenuItem>
               <DropdownMenuItem>Notifications</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>Sign Out</DropdownMenuItem>
+              <DropdownMenuItem>Sign Out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

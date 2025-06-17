@@ -51,12 +51,4 @@ router.delete(
   frontdeskAuthMiddleware as RequestHandler,
   controller.deleteNotification as RequestHandler
 );
-
-// Schedule routes
-router.get(
-  "/schedule",
-  frontdeskAuthMiddleware as RequestHandler,
-  controller.getSchedule as RequestHandler
-);
-
 export default router;

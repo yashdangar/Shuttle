@@ -45,7 +45,6 @@ import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "../../../components/ui/table-loader";
 import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
-import { withAuth } from "@/components/withAuth";
 
 interface Schedule {
   id: string;
@@ -84,7 +83,7 @@ interface TimelineSchedule extends Schedule {
   color: string;
 }
 
-function SchedulesPage() {
+export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [shuttles, setShuttles] = useState<Shuttle[]>([]);
@@ -300,7 +299,7 @@ function SchedulesPage() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-purple-600" />
-              <span>Schedules Overview</span>
+              <span>Active Schedules</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -547,21 +546,8 @@ function SchedulesPage() {
                           ))}
                         </div>
 
-                        {/* Timeline grid lines */}
-                        <div className="absolute inset-0 pointer-events-none">
-                          {hourMarkers
-                            .filter((m) => m.hour % 6 === 0)
-                            .map((marker) => (
-                              <div
-                                key={marker.hour}
-                                className="absolute top-0 bottom-0 w-px bg-slate-200 opacity-50 lg:opacity-100"
-                                style={{ left: `${marker.position}%` }}
-                              />
-                            ))}
-                        </div>
-
                         {/* Timeline tracks for each shuttle */}
-                        <div className="space-y-3 lg:space-y-4 relative">
+                        <div className="space-y-3 lg:space-y-4">
                           {shuttles.map((shuttle) => {
                             const shuttleSchedules = timelineSchedules.filter(
                               (schedule) => schedule.shuttle.id === shuttle.id
@@ -645,6 +631,19 @@ function SchedulesPage() {
                             );
                           })}
                         </div>
+
+                        {/* Timeline grid lines */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          {hourMarkers
+                            .filter((m) => m.hour % 6 === 0)
+                            .map((marker) => (
+                              <div
+                                key={marker.hour}
+                                className="absolute top-0 bottom-0 w-px bg-slate-200 opacity-50 lg:opacity-100"
+                                style={{ left: `${marker.position}%` }}
+                              />
+                            ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -677,9 +676,8 @@ function SchedulesPage() {
                       const endTime = new Date(schedule.endTime);
                       const duration =
                         Math.round(
-                          ((endTime.getTime() - startTime.getTime()) /
-                            (1000 * 60 * 60)) *
-                            10
+                          (endTime.getTime() - startTime.getTime()) /
+                            (1000 * 60 * 60 * 100)
                         ) / 10;
 
                       return (
@@ -768,5 +766,3 @@ function SchedulesPage() {
     </div>
   );
 }
-
-export default withAuth(SchedulesPage);

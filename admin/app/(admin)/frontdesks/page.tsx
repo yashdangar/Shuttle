@@ -36,7 +36,6 @@ import { Loader } from "@/components/ui/loader";
 import { TableLoader } from "../../../components/ui/table-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
-import { withAuth } from "@/components/withAuth";
 
 interface Hotel {
   id: number;
@@ -53,7 +52,7 @@ interface FrontDesk {
   createdAt: string;
 }
 
-function FrontDesksPage() {
+export default function FrontDesksPage() {
   const [frontDesks, setFrontDesks] = useState<FrontDesk[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -474,5 +473,3 @@ function FrontDesksPage() {
     </div>
   );
 }
-
-export default withAuth(FrontDesksPage);
