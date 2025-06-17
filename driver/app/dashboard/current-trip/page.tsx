@@ -1,13 +1,22 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { MapPin, Users, CreditCard, QrCode, ExternalLink, CheckCircle, Clock, Navigation } from "lucide-react"
-import { QRScannerModal } from "@/components/qr-scanner-modal"
-import { useToast } from "@/hooks/use-toast"
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  MapPin,
+  Users,
+  CreditCard,
+  QrCode,
+  ExternalLink,
+  CheckCircle,
+  Clock,
+  Navigation,
+} from "lucide-react";
+import { QRScannerModal } from "@/components/qr-scanner-modal";
+import { useToast } from "@/hooks/use-toast";
 
 const passengers = [
   {
@@ -54,45 +63,49 @@ const passengers = [
     status: "pending",
     seatNumber: null,
   },
-]
+];
 
 export default function CurrentTripPage() {
-  const [showQRScanner, setShowQRScanner] = useState(false)
-  const [passengerList, setPassengerList] = useState(passengers)
-  const { toast } = useToast()
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [passengerList, setPassengerList] = useState(passengers);
+  const { toast } = useToast();
 
-  const checkedInCount = passengerList.filter((p) => p.status === "checked-in").length
-  const totalPassengers = passengerList.reduce((sum, p) => sum + p.persons, 0)
-  const occupancyPercentage = (checkedInCount / passengerList.length) * 100
+  const checkedInCount = passengerList.filter(
+    (p) => p.status === "checked-in"
+  ).length;
+  const totalPassengers = passengerList.reduce((sum, p) => sum + p.persons, 0);
+  const occupancyPercentage = (checkedInCount / passengerList.length) * 100;
 
-  const nextPassenger = passengerList.find((p) => p.status === "next")
+  const nextPassenger = passengerList.find((p) => p.status === "next");
 
   const handleQRScanSuccess = (passengerData: any) => {
     setPassengerList((prev) =>
       prev.map((p) =>
-        p.id === passengerData.id ? { ...p, status: "checked-in", seatNumber: passengerData.seatNumber } : p,
-      ),
-    )
+        p.id === passengerData.id
+          ? { ...p, status: "checked-in", seatNumber: passengerData.seatNumber }
+          : p
+      )
+    );
     toast({
-      title: "✅ Check-in successful!",
+      title: "Check-in successful!",
       description: `${passengerData.name} checked in. Seat ${passengerData.seatNumber} assigned.`,
-    })
-  }
+    });
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Current Trip</h1>
+        <h1 className="text-3xl font-bold">Current Trip</h1>
         <Button
           onClick={() => {
-            setShowQRScanner(true)
+            setShowQRScanner(true);
             toast({
-              title: "📱 QR Scanner",
+              title: "QR Scanner",
               description: "Opening camera scanner...",
-            })
+            });
           }}
-          className="h-11 shadow-lg"
+          className="h-11"
         >
           <QrCode className="h-5 w-5 mr-2" />
           Scan QR
@@ -100,24 +113,26 @@ export default function CurrentTripPage() {
       </div>
 
       {/* Trip Overview */}
-      <Card className="shadow-lg border-l-4 border-l-blue-500">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <Users className="h-5 w-5 text-white" />
+            <div className="p-2 bg-muted rounded-lg">
+              <Users className="h-5 w-5" />
             </div>
             Trip Overview
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Shuttle Occupancy</span>
+            <span className="text-sm font-medium text-muted-foreground">
+              Shuttle Occupancy
+            </span>
             <span className="font-bold text-lg">
               {checkedInCount} / {passengerList.length} passengers
             </span>
           </div>
           <Progress value={occupancyPercentage} className="h-3" />
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-muted-foreground">
             Total persons: {totalPassengers} | Checked in: {checkedInCount}
           </div>
         </CardContent>
@@ -125,30 +140,31 @@ export default function CurrentTripPage() {
 
       {/* Next Passenger Highlight */}
       {nextPassenger && (
-        <Card className="border-2 border-blue-500 shadow-xl bg-blue-50 dark:bg-blue-950">
+        <Card className="border-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-              <div className="p-2 bg-blue-500 rounded-lg animate-pulse">
-                <Navigation className="h-5 w-5 text-white" />
+            <CardTitle className="flex items-center gap-2">
+              <div className="p-2 bg-primary rounded-lg">
+                <Navigation className="h-5 w-5 text-primary-foreground" />
               </div>
               Next Pickup - Priority
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="font-bold text-xl text-blue-800 dark:text-blue-200">{nextPassenger.name}</p>
-              <p className="text-blue-600 dark:text-blue-400 font-medium">{nextPassenger.pickup}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="font-bold text-xl">{nextPassenger.name}</p>
+              <p className="text-muted-foreground font-medium">
+                {nextPassenger.pickup}
+              </p>
+              <p className="text-sm text-muted-foreground">
                 {nextPassenger.persons} passengers • {nextPassenger.bags} bags
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 size="sm"
-                className="bg-blue-500 hover:bg-blue-600"
                 onClick={() =>
                   toast({
-                    title: "🗺️ Opening map",
+                    title: "Opening map",
                     description: "Loading pickup location...",
                   })
                 }
@@ -161,7 +177,7 @@ export default function CurrentTripPage() {
                 variant="outline"
                 onClick={() =>
                   toast({
-                    title: "🚗 Opening navigation",
+                    title: "Opening navigation",
                     description: "Launching Google Maps...",
                   })
                 }
@@ -175,10 +191,10 @@ export default function CurrentTripPage() {
       )}
 
       {/* Google Maps Embed */}
-      <Card className="shadow-lg">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-green-600" />
+            <MapPin className="h-5 w-5" />
             Route Map
           </CardTitle>
         </CardHeader>
@@ -187,19 +203,21 @@ export default function CurrentTripPage() {
             <div className="text-center">
               <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium">Google Maps Integration</p>
-              <p className="text-sm text-muted-foreground">Showing pickup locations and route</p>
+              <p className="text-sm text-muted-foreground">
+                Showing pickup locations and route
+              </p>
             </div>
           </div>
           <Button
-            className="w-full mt-4 bg-green-500 hover:bg-green-600"
+            className="w-full mt-4"
             onClick={() =>
               toast({
-                title: "🗺️ Full map",
+                title: "Full map",
                 description: "Opening detailed route map...",
               })
             }
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
+            <MapPin className="h-4 w-4 mr-2" />
             Open Full Map
           </Button>
         </CardContent>
@@ -207,14 +225,20 @@ export default function CurrentTripPage() {
 
       {/* Passenger List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Passengers ({passengerList.length})</h2>
+        <h2 className="text-xl font-bold">
+          Passengers ({passengerList.length})
+        </h2>
         <div className="grid gap-3">
           {passengerList.map((passenger) => (
             <Card
               key={passenger.id}
-              className={`shadow-md hover:shadow-lg transition-all ${
-                passenger.status === "next" ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950" : ""
-              }`}
+              className="hover:shadow-md transition-all cursor-pointer"
+              onClick={() =>
+                toast({
+                  title: passenger.name,
+                  description: "Viewing passenger details...",
+                })
+              }
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
@@ -226,58 +250,60 @@ export default function CurrentTripPage() {
                           passenger.status === "checked-in"
                             ? "default"
                             : passenger.status === "next"
-                              ? "secondary"
-                              : "outline"
-                        }
-                        className={
-                          passenger.status === "checked-in"
-                            ? "bg-green-500 hover:bg-green-600"
-                            : passenger.status === "next"
-                              ? "bg-blue-500 hover:bg-blue-600 text-white"
-                              : ""
+                            ? "secondary"
+                            : "outline"
                         }
                       >
                         {passenger.status === "checked-in"
-                          ? "✓ Checked In"
+                          ? "Checked In"
                           : passenger.status === "next"
-                            ? "→ Next Pickup"
-                            : "⏳ Pending"}
+                          ? "Next"
+                          : "Pending"}
                       </Badge>
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 text-sm">
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-4 w-4" />
                         <span className="font-medium">{passenger.pickup}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Users className="h-4 w-4" />
                         <span>
                           {passenger.persons} passengers • {passenger.bags} bags
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <CreditCard className="h-4 w-4" />
                         <span>{passenger.paymentMethod}</span>
                       </div>
                       {passenger.seatNumber && (
-                        <div className="flex items-center gap-2 text-green-600">
+                        <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle className="h-4 w-4" />
-                          <span className="font-medium">Seat: {passenger.seatNumber}</span>
+                          <span>Seat: {passenger.seatNumber}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2">
-                    {passenger.status === "checked-in" && <CheckCircle className="h-8 w-8 text-green-500" />}
-                    {passenger.status === "next" && <Clock className="h-8 w-8 text-blue-500 animate-pulse" />}
+                  <div className="text-right">
+                    {passenger.status === "checked-in" && (
+                      <CheckCircle className="h-6 w-6" />
+                    )}
+                    {passenger.status === "next" && (
+                      <Clock className="h-6 w-6" />
+                    )}
+                    {passenger.status === "pending" && (
+                      <Clock className="h-6 w-6 text-muted-foreground" />
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop-off:</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{passenger.dropoff}</p>
+                <div className="mt-4 pt-3 border-t">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Drop-off:
+                  </p>
+                  <p className="text-sm">{passenger.dropoff}</p>
                 </div>
               </CardContent>
             </Card>
@@ -293,5 +319,5 @@ export default function CurrentTripPage() {
         />
       )}
     </div>
-  )
+  );
 }

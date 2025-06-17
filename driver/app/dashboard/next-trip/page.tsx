@@ -1,16 +1,16 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, MapPin, Users, CreditCard, Navigation } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Clock, MapPin, Users, CreditCard, Navigation } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const nextTripData = {
   time: "2:30 PM",
   route: "Downtown Hotels → Terminal B",
   totalPassengers: 8,
   estimatedDuration: "45 minutes",
-}
+};
 
 const nextTripPassengers = [
   {
@@ -58,29 +58,29 @@ const nextTripPassengers = [
     dropoff: "Terminal B - Gate 9",
     paymentMethod: "Mobile Pay",
   },
-]
+];
 
 export default function NextTripPage() {
-  const { toast } = useToast()
+  const { toast } = useToast();
 
   const handleCardClick = (passengerName: string) => {
     toast({
-      title: `👤 ${passengerName}`,
+      title: passengerName,
       description: "Viewing passenger details...",
-    })
-  }
+    });
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Next Trip</h1>
+      <h1 className="text-3xl font-bold">Next Trip</h1>
 
       {/* Trip Details */}
-      <Card className="shadow-lg border-l-4 border-l-blue-500">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <Clock className="h-5 w-5 text-white" />
+            <div className="p-2 bg-muted rounded-lg">
+              <Clock className="h-5 w-5" />
             </div>
             Trip Details
           </CardTitle>
@@ -88,35 +88,43 @@ export default function NextTripPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Departure Time</p>
-              <p className="text-3xl font-bold text-blue-600">{nextTripData.time}</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Departure Time
+              </p>
+              <p className="text-3xl font-bold">{nextTripData.time}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Duration</p>
-              <p className="text-xl font-semibold text-gray-900 dark:text-white">{nextTripData.estimatedDuration}</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Duration
+              </p>
+              <p className="text-xl font-semibold">
+                {nextTripData.estimatedDuration}
+              </p>
             </div>
           </div>
 
           <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Route</p>
-            <p className="font-bold text-lg text-gray-900 dark:text-white">{nextTripData.route}</p>
+            <p className="text-sm font-medium text-muted-foreground">Route</p>
+            <p className="font-bold text-lg">{nextTripData.route}</p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium">{nextTripData.totalPassengers} passengers</span>
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                {nextTripData.totalPassengers} passengers
+              </span>
             </div>
-            <Badge className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white">Scheduled</Badge>
+            <Badge>Scheduled</Badge>
           </div>
         </CardContent>
       </Card>
 
       {/* Route Map Preview */}
-      <Card className="shadow-lg">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Navigation className="h-5 w-5 text-green-600" />
+            <Navigation className="h-5 w-5" />
             Route Preview
           </CardTitle>
         </CardHeader>
@@ -125,7 +133,9 @@ export default function NextTripPage() {
             <div className="text-center">
               <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium">Route Map Preview</p>
-              <p className="text-sm text-muted-foreground">Downtown Hotels to Terminal B</p>
+              <p className="text-sm text-muted-foreground">
+                Downtown Hotels to Terminal B
+              </p>
             </div>
           </div>
         </CardContent>
@@ -133,48 +143,50 @@ export default function NextTripPage() {
 
       {/* Passenger List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Passengers ({nextTripPassengers.length})</h2>
+        <h2 className="text-xl font-bold">
+          Passengers ({nextTripPassengers.length})
+        </h2>
         <div className="grid gap-3">
           {nextTripPassengers.map((passenger) => (
             <Card
               key={passenger.id}
-              className="shadow-md hover:shadow-lg transition-all cursor-pointer"
+              className="hover:shadow-md transition-all cursor-pointer"
               onClick={() => handleCardClick(passenger.name)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
-                      <h3 className="font-bold text-lg text-gray-900 dark:text-white">{passenger.name}</h3>
-                      <Badge variant="outline" className="border-blue-500 text-blue-600">
-                        Scheduled
-                      </Badge>
+                      <h3 className="font-bold text-lg">{passenger.name}</h3>
+                      <Badge variant="outline">Scheduled</Badge>
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 text-sm">
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-4 w-4" />
                         <span className="font-medium">{passenger.pickup}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Users className="h-4 w-4" />
                         <span>
                           {passenger.persons} passengers • {passenger.bags} bags
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <CreditCard className="h-4 w-4" />
                         <span>{passenger.paymentMethod}</span>
                       </div>
                     </div>
                   </div>
 
-                  <Clock className="h-6 w-6 text-blue-500" />
+                  <Clock className="h-6 w-6" />
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop-off:</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{passenger.dropoff}</p>
+                <div className="mt-4 pt-3 border-t">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Drop-off:
+                  </p>
+                  <p className="text-sm">{passenger.dropoff}</p>
                 </div>
               </CardContent>
             </Card>
@@ -182,5 +194,5 @@ export default function NextTripPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
