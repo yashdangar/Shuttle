@@ -286,6 +286,8 @@ const editHotel = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
 const deleteHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
