@@ -9,7 +9,7 @@ const requiredEnvVars = [
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_CALLBACK_URL',
   'JWT_SECRET',
-  'FRONTEND_URL',
+  'GUEST_FRONTEND_URL',
   'DATABASE_URL'
 ] as const;
 
@@ -34,7 +34,7 @@ export const env = {
     secret: process.env.JWT_SECRET!
   },
   frontend: {
-    url: process.env.FRONTEND_URL!
+    url: process.env.GUEST_FRONTEND_URL!
   },
   database: {
     url: process.env.DATABASE_URL!

@@ -10,9 +10,9 @@ export function withAuth<P extends object>(
     const router = useRouter();
 
     useEffect(() => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("adminToken");
       if (!token) {
-        router.push("/");
+        router.push("/login");
       }
     }, [router]);
 

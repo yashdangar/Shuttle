@@ -81,10 +81,10 @@ router.get('/google/callback',
     if (req.query.state || user.hotelId) {
       // Redirect to frontend with token
       const hotelId = req.query.state ? req.query.state : user.hotelId;
-      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&hotelId=${hotelId}`);
+      res.redirect(`${process.env.GUEST_FRONTEND_URL}/auth/callback?token=${token}&hotelId=${hotelId}`);
     } else {
       // Redirect to frontend with token
-      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+      res.redirect(`${process.env.GUEST_FRONTEND_URL}/auth/callback?token=${token}`);
     }
   }
 );
