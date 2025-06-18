@@ -59,4 +59,18 @@ router.get(
   controller.getSchedule as RequestHandler
 );
 
+// Booking routes
+router.post(
+  "/bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.createBooking as RequestHandler
+);
+
+// Location routes
+router.get(
+  "/locations",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.getLocations as RequestHandler
+);
+
 export default router;

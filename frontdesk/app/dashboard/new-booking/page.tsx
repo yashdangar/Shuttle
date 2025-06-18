@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,17 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/hooks/use-toast";
+import { jwtDecode } from "jwt-decode";
+import { fetchWithAuth } from "@/lib/api";
 
-const locations = [
-  "Hotel Lobby",
-  "Airport Terminal 1",
-  "Airport Terminal 2",
-  "Airport Terminal 3",
-  "Downtown Station",
-  "Conference Center",
-];
+interface Location {
+  id: number;
+  name: string;
+}
 
 const paymentMethods = [
   { value: "APP", label: "Mobile App" },
@@ -32,43 +30,121 @@ const paymentMethods = [
   { value: "DEPOSIT", label: "Deposit" },
 ];
 
+interface DecodedToken {
+  userId: number;
+  role: string;
+  hotelId: number;
+}
+
 export default function NewBookingPage() {
-  const [guestType, setGuestType] = useState<"resident" | "non-resident">(
-    "resident"
-  );
+  const [guestType, setGuestType] = useState<"resident" | "non-resident">("resident");
+  const [locations, setLocations] = useState<Location[]>([]);
   const [formData, setFormData] = useState({
     numberOfPersons: "",
     numberOfBags: "",
     pickupLocation: "",
     dropoffLocation: "",
-    preferredTime: "",
+    preferredTime: new Date().toISOString().slice(0, 16),
     tripType: "",
     paymentMethod: "",
-    guestName: "",
-    guestPhone: "",
-    confirmationNumber: "",
+    email: "",
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
   });
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const response = await fetchWithAuth("/frontdesk/locations");
+        const data = await response.json();
+        setLocations(data.locations);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch locations. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchLocations();
+  }, [toast]);
+
+  // Function to handle trip type change
+  const handleTripTypeChange = (value: string) => {
+    if (value === "hotel-to-airport") {
+      setFormData({
+        ...formData,
+        tripType: value,
+        pickupLocation: "Hotel Lobby", // Fixed pickup location
+        dropoffLocation: "", // Reset dropoff location
+      });
+    } else if (value === "airport-to-hotel") {
+      setFormData({
+        ...formData,
+        tripType: value,
+        pickupLocation: "", // Reset pickup location
+        dropoffLocation: "Hotel Lobby", // Fixed dropoff location
+      });
+    } else {
+      setFormData({
+        ...formData,
+        tripType: value,
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Booking Created",
-      description: "New trip booking has been successfully created.",
-    });
-    // Reset form
-    setFormData({
-      numberOfPersons: "",
-      numberOfBags: "",
-      pickupLocation: "",
-      dropoffLocation: "",
-      preferredTime: "",
-      tripType: "",
-      paymentMethod: "",
-      guestName: "",
-      guestPhone: "",
-      confirmationNumber: "",
-    });
+    
+    try {
+      const token = localStorage.getItem("frontdeskToken");
+      if (!token) {
+        throw new Error("No token found");
+      }
+
+      const decoded = jwtDecode<DecodedToken>(token);
+      const bookingData = {
+        ...formData,
+        isNonResident: guestType === "non-resident",
+        hotelId: decoded.hotelId,
+        pickupLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? null : parseInt(formData.pickupLocation),
+        dropoffLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? parseInt(formData.dropoffLocation) : null,
+      };
+
+      await fetchWithAuth("/frontdesk/bookings", {
+        method: "POST",
+        body: JSON.stringify(bookingData),
+      });
+
+      toast({
+        title: "Booking Created",
+        description: "New trip booking has been successfully created.",
+      });
+
+      // Reset form
+      setFormData({
+        numberOfPersons: "",
+        numberOfBags: "",
+        pickupLocation: "",
+        dropoffLocation: "",
+        preferredTime: new Date().toISOString().slice(0, 16),
+        tripType: "",
+        paymentMethod: "",
+        email: "",
+        firstName: "",
+        lastName: "",
+        phoneNumber: "",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create booking. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -84,72 +160,86 @@ export default function NewBookingPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Guest Type Selection */}
-            <div className="space-y-3">
-              <Label>Guest Type</Label>
-              <RadioGroup
-                value={guestType}
-                onValueChange={(value) =>
-                  setGuestType(value as "resident" | "non-resident")
-                }
-                className="flex gap-6"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="resident" id="resident" />
-                  <Label htmlFor="resident">Hotel Resident</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="non-resident" id="non-resident" />
-                  <Label htmlFor="non-resident">Non-Resident</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            <Tabs value={guestType} onValueChange={(value) => setGuestType(value as "resident" | "non-resident")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="resident">Hotel Resident</TabsTrigger>
+                <TabsTrigger value="non-resident">Non-Resident</TabsTrigger>
+              </TabsList>
 
-            {/* Guest Information */}
-            {guestType === "non-resident" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="resident" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="guestName">Guest Name *</Label>
+                  <Label htmlFor="email">
+                    Resident Email
+                  </Label>
                   <Input
-                    id="guestName"
-                    value={formData.guestName}
+                    id="email"
+                    type="email"
+                    placeholder="Enter resident's email"
+                    value={formData.email}
                     onChange={(e) =>
-                      setFormData({ ...formData, guestName: e.target.value })
+                      setFormData({
+                        ...formData,
+                        email: e.target.value,
+                      })
                     }
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="guestPhone">Phone Number *</Label>
-                  <Input
-                    id="guestPhone"
-                    type="tel"
-                    value={formData.guestPhone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, guestPhone: e.target.value })
-                    }
-                    required
-                  />
+              </TabsContent>
+
+              <TabsContent value="non-resident" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name *</Label>
+                    <Input
+                      id="firstName"
+                      value={formData.firstName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, firstName: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Input
+                      id="lastName"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="confirmationNumber">
-                  Search by Name or Confirmation Number
-                </Label>
-                <Input
-                  id="confirmationNumber"
-                  placeholder="Enter guest name or confirmation number"
-                  value={formData.confirmationNumber}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      confirmationNumber: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Phone Number *</Label>
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      value={formData.phoneNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phoneNumber: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
 
             {/* Trip Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,6 +275,39 @@ export default function NewBookingPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="preferredTime">Preferred Time *</Label>
+                <Input
+                  id="preferredTime"
+                  type="datetime-local"
+                  value={formData.preferredTime}
+                  disabled
+                  className="bg-gray-100"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Trip Type *</Label>
+                <Select
+                  value={formData.tripType}
+                  onValueChange={handleTripTypeChange}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select trip type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOTEL_TO_AIRPORT">
+                      Hotel to Airport
+                    </SelectItem>
+                    <SelectItem value="AIRPORT_TO_HOTEL">
+                      Airport to Hotel
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Pickup Location *</Label>
                 <Select
                   value={formData.pickupLocation}
@@ -192,14 +315,15 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, pickupLocation: value })
                   }
                   required
+                  disabled={formData.tripType === "HOTEL_TO_AIRPORT"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pickup location" />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
+                      <SelectItem key={location.id} value={location.id.toString()}>
+                        {location.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -213,53 +337,17 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, dropoffLocation: value })
                   }
                   required
+                  disabled={formData.tripType === "AIRPORT_TO_HOTEL"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select dropoff location" />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
+                      <SelectItem key={location.id} value={location.id.toString()}>
+                        {location.name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="preferredTime">Preferred Time *</Label>
-                <Input
-                  id="preferredTime"
-                  type="datetime-local"
-                  value={formData.preferredTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, preferredTime: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Trip Type *</Label>
-                <Select
-                  value={formData.tripType}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, tripType: value })
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select trip type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hotel-to-airport">
-                      Hotel to Airport
-                    </SelectItem>
-                    <SelectItem value="airport-to-hotel">
-                      Airport to Hotel
-                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

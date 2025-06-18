@@ -84,30 +84,7 @@ const getLocations = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to fetch locations" });
   }
 };
-// model Trip {
-//   id                Int           @id @default(autoincrement())
-//   guestId           Int
-//   numberOfPersons   Int
-//   numberOfBags      Int
-//   pickupLocation    Location?     @relation(fields: [pickupLocationId], references: [id], name: "pickup")
-//   pickupLocationId  Int?
-//   dropoffLocation   Location?     @relation(fields: [dropoffLocationId], references: [id], name: "dropoff")
-//   dropoffLocationId Int?
-//   preferredTime     DateTime?
-//   paymentMethod     PaymentMethod
-//   tripType          TripType
-//   isCompleted       Boolean       @default(false)
-//   isPaid            Boolean       @default(false)
-//   isCancelled       Boolean       @default(false)
-//   isRefunded        Boolean       @default(false)
-//   shuttleId         Int?
-//   shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
-//   guest             Guest         @relation(fields: [guestId], references: [id])
-//   encryptionKey     String?
-//   qrCodePath        String?
-//   createdAt         DateTime      @default(now())
-//   updatedAt         DateTime      @updatedAt
-// }
+
 const createTrip = async (req: Request, res: Response) => {
   const {
     numberOfPersons,

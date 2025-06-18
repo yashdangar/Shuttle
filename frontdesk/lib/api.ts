@@ -5,7 +5,6 @@ export async function fetchWithAuth(
   options: RequestInit = {}
 ) {
   const token = localStorage.getItem("frontdeskToken");
-
   if (!token) {
     window.location.href = "/";
     throw new Error("No token found");
@@ -23,7 +22,7 @@ export async function fetchWithAuth(
   });
 
   if (response.status === 401) {
-    localStorage.removeItem("token");
+    localStorage.removeItem("frontdeskToken");
     window.location.href = "/";
     throw new Error("Unauthorized");
   }
