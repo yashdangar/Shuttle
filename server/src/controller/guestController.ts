@@ -122,7 +122,7 @@ const createTrip = async (req: Request, res: Response) => {
 const getTrips = async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
   const trips = await prisma.booking.findMany({
-    where: { guestId: userId },
+    where: { guestId: userId },   
   });
   res.json({ trips });
 };
@@ -130,7 +130,7 @@ const getTrips = async (req: Request, res: Response) => {
 const getTrip = async (req: Request, res: Response) => {
   const { id } = req.params;
   const trip = await prisma.booking.findUnique({
-    where: { id: parseInt(id) },
+    where: { id: id as string },
   });
   res.json({ trip });
 };

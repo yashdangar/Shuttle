@@ -1,6 +1,7 @@
 import express, { RequestHandler } from "express";
 import { frontdeskAuthMiddleware } from "../middleware/authMiddleware";
 import controller from "../controller/frontdeskController";
+import frontdeskController from "../controller/frontdeskController";
 
 const router = express.Router();
 
@@ -60,6 +61,11 @@ router.get(
 );
 
 // Booking routes
+router.get(
+  "/bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.getBookings as RequestHandler
+);
 router.post(
   "/bookings",
   frontdeskAuthMiddleware as RequestHandler,
@@ -72,5 +78,10 @@ router.get(
   frontdeskAuthMiddleware as RequestHandler,
   controller.getLocations as RequestHandler
 );
+
+router.get("/bookings/:id", frontdeskAuthMiddleware as RequestHandler, controller.getBookingDetails as RequestHandler);
+router.get("/bookings/:id/qr-url", frontdeskAuthMiddleware as RequestHandler, controller.getBookingQRUrl as RequestHandler);
+router.post("/signed-url", frontdeskAuthMiddleware as RequestHandler, controller.getSignedUrl as RequestHandler);
+router.post("/verify-qr", frontdeskAuthMiddleware as RequestHandler, controller.verifyBookingQR as RequestHandler);
 
 export default router;

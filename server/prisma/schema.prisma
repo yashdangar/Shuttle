@@ -38,7 +38,7 @@ model Location {
 }
 
 model Booking {
-  id                Int           @id @default(autoincrement())
+  id                String        @id @default(uuid())
   guestId           Int
   numberOfPersons   Int
   numberOfBags      Int

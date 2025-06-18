@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { PaymentMethod, BookingType } from "@prisma/client";
+import { generateEncryptionKey, generateQRCode, verifyQRCode } from "../utils/qrCodeUtils";
+import { getSignedUrlFromPath } from "../utils/s3Utils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -348,6 +350,10 @@ const createBooking = async (req: Request, res: Response) => {
       }
       guestId = guest.id;
     }
+
+    // Generate encryption key
+    const encryptionKey = generateEncryptionKey();
+
     // Create the booking
     const booking = await prisma.booking.create({
       data: {
@@ -359,12 +365,27 @@ const createBooking = async (req: Request, res: Response) => {
         pickupLocationId: pickupLocation ? parseInt(pickupLocation) : null,
         dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
         guestId,
+        encryptionKey,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
 
-    res.json({ booking });
+    // Generate QR code
+    const qrCodeData = await generateQRCode({
+      bookingId: booking.id,
+      guestId: booking.guestId,
+      preferredTime: booking.preferredTime?.toISOString() || '',
+      encryptionKey: booking.encryptionKey!,
+    });
+
+    // Update booking with QR code data
+    const updatedBooking = await prisma.booking.update({
+      where: { id: booking.id },
+      data: { qrCodePath: qrCodeData },
+    });
+
+    res.json({ booking: updatedBooking });
   } catch (error) {
     console.error("Create booking error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -386,6 +407,190 @@ const getLocations = async (req: Request, res: Response) => {
   }
 };
 
+// Add new endpoint for QR code verification
+const verifyBookingQR = async (req: Request, res: Response) => {
+  try {
+    const { qrData } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    // Verify QR code data
+    const bookingData = verifyQRCode(qrData);
+
+    // Find booking and verify it belongs to the hotel
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingData.bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: true,
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Verify encryption key
+    if (booking.encryptionKey !== bookingData.encryptionKey) {
+      return res.status(401).json({ message: "Invalid QR code" });
+    }
+
+    // Check if booking is valid
+    if (booking.isCancelled || booking.isCompleted) {
+      return res.status(400).json({ 
+        message: booking.isCancelled ? "Booking is cancelled" : "Booking is already completed" 
+      });
+    }
+
+    res.json({ 
+      booking,
+      isValid: true,
+      message: "QR code verified successfully" 
+    });
+  } catch (error) {
+    console.error("Verify QR code error:", error);
+    res.status(500).json({ message: "Invalid QR code" });
+  }
+};
+
+const getSignedUrl = async (req: Request, res: Response) => {
+  try {
+    const { path } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    if (!path) {
+      return res.status(400).json({ message: "Path is required" });
+    }
+
+    const bookingId = path.split('/')[1];
+    if (!bookingId) {
+      return res.status(400).json({ message: "Invalid path format" });
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const signedUrl = await getSignedUrlFromPath(path);
+    res.json({ signedUrl });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getBookingQRUrl = async (req: Request, res: Response) => {
+  try {
+    const bookingId = req.params.id;
+    const hotelId = (req as any).user.hotelId;
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (!booking.qrCodePath) {
+      return res.status(404).json({ message: "QR code not found" });
+    }
+
+    const signedUrl = await getSignedUrlFromPath(booking.qrCodePath);
+    res.json({ signedUrl });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getBookingDetails = async (req: Request, res: Response) => {
+  try {
+    const bookingId = req.params.id;
+    const hotelId = (req as any).user.hotelId;
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: true,
+        pickupLocation: true,
+        dropoffLocation: true,
+        shuttle: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Get fresh signed URL for QR code if it exists
+    let qrCodeUrl = null;
+    if (booking.qrCodePath) {
+      qrCodeUrl = await getSignedUrlFromPath(booking.qrCodePath);
+    }
+
+    res.json({
+      booking: {
+        ...booking,
+        qrCodeUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Get booking details error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getBookings = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: true,
+        pickupLocation: true,
+        dropoffLocation: true,
+        shuttle: true,
+      },
+      orderBy: {
+        preferredTime: 'desc',
+      },
+    });
+
+    res.json({ bookings });
+  } catch (error) {
+    console.error("Get bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -399,4 +604,9 @@ export default {
   getSchedule,
   createBooking,
   getLocations,
+  verifyBookingQR,
+  getSignedUrl,
+  getBookingQRUrl,
+  getBookingDetails,
+  getBookings,
 };

@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/hooks/use-toast";
 import { jwtDecode } from "jwt-decode";
 import { fetchWithAuth } from "@/lib/api";
+import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 
 interface Location {
   id: number;
@@ -53,6 +54,9 @@ export default function NewBookingPage() {
     phoneNumber: "",
   });
   const { toast } = useToast();
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [bookingQRCode, setBookingQRCode] = useState<string>("");
+  const [bookingId, setBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -114,15 +118,24 @@ export default function NewBookingPage() {
         dropoffLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? parseInt(formData.dropoffLocation) : null,
       };
 
-      await fetchWithAuth("/frontdesk/bookings", {
+      const response = await fetchWithAuth("/frontdesk/bookings", {
         method: "POST",
         body: JSON.stringify(bookingData),
       });
+
+      const data = await response.json();
 
       toast({
         title: "Booking Created",
         description: "New trip booking has been successfully created.",
       });
+
+      // Show QR code
+      if (data.booking.qrCodePath) {
+        setBookingQRCode(data.booking.qrCodePath);
+        setBookingId(data.booking.id);
+        setShowQRCode(true);
+      }
 
       // Reset form
       setFormData({
@@ -381,6 +394,16 @@ export default function NewBookingPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Add QR Code Display */}
+      {bookingId && (
+        <QRCodeDisplay
+          qrCodePath={bookingQRCode}
+          bookingId={bookingId}
+          isOpen={showQRCode}
+          onClose={() => setShowQRCode(false)}
+        />
+      )}
     </div>
   );
 }
