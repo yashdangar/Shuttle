@@ -84,4 +84,17 @@ router.get("/bookings/:id/qr-url", frontdeskAuthMiddleware as RequestHandler, co
 router.post("/signed-url", frontdeskAuthMiddleware as RequestHandler, controller.getSignedUrl as RequestHandler);
 router.post("/verify-qr", frontdeskAuthMiddleware as RequestHandler, controller.verifyBookingQR as RequestHandler);
 
+// Booking management routes
+router.put(
+  "/bookings/:bookingId/cancel",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.cancelBooking as RequestHandler
+);
+
+router.put(
+  "/bookings/:bookingId/reschedule",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.rescheduleBooking as RequestHandler
+);
+
 export default router;

@@ -11,11 +11,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/hooks/use-toast";
 import { fetchWithAuth } from "@/lib/api";
 import { format } from "date-fns";
-import { Calendar, X, CreditCard, Loader2 } from "lucide-react";
+import {
+  Calendar,
+  X,
+  CreditCard,
+  Loader2,
+  MoreHorizontal,
+  Clock,
+} from "lucide-react";
 import Link from "next/link";
+import { RescheduleModal } from "@/components/reschedule-modal";
 
 interface Booking {
   id: string;
@@ -42,10 +58,81 @@ interface Booking {
   } | null;
 }
 
+function BookingsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
+        <p className="text-gray-600">View and manage all shuttle bookings</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Bookings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Guest</TableHead>
+                <TableHead>Trip Type</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="w-4 h-4 rounded" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-28" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="w-4 h-4 rounded" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="w-8 h-8 rounded" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function BookingsPage() {
   const { toast } = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
+    null
+  );
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -80,12 +167,65 @@ export default function BookingsPage() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      const response = await fetchWithAuth(
+        `/frontdesk/bookings/${bookingId}/cancel`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to cancel booking");
+      }
+
+      toast({
+        title: "Success",
+        description: "Booking cancelled successfully",
+      });
+
+      // Refresh the bookings list
+      const refreshResponse = await fetchWithAuth("/frontdesk/bookings");
+      const data = await refreshResponse.json();
+      setBookings(data.bookings);
+    } catch (error: any) {
+      console.error("Error cancelling booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel booking",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRescheduleBooking = (booking: Booking) => {
+    setRescheduleBooking(booking);
+    setShowReschedule(true);
+  };
+
+  const handleRescheduleSuccess = async () => {
+    // Refresh the bookings list
+    try {
+      const response = await fetchWithAuth("/frontdesk/bookings");
+      const data = await response.json();
+      setBookings(data.bookings);
+    } catch (error) {
+      console.error("Error refreshing bookings:", error);
+    }
+  };
+
+  const canModifyBooking = (booking: Booking) => {
+    return !booking.isCompleted && !booking.isCancelled;
+  };
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
+    return <BookingsSkeleton />;
   }
 
   return (
@@ -108,7 +248,7 @@ export default function BookingsPage() {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -145,12 +285,46 @@ export default function BookingsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/dashboard/bookings/${booking.id}`}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      View Details
-                    </Link>
+                    <div className="flex items-center space-x-2">
+                      <Link
+                        href={`/dashboard/bookings/${booking.id}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        View Details
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canModifyBooking(booking) && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleRescheduleBooking(booking)}
+                                className="cursor-pointer"
+                              >
+                                <Clock className="w-4 h-4 mr-2" />
+                                Reschedule
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleCancelBooking(booking.id)}
+                                className="cursor-pointer text-red-600"
+                              >
+                                <X className="w-4 h-4 mr-2" />
+                                Cancel Booking
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!canModifyBooking(booking) && (
+                            <DropdownMenuItem disabled>
+                              No actions available
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -165,6 +339,20 @@ export default function BookingsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Reschedule Modal */}
+      {rescheduleBooking && (
+        <RescheduleModal
+          isOpen={showReschedule}
+          onClose={() => {
+            setShowReschedule(false);
+            setRescheduleBooking(null);
+          }}
+          bookingId={rescheduleBooking.id}
+          currentTime={rescheduleBooking.preferredTime}
+          onSuccess={handleRescheduleSuccess}
+        />
+      )}
     </div>
   );
 }

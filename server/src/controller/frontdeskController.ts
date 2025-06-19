@@ -591,6 +591,122 @@ const getBookings = async (req: Request, res: Response) => {
   }
 };
 
+const cancelBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const hotelId = (req as any).user.hotelId;
+
+    // Check if booking exists and belongs to the hotel
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Check if booking can be cancelled (not completed, not already cancelled)
+    if (booking.isCompleted) {
+      return res.status(400).json({ error: "Cannot cancel a completed booking" });
+    }
+
+    if (booking.isCancelled) {
+      return res.status(400).json({ error: "Booking is already cancelled" });
+    }
+
+    // Cancel the booking
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { 
+        isCancelled: true,
+        updatedAt: new Date()
+      },
+    });
+
+    res.json({ 
+      message: "Booking cancelled successfully",
+      booking: updatedBooking 
+    });
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    res.status(500).json({ error: "Failed to cancel booking" });
+  }
+};
+
+const rescheduleBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const { preferredTime } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    // Check if booking exists and belongs to the hotel
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Check if booking can be rescheduled (not completed, not cancelled)
+    if (booking.isCompleted) {
+      return res.status(400).json({ error: "Cannot reschedule a completed booking" });
+    }
+
+    if (booking.isCancelled) {
+      return res.status(400).json({ error: "Cannot reschedule a cancelled booking" });
+    }
+
+    // Validate the new preferred time
+    if (!preferredTime) {
+      return res.status(400).json({ error: "Preferred time is required" });
+    }
+
+    const newPreferredTime = new Date(preferredTime);
+    if (isNaN(newPreferredTime.getTime())) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // Check if the new time is in the future (allow 1 minute buffer)
+    const now = new Date();
+    const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute
+    if (newPreferredTime <= oneMinuteFromNow) {
+      return res.status(400).json({ 
+        error: "Preferred time must be at least 1 minute in the future",
+        newTime: newPreferredTime.toISOString(),
+        currentTime: now.toISOString()
+      });
+    }
+
+    // Update the booking with new preferred time
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { 
+        preferredTime: newPreferredTime,
+        updatedAt: new Date()
+      },
+    });
+
+    res.json({ 
+      message: "Booking rescheduled successfully",
+      booking: updatedBooking 
+    });
+  } catch (error) {
+    console.error("Error rescheduling booking:", error);
+    res.status(500).json({ error: "Failed to reschedule booking" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -609,4 +725,6 @@ export default {
   getBookingQRUrl,
   getBookingDetails,
   getBookings,
+  cancelBooking,
+  rescheduleBooking,
 };
