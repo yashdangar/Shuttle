@@ -58,4 +58,24 @@ router.post(
   controller.getSignedUrl as RequestHandler
 );
 
+// Profile route
+router.get(
+  "/profile",
+  guestAuthMiddleware as RequestHandler,
+  controller.getProfile as RequestHandler
+);
+
+// Booking management routes
+router.put(
+  "/bookings/:bookingId/cancel",
+  guestAuthMiddleware as RequestHandler,
+  controller.cancelBooking as RequestHandler
+);
+
+router.put(
+  "/bookings/:bookingId/reschedule",
+  guestAuthMiddleware as RequestHandler,
+  controller.rescheduleBooking as RequestHandler
+);
+
 export default router;

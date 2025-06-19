@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton, ProfileSkeleton } from "@/components/ui/skeleton";
 import {
   User,
   Phone,
@@ -19,48 +20,70 @@ import {
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
-const recentBookings = [
-  {
-    id: 1,
-    route: "Hilton Downtown → Airport Terminal A",
-    date: "Dec 15, 2024",
-    time: "9:00 AM",
-    status: "completed",
-  },
-  {
-    id: 2,
-    route: "Marriott Hotel → Airport Terminal B",
-    date: "Dec 12, 2024",
-    time: "2:30 PM",
-    status: "completed",
-  },
-  {
-    id: 3,
-    route: "Airport Terminal C → Grand Hotel",
-    date: "Dec 10, 2024",
-    time: "11:15 AM",
-    status: "completed",
-  },
-  {
-    id: 4,
-    route: "Sheraton Hotel → Airport Terminal A",
-    date: "Dec 8, 2024",
-    time: "7:45 AM",
-    status: "completed",
-  },
-];
+interface ProfileData {
+  guest: {
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    createdAt: string;
+    hotel: {
+      id: number;
+      name: string;
+      address: string | null;
+    } | null;
+  };
+  statistics: {
+    totalRides: number;
+    completedRides: number;
+    hotelsVisited: number;
+    averageRating: number;
+  };
+  recentBookings: Array<{
+    id: string;
+    route: string;
+    date: string;
+    time: string;
+    status: string;
+  }>;
+}
 
 export default function ProfilePage() {
-  const [guestName, setGuestName] = useState("");
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
-    const name = localStorage.getItem("guestName") || "John Doe";
-    setGuestName(name);
-    toast.success("Profile loaded");
+    fetchProfileData();
   }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem("guestToken");
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      const data = await api.get("/guest/profile");
+      setProfileData(data);
+      toast.success("Profile loaded successfully");
+    } catch (err: any) {
+      console.error("Error fetching profile:", err);
+      setError(err.message || "Failed to load profile");
+      toast.error("Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("guestToken");
@@ -75,6 +98,40 @@ export default function ProfilePage() {
     setTheme(newTheme);
     toast.success(`Switched to ${newTheme} mode`);
   };
+
+  if (loading) {
+    return <ProfileSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-foreground">Error Loading Profile</h1>
+          <p className="text-foreground/70">{error}</p>
+          <Button onClick={fetchProfileData}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-foreground">No Profile Data</h1>
+          <p className="text-foreground/70">Unable to load profile information</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { guest, statistics, recentBookings } = profileData;
+  const fullName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest User';
+  const memberSince = new Date(guest.createdAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long'
+  });
 
   return (
     <div className="space-y-6 p-6">
@@ -97,7 +154,7 @@ export default function ProfilePage() {
               <User className="h-10 w-10 text-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-foreground">{guestName}</h3>
+              <h3 className="text-2xl font-bold text-foreground">{fullName}</h3>
               <p className="text-foreground/70 font-medium">
                 Valued Guest
               </p>
@@ -111,26 +168,28 @@ export default function ProfilePage() {
           <div className="grid gap-4">
             <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
               <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-foreground">+1 (555) 123-4567</span>
+              <span className="font-medium text-foreground">
+                {guest.phoneNumber || "Phone number not provided"}
+              </span>
             </div>
             <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
               <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-foreground">john.doe@example.com</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-              <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-foreground">123 Main St, New York, NY 10001</span>
+              <span className="font-medium text-foreground">
+                {guest.email || "Email not provided"}
+              </span>
             </div>
             <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
               <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-foreground">Member since January 2023</span>
+              <span className="font-medium text-foreground">
+                Member since {memberSince}
+              </span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Travel Stats */}
-      <Card className="border-border">
+      {/* <Card className="border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Star className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -140,20 +199,20 @@ export default function ProfilePage() {
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-xl">
-              <p className="text-3xl font-bold text-foreground">24</p>
+              <p className="text-3xl font-bold text-foreground">{statistics.totalRides}</p>
               <p className="text-sm text-foreground/70">Total Rides</p>
             </div>
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-xl">
-              <p className="text-3xl font-bold text-foreground">8</p>
+              <p className="text-3xl font-bold text-foreground">{statistics.hotelsVisited}</p>
               <p className="text-sm text-foreground/70">Hotels Visited</p>
             </div>
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-xl">
-              <p className="text-3xl font-bold text-foreground">4.8</p>
+              <p className="text-3xl font-bold text-foreground">{statistics.averageRating}</p>
               <p className="text-sm text-foreground/70">Average Rating</p>
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Settings */}
       <Card className="border-border">

@@ -5,15 +5,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { MapPin, Clock, Users, MoreHorizontal, QrCode } from "lucide-react"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MapPin, Clock, Users, MoreHorizontal, QrCode, X, Calendar } from "lucide-react"
 import { api } from "@/lib/api"
 import { QRCodeDisplay } from "./qr-code-display"
+import { RescheduleModal } from "./reschedule-modal"
+import { toast } from "sonner"
 
 export default function BookingHistory() {
   const [bookings, setBookings] = useState<any[]>([])
   const [showQR, setShowQR] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showReschedule, setShowReschedule] = useState(false)
+  const [rescheduleBooking, setRescheduleBooking] = useState<any>(null)
 
   useEffect(() => {
     const getHistory = async () => {
@@ -62,6 +72,38 @@ export default function BookingHistory() {
   const handleShowQR = (booking: any) => {
     setSelectedBooking(booking)
     setShowQR(true)
+  }
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await api.put(`/guest/bookings/${bookingId}/cancel`, {})
+      toast.success("Booking cancelled successfully")
+      // Refresh the bookings list
+      const response = await api.get("/guest/get-trips")
+      setBookings(response.trips)
+    } catch (error: any) {
+      console.error("Error cancelling booking:", error)
+      toast.error(error.message || "Failed to cancel booking")
+    }
+  }
+
+  const handleRescheduleBooking = (booking: any) => {
+    setRescheduleBooking(booking)
+    setShowReschedule(true)
+  }
+
+  const handleRescheduleSuccess = async () => {
+    // Refresh the bookings list
+    try {
+      const response = await api.get("/guest/get-trips")
+      setBookings(response.trips)
+    } catch (error) {
+      console.error("Error refreshing bookings:", error)
+    }
+  }
+
+  const canModifyBooking = (booking: any) => {
+    return !booking.isCompleted && !booking.isCancelled
   }
 
   // Loading skeleton
@@ -172,9 +214,38 @@ export default function BookingHistory() {
                     QR Code
                   </Button>
                 )}
-                <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {canModifyBooking(booking) && (
+                      <>
+                        <DropdownMenuItem 
+                          onClick={() => handleRescheduleBooking(booking)}
+                          className="cursor-pointer"
+                        >
+                          <Calendar className="w-4 h-4 mr-2" />
+                          Reschedule
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleCancelBooking(booking.id)}
+                          className="cursor-pointer text-red-600"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Cancel Booking
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {!canModifyBooking(booking) && (
+                      <DropdownMenuItem disabled>
+                        No actions available
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </CardHeader>
@@ -239,6 +310,20 @@ export default function BookingHistory() {
             setShowQR(false)
             setSelectedBooking(null)
           }}
+        />
+      )}
+
+      {/* Reschedule Modal */}
+      {rescheduleBooking && (
+        <RescheduleModal
+          isOpen={showReschedule}
+          onClose={() => {
+            setShowReschedule(false)
+            setRescheduleBooking(null)
+          }}
+          bookingId={rescheduleBooking.id}
+          currentTime={rescheduleBooking.preferredTime}
+          onSuccess={handleRescheduleSuccess}
         />
       )}
     </div>
