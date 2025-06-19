@@ -1,21 +1,49 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin } from "lucide-react"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { MapPin } from "lucide-react";
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  // Check for existing token on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("guestToken");
+    if (token) {
+      try {
+        // Decode JWT token to check for hotelId
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        console.log("Decoded token payload:", payload);
+
+        if (payload.hotelId) {
+          // If hotelId exists, redirect to hotel page
+          router.push(`/hotel/${payload.hotelId}`);
+        } else {
+          // If no hotelId, redirect to select hotel page
+          router.push("/select-hotel");
+        }
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        // If token is invalid, remove it and stay on login page
+        localStorage.removeItem("guestToken");
+      }
+    }
+  }, [router]);
 
   const handleGoogleLogin = async () => {
-    setIsLoading(true)
-    // Redirect to backend OAuth endpoint``
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`
-  }
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -33,10 +61,17 @@ export default function LoginPage() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to your account to book shuttle rides</CardDescription>
+            <CardDescription>
+              Sign in to your account to book shuttle rides
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={handleGoogleLogin} disabled={isLoading} className="w-full" size="lg">
+            <Button
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="w-full"
+              size="lg"
+            >
               {isLoading ? (
                 <div className="flex items-center space-x-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -68,11 +103,12 @@ export default function LoginPage() {
             </Button>
 
             <div className="text-center text-sm text-gray-600">
-              By continuing, you agree to our Terms of Service and Privacy Policy
+              By continuing, you agree to our Terms of Service and Privacy
+              Policy
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
-  )
+  );
 }

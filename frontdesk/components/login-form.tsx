@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/hooks/use-toast";
-
+import { useEffect } from "react";
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +18,13 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const token = localStorage.getItem("frontdeskToken");
+    if (token) {
+      router.push("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +117,11 @@ export function LoginForm() {
               </Button>
             </div>
           </div>
-          <Button type="submit" className="w-full transition-none" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full transition-none"
+            disabled={isLoading}
+          >
             {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>

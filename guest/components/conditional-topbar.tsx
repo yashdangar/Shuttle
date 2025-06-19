@@ -11,6 +11,7 @@ export function ConditionalTopbar() {
     "/login",
     "/auth",
     "/auth/callback",
+    "/"
   ];
   
   // Check if current path should show topbar

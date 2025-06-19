@@ -1,9 +1,39 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Clock, Shield, Star } from "lucide-react"
+"use client";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { MapPin, Clock, Shield, Star } from "lucide-react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LandingPage() {
+  const router = useRouter();
+  useEffect(() => {
+    const token = localStorage.getItem("guestToken")
+    if (token) {
+      try {
+        // Decode JWT token to check for hotelId
+        const payload = JSON.parse(atob(token.split(".")[1]))
+        console.log("Decoded token payload:", payload)
+        
+        if (payload.hotelId) {
+          // If hotelId exists, redirect to hotel page
+          router.push(`/hotel/${payload.hotelId}`)
+        } else {
+          // If no hotelId, redirect to select hotel page
+          router.push("/select-hotel")
+        }
+      } catch (error) {
+        // If token is invalid, remove it and stay on login page
+        localStorage.removeItem("guestToken")
+      }
+    }
+  }, [router])
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
@@ -29,8 +59,8 @@ export default function LandingPage() {
             <span className="text-blue-600"> Simplified</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Book your hotel shuttle rides with ease. Real-time tracking, instant confirmations, and seamless travel
-            experience.
+            Book your hotel shuttle rides with ease. Real-time tracking, instant
+            confirmations, and seamless travel experience.
           </p>
           <Link href="/login">
             <Button size="lg" className="text-lg px-8 py-3">
@@ -45,7 +75,10 @@ export default function LandingPage() {
             <CardHeader>
               <Clock className="w-12 h-12 text-blue-600 mx-auto mb-4" />
               <CardTitle>Real-Time Tracking</CardTitle>
-              <CardDescription>Track your shuttle in real-time with live ETA updates every minute</CardDescription>
+              <CardDescription>
+                Track your shuttle in real-time with live ETA updates every
+                minute
+              </CardDescription>
             </CardHeader>
           </Card>
 
@@ -53,7 +86,9 @@ export default function LandingPage() {
             <CardHeader>
               <Shield className="w-12 h-12 text-blue-600 mx-auto mb-4" />
               <CardTitle>Secure Booking</CardTitle>
-              <CardDescription>Safe and secure booking process with QR code confirmation</CardDescription>
+              <CardDescription>
+                Safe and secure booking process with QR code confirmation
+              </CardDescription>
             </CardHeader>
           </Card>
 
@@ -61,7 +96,10 @@ export default function LandingPage() {
             <CardHeader>
               <Star className="w-12 h-12 text-blue-600 mx-auto mb-4" />
               <CardTitle>Premium Service</CardTitle>
-              <CardDescription>Professional drivers and comfortable shuttles for your convenience</CardDescription>
+              <CardDescription>
+                Professional drivers and comfortable shuttles for your
+                convenience
+              </CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -96,7 +134,9 @@ export default function LandingPage() {
                 <span className="text-2xl font-bold text-blue-600">4</span>
               </div>
               <h3 className="font-semibold mb-2">Track & Ride</h3>
-              <p className="text-gray-600">Track your shuttle and enjoy the ride</p>
+              <p className="text-gray-600">
+                Track your shuttle and enjoy the ride
+              </p>
             </div>
           </div>
         </div>
@@ -109,5 +149,5 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
-  )
+  );
 }

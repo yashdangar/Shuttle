@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,13 @@ export default function LoginPage() {
   });
 
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("driverToken");
+    if (token) {
+      router.push("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
