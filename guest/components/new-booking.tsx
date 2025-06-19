@@ -25,6 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MapPin, Clock, Users, CreditCard, Briefcase } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { QRCodeDisplay } from "@/components/qr-code-display";
 
 interface NewBookingProps {
   hotel: any;
@@ -84,6 +85,9 @@ export default function NewBooking({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [bookingQRCode, setBookingQRCode] = useState<string>("");
+  const [bookingId, setBookingId] = useState<string | null>(null);
 
   const fetchLocations = async () => {
     try {
@@ -151,10 +155,18 @@ export default function NewBooking({
       // Send request to backend
       try {
         const response = await api.post("/guest/create-trip", tripData);
-        console.log(response);
+        console.log("API Response:", response);
+        console.log("Trip data:", response.trip);
         
         if (response.trip) {
           onBookingCreated(response.trip);
+          
+          // Show QR code if available
+          if (response.trip.qrCodePath) {
+            setBookingQRCode(response.trip.qrCodePath);
+            setBookingId(response.trip.id);
+            setShowQRCode(true);
+          }
         }
 
         setIsSubmitting(false);
@@ -516,6 +528,16 @@ export default function NewBooking({
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Add QR Code Display */}
+      {bookingId && (
+        <QRCodeDisplay
+          qrCodePath={bookingQRCode}
+          bookingId={bookingId}
+          isOpen={showQRCode}
+          onClose={() => setShowQRCode(false)}
+        />
+      )}
     </div>
   );
 }

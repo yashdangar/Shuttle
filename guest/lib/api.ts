@@ -1,50 +1,51 @@
 export const api = {
-    async fetch(endpoint: string, options: RequestInit = {}) {
-        // Get token from cookies
-        const token = typeof document !== 'undefined' 
-            ? document.cookie.split('; ').find(row => row.startsWith('guestToken='))?.split('=')[1]
-            : null;
-        
-        const headers = {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            ...options.headers,
-        };
+  async fetch(endpoint: string, options: RequestInit = {}) {
+    // Get token from localStorage
+    const token = localStorage.getItem("guestToken");
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
-            ...options,
-            headers,
-        });
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'API request failed');
-        }
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}${endpoint}`,
+      {
+        ...options,
+        headers,
+      }
+    );
 
-        return response.json();
-    },
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "API request failed");
+    }
 
-    async get(endpoint: string) {
-        return this.fetch(endpoint);
-    },
+    return response.json();
+  },
 
-    async post(endpoint: string, data: any) {
-        return this.fetch(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data),
-        });
-    },
+  async get(endpoint: string) {
+    return this.fetch(endpoint);
+  },
 
-    async put(endpoint: string, data: any) {
-        return this.fetch(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(data),
-        });
-    },
+  async post(endpoint: string, data: any) {
+    return this.fetch(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 
-    async delete(endpoint: string) {
-        return this.fetch(endpoint, {
-            method: 'DELETE',
-        });
-    },
+  async put(endpoint: string, data: any) {
+    return this.fetch(endpoint, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(endpoint: string) {
+    return this.fetch(endpoint, {
+      method: "DELETE",
+    });
+  },
 };

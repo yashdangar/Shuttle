@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, QrCode, History, Plus } from "lucide-react";
 import CurrentBooking from "@/components/current-booking";
 import BookingHistory from "@/components/booking-history";
@@ -16,21 +17,79 @@ interface Hotel {
   latitude: number;
   longitude: number;
 }
+
+function HotelPageSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Skeleton className="w-10 h-10 rounded-lg" />
+              <div>
+                <Skeleton className="h-6 w-48 mb-2" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Skeleton */}
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex space-x-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="py-4 px-1">
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="w-4 h-4" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content Skeleton */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="space-y-6">
+          <Skeleton className="h-8 w-64" />
+          <div className="grid gap-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HotelPage() {
   const params = useParams();
   const router = useRouter();
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeTab, setActiveTab] = useState("current");
   const [currentBooking, setCurrentBooking] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const hotelId = params.id as string;
     console.log(hotelId);
     if (hotelId) {
       const fetchHotel = async () => {
-        const response = await api.get(`/guest/get-hotel/${hotelId}`);
-        console.log(response);
-        setSelectedHotel(response.hotel.hotel)
+        try {
+          setIsLoading(true);
+          const response = await api.get(`/guest/get-hotel/${hotelId}`);
+          console.log(response);
+          setSelectedHotel(response.hotel.hotel)
+        } catch (error) {
+          console.error("Error fetching hotel:", error);
+        } finally {
+          setIsLoading(false);
+        }
       };
       fetchHotel();
     } else {
@@ -40,12 +99,19 @@ export default function HotelPage() {
     // Check for current booking
     const booking = localStorage.getItem("currentBooking");
     if (booking) {
-      setCurrentBooking(JSON.parse(booking));
+      try {
+        const parsedBooking = JSON.parse(booking);
+        console.log("Loaded booking from localStorage:", parsedBooking);
+        setCurrentBooking(parsedBooking);
+      } catch (error) {
+        console.error("Error parsing booking from localStorage:", error);
+        localStorage.removeItem("currentBooking");
+      }
     }
   }, []);
 
-  if (!selectedHotel) {
-    return <div>Loading...</div>;
+  if (isLoading || !selectedHotel) {
+    return <HotelPageSkeleton />;
   }
 
   return (
@@ -63,9 +129,6 @@ export default function HotelPage() {
                 <p className="text-sm text-gray-600">{selectedHotel.address}</p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-sm">
-              Connected
-            </Badge>
           </div>
         </div>
       </div>
@@ -129,7 +192,10 @@ export default function HotelPage() {
           <NewBooking
             hotel={selectedHotel}
             onBookingCreated={(booking) => {
+              console.log("New booking created:", booking);
               setCurrentBooking(booking);
+              // Store in localStorage to persist the booking data
+              localStorage.setItem("currentBooking", JSON.stringify(booking));
               setActiveTab("current");
             }}
           />

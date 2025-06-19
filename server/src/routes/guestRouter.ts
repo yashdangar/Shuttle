@@ -46,4 +46,16 @@ router.get(
   controller.getTrip as RequestHandler
 );
 
+// QR code routes
+router.get(
+  "/trips/:id/qr-url",
+  guestAuthMiddleware as RequestHandler,
+  controller.getTripQRUrl as RequestHandler
+);
+router.post(
+  "/signed-url",
+  guestAuthMiddleware as RequestHandler,
+  controller.getSignedUrl as RequestHandler
+);
+
 export default router;

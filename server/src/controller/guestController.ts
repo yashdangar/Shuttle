@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import prisma from "../db/prisma";
 import axios from "axios";
 import { PaymentMethod, BookingType } from "@prisma/client";
+import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
+import { getSignedUrlFromPath } from "../utils/s3Utils";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -91,28 +93,47 @@ const createTrip = async (req: Request, res: Response) => {
     numberOfBags,
     preferredTime,
     paymentMethod,
-    bookingType,
+    tripType,
     pickupLocationId,
     dropoffLocationId,
   } = req.body;
   const userId = (req as any).user.userId;
 
   try {
+    // Generate encryption key
+    const encryptionKey = generateEncryptionKey();
+
     const trip = await prisma.booking.create({
       data: {
         numberOfPersons,
         numberOfBags,
         preferredTime: new Date(preferredTime),
         paymentMethod: paymentMethod as PaymentMethod,
-        bookingType: bookingType as BookingType,
+        bookingType: tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL",
         pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
         dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
         guestId: userId,
+        encryptionKey,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
-    res.json({ trip });
+
+    // Generate QR code
+    const qrCodeData = await generateQRCode({
+      bookingId: trip.id,
+      guestId: trip.guestId,
+      preferredTime: trip.preferredTime?.toISOString() || '',
+      encryptionKey: trip.encryptionKey!,
+    });
+
+    // Update booking with QR code data
+    const updatedTrip = await prisma.booking.update({
+      where: { id: trip.id },
+      data: { qrCodePath: qrCodeData },
+    });
+
+    res.json({ trip: updatedTrip });
   } catch (error) {
     console.error("Error creating trip:", error);
     res.status(500).json({ error: "Failed to create trip" });
@@ -135,4 +156,63 @@ const getTrip = async (req: Request, res: Response) => {
   res.json({ trip });
 };
 
-export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip };
+const getTripQRUrl = async (req: Request, res: Response) => {
+  try {
+    const tripId = req.params.id;
+    const userId = (req as any).user.userId;
+
+    const trip = await prisma.booking.findFirst({
+      where: {
+        id: tripId,
+        guestId: userId,
+      },
+    });
+
+    if (!trip) {
+      return res.status(404).json({ message: "Trip not found" });
+    }
+
+    if (!trip.qrCodePath) {
+      return res.status(404).json({ message: "QR code not found" });
+    }
+
+    const signedUrl = await getSignedUrlFromPath(trip.qrCodePath);
+    res.json({ signedUrl });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getSignedUrl = async (req: Request, res: Response) => {
+  try {
+    const { path } = req.body;
+    const userId = (req as any).user.userId;
+
+    if (!path) {
+      return res.status(400).json({ message: "Path is required" });
+    }
+
+    const tripId = path.split('/')[1];
+    if (!tripId) {
+      return res.status(400).json({ message: "Invalid path format" });
+    }
+
+    const trip = await prisma.booking.findFirst({
+      where: {
+        id: tripId,
+        guestId: userId,
+      },
+    });
+
+    if (!trip) {
+      return res.status(404).json({ message: "Trip not found" });
+    }
+
+    const signedUrl = await getSignedUrlFromPath(path);
+    res.json({ signedUrl });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip, getTripQRUrl, getSignedUrl };

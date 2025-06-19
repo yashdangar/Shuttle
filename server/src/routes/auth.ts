@@ -72,7 +72,7 @@ router.get('/google/callback',
   (req, res) => {
     const user = req.user as any;
     const token = jwt.sign(
-      { userId: user.id, email: user.email,},
+      { userId: user.id, email: user.email, hotelId: user.hotelId || null},
       process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );

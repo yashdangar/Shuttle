@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, QrCode, Navigation, Phone } from "lucide-react"
-import QRCodeDisplay from "./qr-code-display"
+import { MapPin, Clock, QrCode, Navigation, Phone, Users } from "lucide-react"
+import { QRCodeDisplay } from "./qr-code-display"
 
 interface CurrentBookingProps {
   booking: any
@@ -18,6 +18,10 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
 
   useEffect(() => {
     if (booking) {
+      // Debug: Log booking data to understand structure
+      console.log("Current booking data:", booking);
+      console.log("QR Code Path:", booking.qrCodePath);
+      
       // Simulate ETA updates every minute
       const interval = setInterval(() => {
         const minutes = Math.floor(Math.random() * 15) + 5
@@ -51,8 +55,14 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
               <CardTitle className="text-xl">Current Booking</CardTitle>
               <CardDescription>Booking ID: {booking.id}</CardDescription>
             </div>
-            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"} className="text-sm">
-              {booking.status}
+            <Badge variant={
+              booking.isCancelled ? "destructive" : 
+              booking.isCompleted ? "default" : 
+              booking.isPaid ? "secondary" : "outline"
+            } className="text-sm">
+              {booking.isCancelled ? "Cancelled" : 
+               booking.isCompleted ? "Completed" : 
+               booking.isPaid ? "Paid" : "Pending"}
             </Badge>
           </div>
         </CardHeader>
@@ -62,15 +72,19 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
               <div className="flex items-center space-x-3">
                 <MapPin className="w-5 h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium">Pickup Location</p>
-                  <p className="text-sm text-gray-600">{booking.pickup}</p>
+                  <p className="font-medium">Trip Type</p>
+                  <p className="text-sm text-gray-600">
+                    {booking.bookingType === "HOTEL_TO_AIRPORT" ? "Hotel to Airport" : "Airport to Hotel"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <MapPin className="w-5 h-5 text-gray-400" />
+                <Users className="w-5 h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium">Destination</p>
-                  <p className="text-sm text-gray-600">{booking.destination}</p>
+                  <p className="font-medium">Passengers & Bags</p>
+                  <p className="text-sm text-gray-600">
+                    {booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)
+                  </p>
                 </div>
               </div>
             </div>
@@ -78,8 +92,10 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
               <div className="flex items-center space-x-3">
                 <Clock className="w-5 h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium">Scheduled Time</p>
-                  <p className="text-sm text-gray-600">{booking.scheduledTime}</p>
+                  <p className="font-medium">Preferred Time</p>
+                  <p className="text-sm text-gray-600">
+                    {new Date(booking.preferredTime).toLocaleString()}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
@@ -93,10 +109,17 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <Button onClick={() => setShowQR(true)} className="flex-1">
-              <QrCode className="w-4 h-4 mr-2" />
-              Show QR Code
-            </Button>
+            {booking.qrCodePath ? (
+              <Button onClick={() => setShowQR(true)} className="flex-1">
+                <QrCode className="w-4 h-4 mr-2" />
+                Show QR Code
+              </Button>
+            ) : (
+              <Button disabled className="flex-1" title="QR Code not available">
+                <QrCode className="w-4 h-4 mr-2" />
+                QR Code Unavailable
+              </Button>
+            )}
             <Button variant="outline" className="flex-1">
               <Phone className="w-4 h-4 mr-2" />
               Contact Driver
@@ -130,8 +153,13 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
         </CardContent>
       </Card>
 
-      {/* QR Code Modal */}
-      {showQR && <QRCodeDisplay booking={booking} onClose={() => setShowQR(false)} />}
+      {/* QR Code Modal - Always render, let component handle missing qrCodePath */}
+      <QRCodeDisplay
+        qrCodePath={booking.qrCodePath || ""}
+        bookingId={booking.id}
+        isOpen={showQR}
+        onClose={() => setShowQR(false)}
+      />
     </div>
   )
 }

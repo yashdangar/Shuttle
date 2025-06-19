@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { GuestTopbar } from "@/components/guest-topbar";
+import { ConditionalTopbar } from "@/components/conditional-topbar";
 
 export const metadata: Metadata = {
   title: 'shuttle guest App',
@@ -13,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ConditionalTopbar />
+        {children}
+      </body>
     </html>
   )
 }

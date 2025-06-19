@@ -13,7 +13,7 @@ function AuthCallback() {
     if (!token) {
       router.push("/login");
     } else {
-      document.cookie = `guestToken=${token}; path=/; max-age=86400; secure; samesite=strict`;
+      localStorage.setItem("guestToken", token);
       
       if (hotelId) {
         router.push(`/hotel/${hotelId}`);

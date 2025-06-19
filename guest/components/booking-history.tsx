@@ -4,32 +4,129 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MapPin, Clock, Users, MoreHorizontal } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { MapPin, Clock, Users, MoreHorizontal, QrCode } from "lucide-react"
 import { api } from "@/lib/api"
+import { QRCodeDisplay } from "./qr-code-display"
 
 export default function BookingHistory() {
   const [bookings, setBookings] = useState<any[]>([])
+  const [showQR, setShowQR] = useState(false)
+  const [selectedBooking, setSelectedBooking] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const getHistory = async () => {
-      const response = await api.get("/guest/get-trips")
-      setBookings(response.trips)
+      try {
+        setIsLoading(true)
+        const response = await api.get("/guest/get-trips")
+        setBookings(response.trips)
+      } catch (error) {
+        console.error("Error fetching booking history:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
     getHistory()
-    //  setBookings(history)
   }, [])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-800"
-      case "confirmed":
-        return "bg-blue-100 text-blue-800"
-      case "cancelled":
-        return "bg-red-100 text-red-800"
+  const getStatusColor = (booking: any) => {
+    if (booking.isCancelled) return "bg-red-100 text-red-800"
+    if (booking.isCompleted) return "bg-green-100 text-green-800"
+    if (booking.isPaid) return "bg-blue-100 text-blue-800"
+    return "bg-yellow-100 text-yellow-800"
+  }
+
+  const getStatusText = (booking: any) => {
+    if (booking.isCancelled) return "Cancelled"
+    if (booking.isCompleted) return "Completed"
+    if (booking.isPaid) return "Paid"
+    return "Pending"
+  }
+
+  const getBookingTypeText = (bookingType: string) => {
+    switch (bookingType) {
+      case "HOTEL_TO_AIRPORT":
+        return "Hotel to Airport"
+      case "AIRPORT_TO_HOTEL":
+        return "Airport to Hotel"
       default:
-        return "bg-gray-100 text-gray-800"
+        return bookingType
     }
+  }
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString()
+  }
+
+  const handleShowQR = (booking: any) => {
+    setSelectedBooking(booking)
+    setShowQR(true)
+  }
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-8 w-8" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="w-4 h-4 rounded" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="w-4 h-4 rounded" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="w-4 h-4 rounded" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
   }
 
   if (bookings.length === 0) {
@@ -56,11 +153,25 @@ export default function BookingHistory() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Booking {booking.id}</CardTitle>
-                <CardDescription>{new Date(booking.createdAt).toLocaleDateString()}</CardDescription>
+                <CardTitle className="text-lg">Booking {booking.id.slice(0, 8)}...</CardTitle>
+                <CardDescription>
+                  Created: {formatDateTime(booking.createdAt)}
+                </CardDescription>
               </div>
               <div className="flex items-center space-x-2">
-                <Badge className={getStatusColor(booking.status)}>{booking.status}</Badge>
+                <Badge className={getStatusColor(booking)}>
+                  {getStatusText(booking)}
+                </Badge>
+                {booking.qrCodePath && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleShowQR(booking)}
+                  >
+                    <QrCode className="w-4 h-4 mr-1" />
+                    QR Code
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm">
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
@@ -72,35 +183,64 @@ export default function BookingHistory() {
               <div className="flex items-center space-x-2">
                 <MapPin className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="font-medium">Route</p>
+                  <p className="font-medium">Trip Type</p>
                   <p className="text-gray-600">
-                    {booking.pickup} → {booking.destination}
+                    {getBookingTypeText(booking.bookingType)}
                   </p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="font-medium">Scheduled</p>
-                  <p className="text-gray-600">{booking.scheduledTime}</p>
+                  <p className="font-medium">Preferred Time</p>
+                  <p className="text-gray-600">
+                    {formatDateTime(booking.preferredTime)}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Users className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="font-medium">Passengers</p>
-                  <p className="text-gray-600">{booking.passengers}</p>
+                  <p className="font-medium">Passengers & Bags</p>
+                  <p className="text-gray-600">
+                    {booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)
+                  </p>
                 </div>
               </div>
             </div>
-            {booking.notes && (
-              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">{booking.notes}</p>
+            
+            <div className="grid md:grid-cols-2 gap-4 text-sm mt-4">
+              <div className="flex items-center space-x-2">
+                <div>
+                  <p className="font-medium">Payment Method</p>
+                  <p className="text-gray-600">{booking.paymentMethod}</p>
+                </div>
               </div>
-            )}
+              <div className="flex items-center space-x-2">
+                <div>
+                  <p className="font-medium">Last Updated</p>
+                  <p className="text-gray-600">
+                    {formatDateTime(booking.updatedAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ))}
+
+      {/* QR Code Modal */}
+      {selectedBooking && (
+        <QRCodeDisplay
+          qrCodePath={selectedBooking.qrCodePath || ""}
+          bookingId={selectedBooking.id}
+          isOpen={showQR}
+          onClose={() => {
+            setShowQR(false)
+            setSelectedBooking(null)
+          }}
+        />
+      )}
     </div>
   )
 }

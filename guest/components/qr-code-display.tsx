@@ -1,53 +1,193 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { X, Download, Share } from "lucide-react"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Share2, Download, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
 
 interface QRCodeDisplayProps {
-  booking: any
-  onClose: () => void
+  qrCodePath: string;
+  bookingId: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export default function QRCodeDisplay({ booking, onClose }: QRCodeDisplayProps) {
+export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCodeDisplayProps) {
+  const { toast } = useToast();
+  const [isSharing, setIsSharing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!qrCodePath) {
+        setError('QR code not available for this booking');
+        setIsLoading(false);
+      } else {
+        refreshSignedUrl();
+      }
+    }
+  }, [isOpen, qrCodePath]);
+
+  const refreshSignedUrl = async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      
+      if (!qrCodePath) {
+        setError('QR code not available for this booking');
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+      
+      const response = await api.get(`/guest/trips/${bookingId}/qr-url`);
+      setSignedUrl(response.signedUrl);
+      setRetryCount(0);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load QR code');
+      toast({
+        title: "Error",
+        description: "Failed to refresh QR code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      setIsSharing(true);
+      
+      if (!signedUrl) {
+        throw new Error('No QR code URL available');
+      }
+
+      const link = document.createElement('a');
+      link.href = signedUrl;
+      link.download = `booking-${bookingId}-qr.png`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "QR Code Downloaded",
+        description: "The QR code has been downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download QR code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleRetry = () => {
+    if (retryCount < 3) {
+      setRetryCount(prev => prev + 1);
+      refreshSignedUrl();
+    } else {
+      toast({
+        title: "Error",
+        description: "Maximum retry attempts reached. Please try again later.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Your QR Code</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </CardHeader>
-        <CardContent className="text-center space-y-4">
-          <div className="bg-white p-6 rounded-lg border-2 border-dashed border-gray-300">
-            <div className="w-48 h-48 mx-auto bg-gray-100 rounded-lg flex items-center justify-center">
-              {/* QR Code placeholder - in real app, generate actual QR code */}
-              <div className="grid grid-cols-8 gap-1">
-                {Array.from({ length: 64 }).map((_, i) => (
-                  <div key={i} className={`w-2 h-2 ${Math.random() > 0.5 ? "bg-black" : "bg-white"}`} />
-                ))}
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Booking QR Code</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="bg-white p-4 rounded-lg relative">
+            {isLoading ? (
+              <div className="w-64 h-64 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin" />
               </div>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600">
-            <p className="font-medium">Booking ID: {booking.id}</p>
-            <p>Show this QR code to your driver</p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1">
-              <Download className="w-4 h-4 mr-2" />
-              Save
+            ) : error ? (
+              <div className="w-64 h-64 flex flex-col items-center justify-center text-red-500 space-y-2">
+                <AlertCircle className="w-8 h-8" />
+                <p className="text-center">{error}</p>
+                {retryCount < 3 && (
+                  <Button
+                    onClick={handleRetry}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+            ) : signedUrl ? (
+              <img
+                src={signedUrl}
+                alt="Booking QR Code"
+                className="w-64 h-64"
+                onError={() => {
+                  setError('Failed to load QR code image');
+                  handleRetry();
+                }}
+              />
+            ) : null}
+            <Button
+              onClick={refreshSignedUrl}
+              disabled={isRefreshing}
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Button variant="outline" className="flex-1">
-              <Share className="w-4 h-4 mr-2" />
-              Share
+          </div>
+          <div className="flex space-x-4">
+            <Button
+              onClick={handleDownload}
+              disabled={isSharing || !signedUrl}
+              className="flex items-center space-x-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download QR Code</span>
+            </Button>
+            <Button
+              onClick={() => {
+                if (signedUrl) {
+                  navigator.clipboard.writeText(signedUrl);
+                  toast({
+                    title: "Copied",
+                    description: "QR code image URL copied to clipboard.",
+                  });
+                }
+              }}
+              disabled={!signedUrl}
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Copy Link</span>
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
