@@ -413,42 +413,61 @@ const verifyBookingQR = async (req: Request, res: Response) => {
     const { qrData } = req.body;
     const hotelId = (req as any).user.hotelId;
 
-    // Verify QR code data
-    const bookingData = verifyQRCode(qrData);
+    // Verify QR code data (now returns QRVerificationData with token)
+    const verificationData = verifyQRCode(qrData);
 
-    // Find booking and verify it belongs to the hotel
-    const booking = await prisma.booking.findFirst({
-      where: {
-        id: bookingData.bookingId,
-        guest: {
-          hotelId: hotelId,
-        },
-      },
+    // Find the verification token in database
+    const verificationToken = await prisma.qRVerificationToken.findUnique({
+      where: { token: verificationData.token },
       include: {
-        guest: true,
-        pickupLocation: true,
-        dropoffLocation: true,
+        booking: {
+          include: {
+            guest: {
+              include: {
+                hotel: true,
+              },
+            },
+            pickupLocation: true,
+            dropoffLocation: true,
+          },
+        },
       },
     });
 
-    if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
+    if (!verificationToken) {
+      return res.status(404).json({ message: "Invalid QR code" });
     }
 
-    // Verify encryption key
-    if (booking.encryptionKey !== bookingData.encryptionKey) {
-      return res.status(401).json({ message: "Invalid QR code" });
+    // Check if token has expired
+    if (verificationToken.expiresAt < new Date()) {
+      return res.status(400).json({ message: "QR code has expired" });
+    }
+
+    // Check if token has already been used
+    if (verificationToken.isUsed) {
+      return res.status(400).json({ message: "QR code has already been used" });
+    }
+
+    // Verify booking belongs to the hotel
+    if (verificationToken.booking.guest.hotelId !== hotelId) {
+      return res.status(403).json({ message: "Not authorized to verify this booking" });
     }
 
     // Check if booking is valid
-    if (booking.isCancelled || booking.isCompleted) {
-      return res.status(400).json({ 
-        message: booking.isCancelled ? "Booking is cancelled" : "Booking is already completed" 
-      });
+    if (verificationToken.booking.isCancelled) {
+      return res.status(400).json({ message: "Booking is cancelled" });
+    }
+
+    if (verificationToken.booking.isCompleted) {
+      return res.status(400).json({ message: "Booking is already completed" });
+    }
+
+    if (verificationToken.booking.isVerified) {
+      return res.status(400).json({ message: "Booking is already verified" });
     }
 
     res.json({ 
-      booking,
+      booking: verificationToken.booking,
       isValid: true,
       message: "QR code verified successfully" 
     });

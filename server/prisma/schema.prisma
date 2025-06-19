@@ -54,12 +54,18 @@ model Booking {
   shuttleId         Int?
   encryptionKey     String?
   qrCodePath        String?
+  isVerified        Boolean       @default(false)
+  verifiedAt        DateTime?
+  verifiedBy        Int?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
   guest             Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
   pickupLocation    Location?     @relation("pickup", fields: [pickupLocationId], references: [id])
   shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
+  verificationToken QRVerificationToken?
+  verificationLogs  QRVerificationLog[]
+  verifier          Driver?       @relation("BookingVerifier", fields: [verifiedBy], references: [id])
 }
 
 model FrontDesk {
@@ -99,6 +105,8 @@ model Driver {
   hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications Notification[]
   schedules     Schedule[]     @relation("DriverSchedules")
+  verifiedBookings Booking[]   @relation("BookingVerifier")
+  verificationLogs QRVerificationLog[]
 }
 
 model Shuttle {
@@ -167,4 +175,28 @@ enum PaymentMethod {
 enum BookingType {
   HOTEL_TO_AIRPORT
   AIRPORT_TO_HOTEL
+}
+
+model QRVerificationToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  bookingId String   @unique
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model QRVerificationLog {
+  id        Int      @id @default(autoincrement())
+  bookingId String
+  driverId  Int
+  token     String
+  success   Boolean
+  message   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 }

@@ -23,7 +23,8 @@ export function DriverTopbar({
   onToggleSidebar?: () => void;
 }) {
   const handleSignOut = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("driverToken");
+    localStorage.removeItem("driverLoggedIn");
     router.push("/login");
   };
 

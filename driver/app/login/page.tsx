@@ -40,6 +40,7 @@ export default function LoginPage() {
         password: formData.password,
       });
       localStorage.setItem("driverToken", data.token);
+      localStorage.setItem("driverLoggedIn", "true");
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

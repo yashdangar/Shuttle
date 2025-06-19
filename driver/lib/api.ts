@@ -1,6 +1,6 @@
 export const api = {
     async fetch(endpoint: string, options: RequestInit = {}) {
-        const token = localStorage.getItem("driverToken") || null;
+        const token = localStorage.getItem("driverToken");
         const headers = {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
