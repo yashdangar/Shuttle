@@ -78,4 +78,17 @@ router.put(
   controller.rescheduleBooking as RequestHandler
 );
 
+// ETA and tracking routes
+router.get(
+  "/booking/:bookingId/eta",
+  guestAuthMiddleware as RequestHandler,
+  controller.getBookingETA as RequestHandler
+);
+
+router.get(
+  "/booking/:bookingId/tracking",
+  guestAuthMiddleware as RequestHandler,
+  controller.getBookingTracking as RequestHandler
+);
+
 export default router;

@@ -97,4 +97,24 @@ router.put(
   controller.rescheduleBooking as RequestHandler
 );
 
+// Assignment routes
+router.post(
+  "/assign-bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.assignUnassignedBookings as RequestHandler
+);
+
+// Debug routes
+router.get(
+  "/debug-guests",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.debugGuests as RequestHandler
+);
+
+// Public debug route (no auth required)
+router.get(
+  "/public-debug-guests",
+  controller.publicDebugGuests as RequestHandler
+);
+
 export default router;

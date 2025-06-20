@@ -45,4 +45,62 @@ router.post(
   controller.confirmCheckIn as RequestHandler
 );
 
+// Location tracking routes
+router.post(
+  "/update-location",
+  driverAuthMiddleware as RequestHandler,
+  controller.updateLocation as RequestHandler
+);
+
+router.get(
+  "/location/:driverId",
+  driverAuthMiddleware as RequestHandler,
+  controller.getLocation as RequestHandler
+);
+
+router.get(
+  "/current-location",
+  driverAuthMiddleware as RequestHandler,
+  controller.getCurrentDriverLocation as RequestHandler
+);
+
+router.get(
+  "/hotel-location/:hotelId",
+  driverAuthMiddleware as RequestHandler,
+  controller.getHotelLocation as RequestHandler
+);
+
+router.get(
+  "/location-history/:driverId",
+  driverAuthMiddleware as RequestHandler,
+  controller.getLocationHistory as RequestHandler
+);
+
+// ETA and tracking routes
+router.get(
+  "/booking/:bookingId/eta",
+  driverAuthMiddleware as RequestHandler,
+  controller.getBookingETA as RequestHandler
+);
+
+router.get(
+  "/booking/:bookingId/tracking",
+  driverAuthMiddleware as RequestHandler,
+  controller.getBookingTracking as RequestHandler
+);
+
+// Debug route
+router.get(
+  "/debug",
+  driverAuthMiddleware as RequestHandler,
+  controller.getDebugInfo as RequestHandler
+);
+
+// Assignment route
+router.post(
+  "/assign-bookings",
+  driverAuthMiddleware as RequestHandler,
+  controller.assignUnassignedBookings as RequestHandler
+);
+
 export default router;

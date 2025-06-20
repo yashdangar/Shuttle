@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/hooks/use-toast";
-import { fetchWithAuth } from "@/lib/api";
+import { api } from "@/lib/api";
 import { format } from "date-fns";
 import {
   Calendar,
@@ -137,8 +137,7 @@ export default function BookingsPage() {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const response = await fetchWithAuth("/frontdesk/bookings");
-        const data = await response.json();
+        const data = await api.get("/frontdesk/bookings");
         setBookings(data.bookings);
       } catch (error) {
         toast({
@@ -169,21 +168,7 @@ export default function BookingsPage() {
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      const response = await fetchWithAuth(
-        `/frontdesk/bookings/${bookingId}/cancel`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to cancel booking");
-      }
+      await api.put(`/frontdesk/bookings/${bookingId}/cancel`, {});
 
       toast({
         title: "Success",
@@ -191,8 +176,7 @@ export default function BookingsPage() {
       });
 
       // Refresh the bookings list
-      const refreshResponse = await fetchWithAuth("/frontdesk/bookings");
-      const data = await refreshResponse.json();
+      const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error: any) {
       console.error("Error cancelling booking:", error);
@@ -210,10 +194,12 @@ export default function BookingsPage() {
   };
 
   const handleRescheduleSuccess = async () => {
+    setShowReschedule(false);
+    setRescheduleBooking(null);
+    
     // Refresh the bookings list
     try {
-      const response = await fetchWithAuth("/frontdesk/bookings");
-      const data = await response.json();
+      const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error) {
       console.error("Error refreshing bookings:", error);

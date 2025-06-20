@@ -108,6 +108,26 @@ export default function HotelPage() {
         localStorage.removeItem("currentBooking");
       }
     }
+
+    // Also check if there's an active booking from the API
+    const checkActiveBooking = async () => {
+      try {
+        const response = await api.get("/guest/get-trips");
+        const activeBooking = response.trips.find((trip: any) => 
+          !trip.isCompleted && !trip.isCancelled
+        );
+        
+        if (activeBooking) {
+          console.log("Found active booking from API:", activeBooking);
+          setCurrentBooking(activeBooking);
+          localStorage.setItem("currentBooking", JSON.stringify(activeBooking));
+        }
+      } catch (error) {
+        console.error("Error checking for active bookings:", error);
+      }
+    };
+
+    checkActiveBooking();
   }, []);
 
   if (isLoading || !selectedHotel) {
