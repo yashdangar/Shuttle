@@ -493,8 +493,18 @@ const getHotelLocation = async (req: Request, res: Response) => {
   try {
     const { hotelId } = req.params;
     
+    // Validate hotelId parameter
+    if (!hotelId || hotelId === 'undefined' || hotelId === 'null') {
+      return res.status(400).json({ message: "Hotel ID is required" });
+    }
+
+    const hotelIdNumber = parseInt(hotelId);
+    if (isNaN(hotelIdNumber)) {
+      return res.status(400).json({ message: "Invalid hotel ID format" });
+    }
+    
     const hotel = await prisma.hotel.findUnique({
-      where: { id: parseInt(hotelId) },
+      where: { id: hotelIdNumber },
       select: {
         id: true,
         name: true,

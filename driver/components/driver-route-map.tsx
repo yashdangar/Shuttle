@@ -101,12 +101,48 @@ export default function DriverRouteMap({
               });
             } else {
               // If no pickup location, use hotel location
-              const hotelLocation = await api.get(`/driver/hotel-location/${bookingResponse.currentTrip?.schedule?.shuttle?.hotelId}`);
-              if (hotelLocation.hotel) {
+              const hotelId = bookingResponse.currentTrip?.schedule?.shuttle?.hotelId;
+              if (hotelId) {
+                try {
+                  const hotelLocation = await api.get(`/driver/hotel-location/${hotelId}`);
+                  if (hotelLocation.hotel) {
+                    pickupLocs.push({
+                      latitude: hotelLocation.hotel.latitude,
+                      longitude: hotelLocation.hotel.longitude,
+                      name: `${hotelLocation.hotel.name} (Hotel)`,
+                      passenger
+                    });
+                  } else {
+                    // Fallback coordinates if hotel location is not available
+                    const baseLat = 19.0760 + (Math.random() * 0.01);
+                    const baseLng = 72.8777 + (Math.random() * 0.01);
+                    pickupLocs.push({
+                      latitude: baseLat,
+                      longitude: baseLng,
+                      name: passenger.pickup,
+                      passenger
+                    });
+                  }
+                } catch (hotelErr) {
+                  console.error(`Error fetching hotel location for pickup:`, hotelErr);
+                  // Fallback coordinates if hotel API call fails
+                  const baseLat = 19.0760 + (Math.random() * 0.01);
+                  const baseLng = 72.8777 + (Math.random() * 0.01);
+                  pickupLocs.push({
+                    latitude: baseLat,
+                    longitude: baseLng,
+                    name: passenger.pickup,
+                    passenger
+                  });
+                }
+              } else {
+                // Fallback coordinates if no hotel ID
+                const baseLat = 19.0760 + (Math.random() * 0.01);
+                const baseLng = 72.8777 + (Math.random() * 0.01);
                 pickupLocs.push({
-                  latitude: hotelLocation.hotel.latitude,
-                  longitude: hotelLocation.hotel.longitude,
-                  name: `${hotelLocation.hotel.name} (Hotel)`,
+                  latitude: baseLat,
+                  longitude: baseLng,
+                  name: passenger.pickup,
                   passenger
                 });
               }
@@ -122,12 +158,48 @@ export default function DriverRouteMap({
               });
             } else {
               // If no dropoff location, use hotel location
-              const hotelLocation = await api.get(`/driver/hotel-location/${bookingResponse.currentTrip?.schedule?.shuttle?.hotelId}`);
-              if (hotelLocation.hotel) {
+              const hotelId = bookingResponse.currentTrip?.schedule?.shuttle?.hotelId;
+              if (hotelId) {
+                try {
+                  const hotelLocation = await api.get(`/driver/hotel-location/${hotelId}`);
+                  if (hotelLocation.hotel) {
+                    dropoffLocs.push({
+                      latitude: hotelLocation.hotel.latitude,
+                      longitude: hotelLocation.hotel.longitude,
+                      name: `${hotelLocation.hotel.name} (Hotel)`,
+                      passenger
+                    });
+                  } else {
+                    // Fallback coordinates if hotel location is not available
+                    const baseLat = 19.0760 + (Math.random() * 0.01);
+                    const baseLng = 72.8777 + (Math.random() * 0.01);
+                    dropoffLocs.push({
+                      latitude: baseLat,
+                      longitude: baseLng,
+                      name: passenger.dropoff,
+                      passenger
+                    });
+                  }
+                } catch (hotelErr) {
+                  console.error(`Error fetching hotel location for dropoff:`, hotelErr);
+                  // Fallback coordinates if hotel API call fails
+                  const baseLat = 19.0760 + (Math.random() * 0.01);
+                  const baseLng = 72.8777 + (Math.random() * 0.01);
+                  dropoffLocs.push({
+                    latitude: baseLat,
+                    longitude: baseLng,
+                    name: passenger.dropoff,
+                    passenger
+                  });
+                }
+              } else {
+                // Fallback coordinates if no hotel ID
+                const baseLat = 19.0760 + (Math.random() * 0.01);
+                const baseLng = 72.8777 + (Math.random() * 0.01);
                 dropoffLocs.push({
-                  latitude: hotelLocation.hotel.latitude,
-                  longitude: hotelLocation.hotel.longitude,
-                  name: `${hotelLocation.hotel.name} (Hotel)`,
+                  latitude: baseLat,
+                  longitude: baseLng,
+                  name: passenger.dropoff,
                   passenger
                 });
               }
