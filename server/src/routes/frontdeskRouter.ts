@@ -1,7 +1,6 @@
 import express, { RequestHandler } from "express";
 import { frontdeskAuthMiddleware } from "../middleware/authMiddleware";
 import controller from "../controller/frontdeskController";
-import frontdeskController from "../controller/frontdeskController";
 
 const router = express.Router();
 

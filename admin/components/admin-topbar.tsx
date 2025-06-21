@@ -20,7 +20,7 @@ export function AdminTopbar({
   onToggleSidebar?: () => void;
 }) {
   const handleSignOut = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("adminToken");
     router.push("/login");
   };
 

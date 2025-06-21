@@ -7,6 +7,38 @@ interface JWTPayload {
   role: string;
 }
 
+const superAdminAuthMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+    // console.log("Auth header:", authHeader);
+
+    const token = authHeader?.split(" ")[1];
+    // console.log("Extracted token:", token);
+
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
+
+    if (decoded.role !== "super-admin") {
+      return res
+        .status(403)
+        .json({ message: "Access denied. Super admin role required." });
+    }
+    // Add user info to request
+    (req as any).user = decoded;
+    next();
+  } catch (error) {
+    console.log(error);
+    return res.status(401).json({ message: "Invalid token" });
+  }
+};
+
 const adminAuthMiddleware = (
   req: Request,
   res: Response,
@@ -114,4 +146,5 @@ export {
   frontdeskAuthMiddleware,
   guestAuthMiddleware,
   driverAuthMiddleware,
+  superAdminAuthMiddleware,
 };

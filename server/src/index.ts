@@ -7,7 +7,8 @@ import guestRouter from './routes/guestRouter';
 import adminRouter from './routes/adminRouter';
 import frontdeskRouter from './routes/frontdeskRouter';
 import driverRouter from './routes/driverRouter';
-import authRoutes from './routes/auth';
+import authRoutes from './utils/auth';
+import superAdminRouter from './routes/superAdminRouter';
 
 // Load environment variables
 dotenv.config();
@@ -43,7 +44,7 @@ app.use("/guest", guestRouter);
 app.use("/admin", adminRouter);
 app.use("/frontdesk", frontdeskRouter);
 app.use("/driver", driverRouter);
-
+app.use("/super-admin", superAdminRouter);
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
