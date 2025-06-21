@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Clock, QrCode, Navigation, Phone, Users } from "lucide-react"
 import { QRCodeDisplay } from "./qr-code-display"
+import { api } from "@/lib/api"
+import GuestRouteMap from "./guest-route-map"
 
 interface CurrentBookingProps {
   booking: any
@@ -13,8 +15,11 @@ interface CurrentBookingProps {
 }
 
 export default function CurrentBooking({ booking, onNewBooking }: CurrentBookingProps) {
-  const [eta, setEta] = useState("12 min")
+  const [eta, setEta] = useState(booking?.eta || "Calculating...")
+  const [distance, setDistance] = useState(booking?.distance || "Unknown")
   const [showQR, setShowQR] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   useEffect(() => {
     if (booking) {
@@ -22,13 +27,38 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
       console.log("Current booking data:", booking);
       console.log("QR Code Path:", booking.qrCodePath);
       
-      // Simulate ETA updates every minute
-      const interval = setInterval(() => {
-        const minutes = Math.floor(Math.random() * 15) + 5
-        setEta(`${minutes} min`)
-      }, 60000)
+      // Set initial ETA from booking data
+      if (booking.eta) {
+        setEta(booking.eta);
+      }
+      if (booking.distance) {
+        setDistance(booking.distance);
+      }
+      
+      // Start real-time ETA updates
+      const updateETA = async () => {
+        if (!booking.id) return;
+        
+        try {
+          setIsLoading(true);
+          const response = await api.get(`/guest/booking/${booking.id}/eta`);
+          setEta(response.eta);
+          setDistance(response.distance);
+          setLastUpdate(new Date());
+        } catch (error) {
+          console.error("Error updating ETA:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
-      return () => clearInterval(interval)
+      // Update ETA immediately
+      updateETA();
+
+      // Update ETA every 30 seconds
+      const interval = setInterval(updateETA, 30000);
+
+      return () => clearInterval(interval);
     }
   }, [booking])
 
@@ -66,7 +96,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
@@ -102,7 +132,17 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
                 <Navigation className="w-5 h-5 text-green-500" />
                 <div>
                   <p className="font-medium">ETA</p>
-                  <p className="text-sm text-green-600 font-medium">{eta}</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm text-green-600 font-medium">
+                      {isLoading ? "Updating..." : eta}
+                    </p>
+                    {isLoading && (
+                      <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                    )}
+                  </div>
+                  {distance && distance !== "Unknown" && (
+                    <p className="text-xs text-gray-500">{distance}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -132,6 +172,11 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Live Tracking</CardTitle>
+          {lastUpdate && (
+            <CardDescription>
+              Last updated: {lastUpdate.toLocaleTimeString()}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <div className="bg-gray-100 rounded-lg p-6 text-center">
@@ -140,6 +185,9 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             </div>
             <p className="text-lg font-medium mb-2">Shuttle is on the way</p>
             <p className="text-gray-600">Driver will arrive in approximately {eta}</p>
+            {distance && distance !== "Unknown" && (
+              <p className="text-sm text-gray-500 mt-1">Distance: {distance}</p>
+            )}
             <div className="mt-4 bg-white rounded-lg p-3">
               <div className="flex items-center justify-between text-sm">
                 <span>Progress</span>
@@ -150,6 +198,12 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
               </div>
             </div>
           </div>
+          {/* Live Google Map */}
+          {booking.id && (
+            <div className="mt-6">
+              <GuestRouteMap booking={booking} />
+            </div>
+          )}
         </CardContent>
       </Card>
 

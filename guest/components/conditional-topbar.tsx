@@ -10,8 +10,7 @@ export function ConditionalTopbar() {
   const excludedPaths = [
     "/login",
     "/auth",
-    "/auth/callback",
-    "/"
+    "/auth/callback", 
   ];
   
   // Check if current path should show topbar

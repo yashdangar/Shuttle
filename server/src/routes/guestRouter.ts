@@ -46,6 +46,13 @@ router.get(
   controller.getTrip as RequestHandler
 );
 
+// Current booking route
+router.get(
+  "/current-booking",
+  guestAuthMiddleware as RequestHandler,
+  controller.getCurrentBooking as RequestHandler
+);
+
 // QR code routes
 router.get(
   "/trips/:id/qr-url",
@@ -76,6 +83,19 @@ router.put(
   "/bookings/:bookingId/reschedule",
   guestAuthMiddleware as RequestHandler,
   controller.rescheduleBooking as RequestHandler
+);
+
+// ETA and tracking routes
+router.get(
+  "/booking/:bookingId/eta",
+  guestAuthMiddleware as RequestHandler,
+  controller.getBookingETA as RequestHandler
+);
+
+router.get(
+  "/booking/:bookingId/tracking",
+  guestAuthMiddleware as RequestHandler,
+  controller.getBookingTracking as RequestHandler
 );
 
 export default router;

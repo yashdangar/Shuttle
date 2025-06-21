@@ -319,33 +319,62 @@ const createBooking = async (req: Request, res: Response) => {
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
+    
+    console.log(`Creating booking for hotelId: ${hotelId}`);
+    console.log(`Request body:`, req.body);
 
     let guestId: number;
 
     if (isNonResident) {
-      // Create a new guest for non-resident
-      const guest = await prisma.guest.create({
-        data: {
+      // First check if a guest with this email already exists (regardless of isNonResident status)
+      const existingGuest = await prisma.guest.findFirst({
+        where: { 
           email,
-          firstName,
-          lastName,
-          phoneNumber,
-          isNonResident: true,
           hotelId,
         },
       });
-      guestId = guest.id;
+
+      if (existingGuest) {
+        // Use existing guest
+        guestId = existingGuest.id;
+        console.log(`Using existing guest for non-resident booking: ${existingGuest.email}`);
+      } else {
+        // Create a new guest for non-resident
+        const guest = await prisma.guest.create({
+          data: {
+            email,
+            firstName,
+            lastName,
+            phoneNumber,
+            isNonResident: true,
+            hotelId,
+          },
+        });
+        guestId = guest.id;
+        console.log(`Created new guest for non-resident booking: ${guest.email}`);
+      }
     } else {
       // Find existing guest by email
+      console.log(`Looking for guest with email: ${email} and hotelId: ${hotelId}`);
+      
       const guest = await prisma.guest.findFirst({
         where: { 
           email,
           hotelId,
-          isNonResident: false,
+          // Don't filter by isNonResident - just find any guest with this email at this hotel
         },
       });
 
+      console.log(`Found guest:`, guest);
+
       if (!guest) {
+        // Let's also check what guests exist with this email
+        const allGuestsWithEmail = await prisma.guest.findMany({
+          where: { email },
+          select: { id: true, email: true, hotelId: true, isNonResident: true, firstName: true, lastName: true }
+        });
+        console.log(`All guests with email ${email}:`, allGuestsWithEmail);
+        
         return res.status(404).json({ message: "Hotel resident not found" });
       }
       guestId = guest.id;
@@ -370,6 +399,42 @@ const createBooking = async (req: Request, res: Response) => {
         updatedAt: new Date(),
       },
     });
+
+    // Find an available shuttle for this hotel and assign the booking
+    const availableShuttle = await prisma.shuttle.findFirst({
+      where: {
+        hotelId: hotelId,
+        schedules: {
+          some: {
+            startTime: { lte: new Date() },
+            endTime: { gte: new Date() },
+          },
+        },
+      },
+      include: {
+        schedules: {
+          where: {
+            startTime: { lte: new Date() },
+            endTime: { gte: new Date() },
+          },
+          include: {
+            driver: true,
+          },
+        },
+      },
+    });
+
+    if (availableShuttle) {
+      // Assign booking to the available shuttle
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { shuttleId: availableShuttle.id },
+      });
+      
+      console.log(`Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`);
+    } else {
+      console.log(`No available shuttle found for hotel ${hotelId}, booking ${booking.id} remains unassigned`);
+    }
 
     // Generate QR code
     const qrCodeData = await generateQRCode({
@@ -541,22 +606,43 @@ const getBookingQRUrl = async (req: Request, res: Response) => {
 };
 
 const getBookingDetails = async (req: Request, res: Response) => {
-  try {
-    const bookingId = req.params.id;
-    const hotelId = (req as any).user.hotelId;
+  const { id } = req.params;
+  const hotelId = (req as any).user.hotelId;
 
+  try {
     const booking = await prisma.booking.findFirst({
       where: {
-        id: bookingId,
+        id,
         guest: {
           hotelId: hotelId,
         },
       },
       include: {
-        guest: true,
-        pickupLocation: true,
-        dropoffLocation: true,
-        shuttle: true,
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+          },
+        },
+        pickupLocation: {
+          select: {
+            name: true,
+          },
+        },
+        dropoffLocation: {
+          select: {
+            name: true,
+          },
+        },
+        shuttle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+          },
+        },
       },
     });
 
@@ -564,20 +650,14 @@ const getBookingDetails = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Get fresh signed URL for QR code if it exists
     let qrCodeUrl = null;
     if (booking.qrCodePath) {
       qrCodeUrl = await getSignedUrlFromPath(booking.qrCodePath);
     }
 
-    res.json({
-      booking: {
-        ...booking,
-        qrCodeUrl,
-      },
-    });
+    res.json({ booking: { ...booking, qrCodeUrl } });
   } catch (error) {
-    console.error("Get booking details error:", error);
+    console.error("Error fetching booking details:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -611,45 +691,49 @@ const getBookings = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  try {
-    const { bookingId } = req.params;
-    const hotelId = (req as any).user.hotelId;
+  const { bookingId } = req.params;
+  const { reason } = req.body;
+  const frontdeskId = (req as any).user.userId;
 
-    // Check if booking exists and belongs to the hotel
-    const booking = await prisma.booking.findFirst({
-      where: {
-        id: bookingId,
-        guest: {
-          hotelId: hotelId,
-        },
-      },
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { guest: true },
     });
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    // Check if booking can be cancelled (not completed, not already cancelled)
-    if (booking.isCompleted) {
-      return res.status(400).json({ error: "Cannot cancel a completed booking" });
+    if (booking.guest.hotelId !== (req as any).user.hotelId) {
+      return res.status(403).json({ error: "Forbidden: Booking does not belong to this hotel." });
     }
-
+    
     if (booking.isCancelled) {
       return res.status(400).json({ error: "Booking is already cancelled" });
     }
 
-    // Cancel the booking
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         isCancelled: true,
-        updatedAt: new Date()
+        cancelledBy: 'FRONTDESK',
+        cancellationReason: reason || 'Cancelled by Frontdesk',
       },
     });
 
-    res.json({ 
+    // Notify the guest
+    await prisma.notification.create({
+      data: {
+        guestId: booking.guestId,
+        title: "Booking Cancelled by Frontdesk",
+        message: `Your booking has been cancelled by the frontdesk. Reason: ${reason || 'No reason provided.'}`,
+      },
+    });
+
+    res.json({
       message: "Booking cancelled successfully",
-      booking: updatedBooking 
+      booking: updatedBooking,
     });
   } catch (error) {
     console.error("Error cancelling booking:", error);
@@ -726,6 +810,178 @@ const rescheduleBooking = async (req: Request, res: Response) => {
   }
 };
 
+const assignUnassignedBookings = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    // Find unassigned bookings for this hotel
+    const unassignedBookings = await prisma.booking.findMany({
+      where: {
+        shuttleId: null,
+        isCompleted: false,
+        isCancelled: false,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: true,
+      },
+      orderBy: {
+        preferredTime: 'asc',
+      },
+    });
+
+    console.log(`Found ${unassignedBookings.length} unassigned bookings for hotel ${hotelId}`);
+
+    const assignmentResults = [];
+
+    for (const booking of unassignedBookings) {
+      // Find an available shuttle for this hotel
+      const availableShuttle = await prisma.shuttle.findFirst({
+        where: {
+          hotelId: hotelId,
+          schedules: {
+            some: {
+              startTime: { lte: new Date() },
+              endTime: { gte: new Date() },
+            },
+          },
+        },
+        include: {
+          schedules: {
+            where: {
+              startTime: { lte: new Date() },
+              endTime: { gte: new Date() },
+            },
+            include: {
+              driver: true,
+            },
+          },
+        },
+      });
+
+      if (availableShuttle) {
+        // Assign booking to the available shuttle
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { shuttleId: availableShuttle.id },
+        });
+        
+        const result = {
+          bookingId: booking.id,
+          guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+          assignedTo: {
+            shuttleId: availableShuttle.id,
+            vehicleNumber: availableShuttle.vehicleNumber,
+            driverName: availableShuttle.schedules[0]?.driver?.name || 'Unknown',
+          },
+          status: 'assigned',
+        };
+        
+        assignmentResults.push(result);
+        console.log(`Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber}`);
+      } else {
+        assignmentResults.push({
+          bookingId: booking.id,
+          guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+          assignedTo: null,
+          status: 'no_available_shuttle',
+        });
+        console.log(`No available shuttle for booking ${booking.id}`);
+      }
+    }
+
+    res.json({
+      message: `Processed ${unassignedBookings.length} unassigned bookings`,
+      results: assignmentResults,
+    });
+  } catch (error) {
+    console.error("Assign unassigned bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Debug endpoint to check guests in database
+const debugGuests = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+    const { email } = req.query;
+
+    let whereClause: any = { hotelId };
+    if (email) {
+      whereClause.email = email;
+    }
+
+    const guests = await prisma.guest.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        hotelId: true,
+        isNonResident: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json({ 
+      hotelId,
+      searchEmail: email,
+      totalGuests: guests.length,
+      guests 
+    });
+  } catch (error) {
+    console.error("Debug guests error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Public debug endpoint (no auth required)
+const publicDebugGuests = async (req: Request, res: Response) => {
+  try {
+    const { email, hotelId } = req.query;
+
+    let whereClause: any = {};
+    if (email) {
+      whereClause.email = email;
+    }
+    if (hotelId) {
+      whereClause.hotelId = parseInt(hotelId as string);
+    }
+
+    const guests = await prisma.guest.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        hotelId: true,
+        isNonResident: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json({ 
+      searchEmail: email,
+      searchHotelId: hotelId,
+      totalGuests: guests.length,
+      guests 
+    });
+  } catch (error) {
+    console.error("Public debug guests error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -746,4 +1002,7 @@ export default {
   getBookings,
   cancelBooking,
   rescheduleBooking,
+  assignUnassignedBookings,
+  debugGuests,
+  publicDebugGuests,
 };

@@ -32,13 +32,18 @@ const navItems = [
     href: "/dashboard",
   },
   {
+    title: "Trips",
+    icon: Car,
+    href: "/dashboard/trips",
+  },
+  {
     title: "Current Trip",
     icon: MapPin,
     href: "/dashboard/current-trip",
   },
   {
     title: "Next Trip",
-    icon: MapPin,
+    icon: Clock,
     href: "/dashboard/next-trip",
   },
 ];

@@ -2,6 +2,8 @@ import express, { RequestHandler } from "express";
 import { frontdeskAuthMiddleware } from "../middleware/authMiddleware";
 import controller from "../controller/frontdeskController";
 
+console.log("<<<<< LOADING FRONTDESK ROUTER - V2 >>>>>");
+
 const router = express.Router();
 
 // Public routes
@@ -84,7 +86,7 @@ router.post("/signed-url", frontdeskAuthMiddleware as RequestHandler, controller
 router.post("/verify-qr", frontdeskAuthMiddleware as RequestHandler, controller.verifyBookingQR as RequestHandler);
 
 // Booking management routes
-router.put(
+router.post(
   "/bookings/:bookingId/cancel",
   frontdeskAuthMiddleware as RequestHandler,
   controller.cancelBooking as RequestHandler
@@ -94,6 +96,26 @@ router.put(
   "/bookings/:bookingId/reschedule",
   frontdeskAuthMiddleware as RequestHandler,
   controller.rescheduleBooking as RequestHandler
+);
+
+// Assignment routes
+router.post(
+  "/assign-bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.assignUnassignedBookings as RequestHandler
+);
+
+// Debug routes
+router.get(
+  "/debug-guests",
+  frontdeskAuthMiddleware as RequestHandler,
+  controller.debugGuests as RequestHandler
+);
+
+// Public debug route (no auth required)
+router.get(
+  "/public-debug-guests",
+  controller.publicDebugGuests as RequestHandler
 );
 
 export default router;

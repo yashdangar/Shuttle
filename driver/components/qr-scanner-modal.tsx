@@ -4,41 +4,65 @@ import { useState, useRef, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { QrCode, Camera, CheckCircle, X, User, AlertTriangle, Loader2 } from "lucide-react"
+import { QrCode, Camera, CheckCircle, X, User, AlertTriangle, Loader2, Play } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import jsQR from "jsqr"
 
 interface QRScannerModalProps {
+  isOpen: boolean
   onClose: () => void
   onSuccess: (passengerData: any) => void
   passengerList: any[]
 }
 
-export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerModalProps) {
-  const [isScanning, setIsScanning] = useState(true)
+export function QRScannerModal({ isOpen, onClose, onSuccess, passengerList }: QRScannerModalProps) {
+  const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState<any>(null)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isProcessingQR, setIsProcessingQR] = useState(false)
   const [lastScannedData, setLastScannedData] = useState<string>("")
   const [stream, setStream] = useState<MediaStream | null>(null)
-  const [scanStatus, setScanStatus] = useState<string>("Looking for QR code...")
+  const [scanStatus, setScanStatus] = useState<string>("Click 'Start Camera' to begin scanning")
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number>()
 
+  // Reset modal state when it closes
   useEffect(() => {
-    if (isScanning) {
+    if (!isOpen) {
+      setIsScanning(false)
+      setScanResult(null)
+      setIsVerifying(false)
+      setIsProcessingQR(false)
+      setLastScannedData("")
+      setScanStatus("Click 'Start Camera' to begin scanning")
+      setCameraError(null)
+      stopCamera()
+    }
+  }, [isOpen])
+
+  // Only start camera when explicitly requested
+  useEffect(() => {
+    if (isScanning && isOpen) {
       startCamera()
     }
     return () => {
-      stopCamera()
+      if (!isScanning) {
+        stopCamera()
+      }
     }
-  }, [isScanning])
+  }, [isScanning, isOpen])
 
   const startCamera = async () => {
     try {
+      setCameraError(null)
       setScanStatus("Starting camera...")
+      
+      // Stop any existing stream first
+      stopCamera()
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "environment",
@@ -46,22 +70,35 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
           height: { ideal: 480 },
         },
       })
+      
       setStream(mediaStream)
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
-        videoRef.current.play()
         
-        // Start QR code scanning once video is playing
-        videoRef.current.onloadedmetadata = () => {
-          setScanStatus("Camera ready - scanning for QR codes...")
-          startQRScanning()
-        }
+        // Wait for video to be ready
+        await new Promise((resolve, reject) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              if (videoRef.current) {
+                videoRef.current.play().then(resolve).catch(reject)
+              }
+            }
+            videoRef.current.onerror = reject
+          }
+        })
+        
+        setScanStatus("Camera ready - scanning for QR codes...")
+        startQRScanning()
+        toast.success("📷 Camera started successfully")
       }
-      toast.success("📷 Camera ready")
     } catch (error) {
       console.error("Error accessing camera:", error)
+      const errorMessage = error instanceof Error ? error.message : "Camera access denied"
+      setCameraError(errorMessage)
       setScanStatus("Camera access denied")
-      toast.error("❌ Camera access denied. Please allow camera permissions.")
+      setIsScanning(false)
+      toast.error(`❌ ${errorMessage}. Please allow camera permissions.`)
     }
   }
 
@@ -72,7 +109,21 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
     }
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = undefined
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  const handleStartCamera = () => {
+    setIsScanning(true)
+  }
+
+  const handleStopCamera = () => {
+    setIsScanning(false)
+    stopCamera()
+    setScanStatus("Camera stopped")
   }
 
   const startQRScanning = () => {
@@ -82,7 +133,7 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
         const canvas = canvasRef.current
         const context = canvas.getContext('2d', { willReadFrequently: true })
         
-        if (context && video.videoWidth > 0) {
+        if (context && video.videoWidth > 0 && video.videoHeight > 0) {
           canvas.width = video.videoWidth
           canvas.height = video.videoHeight
           context.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -113,7 +164,7 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
       } else if (isProcessingQR) {
         // If processing QR, don't continue scanning
         return
-      } else {
+      } else if (isScanning) {
         // Continue scanning
         animationFrameRef.current = requestAnimationFrame(scanFrame)
       }
@@ -204,29 +255,76 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
   }
 
   const handleTryAgain = () => {
-    setIsScanning(true)
+    setIsScanning(false)
     setScanResult(null)
     setIsVerifying(false)
     setIsProcessingQR(false) // Reset processing state
     setLastScannedData("") // Reset last scanned data
-    setScanStatus("Looking for QR code...")
-    toast.success("🔄 Restarting scanner")
+    setScanStatus("Click 'Start Camera' to begin scanning")
+    setCameraError(null)
+    stopCamera()
+    toast.success("🔄 Ready to scan again")
   }
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5" />
-            QR Code Scanner
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              QR Code Scanner
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-6 w-6 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </DialogTitle>
         </DialogHeader>
         {/* Visually hidden description for accessibility */}
         <span id="qr-scanner-desc" className="sr-only">Scan a passenger QR code to verify their booking and check them in.</span>
 
         <div className="space-y-4">
-          {isScanning ? (
+          {!isScanning && !scanResult ? (
+            // Initial state - show start camera button
+            <Card className="border-0 shadow-lg">
+              <CardContent className="p-6">
+                <div className="text-center space-y-4">
+                  <div className="relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden flex items-center justify-center">
+                    <div className="text-center">
+                      <Camera className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-sm text-gray-600">Camera not started</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Ready to scan QR codes</p>
+                    <p className="text-xs text-gray-500">
+                      {scanStatus}
+                    </p>
+                    {cameraError && (
+                      <p className="text-xs text-red-500">
+                        Error: {cameraError}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={handleStartCamera}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={isVerifying}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Camera
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : isScanning ? (
             <Card className="border-0 shadow-lg">
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
@@ -242,21 +340,8 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
                     {!stream && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                         <div className="text-center text-white">
-                          <Camera className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                          <p className="text-sm">Camera Loading...</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Verification Loading Overlay */}
-                    {isVerifying && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
-                        <div className="text-center text-white">
                           <Loader2 className="h-16 w-16 mx-auto mb-4 animate-spin" />
-                          <p className="text-lg font-semibold">
-                            {scanResult ? "Confirming Check-in..." : "Verifying QR Code..."}
-                          </p>
-                          <p className="text-sm opacity-75">Please wait</p>
+                          <p className="text-sm">Starting camera...</p>
                         </div>
                       </div>
                     )}
@@ -281,11 +366,19 @@ export function QRScannerModal({ onClose, onSuccess, passengerList }: QRScannerM
                       {scanStatus}
                     </p>
                   </div>
+
+                  <Button
+                    onClick={handleStopCamera}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Stop Camera
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ) : isVerifying ? (
-            // While verifying, show only the loading overlay (no error or success card)
+            // While verifying, show only the loading overlay
             <div className="flex items-center justify-center min-h-[350px]">
               <div className="text-center text-blue-700 dark:text-blue-300">
                 <Loader2 className="h-16 w-16 mx-auto mb-4 animate-spin" />

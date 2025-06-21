@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MapPin, Clock, Users, MoreHorizontal, QrCode, X, Calendar } from "lucide-react"
+import { MapPin, Clock, Users, MoreHorizontal, QrCode, X, Calendar, UserX, Building, AlertCircle } from "lucide-react"
 import { api } from "@/lib/api"
 import { QRCodeDisplay } from "./qr-code-display"
 import { RescheduleModal } from "./reschedule-modal"
@@ -104,6 +104,26 @@ export default function BookingHistory() {
 
   const canModifyBooking = (booking: any) => {
     return !booking.isCompleted && !booking.isCancelled
+  }
+
+  const getCancelledByText = (actor: string) => {
+    switch (actor) {
+      case "GUEST": return "Cancelled by You";
+      case "DRIVER": return "Cancelled by Driver";
+      case "FRONTDESK": return "Cancelled by Frontdesk";
+      case "SYSTEM": return "Cancelled by System";
+      default: return `Cancelled by ${actor}`;
+    }
+  }
+
+  const getCancelledByIcon = (actor: string) => {
+    switch (actor) {
+      case "GUEST": return <UserX className="w-4 h-4 text-red-500" />;
+      case "DRIVER": return <UserX className="w-4 h-4 text-red-500" />;
+      case "FRONTDESK": return <Building className="w-4 h-4 text-red-500" />;
+      case "SYSTEM": return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default: return <UserX className="w-4 h-4 text-red-500" />;
+    }
   }
 
   // Loading skeleton
@@ -248,6 +268,25 @@ export default function BookingHistory() {
                 </DropdownMenu>
               </div>
             </div>
+            {booking.isCancelled && (
+              <div className="bg-red-50 border-t border-red-200 px-6 py-3 mt-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    {getCancelledByIcon(booking.cancelledBy)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-red-800">
+                      {getCancelledByText(booking.cancelledBy)}
+                    </p>
+                    {booking.cancellationReason && (
+                      <p className="text-sm text-red-700 mt-1">
+                        <strong>Reason:</strong> {booking.cancellationReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-3 gap-4 text-sm">

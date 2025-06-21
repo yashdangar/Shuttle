@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -22,28 +22,38 @@ export function DriverTopbar({
 }: {
   onToggleSidebar?: () => void;
 }) {
+  const router = useRouter();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+
   const handleSignOut = () => {
     localStorage.removeItem("driverToken");
     localStorage.removeItem("driverLoggedIn");
     router.push("/login");
   };
 
-  const router = useRouter();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
-  const [shouldShowToast, setShouldShowToast] = useState(false);
-
-  useEffect(() => {
-    if (shouldShowToast) {
-      toast.success(
-        showNotifications ? "Closing notifications" : "Opening notifications",
-        {
+  const handleToggleNotifications = useCallback(() => {
+    const newState = !showNotifications;
+    setShowNotifications(newState);
+    
+    // Use setTimeout to avoid state updates during render
+    setTimeout(() => {
+      if (newState) {
+        toast.success("Opening notifications", {
           description: "You can view your notifications here",
-        }
-      );
-      setShouldShowToast(false);
-    }
-  }, [showNotifications, shouldShowToast]);
+        });
+      }
+    }, 0);
+  }, [showNotifications]);
+
+  const handleCloseNotifications = useCallback(() => {
+    setShowNotifications(false);
+    
+    // Use setTimeout to avoid state updates during render
+    setTimeout(() => {
+      toast.success("Closing notifications");
+    }, 0);
+  }, []);
 
   return (
     <>
@@ -68,10 +78,7 @@ export function DriverTopbar({
                 variant="ghost"
                 size="icon"
                 className="relative hover:bg-blue-50 dark:hover:bg-blue-950"
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setShouldShowToast(true);
-                }}
+                onClick={handleToggleNotifications}
               >
                 <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 {notificationCount > 0 && (
@@ -82,7 +89,7 @@ export function DriverTopbar({
               </Button>
               {showNotifications && (
                 <NotificationDropdown
-                  onClose={() => setShowNotifications(false)}
+                  onClose={handleCloseNotifications}
                 />
               )}
             </div>

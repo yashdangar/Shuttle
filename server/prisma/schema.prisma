@@ -51,18 +51,25 @@ model Booking {
   isPaid            Boolean       @default(false)
   isCancelled       Boolean       @default(false)
   isRefunded        Boolean       @default(false)
+  cancelledBy       CancellationActor?
+  cancellationReason String?
   shuttleId         Int?
+  tripId            String?
   encryptionKey     String?
   qrCodePath        String?
   isVerified        Boolean       @default(false)
   verifiedAt        DateTime?
   verifiedBy        Int?
+  eta               String?
+  trackingEnabled   Boolean       @default(true)
+  lastEtaUpdate     DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
   guest             Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
   pickupLocation    Location?     @relation("pickup", fields: [pickupLocationId], references: [id])
   shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
+  trip              Trip?         @relation(fields: [tripId], references: [id])
   verificationToken QRVerificationToken?
   verificationLogs  QRVerificationLog[]
   verifier          Driver?       @relation("BookingVerifier", fields: [verifiedBy], references: [id])
@@ -102,11 +109,15 @@ model Driver {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   hotelId       Int?
+  lastLocationUpdate DateTime?
   hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications Notification[]
   schedules     Schedule[]     @relation("DriverSchedules")
+  trips         Trip[]
   verifiedBookings Booking[]   @relation("BookingVerifier")
   verificationLogs QRVerificationLog[]
+  currentLocation DriverLocation?
+  locationHistory LocationHistory[]
 }
 
 model Shuttle {
@@ -117,6 +128,7 @@ model Shuttle {
   createdAt     DateTime   @default(now())
   bookings      Booking[]
   schedules     Schedule[] @relation("ShuttleSchedules")
+  trips         Trip[]
   hotel         Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 }
 
@@ -128,6 +140,7 @@ model Schedule {
   endTime   DateTime
   driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id], onDelete: Cascade)
   shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
+  trips     Trip[]
 
   @@unique([driverId, startTime])
 }
@@ -177,6 +190,26 @@ enum BookingType {
   AIRPORT_TO_HOTEL
 }
 
+enum CancellationActor {
+  GUEST
+  DRIVER
+  FRONTDESK
+  ADMIN
+  SYSTEM
+}
+
+enum TripDirection {
+  HOTEL_TO_AIRPORT
+  AIRPORT_TO_HOTEL
+}
+
+enum TripStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 model QRVerificationToken {
   id        String   @id @default(uuid())
   token     String   @unique
@@ -199,4 +232,46 @@ model QRVerificationLog {
   createdAt DateTime @default(now())
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model DriverLocation {
+  id        Int      @id @default(autoincrement())
+  driverId  Int      @unique
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  speed     Float?
+  heading   Float?
+  timestamp DateTime @default(now())
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model LocationHistory {
+  id        Int      @id @default(autoincrement())
+  driverId  Int
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  speed     Float?
+  heading   Float?
+  timestamp DateTime @default(now())
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model Trip {
+  id          String      @id @default(uuid())
+  scheduleId  Int
+  driverId    Int
+  shuttleId   Int
+  direction   TripDirection
+  status      TripStatus  @default(PENDING)
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  schedule    Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  shuttle     Shuttle     @relation(fields: [shuttleId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
 }
