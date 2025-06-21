@@ -168,7 +168,10 @@ export default function BookingsPage() {
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await api.put(`/frontdesk/bookings/${bookingId}/cancel`, {});
+      // Use POST and provide a default reason
+      await api.post(`/frontdesk/bookings/${bookingId}/cancel`, {
+        reason: "Cancelled by Frontdesk from bookings list",
+      });
 
       toast({
         title: "Success",

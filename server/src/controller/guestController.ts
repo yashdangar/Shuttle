@@ -419,44 +419,43 @@ const getProfile = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  try {
-    const { bookingId } = req.params;
-    const userId = (req as any).user.userId;
+  const { bookingId } = req.params;
+  const guestId = (req as any).user.userId;
 
-    // Check if booking exists and belongs to the user
-    const booking = await prisma.booking.findFirst({
-      where: {
-        id: bookingId,
-        guestId: userId,
-      },
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
     });
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    // Check if booking can be cancelled (not completed, not already cancelled)
-    if (booking.isCompleted) {
-      return res.status(400).json({ error: "Cannot cancel a completed booking" });
+    if (booking.guestId !== guestId) {
+      return res.status(403).json({ error: "You are not authorized to cancel this booking" });
     }
 
     if (booking.isCancelled) {
       return res.status(400).json({ error: "Booking is already cancelled" });
     }
 
-    // Cancel the booking
+    // You might want to add logic here to check if the booking is refundable
+    // For now, we just mark it as cancelled
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: { 
         isCancelled: true,
-        updatedAt: new Date()
+        cancelledBy: 'GUEST',
+        cancellationReason: 'Cancelled by guest via the app',
+        // Should we refund? Add logic here.
       },
     });
 
     res.json({ 
-      message: "Booking cancelled successfully",
+      message: "Booking cancelled successfully", 
       booking: updatedBooking 
     });
+
   } catch (error) {
     console.error("Error cancelling booking:", error);
     res.status(500).json({ error: "Failed to cancel booking" });
@@ -588,10 +587,11 @@ const getBookingETA = async (req: Request, res: Response) => {
     // Determine destination based on booking type
     let destination: Location | null = null;
     
+    // Always calculate ETA to pickup location (where driver will pick up the guest)
     if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
+      destination = booking.pickupLocation ? {
+        latitude: booking.pickupLocation.latitude,
+        longitude: booking.pickupLocation.longitude,
       } : null;
     } else {
       destination = booking.pickupLocation ? {
@@ -692,10 +692,11 @@ const getBookingTracking = async (req: Request, res: Response) => {
     let directions = null;
     let destination: Location | null = null;
     
+    // Always calculate directions to pickup location (where driver will pick up the guest)
     if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
+      destination = booking.pickupLocation ? {
+        latitude: booking.pickupLocation.latitude,
+        longitude: booking.pickupLocation.longitude,
       } : null;
     } else {
       destination = booking.pickupLocation ? {
@@ -730,4 +731,103 @@ const getBookingTracking = async (req: Request, res: Response) => {
   }
 };
 
-export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip, getTripQRUrl, getSignedUrl, getProfile, cancelBooking, rescheduleBooking, getBookingETA, getBookingTracking };
+const getCurrentBooking = async (req: Request, res: Response) => {
+  try {
+    const guestId = (req as any).user.userId;
+
+    // Get the most recent active booking for the guest
+    const currentBooking = await prisma.booking.findFirst({
+      where: {
+        guestId: guestId,
+        isCompleted: false, // Only get active bookings
+        isCancelled: false // Exclude cancelled bookings
+      },
+      include: {
+        pickupLocation: true,
+        dropoffLocation: true,
+        shuttle: {
+          include: {
+            schedules: {
+              include: {
+                driver: {
+                  include: {
+                    currentLocation: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!currentBooking) {
+      return res.json({ currentBooking: null });
+    }
+
+    // Add ETA information if driver location is available
+    let eta = currentBooking.eta;
+    let distance = "Unknown";
+    
+    const driverLocation = currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
+    if (driverLocation) {
+      let destination: Location | null = null;
+      
+      // Calculate ETA to pickup location (where driver will pick up the guest)
+      if (currentBooking.bookingType === 'HOTEL_TO_AIRPORT') {
+        destination = currentBooking.pickupLocation ? {
+          latitude: currentBooking.pickupLocation.latitude,
+          longitude: currentBooking.pickupLocation.longitude,
+        } : null;
+      } else {
+        destination = currentBooking.pickupLocation ? {
+          latitude: currentBooking.pickupLocation.latitude,
+          longitude: currentBooking.pickupLocation.longitude,
+        } : null;
+      }
+
+      if (destination) {
+        const origin: Location = {
+          latitude: driverLocation.latitude,
+          longitude: driverLocation.longitude,
+        };
+
+        try {
+          const etaResult = await googleMapsService.calculateETA(origin, destination);
+          eta = etaResult.duration;
+          distance = etaResult.distance;
+          
+          // Update the booking with new ETA if it's different
+          if (eta !== currentBooking.eta) {
+            await prisma.booking.update({
+              where: { id: currentBooking.id },
+              data: {
+                eta: eta,
+                lastEtaUpdate: new Date(),
+              },
+            });
+          }
+        } catch (error) {
+          console.error("Error calculating ETA for current booking:", currentBooking.id, error);
+        }
+      }
+    }
+
+    const bookingWithETA = {
+      ...currentBooking,
+      eta,
+      distance,
+      driverLocation: driverLocation || null,
+    };
+
+    res.json({ currentBooking: bookingWithETA });
+  } catch (error) {
+    console.error("Get current booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip, getTripQRUrl, getSignedUrl, getProfile, cancelBooking, rescheduleBooking, getBookingETA, getBookingTracking, getCurrentBooking };

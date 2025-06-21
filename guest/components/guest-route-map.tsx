@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,11 +30,6 @@ interface GuestRouteMapProps {
   height?: string;
 }
 
-const containerStyle = {
-  width: "100%",
-  height: "400px",
-};
-
 const defaultCenter = {
   lat: 19.0760, // Mumbai as fallback
   lng: 72.8777,
@@ -48,10 +43,20 @@ export default function GuestRouteMap({
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [directionsPath, setDirectionsPath] = useState<Array<{ lat: number; lng: number }>>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeInfoWindow, setActiveInfoWindow] = useState<'driver' | 'pickup' | 'dropoff' | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeInfoWindow, setActiveInfoWindow] = useState<string | null>(null);
+  const [realTimeEta, setRealTimeEta] = useState<string | null>(null);
+  const [etaDistance, setEtaDistance] = useState<string | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const containerStyle = {
+    width: '100%',
+    height: height,
+    borderRadius: '8px',
+  };
 
   // Load Google Maps JS API
   const { isLoaded, loadError } = useJsApiLoader({
@@ -59,6 +64,47 @@ export default function GuestRouteMap({
   });
 
   console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
+
+  // Calculate real-time ETA using Google Maps Directions API
+  const calculateRealTimeETA = useCallback(async () => {
+    if (!driverLocation || !pickupLocation || !directionsServiceRef.current) {
+      return;
+    }
+
+    try {
+      const request: google.maps.DirectionsRequest = {
+        origin: { lat: driverLocation.latitude, lng: driverLocation.longitude },
+        destination: { lat: pickupLocation.latitude, lng: pickupLocation.longitude },
+        travelMode: google.maps.TravelMode.DRIVING,
+      };
+
+      const result = await directionsServiceRef.current.route(request);
+      
+      if (result.routes && result.routes.length > 0) {
+        const route = result.routes[0];
+        const leg = route.legs[0];
+        
+        if (leg) {
+          setRealTimeEta(leg.duration?.text || 'Calculating...');
+          setEtaDistance(leg.distance?.text || 'Calculating...');
+          
+          // Update directions path
+          const path: Array<{ lat: number; lng: number }> = [];
+          if (leg.steps) {
+            leg.steps.forEach((step) => {
+              path.push({ lat: step.start_location.lat(), lng: step.start_location.lng() });
+              path.push({ lat: step.end_location.lat(), lng: step.end_location.lng() });
+            });
+          }
+          setDirectionsPath(path);
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating real-time ETA:', error);
+      setRealTimeEta('Error calculating ETA');
+      setEtaDistance('Error calculating distance');
+    }
+  }, [driverLocation, pickupLocation]);
 
   // Fetch booking location data
   const fetchMapData = async () => {
@@ -160,6 +206,25 @@ export default function GuestRouteMap({
     }
   };
 
+  // Set up automatic refresh for ETA calculation
+  useEffect(() => {
+    if (driverLocation && pickupLocation && isLoaded) {
+      // Calculate ETA immediately
+      calculateRealTimeETA();
+      
+      // Set up interval for periodic updates (every 30 seconds)
+      refreshIntervalRef.current = setInterval(() => {
+        calculateRealTimeETA();
+      }, 30000);
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [driverLocation, pickupLocation, isLoaded, calculateRealTimeETA]);
+
   useEffect(() => {
     if (booking.id) {
       fetchMapData();
@@ -175,10 +240,12 @@ export default function GuestRouteMap({
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
+    directionsServiceRef.current = new window.google.maps.DirectionsService();
   };
 
   const onUnmount = () => {
     mapRef.current = null;
+    directionsServiceRef.current = null;
   };
 
   const getMarkerIcon = (type: 'driver' | 'pickup' | 'dropoff') => {
@@ -356,8 +423,19 @@ export default function GuestRouteMap({
                 <div className="p-2">
                   <h3 className="font-bold text-blue-600">🚗 Driver Location</h3>
                   <p className="text-sm">Your driver's current position</p>
-                  {booking.eta && (
-                    <p className="text-sm text-green-600 mt-1">ETA: {booking.eta}</p>
+                  {realTimeEta && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-sm text-green-600 font-medium">
+                        <Clock className="h-3 w-3 inline mr-1" />
+                        ETA: {realTimeEta}
+                      </p>
+                      {etaDistance && (
+                        <p className="text-sm text-blue-600">
+                          <Navigation className="h-3 w-3 inline mr-1" />
+                          Distance: {etaDistance}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </InfoWindow>
@@ -382,6 +460,14 @@ export default function GuestRouteMap({
                     <span>•</span>
                     <span>{booking.bags} bags</span>
                   </div>
+                  {realTimeEta && (
+                    <div className="mt-2 p-2 bg-green-50 rounded">
+                      <p className="text-sm text-green-600 font-medium">
+                        <Clock className="h-3 w-3 inline mr-1" />
+                        Driver ETA: {realTimeEta}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </InfoWindow>
             )}
@@ -459,7 +545,10 @@ export default function GuestRouteMap({
               size="sm"
               variant="secondary"
               className="bg-white shadow-lg"
-              onClick={fetchMapData}
+              onClick={() => {
+                fetchMapData();
+                calculateRealTimeETA();
+              }}
               disabled={loading}
             >
               <div className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}>
@@ -482,10 +571,19 @@ export default function GuestRouteMap({
               <p className="text-sm text-gray-500">
                 {booking.persons} passengers • {booking.bags} bags
               </p>
-              {booking.eta && (
-                <p className="text-sm text-green-600 font-medium">
-                  Estimated arrival: {booking.eta}
-                </p>
+              {realTimeEta && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-green-600 font-medium">
+                    <Clock className="h-3 w-3 inline mr-1" />
+                    Driver ETA: {realTimeEta}
+                  </p>
+                  {etaDistance && (
+                    <p className="text-sm text-blue-600">
+                      <Navigation className="h-3 w-3 inline mr-1" />
+                      Distance: {etaDistance}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <Badge 

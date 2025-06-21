@@ -4,6 +4,7 @@ import { Bell, CheckCircle, AlertTriangle, Info, Clock } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useCallback } from "react";
 
 const recentNotifications = [
   {
@@ -50,6 +51,30 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
     }
   };
 
+  const handleClearAll = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+      toast.error("Failed to clear notifications");
+    }, 0);
+  }, []);
+
+  const handleMarkAsRead = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+      toast.error("Failed to mark notification as read");
+    }, 0);
+  }, []);
+
+  const handleViewAll = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+      toast.error("Failed to clear notifications");
+    }, 0);
+  }, []);
+
   return (
     <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
       <div className="p-4 border-b">
@@ -57,9 +82,7 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
           <h3 className="font-semibold">Notifications</h3>
           <button
             className="text-sm text-blue-600 hover:text-blue-700"
-            onClick={() => {
-              toast.error("Failed to clear notifications");
-            }}
+            onClick={handleClearAll}
           >
             Clear all
           </button>
@@ -73,9 +96,7 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
               "flex items-start gap-3 p-3 hover:bg-slate-50 transition-colors cursor-pointer",
               !notification.read && "bg-blue-50"
             )}
-            onClick={() => {
-              toast.error("Failed to mark notification as read");
-            }}
+            onClick={handleMarkAsRead}
           >
             <div className="mt-1">{getIcon(notification.type)}</div>
             <div className="flex-1 min-w-0">
@@ -99,9 +120,7 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
         <Link
           href="/dashboard/notifications"
           className="block text-center text-sm text-blue-600 hover:text-blue-700"
-          onClick={() => {
-            toast.error("Failed to clear notifications");
-          }}
+          onClick={handleViewAll}
         >
           View all notifications
         </Link>

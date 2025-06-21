@@ -75,6 +75,19 @@ export default function HotelPage() {
   const [currentBooking, setCurrentBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch current booking from API
+  const fetchCurrentBooking = async () => {
+    try {
+      const response = await api.get('/guest/current-booking');
+      if (response.currentBooking) {
+        console.log("Found current booking from API:", response.currentBooking);
+        setCurrentBooking(response.currentBooking);
+      }
+    } catch (error) {
+      console.error("Error fetching current booking:", error);
+    }
+  };
+
   useEffect(() => {
     const hotelId = params.id as string;
     console.log(hotelId);
@@ -96,39 +109,9 @@ export default function HotelPage() {
       router.push("/select-hotel");
     }
 
-    // Check for current booking
-    const booking = localStorage.getItem("currentBooking");
-    if (booking) {
-      try {
-        const parsedBooking = JSON.parse(booking);
-        console.log("Loaded booking from localStorage:", parsedBooking);
-        setCurrentBooking(parsedBooking);
-      } catch (error) {
-        console.error("Error parsing booking from localStorage:", error);
-        localStorage.removeItem("currentBooking");
-      }
-    }
-
-    // Also check if there's an active booking from the API
-    const checkActiveBooking = async () => {
-      try {
-        const response = await api.get("/guest/get-trips");
-        const activeBooking = response.trips.find((trip: any) => 
-          !trip.isCompleted && !trip.isCancelled
-        );
-        
-        if (activeBooking) {
-          console.log("Found active booking from API:", activeBooking);
-          setCurrentBooking(activeBooking);
-          localStorage.setItem("currentBooking", JSON.stringify(activeBooking));
-        }
-      } catch (error) {
-        console.error("Error checking for active bookings:", error);
-      }
-    };
-
-    checkActiveBooking();
-  }, []);
+    // Fetch current booking from API
+    fetchCurrentBooking();
+  }, [params.id, router]);
 
   if (isLoading || !selectedHotel) {
     return <HotelPageSkeleton />;
@@ -211,11 +194,11 @@ export default function HotelPage() {
         {activeTab === "new" && (
           <NewBooking
             hotel={selectedHotel}
-            onBookingCreated={(booking) => {
+            onBookingCreated={async (booking) => {
               console.log("New booking created:", booking);
               setCurrentBooking(booking);
-              // Store in localStorage to persist the booking data
-              localStorage.setItem("currentBooking", JSON.stringify(booking));
+              // Refresh current booking from API
+              await fetchCurrentBooking();
               setActiveTab("current");
             }}
           />

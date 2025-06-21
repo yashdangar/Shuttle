@@ -13,9 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "@/components/notification-dropdown";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { api } from "@/lib/api";
 
 export function GuestTopbar({
   onToggleSidebar,
@@ -25,10 +26,10 @@ export function GuestTopbar({
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
-  const [shouldShowToast, setShouldShowToast] = useState(false);
   const [guestEmail, setGuestEmail] = useState("guest@example.com");
   const [guestName, setGuestName] = useState("Guest User");
   const [hotelId, setHotelId] = useState<string | null>(null);
+  const [currentBooking, setCurrentBooking] = useState<any>(null);
 
   // Function to create guest name from email
   const createGuestName = (email: string) => {
@@ -56,54 +57,76 @@ export function GuestTopbar({
     }
   };
 
-  useEffect(() => {
-    // Get guest data from localStorage
-    const token = localStorage.getItem("guestToken");
-    const currentBooking = localStorage.getItem("currentBooking");
-
-    if (token) {
-      try {
-        // Decode JWT token (assuming it's a simple base64 encoded token)
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        console.log(payload);
-        const email = payload.email || "guest@example.com";
+  // Fetch guest profile and current booking from API
+  const fetchGuestData = useCallback(async () => {
+    try {
+      // Get guest profile
+      const profileResponse = await api.get('/guest/profile');
+      if (profileResponse.guest) {
+        const email = profileResponse.guest.email || "guest@example.com";
         setGuestEmail(email);
         setGuestName(createGuestName(email));
-        setHotelId(payload.hotelId || null);
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        setGuestEmail("guest@example.com");
-        setGuestName("Guest User");
+        setHotelId(profileResponse.guest.hotelId || null);
       }
-    }
 
-    if (currentBooking) {
-      try {
-        const booking = JSON.parse(currentBooking);
-        setHotelId(booking.hotelId || null);
-      } catch (error) {
-        console.error("Error parsing current booking:", error);
+      // Get current booking
+      const bookingResponse = await api.get('/guest/current-booking');
+      if (bookingResponse.currentBooking) {
+        setCurrentBooking(bookingResponse.currentBooking);
+        // Update hotelId from current booking if available
+        if (bookingResponse.currentBooking.hotelId) {
+          setHotelId(bookingResponse.currentBooking.hotelId);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching guest data:", error);
+      // Fallback to localStorage for guest info if API fails
+      const token = localStorage.getItem("guestToken");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          const email = payload.email || "guest@example.com";
+          setGuestEmail(email);
+          setGuestName(createGuestName(email));
+          setHotelId(payload.hotelId || null);
+        } catch (error) {
+          console.error("Error decoding token:", error);
+        }
       }
     }
   }, []);
 
+  useEffect(() => {
+    fetchGuestData();
+  }, [fetchGuestData]);
+
   const handleSignOut = () => {
     localStorage.removeItem("guestToken");
-    localStorage.removeItem("currentBooking");
     router.push("/login");
   };
 
-  useEffect(() => {
-    if (shouldShowToast) {
-      toast.success(
-        showNotifications ? "Closing notifications" : "Opening notifications",
-        {
+  const handleToggleNotifications = useCallback(() => {
+    const newState = !showNotifications;
+    setShowNotifications(newState);
+    
+    // Use setTimeout to avoid state updates during render
+    setTimeout(() => {
+      if (newState) {
+        toast.success("Opening notifications", {
           description: "You can view your notifications here",
-        }
-      );
-      setShouldShowToast(false);
-    }
-  }, [showNotifications, shouldShowToast]);
+        });
+      }
+    }, 0);
+  }, [showNotifications]);
+
+  const handleCloseNotifications = useCallback(() => {
+    setShowNotifications(false);
+    
+    // Use setTimeout to avoid state updates during render
+    setTimeout(() => {
+      toast.success("Closing notifications");
+    }, 0);
+  }, []);
 
   return (
     <>
@@ -128,10 +151,7 @@ export function GuestTopbar({
                 variant="ghost"
                 size="icon"
                 className="relative hover:bg-blue-50 dark:hover:bg-blue-950"
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setShouldShowToast(true);
-                }}
+                onClick={handleToggleNotifications}
               >
                 <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 {notificationCount > 0 && (
@@ -142,7 +162,7 @@ export function GuestTopbar({
               </Button>
               {showNotifications && (
                 <NotificationDropdown
-                  onClose={() => setShowNotifications(false)}
+                  onClose={handleCloseNotifications}
                 />
               )}
             </div>
@@ -190,6 +210,14 @@ export function GuestTopbar({
                     className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
                   >
                     Hotel
+                  </DropdownMenuItem>
+                )}
+                {currentBooking && (
+                  <DropdownMenuItem
+                    onClick={() => router.push(`/hotel/${currentBooking.hotelId}`)}
+                    className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
+                  >
+                    Current Booking
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator className="bg-border" />

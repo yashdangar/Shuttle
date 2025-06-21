@@ -46,6 +46,13 @@ router.get(
   controller.getTrip as RequestHandler
 );
 
+// Current booking route
+router.get(
+  "/current-booking",
+  guestAuthMiddleware as RequestHandler,
+  controller.getCurrentBooking as RequestHandler
+);
+
 // QR code routes
 router.get(
   "/trips/:id/qr-url",

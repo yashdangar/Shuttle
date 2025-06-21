@@ -3,6 +3,8 @@ import { frontdeskAuthMiddleware } from "../middleware/authMiddleware";
 import controller from "../controller/frontdeskController";
 import frontdeskController from "../controller/frontdeskController";
 
+console.log("<<<<< LOADING FRONTDESK ROUTER - V2 >>>>>");
+
 const router = express.Router();
 
 // Public routes
@@ -85,7 +87,7 @@ router.post("/signed-url", frontdeskAuthMiddleware as RequestHandler, controller
 router.post("/verify-qr", frontdeskAuthMiddleware as RequestHandler, controller.verifyBookingQR as RequestHandler);
 
 // Booking management routes
-router.put(
+router.post(
   "/bookings/:bookingId/cancel",
   frontdeskAuthMiddleware as RequestHandler,
   controller.cancelBooking as RequestHandler

@@ -10,6 +10,18 @@ import { useToast } from "@/components/hooks/use-toast";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface BookingDetails {
   id: string;
@@ -41,6 +53,8 @@ interface BookingDetails {
     id: number;
     name: string;
   } | null;
+  cancelledBy?: string;
+  cancellationReason?: string;
 }
 
 export default function BookingDetailsPage() {
@@ -49,6 +63,8 @@ export default function BookingDetailsPage() {
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
@@ -69,6 +85,43 @@ export default function BookingDetailsPage() {
 
     fetchBookingDetails();
   }, [params.id, toast]);
+
+  const handleCancelBooking = async () => {
+    if (!cancellationReason) {
+      toast({
+        title: "Reason required",
+        description: "Please provide a reason for the cancellation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await fetchWithAuth(`/frontdesk/bookings/${params.id}/cancel`, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: cancellationReason }),
+      });
+
+      toast({
+        title: "Success",
+        description: "Booking has been cancelled.",
+      });
+      
+      setBooking(prev => prev ? { ...prev, isCancelled: true, cancelledBy: 'FRONTDESK', cancellationReason } : null);
+      setShowCancelDialog(false);
+      setCancellationReason("");
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel the booking. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -106,11 +159,18 @@ export default function BookingDetailsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
           <p className="text-gray-600">View booking information and status</p>
         </div>
-        {booking.qrCodePath && (
-          <Button onClick={() => setShowQRCode(true)}>
-            View QR Code
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+            {!booking.isCancelled && !booking.isCompleted && (
+              <Button variant="destructive" onClick={() => setShowCancelDialog(true)}>
+                Cancel Booking
+              </Button>
+            )}
+            {booking.qrCodePath && (
+              <Button onClick={() => setShowQRCode(true)}>
+                View QR Code
+              </Button>
+            )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -169,6 +229,18 @@ export default function BookingDetailsPage() {
               <p className="text-sm text-gray-500">Payment Method</p>
               <p className="font-medium">{booking.paymentMethod}</p>
             </div>
+            {booking.isCancelled && (
+              <div>
+                <p className="text-sm text-gray-500">Cancelled By</p>
+                <p className="font-medium">{booking.cancelledBy || 'N/A'}</p>
+              </div>
+            )}
+            {booking.isCancelled && booking.cancellationReason && (
+              <div>
+                <p className="text-sm text-gray-500">Cancellation Reason</p>
+                <p className="font-medium">{booking.cancellationReason}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -223,6 +295,37 @@ export default function BookingDetailsPage() {
           onClose={() => setShowQRCode(false)}
         />
       )}
+
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Please provide a reason for the cancellation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="reason" className="text-right">
+                Reason
+              </Label>
+              <Input
+                id="reason"
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                className="col-span-3"
+                placeholder="e.g., Guest requested cancellation"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelBooking}>
+              Confirm Cancellation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

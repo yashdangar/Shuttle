@@ -606,22 +606,43 @@ const getBookingQRUrl = async (req: Request, res: Response) => {
 };
 
 const getBookingDetails = async (req: Request, res: Response) => {
-  try {
-    const bookingId = req.params.id;
-    const hotelId = (req as any).user.hotelId;
+  const { id } = req.params;
+  const hotelId = (req as any).user.hotelId;
 
+  try {
     const booking = await prisma.booking.findFirst({
       where: {
-        id: bookingId,
+        id,
         guest: {
           hotelId: hotelId,
         },
       },
       include: {
-        guest: true,
-        pickupLocation: true,
-        dropoffLocation: true,
-        shuttle: true,
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+          },
+        },
+        pickupLocation: {
+          select: {
+            name: true,
+          },
+        },
+        dropoffLocation: {
+          select: {
+            name: true,
+          },
+        },
+        shuttle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+          },
+        },
       },
     });
 
@@ -629,20 +650,14 @@ const getBookingDetails = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Get fresh signed URL for QR code if it exists
     let qrCodeUrl = null;
     if (booking.qrCodePath) {
       qrCodeUrl = await getSignedUrlFromPath(booking.qrCodePath);
     }
 
-    res.json({
-      booking: {
-        ...booking,
-        qrCodeUrl,
-      },
-    });
+    res.json({ booking: { ...booking, qrCodeUrl } });
   } catch (error) {
-    console.error("Get booking details error:", error);
+    console.error("Error fetching booking details:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -676,45 +691,49 @@ const getBookings = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  try {
-    const { bookingId } = req.params;
-    const hotelId = (req as any).user.hotelId;
+  const { bookingId } = req.params;
+  const { reason } = req.body;
+  const frontdeskId = (req as any).user.userId;
 
-    // Check if booking exists and belongs to the hotel
-    const booking = await prisma.booking.findFirst({
-      where: {
-        id: bookingId,
-        guest: {
-          hotelId: hotelId,
-        },
-      },
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { guest: true },
     });
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    // Check if booking can be cancelled (not completed, not already cancelled)
-    if (booking.isCompleted) {
-      return res.status(400).json({ error: "Cannot cancel a completed booking" });
+    if (booking.guest.hotelId !== (req as any).user.hotelId) {
+      return res.status(403).json({ error: "Forbidden: Booking does not belong to this hotel." });
     }
-
+    
     if (booking.isCancelled) {
       return res.status(400).json({ error: "Booking is already cancelled" });
     }
 
-    // Cancel the booking
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         isCancelled: true,
-        updatedAt: new Date()
+        cancelledBy: 'FRONTDESK',
+        cancellationReason: reason || 'Cancelled by Frontdesk',
       },
     });
 
-    res.json({ 
+    // Notify the guest
+    await prisma.notification.create({
+      data: {
+        guestId: booking.guestId,
+        title: "Booking Cancelled by Frontdesk",
+        message: `Your booking has been cancelled by the frontdesk. Reason: ${reason || 'No reason provided.'}`,
+      },
+    });
+
+    res.json({
       message: "Booking cancelled successfully",
-      booking: updatedBooking 
+      booking: updatedBooking,
     });
   } catch (error) {
     console.error("Error cancelling booking:", error);

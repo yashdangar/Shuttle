@@ -87,8 +87,6 @@ export default function ProfilePage() {
 
   const handleLogout = () => {
     localStorage.removeItem("guestToken");
-    localStorage.removeItem("currentBooking");
-    localStorage.removeItem("guestName");
     toast.success("Logged out successfully");
     router.push("/login");
   };

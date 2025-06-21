@@ -82,145 +82,49 @@ const getProfile = async (req: Request, res: Response) => {
 const getCurrentTrip = async (req: Request, res: Response) => {
   try {
     const driverId = (req as any).user.userId;
-    const hotelId = (req as any).user.hotelId;
 
-    console.log('Getting current trip for driver:', driverId, 'hotel:', hotelId);
+    console.log('Getting current trip for driver:', driverId);
 
-    // Get current schedule for the driver
-    const currentSchedule = await prisma.schedule.findFirst({
+    // Get current active trip using the new trip system
+    const activeTrip = await prisma.trip.findFirst({
       where: {
         driverId,
-        startTime: { lte: new Date() },
-        endTime: { gte: new Date() },
+        status: 'ACTIVE' as any,
       },
       include: {
         shuttle: true,
         driver: true,
+        bookings: {
+          include: {
+            guest: {
+              select: {
+                firstName: true,
+                lastName: true,
+                phoneNumber: true,
+              },
+            },
+            pickupLocation: true,
+            dropoffLocation: true,
+          },
+          orderBy: {
+            preferredTime: 'asc',
+          },
+        },
       },
     });
 
-    console.log('Current schedule found:', currentSchedule);
+    console.log('Active trip found:', activeTrip);
 
-    // If no current schedule, try to find any active bookings for this driver
-    if (!currentSchedule) {
-      console.log('No current schedule found, looking for active bookings...');
-      
-      // Get any active bookings for this hotel that could be assigned to this driver
-      const activeBookings = await prisma.booking.findMany({
-        where: {
-          isCompleted: false,
-          isCancelled: false,
-          guest: {
-            hotelId: hotelId,
-          },
-          // Check if there's a shuttle assigned
-          shuttleId: {
-            not: null,
-          },
-        },
-        include: {
-          guest: {
-            select: {
-              firstName: true,
-              lastName: true,
-              phoneNumber: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: {
-            include: {
-              schedules: {
-                where: {
-                  driverId: driverId,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          preferredTime: 'asc',
-        },
-      });
-
-      console.log('Active bookings found:', activeBookings.length);
-
-      // Filter bookings that have this driver assigned
-      const driverBookings = activeBookings.filter(booking => 
-        booking.shuttle?.schedules && booking.shuttle.schedules.length > 0
-      );
-
-      console.log('Driver bookings found:', driverBookings.length);
-
-      if (driverBookings.length > 0) {
-        // Transform bookings to passenger format
-        const passengers = driverBookings.map((booking, index) => ({
-          id: booking.id,
-          name: `${booking.guest.firstName} ${booking.guest.lastName}`,
-          persons: booking.numberOfPersons,
-          bags: booking.numberOfBags,
-          pickup: booking.pickupLocation?.name || 'Hotel',
-          dropoff: booking.dropoffLocation?.name || 'Airport',
-          paymentMethod: booking.paymentMethod,
-          status: booking.isVerified ? 'checked-in' : index === 0 ? 'next' : 'pending',
-          seatNumber: booking.isVerified ? `A${index + 1}` : null,
-          phoneNumber: booking.guest.phoneNumber,
-          preferredTime: booking.preferredTime,
-          isVerified: booking.isVerified,
-          verifiedAt: booking.verifiedAt,
-        }));
-
-        const firstBooking = driverBookings[0];
-        
-        res.json({
-          currentTrip: {
-            schedule: null, // No current schedule
-            shuttle: firstBooking.shuttle,
-            passengers,
-            totalPassengers: passengers.length,
-            checkedInCount: passengers.filter(p => p.isVerified).length,
-            message: "Active bookings found (no current schedule)",
-          },
-        });
-        return;
-      }
-
+    if (!activeTrip) {
+      console.log('No active trip found');
       return res.json({ 
         currentTrip: null, 
-        message: "No active trip found - no schedule or bookings" 
+        message: "No active trip found" 
       });
     }
 
-    // Get bookings for the current shuttle that are not completed
-    const bookings = await prisma.booking.findMany({
-      where: {
-        shuttleId: currentSchedule.shuttleId,
-        isCompleted: false,
-        isCancelled: false,
-        guest: {
-          hotelId: hotelId,
-        },
-      },
-      include: {
-        guest: {
-          select: {
-            firstName: true,
-            lastName: true,
-            phoneNumber: true,
-          },
-        },
-        pickupLocation: true,
-        dropoffLocation: true,
-      },
-      orderBy: {
-        preferredTime: 'asc',
-      },
-    });
-
-    console.log('Bookings found for current schedule:', bookings.length);
-
     // Transform bookings to passenger format
-    const passengers = bookings.map((booking, index) => ({
+    const passengers = activeTrip.bookings.map((booking: any, index: number) => ({
       id: booking.id,
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
@@ -234,15 +138,27 @@ const getCurrentTrip = async (req: Request, res: Response) => {
       preferredTime: booking.preferredTime,
       isVerified: booking.isVerified,
       verifiedAt: booking.verifiedAt,
+      // Include actual location coordinates
+      pickupLocation: booking.pickupLocation ? {
+        latitude: booking.pickupLocation.latitude,
+        longitude: booking.pickupLocation.longitude,
+        name: booking.pickupLocation.name
+      } : null,
+      dropoffLocation: booking.dropoffLocation ? {
+        latitude: booking.dropoffLocation.latitude,
+        longitude: booking.dropoffLocation.longitude,
+        name: booking.dropoffLocation.name
+      } : null,
     }));
+
+    console.log('Passengers found:', passengers.length);
 
     res.json({
       currentTrip: {
-        schedule: currentSchedule,
-        shuttle: currentSchedule.shuttle,
+        ...activeTrip,
         passengers,
         totalPassengers: passengers.length,
-        checkedInCount: passengers.filter(p => p.isVerified).length,
+        checkedInCount: passengers.filter((p: any) => p.isVerified).length,
       },
     });
   } catch (error) {
@@ -622,10 +538,11 @@ const getBookingETA = async (req: Request, res: Response) => {
     // Determine destination based on booking type
     let destination: Location | null = null;
     
+    // Always calculate ETA to pickup location (where driver will pick up the guest)
     if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
+      destination = booking.pickupLocation ? {
+        latitude: booking.pickupLocation.latitude,
+        longitude: booking.pickupLocation.longitude,
       } : null;
     } else {
       destination = booking.pickupLocation ? {
@@ -794,10 +711,11 @@ const updateETAForDriverBookings = async (driverId: number, driverLocation: Loca
     for (const booking of activeBookings) {
       let destination: Location | null = null;
       
+      // Always calculate ETA to pickup location (where driver will pick up the guest)
       if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-        destination = booking.dropoffLocation ? {
-          latitude: booking.dropoffLocation.latitude,
-          longitude: booking.dropoffLocation.longitude,
+        destination = booking.pickupLocation ? {
+          latitude: booking.pickupLocation.latitude,
+          longitude: booking.pickupLocation.longitude,
         } : null;
       } else {
         destination = booking.pickupLocation ? {

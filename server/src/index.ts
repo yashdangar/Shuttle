@@ -7,6 +7,7 @@ import guestRouter from './routes/guestRouter';
 import adminRouter from './routes/adminRouter';
 import frontdeskRouter from './routes/frontdeskRouter';
 import driverRouter from './routes/driverRouter';
+import tripRouter from './routes/tripRouter';
 import authRoutes from './routes/auth';
 
 // Load environment variables
@@ -43,6 +44,7 @@ app.use("/guest", guestRouter);
 app.use("/admin", adminRouter);
 app.use("/frontdesk", frontdeskRouter);
 app.use("/driver", driverRouter);
+app.use("/trips", tripRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

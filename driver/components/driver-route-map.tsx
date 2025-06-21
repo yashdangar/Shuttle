@@ -23,6 +23,16 @@ interface Passenger {
   bags: number;
   isVerified: boolean;
   seatNumber?: string;
+  pickupLocation?: {
+    latitude: number;
+    longitude: number;
+    name: string;
+  };
+  dropoffLocation?: {
+    latitude: number;
+    longitude: number;
+    name: string;
+  };
 }
 
 interface DriverRouteMapProps {
@@ -49,7 +59,7 @@ export default function DriverRouteMap({
   const [driverLocation, setDriverLocation] = useState<Location | null>(null);
   const [pickupLocations, setPickupLocations] = useState<Array<Location & { passenger: Passenger }>>([]);
   const [dropoffLocations, setDropoffLocations] = useState<Array<Location & { passenger: Passenger }>>([]);
-  const [directionsPath, setDirectionsPath] = useState<Array<{ lat: number; lng: number }>>([]);
+  const [hotelLocation, setHotelLocation] = useState<Location | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<Passenger | null>(null);
@@ -63,7 +73,7 @@ export default function DriverRouteMap({
 
   console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
 
-  // Fetch driver location and booking locations
+  // Fetch driver location and setup locations based on trip direction
   const fetchMapData = async () => {
     try {
       setLoading(true);
@@ -79,152 +89,134 @@ export default function DriverRouteMap({
         });
       }
 
-      // Get booking details with location information
-      const bookingResponse = await api.get('/driver/current-trip');
-      if (bookingResponse.currentTrip?.passengers) {
+      // Get current trip data with hotel information
+      const tripResponse = await api.get('/trips/current');
+      if (tripResponse.currentTrip) {
+        const trip = tripResponse.currentTrip;
+        const direction = trip.direction;
+        
+        console.log('Trip direction:', direction);
+        console.log('Passengers with locations:', passengers);
+        
+        // Get hotel location if available
+        let currentHotelLocation = null;
+        if (trip.shuttle?.hotelId) {
+          try {
+            const hotelResponse = await api.get(`/driver/hotel-location/${trip.shuttle.hotelId}`);
+            if (hotelResponse.hotel && hotelResponse.hotel.latitude && hotelResponse.hotel.longitude) {
+              currentHotelLocation = {
+                latitude: hotelResponse.hotel.latitude,
+                longitude: hotelResponse.hotel.longitude,
+                name: hotelResponse.hotel.name || 'Hotel'
+              };
+              setHotelLocation(currentHotelLocation);
+              console.log('Hotel location found:', currentHotelLocation);
+            }
+          } catch (hotelErr) {
+            console.error('Error fetching hotel location:', hotelErr);
+          }
+        }
+
+        // Setup locations based on trip direction using actual booking data
         const pickupLocs: Array<Location & { passenger: Passenger }> = [];
         const dropoffLocs: Array<Location & { passenger: Passenger }> = [];
 
-        // Process each passenger's booking to get real locations
-        for (const passenger of bookingResponse.currentTrip.passengers) {
-          try {
-            // Get booking details with location information
-            const bookingDetails = await api.get(`/driver/booking/${passenger.id}/tracking`);
-            
-            // Handle pickup location
-            if (bookingDetails.tracking?.pickupLocation) {
+        if (direction === 'HOTEL_TO_AIRPORT') {
+          console.log('Setting up HOTEL_TO_AIRPORT locations');
+          
+          // Pickup: Hotel location (use hotel location for all passengers)
+          if (currentHotelLocation) {
+            passengers.forEach((passenger) => {
               pickupLocs.push({
-                latitude: bookingDetails.tracking.pickupLocation.latitude,
-                longitude: bookingDetails.tracking.pickupLocation.longitude,
-                name: passenger.pickup,
+                latitude: currentHotelLocation.latitude,
+                longitude: currentHotelLocation.longitude,
+                name: currentHotelLocation.name,
                 passenger
               });
-            } else {
-              // If no pickup location, use hotel location
-              const hotelId = bookingResponse.currentTrip?.schedule?.shuttle?.hotelId;
-              if (hotelId) {
-                try {
-                  const hotelLocation = await api.get(`/driver/hotel-location/${hotelId}`);
-                  if (hotelLocation.hotel) {
-                    pickupLocs.push({
-                      latitude: hotelLocation.hotel.latitude,
-                      longitude: hotelLocation.hotel.longitude,
-                      name: `${hotelLocation.hotel.name} (Hotel)`,
-                      passenger
-                    });
-                  } else {
-                    // Fallback coordinates if hotel location is not available
-                    const baseLat = 19.0760 + (Math.random() * 0.01);
-                    const baseLng = 72.8777 + (Math.random() * 0.01);
-                    pickupLocs.push({
-                      latitude: baseLat,
-                      longitude: baseLng,
-                      name: passenger.pickup,
-                      passenger
-                    });
-                  }
-                } catch (hotelErr) {
-                  console.error(`Error fetching hotel location for pickup:`, hotelErr);
-                  // Fallback coordinates if hotel API call fails
-                  const baseLat = 19.0760 + (Math.random() * 0.01);
-                  const baseLng = 72.8777 + (Math.random() * 0.01);
-                  pickupLocs.push({
-                    latitude: baseLat,
-                    longitude: baseLng,
-                    name: passenger.pickup,
-                    passenger
-                  });
-                }
-              } else {
-                // Fallback coordinates if no hotel ID
-                const baseLat = 19.0760 + (Math.random() * 0.01);
-                const baseLng = 72.8777 + (Math.random() * 0.01);
-                pickupLocs.push({
-                  latitude: baseLat,
-                  longitude: baseLng,
-                  name: passenger.pickup,
-                  passenger
-                });
-              }
-            }
-
-            // Handle dropoff location
-            if (bookingDetails.tracking?.dropoffLocation) {
-              dropoffLocs.push({
-                latitude: bookingDetails.tracking.dropoffLocation.latitude,
-                longitude: bookingDetails.tracking.dropoffLocation.longitude,
-                name: passenger.dropoff,
-                passenger
-              });
-            } else {
-              // If no dropoff location, use hotel location
-              const hotelId = bookingResponse.currentTrip?.schedule?.shuttle?.hotelId;
-              if (hotelId) {
-                try {
-                  const hotelLocation = await api.get(`/driver/hotel-location/${hotelId}`);
-                  if (hotelLocation.hotel) {
-                    dropoffLocs.push({
-                      latitude: hotelLocation.hotel.latitude,
-                      longitude: hotelLocation.hotel.longitude,
-                      name: `${hotelLocation.hotel.name} (Hotel)`,
-                      passenger
-                    });
-                  } else {
-                    // Fallback coordinates if hotel location is not available
-                    const baseLat = 19.0760 + (Math.random() * 0.01);
-                    const baseLng = 72.8777 + (Math.random() * 0.01);
-                    dropoffLocs.push({
-                      latitude: baseLat,
-                      longitude: baseLng,
-                      name: passenger.dropoff,
-                      passenger
-                    });
-                  }
-                } catch (hotelErr) {
-                  console.error(`Error fetching hotel location for dropoff:`, hotelErr);
-                  // Fallback coordinates if hotel API call fails
-                  const baseLat = 19.0760 + (Math.random() * 0.01);
-                  const baseLng = 72.8777 + (Math.random() * 0.01);
-                  dropoffLocs.push({
-                    latitude: baseLat,
-                    longitude: baseLng,
-                    name: passenger.dropoff,
-                    passenger
-                  });
-                }
-              } else {
-                // Fallback coordinates if no hotel ID
-                const baseLat = 19.0760 + (Math.random() * 0.01);
-                const baseLng = 72.8777 + (Math.random() * 0.01);
-                dropoffLocs.push({
-                  latitude: baseLat,
-                  longitude: baseLng,
-                  name: passenger.dropoff,
-                  passenger
-                });
-              }
-            }
-          } catch (err) {
-            console.error(`Error fetching location for passenger ${passenger.id}:`, err);
-            // Fallback to placeholder coordinates if location fetch fails
-            const baseLat = 19.0760 + (Math.random() * 0.01);
-            const baseLng = 72.8777 + (Math.random() * 0.01);
-            
-            pickupLocs.push({
-              latitude: baseLat,
-              longitude: baseLng,
-              name: passenger.pickup,
-              passenger
             });
+          } else {
+            // Fallback hotel location (Mumbai area)
+            passengers.forEach((passenger) => {
+              pickupLocs.push({
+                latitude: 19.0760 + (Math.random() * 0.01),
+                longitude: 72.8777 + (Math.random() * 0.01),
+                name: 'Hotel',
+                passenger
+              });
+            });
+          }
 
-            dropoffLocs.push({
-              latitude: baseLat + 0.005,
-              longitude: baseLng + 0.005,
-              name: passenger.dropoff,
-              passenger
+          // Dropoff: Use actual dropoff locations from booking data
+          passengers.forEach((passenger) => {
+            if (passenger.dropoffLocation && passenger.dropoffLocation.latitude && passenger.dropoffLocation.longitude) {
+              console.log(`Using actual dropoff location for ${passenger.name}:`, passenger.dropoffLocation);
+              dropoffLocs.push({
+                latitude: passenger.dropoffLocation.latitude,
+                longitude: passenger.dropoffLocation.longitude,
+                name: passenger.dropoffLocation.name,
+                passenger
+              });
+            } else {
+              // Fallback to airport area if no specific location
+              console.log(`No dropoff location for ${passenger.name}, using fallback`);
+              dropoffLocs.push({
+                latitude: 19.0896 + (Math.random() * 0.01),
+                longitude: 72.8656 + (Math.random() * 0.01),
+                name: passenger.dropoff || 'Airport',
+                passenger
+              });
+            }
+          });
+        } else if (direction === 'AIRPORT_TO_HOTEL') {
+          console.log('Setting up AIRPORT_TO_HOTEL locations');
+          
+          // Pickup: Use actual pickup locations from booking data
+          passengers.forEach((passenger) => {
+            if (passenger.pickupLocation && passenger.pickupLocation.latitude && passenger.pickupLocation.longitude) {
+              console.log(`Using actual pickup location for ${passenger.name}:`, passenger.pickupLocation);
+              pickupLocs.push({
+                latitude: passenger.pickupLocation.latitude,
+                longitude: passenger.pickupLocation.longitude,
+                name: passenger.pickupLocation.name,
+                passenger
+              });
+            } else {
+              // Fallback to airport area if no specific location
+              console.log(`No pickup location for ${passenger.name}, using fallback`);
+              pickupLocs.push({
+                latitude: 19.0896 + (Math.random() * 0.01),
+                longitude: 72.8656 + (Math.random() * 0.01),
+                name: passenger.pickup || 'Airport',
+                passenger
+              });
+            }
+          });
+
+          // Dropoff: Hotel location (use hotel location for all passengers)
+          if (currentHotelLocation) {
+            passengers.forEach((passenger) => {
+              dropoffLocs.push({
+                latitude: currentHotelLocation.latitude,
+                longitude: currentHotelLocation.longitude,
+                name: currentHotelLocation.name,
+                passenger
+              });
+            });
+          } else {
+            // Fallback hotel location
+            passengers.forEach((passenger) => {
+              dropoffLocs.push({
+                latitude: 19.0760 + (Math.random() * 0.01),
+                longitude: 72.8777 + (Math.random() * 0.01),
+                name: 'Hotel',
+                passenger
+              });
             });
           }
         }
+
+        console.log('Pickup locations:', pickupLocs);
+        console.log('Dropoff locations:', dropoffLocs);
 
         setPickupLocations(pickupLocs);
         setDropoffLocations(dropoffLocs);
@@ -265,15 +257,15 @@ export default function DriverRouteMap({
   };
 
   useEffect(() => {
-    if (passengers.length > 0) {
+    if (passengers && passengers.length > 0 && currentTrip) {
       fetchMapData();
     }
-  }, [passengers]);
+  }, [passengers, currentTrip]);
 
   // Center map on driver or first pickup location
   const center = driverLocation
     ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
-    : pickupLocations.length > 0
+    : pickupLocations && pickupLocations.length > 0
     ? { lat: pickupLocations[0].latitude, lng: pickupLocations[0].longitude }
     : defaultCenter;
 
@@ -294,9 +286,12 @@ export default function DriverRouteMap({
       if (isNext) return `${baseUrl}yellow-dot.png`;
       if (isVerified) return `${baseUrl}green-dot.png`;
       return `${baseUrl}red-dot.png`;
-    } else {
-      return `${baseUrl}purple-dot.png`;
+    } else if (type === 'dropoff') {
+      // Use a more visible icon for dropoff locations
+      return `${baseUrl}ltblue-pushpin.png`;
     }
+    
+    return `${baseUrl}red-dot.png`;
   };
 
   const getMarkerTitle = (type: 'driver' | 'pickup' | 'dropoff', passenger?: Passenger) => {
@@ -385,7 +380,7 @@ export default function DriverRouteMap({
     );
   }
 
-  if (passengers.length === 0) {
+  if (!passengers || passengers.length === 0) {
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -413,6 +408,11 @@ export default function DriverRouteMap({
         <CardTitle className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-green-600" />
           Route Map
+          {currentTrip?.direction && (
+            <Badge variant="secondary" className="ml-2">
+              {currentTrip.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel → Airport' : 'Airport → Hotel'}
+            </Badge>
+          )}
         </CardTitle>
         <div className="flex flex-wrap gap-2 mt-2">
           <Badge variant="outline" className="text-xs">
@@ -432,7 +432,7 @@ export default function DriverRouteMap({
             Pending
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mr-1"></div>
+            <div className="w-3 h-3 bg-cyan-500 rounded-full mr-1"></div>
             Dropoff
           </Badge>
         </div>
@@ -466,6 +466,7 @@ export default function DriverRouteMap({
             {pickupLocations.map((location, index) => {
               const isNext = index === 0 && !location.passenger.isVerified;
               const markerId = `pickup-${location.passenger.id}`;
+              console.log(`Rendering pickup marker for ${location.passenger.name} at:`, location.latitude, location.longitude);
               return (
                 <Marker
                   key={markerId}
@@ -481,8 +482,17 @@ export default function DriverRouteMap({
             })}
 
             {/* Dropoff Location Markers */}
-            {dropoffLocations.map((location) => {
+            {dropoffLocations.map((location, index) => {
               const markerId = `dropoff-${location.passenger.id}`;
+              console.log(`Rendering dropoff marker for ${location.passenger.name} at:`, location.latitude, location.longitude);
+              
+              // Add validation to ensure coordinates are valid
+              if (!location.latitude || !location.longitude || 
+                  isNaN(location.latitude) || isNaN(location.longitude)) {
+                console.error(`Invalid coordinates for dropoff marker ${location.passenger.name}:`, location);
+                return null;
+              }
+              
               return (
                 <Marker
                   key={markerId}
@@ -496,6 +506,15 @@ export default function DriverRouteMap({
                 />
               );
             })}
+
+            {/* Test marker to verify map is working */}
+            {process.env.NODE_ENV === 'development' && (
+              <Marker
+                position={{ lat: 19.0760, lng: 72.8777 }}
+                title="Test Marker - Mumbai"
+                icon="https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+              />
+            )}
 
             {/* Info Windows */}
             {activeInfoWindow === 'driver' && driverLocation && (
@@ -582,18 +601,6 @@ export default function DriverRouteMap({
               }
               return null;
             })}
-
-            {/* Route Polyline (if we have directions) */}
-            {directionsPath.length > 0 && (
-              <Polyline
-                path={directionsPath}
-                options={{
-                  strokeColor: "#3B82F6",
-                  strokeOpacity: 0.8,
-                  strokeWeight: 4,
-                }}
-              />
-            )}
           </GoogleMap>
 
           {/* Map Controls */}
@@ -616,14 +623,16 @@ export default function DriverRouteMap({
               variant="secondary"
               className="bg-white shadow-lg"
               onClick={() => {
-                if (pickupLocations.length > 0 && mapRef.current) {
+                if (pickupLocations && pickupLocations.length > 0 && mapRef.current) {
                   const bounds = new window.google.maps.LatLngBounds();
                   pickupLocations.forEach(loc => {
                     bounds.extend({ lat: loc.latitude, lng: loc.longitude });
                   });
-                  dropoffLocations.forEach(loc => {
-                    bounds.extend({ lat: loc.latitude, lng: loc.longitude });
-                  });
+                  if (dropoffLocations) {
+                    dropoffLocations.forEach(loc => {
+                      bounds.extend({ lat: loc.latitude, lng: loc.longitude });
+                    });
+                  }
                   if (driverLocation) {
                     bounds.extend({ lat: driverLocation.latitude, lng: driverLocation.longitude });
                   }
@@ -646,6 +655,24 @@ export default function DriverRouteMap({
                 </svg>
               </div>
             </Button>
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="bg-white shadow-lg"
+                onClick={() => {
+                  console.log('Current state:', {
+                    pickupLocations,
+                    dropoffLocations,
+                    driverLocation,
+                    hotelLocation,
+                    currentTrip
+                  });
+                }}
+              >
+                Debug
+              </Button>
+            )}
           </div>
         </div>
 
@@ -670,6 +697,47 @@ export default function DriverRouteMap({
                 Close
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Debug Info */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-xs">
+            <h4 className="font-bold mb-2">Debug Info:</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p><strong>Pickup Locations:</strong> {pickupLocations.length}</p>
+                <p><strong>Dropoff Locations:</strong> {dropoffLocations.length}</p>
+                <p><strong>Driver Location:</strong> {driverLocation ? 'Yes' : 'No'}</p>
+                <p><strong>Hotel Location:</strong> {hotelLocation ? 'Yes' : 'No'}</p>
+              </div>
+              <div>
+                <p><strong>Trip Direction:</strong> {currentTrip?.direction || 'None'}</p>
+                <p><strong>Passengers:</strong> {passengers?.length || 0}</p>
+                <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
+                <p><strong>Error:</strong> {error || 'None'}</p>
+              </div>
+            </div>
+            {pickupLocations.length > 0 && (
+              <div className="mt-2">
+                <p><strong>Pickup Coords:</strong></p>
+                {pickupLocations.map((loc, i) => (
+                  <p key={i} className="ml-2">
+                    {loc.passenger.name}: {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)} ({loc.name})
+                  </p>
+                ))}
+              </div>
+            )}
+            {dropoffLocations.length > 0 && (
+              <div className="mt-2">
+                <p><strong>Dropoff Coords:</strong></p>
+                {dropoffLocations.map((loc, i) => (
+                  <p key={i} className="ml-2">
+                    {loc.passenger.name}: {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)} ({loc.name})
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
