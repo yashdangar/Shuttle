@@ -603,7 +603,7 @@ const addSchedule = async (req: Request, res: Response) => {
 
     // Parse scheduleDate and set to start of day to ensure consistent date-only storage
     const dateOnly = new Date(scheduleDate);
-    dateOnly.setHours(0, 0, 0, 0);
+    dateOnly.setUTCHours(0, 0, 0, 0);
 
     const schedule = await prisma.schedule.create({
       data: {
@@ -632,7 +632,7 @@ const editSchedule = async (req: Request, res: Response) => {
 
     // Parse scheduleDate and set to start of day to ensure consistent date-only storage
     const dateOnly = new Date(scheduleDate);
-    dateOnly.setHours(0, 0, 0, 0);
+    dateOnly.setUTCHours(0, 0, 0, 0);
 
     const schedule = await prisma.schedule.update({
       where: { id: parseInt(id) },

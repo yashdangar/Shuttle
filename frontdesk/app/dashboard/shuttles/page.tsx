@@ -54,7 +54,7 @@ function ShuttlesPage() {
   useEffect(() => {
     const fetchShuttles = async () => {
       try {
-        const response = await fetchWithAuth("/frontdesk/shuttle");
+        const response = await fetchWithAuth("/frontdesk/get/shuttle");
         const data = await response.json();
         setShuttles(data.shuttles);
       } catch (error) {
