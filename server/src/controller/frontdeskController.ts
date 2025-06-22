@@ -68,22 +68,12 @@ const login = async (req: Request, res: Response) => {
 const getShuttle = async (req: Request, res: Response) => {
   try {
     const hotelId = (req as any).user.hotelId;
-
     const shuttles = await prisma.shuttle.findMany({
-      where: {
-        hotelId: hotelId,
-      },
-      include: {
-        schedules: {
-          include: {
-            driver: true,
-          },
-        },
-      },
+      where: { hotelId: hotelId },
     });
     res.json({ shuttles });
   } catch (error) {
-    console.error("Get shuttle error:", error);
+    console.error("Get shuttles error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -91,22 +81,12 @@ const getShuttle = async (req: Request, res: Response) => {
 const getDriver = async (req: Request, res: Response) => {
   try {
     const hotelId = (req as any).user.hotelId;
-
     const drivers = await prisma.driver.findMany({
-      where: {
-        hotelId: hotelId,
-      },
-      include: {
-        schedules: {
-          include: {
-            shuttle: true,
-          },
-        },
-      },
+      where: { hotelId: hotelId },
     });
     res.json({ drivers });
   } catch (error) {
-    console.error("Get driver error:", error);
+    console.error("Get drivers error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1050,6 +1030,269 @@ const publicDebugGuests = async (req: Request, res: Response) => {
   }
 };
 
+const getScheduleByWeek = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+    const { weekOffset = 0 } = req.query; // 0 = current week, -1 = prev week, 1 = next week
+
+    // Calculate the week start (Monday) using UTC
+    const today = new Date();
+    const currentWeekStart = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+    );
+
+    const day = currentWeekStart.getUTCDay();
+    const diff = currentWeekStart.getUTCDate() - day + (day === 0 ? -6 : 1);
+    currentWeekStart.setUTCDate(diff);
+
+    // Apply week offset
+    const targetWeekStart = new Date(currentWeekStart);
+    targetWeekStart.setUTCDate(
+      targetWeekStart.getUTCDate() + parseInt(weekOffset as string) * 7
+    );
+
+    const targetWeekEnd = new Date(targetWeekStart);
+    targetWeekEnd.setUTCDate(targetWeekEnd.getUTCDate() + 6);
+    targetWeekEnd.setUTCHours(23, 59, 59, 999);
+
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        scheduleDate: {
+          gte: targetWeekStart,
+          lte: targetWeekEnd,
+        },
+        // Ensure schedules belong to the frontdesk's hotel
+        OR: [
+          { driver: { hotelId: hotelId } },
+          { shuttle: { hotelId: hotelId } },
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+      orderBy: {
+        scheduleDate: "asc",
+      },
+    });
+
+    res.json({
+      schedules,
+      weekInfo: {
+        weekStart: targetWeekStart.toISOString(),
+        weekEnd: targetWeekEnd.toISOString(),
+        weekOffset: parseInt(weekOffset as string),
+        isCurrentWeek: parseInt(weekOffset as string) === 0,
+      },
+    });
+  } catch (error) {
+    console.error("Get schedule by week error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const addSchedule = async (req: Request, res: Response) => {
+  try {
+    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    // Security Check: Verify driver and shuttle belong to the hotel
+    const driver = await prisma.driver.findFirst({
+      where: { id: parseInt(driverId), hotelId },
+    });
+    const shuttle = await prisma.shuttle.findFirst({
+      where: { id: parseInt(shuttleId), hotelId },
+    });
+    if (!driver || !shuttle) {
+      return res
+        .status(403)
+        .json({ message: "Driver or shuttle does not belong to this hotel" });
+    }
+
+    const dateOnly = new Date(scheduleDate);
+    dateOnly.setUTCHours(0, 0, 0, 0);
+
+    const schedule = await prisma.schedule.create({
+      data: {
+        driverId: parseInt(driverId),
+        shuttleId: parseInt(shuttleId),
+        scheduleDate: dateOnly,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+      },
+      include: { driver: true, shuttle: true },
+    });
+    res.json({ schedule });
+  } catch (error) {
+    console.error("Add schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const editSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    // Security Check: Verify the schedule being edited belongs to the hotel
+    const existingSchedule = await prisma.schedule.findFirst({
+      where: {
+        id: parseInt(id),
+        OR: [{ driver: { hotelId } }, { shuttle: { hotelId } }],
+      },
+    });
+    if (!existingSchedule) {
+      return res.status(403).json({
+        message: "Schedule not found or does not belong to this hotel",
+      });
+    }
+
+    // Security Check: Verify new driver/shuttle belong to the hotel
+    const driver = await prisma.driver.findFirst({
+      where: { id: parseInt(driverId), hotelId },
+    });
+    const shuttle = await prisma.shuttle.findFirst({
+      where: { id: parseInt(shuttleId), hotelId },
+    });
+    if (!driver || !shuttle) {
+      return res.status(403).json({
+        message: "New driver or shuttle does not belong to this hotel",
+      });
+    }
+
+    const dateOnly = new Date(scheduleDate);
+    dateOnly.setUTCHours(0, 0, 0, 0);
+
+    const schedule = await prisma.schedule.update({
+      where: { id: parseInt(id) },
+      data: {
+        driverId: parseInt(driverId),
+        shuttleId: parseInt(shuttleId),
+        scheduleDate: dateOnly,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+      },
+      include: { driver: true, shuttle: true },
+    });
+    res.json({ schedule });
+  } catch (error) {
+    console.error("Edit schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const hotelId = (req as any).user.hotelId;
+
+    // Security Check: Verify the schedule being deleted belongs to the hotel
+    const schedule = await prisma.schedule.findFirst({
+      where: {
+        id: parseInt(id),
+        OR: [{ driver: { hotelId } }, { shuttle: { hotelId } }],
+      },
+    });
+    if (!schedule) {
+      return res.status(403).json({
+        message: "Schedule not found or does not belong to this hotel",
+      });
+    }
+
+    await prisma.schedule.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ message: "Schedule deleted successfully" });
+  } catch (error) {
+    console.error("Delete schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const addWeeklySchedule = async (req: Request, res: Response) => {
+  try {
+    const { driverId, shuttleId, startDate, weekSchedule } = req.body;
+    const hotelId = (req as any).user.hotelId;
+
+    // Security Check: Verify driver and shuttle belong to the hotel
+    const driver = await prisma.driver.findFirst({
+      where: { id: parseInt(driverId), hotelId },
+    });
+    const shuttle = await prisma.shuttle.findFirst({
+      where: { id: parseInt(shuttleId), hotelId },
+    });
+    if (!driver || !shuttle) {
+      return res
+        .status(403)
+        .json({ message: "Driver or shuttle does not belong to this hotel" });
+    }
+
+    if (!weekSchedule) {
+      return res
+        .status(400)
+        .json({ message: "Week schedule data is required" });
+    }
+
+    const schedules = [];
+    const weekStart = new Date(startDate);
+    weekStart.setUTCHours(0, 0, 0, 0);
+
+    const dayKeys = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+
+    for (let i = 0; i < 7; i++) {
+      const dayKey = dayKeys[i];
+      const dayData = weekSchedule[dayKey];
+
+      if (dayData && dayData.enabled) {
+        const scheduleDate = new Date(weekStart);
+        scheduleDate.setUTCDate(scheduleDate.getUTCDate() + i);
+
+        const [startHour, startMinute] = dayData.startTime.split(":");
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setUTCHours(
+          parseInt(startHour),
+          parseInt(startMinute),
+          0,
+          0
+        );
+
+        const [endHour, endMinute] = dayData.endTime.split(":");
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setUTCHours(parseInt(endHour), parseInt(endMinute), 0, 0);
+
+        const schedule = await prisma.schedule.create({
+          data: {
+            driverId: parseInt(driverId),
+            shuttleId: parseInt(shuttleId),
+            scheduleDate: scheduleDate,
+            startTime: startDateTime,
+            endTime: endDateTime,
+          },
+          include: { driver: true, shuttle: true },
+        });
+        schedules.push(schedule);
+      }
+    }
+
+    res.json({
+      schedules,
+      message: `Created ${schedules.length} schedules for the week`,
+    });
+  } catch (error) {
+    console.error("Add weekly schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Verify guest booking and assign to shuttle
 const verifyGuestBooking = async (req: Request, res: Response) => {
   try {
@@ -1251,4 +1494,9 @@ export default {
   rejectGuestBooking,
   debugGuests,
   publicDebugGuests,
+  getScheduleByWeek,
+  addSchedule,
+  editSchedule,
+  deleteSchedule,
+  addWeeklySchedule,
 };

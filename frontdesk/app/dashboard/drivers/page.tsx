@@ -53,7 +53,7 @@ function DriversPage() {
   useEffect(() => {
     const fetchDrivers = async () => {
       try {
-        const response = await fetchWithAuth("/frontdesk/driver");
+        const response = await fetchWithAuth("/frontdesk/get/driver");
         const data = await response.json();
         setDrivers(data.drivers);
       } catch (error) {

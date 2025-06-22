@@ -30,11 +30,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Plus,
   Edit,
   Trash2,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   TableIcon,
   BarChart3,
@@ -49,6 +55,8 @@ import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
 import { withAuth } from "@/components/withAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface Schedule {
   id: string;
@@ -111,6 +119,9 @@ function SchedulesPage() {
     startTime: "",
     endTime: "",
   });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date()
+  ); // For shadcn calendar
 
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>({
     shuttleId: "",
@@ -137,9 +148,24 @@ function SchedulesPage() {
 
   const formatTimeForDB = (date: string, time: string) => {
     if (!time) return null;
-    const scheduleDate = new Date(date);
-    const [hours, minutes] = time.split(":");
-    scheduleDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    // Parse date as UTC to avoid timezone shifts
+    const [year, month, day] = date.split("-").map(Number);
+    const [hours, minutes] = time.split(":").map(Number);
+
+    // Create UTC date directly
+    const scheduleDate = new Date(
+      Date.UTC(year, month - 1, day, hours, minutes, 0, 0)
+    );
+
+    console.log("🔧 formatTimeForDB:", {
+      inputDate: date,
+      inputTime: time,
+      parsedComponents: { year, month: month - 1, day, hours, minutes },
+      resultUTC: scheduleDate.toISOString(),
+      resultDate: scheduleDate.toISOString().split("T")[0],
+    });
+
     return scheduleDate.toISOString();
   };
 
@@ -193,23 +219,57 @@ function SchedulesPage() {
     return new Date(today.setDate(diff));
   };
 
-  // Generate week days for timeline
+  // Generate week days for timeline based on current week offset
   const generateWeekDays = () => {
-    const monday = getCurrentWeekMonday();
+    const monday = getWeekMondayWithOffset(currentWeekOffset);
     const weekDays = [];
 
+    console.log("🗓️ Generating week days for offset:", currentWeekOffset);
+    console.log("🗓️ Monday of this week:", monday.toISOString().split("T")[0]);
+
     for (let i = 0; i < 7; i++) {
+      // Use UTC methods to match the schedule mapping logic
       const day = new Date(monday);
-      day.setDate(monday.getDate() + i);
+      day.setUTCDate(monday.getUTCDate() + i);
+
+      // Create display date using UTC components to avoid timezone issues
+      const year = day.getUTCFullYear();
+      const month = day.getUTCMonth();
+      const date = day.getUTCDate();
+      const displayDay = new Date(Date.UTC(year, month, date)); // UTC date for display only
+
+      console.log(
+        `🗓️ Timeline position ${i} (${
+          i === 0
+            ? "Mon"
+            : i === 1
+            ? "Tue"
+            : i === 2
+            ? "Wed"
+            : i === 3
+            ? "Thu"
+            : i === 4
+            ? "Fri"
+            : i === 5
+            ? "Sat"
+            : "Sun"
+        }): ${
+          day.toISOString().split("T")[0]
+        } - UTC Day of week: ${day.getUTCDay()}`
+      );
+
       weekDays.push({
         date: day,
-        dayName: day.toLocaleDateString("en-US", { weekday: "short" }),
-        dayNumber: day.getDate(),
-        month: day.toLocaleDateString("en-US", { month: "short" }),
-        isToday: day.toDateString() === new Date().toDateString(),
+        dayName: displayDay.toLocaleDateString("en-US", { weekday: "short" }),
+        dayNumber: displayDay.getUTCDate(),
+        month: displayDay.toLocaleDateString("en-US", { month: "short" }),
+        isToday:
+          day.toISOString().split("T")[0] ===
+          new Date().toISOString().split("T")[0],
         position: (i / 7) * 100, // percentage position
       });
     }
+    console.log("Generated week days:", weekDays);
     return weekDays;
   };
 
@@ -217,28 +277,48 @@ function SchedulesPage() {
   const getWeeklyTimelineSchedules = () => {
     if (!schedules) return {};
 
-    const monday = getCurrentWeekMonday();
-    const weekStart = new Date(monday);
-    weekStart.setHours(0, 0, 0, 0);
-
-    const weekEnd = new Date(monday);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
-    // Filter schedules for current week
-    const weekSchedules = schedules.filter((schedule) => {
-      const scheduleDate = new Date(schedule.scheduleDate);
-      return scheduleDate >= weekStart && scheduleDate <= weekEnd;
-    });
-
-    // Group schedules by shuttle and day
+    // Since the API already filters by week, we don't need to filter again
+    // Just group the schedules by shuttle and day
     const schedulesByShuttleAndDay: {
       [shuttleId: string]: { [dayIndex: number]: any[] };
     } = {};
 
-    weekSchedules.forEach((schedule) => {
+    schedules.forEach((schedule) => {
+      // Parse the date more carefully to avoid timezone issues
       const scheduleDate = new Date(schedule.scheduleDate);
-      const dayIndex = (scheduleDate.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+
+      // Use UTC to avoid timezone issues - stay in UTC throughout
+      const year = scheduleDate.getUTCFullYear();
+      const month = scheduleDate.getUTCMonth();
+      const day = scheduleDate.getUTCDate();
+
+      // Get day of week directly from the original UTC date
+      const dayOfWeekUTC = scheduleDate.getUTCDay(); // 0=Sunday, 1=Monday, etc.
+      const dayIndex = (dayOfWeekUTC + 6) % 7; // Convert Sunday=0 to Monday=0
+
+      console.log("📅 Timeline mapping:", {
+        originalDate: schedule.scheduleDate,
+        parsedDate: scheduleDate,
+        utcDate: `${year}-${String(month + 1).padStart(2, "0")}-${String(
+          day
+        ).padStart(2, "0")}`,
+        dayOfWeekUTC: dayOfWeekUTC, // 0=Sunday, 1=Monday, etc.
+        calculatedDayIndex: dayIndex, // 0=Monday, 1=Tuesday, etc.
+        expectedPosition:
+          dayIndex === 0
+            ? "Monday"
+            : dayIndex === 1
+            ? "Tuesday"
+            : dayIndex === 2
+            ? "Wednesday"
+            : dayIndex === 3
+            ? "Thursday"
+            : dayIndex === 4
+            ? "Friday"
+            : dayIndex === 5
+            ? "Saturday"
+            : "Sunday",
+      });
 
       if (!schedulesByShuttleAndDay[schedule.shuttle.id]) {
         schedulesByShuttleAndDay[schedule.shuttle.id] = {};
@@ -249,48 +329,87 @@ function SchedulesPage() {
 
       schedulesByShuttleAndDay[schedule.shuttle.id][dayIndex].push({
         ...schedule,
-        startTime: formatTimeForDisplay(schedule.startTime),
-        endTime: formatTimeForDisplay(schedule.endTime),
+        // Keep original ISO times for editing, but add display versions
+        displayStartTime: formatTimeForDisplay(schedule.startTime),
+        displayEndTime: formatTimeForDisplay(schedule.endTime),
         color: getShuttleColor(schedule.shuttle.id),
+        // Add debug info
+        debugDayIndex: dayIndex,
+        debugUtcDate: `${year}-${String(month + 1).padStart(2, "0")}-${String(
+          day
+        ).padStart(2, "0")}`,
       });
     });
 
     return schedulesByShuttleAndDay;
   };
 
-  // Get Monday of a specific week with offset
+  // Get Monday of a specific week with offset using UTC to match schedule logic
   const getWeekMondayWithOffset = (offset: number) => {
     const today = new Date();
     const currentWeekStart = new Date(today);
-    const day = currentWeekStart.getDay();
-    const diff = currentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
-    currentWeekStart.setDate(diff);
+
+    // Use UTC methods to be consistent with schedule mapping
+    const day = currentWeekStart.getUTCDay();
+    const diff = currentWeekStart.getUTCDate() - day + (day === 0 ? -6 : 1);
+    currentWeekStart.setUTCDate(diff);
+    currentWeekStart.setUTCHours(0, 0, 0, 0);
 
     // Apply offset
     const targetWeek = new Date(currentWeekStart);
-    targetWeek.setDate(targetWeek.getDate() + offset * 7);
+    targetWeek.setUTCDate(targetWeek.getUTCDate() + offset * 7);
+
+    console.log("🗓️ Week Monday calculation:", {
+      offset,
+      todayUTC: today.toISOString().split("T")[0],
+      mondayUTC: targetWeek.toISOString().split("T")[0],
+      weekDayUTC: day,
+    });
+
     return targetWeek;
   };
 
-  // Fetch schedules for specific week
+  // Fetch schedules for a specific week
   const fetchSchedulesForWeek = async (weekOffset: number) => {
     try {
       setLoading(true);
-      const [schedulesRes, driversRes, shuttlesRes] = await Promise.all([
-        api.get(`/admin/get/schedule/week?weekOffset=${weekOffset}`),
+      console.log(`🔄 Fetching schedules for week offset: ${weekOffset}`);
+
+      // Only fetch schedules - drivers and shuttles are static data
+      const schedulesRes = await api.get(
+        `/admin/get/schedule/week?weekOffset=${weekOffset}`
+      );
+
+      console.log("📅 API Response - schedules:", schedulesRes.schedules);
+      console.log("📊 Week offset being set:", weekOffset);
+
+      setSchedules(schedulesRes.schedules);
+      setCurrentWeekOffset(weekOffset);
+    } catch (error) {
+      console.error("❌ Error fetching week data:", error);
+      toast.error("Failed to fetch schedules data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch static data only once (drivers and shuttles don't change often)
+  const fetchStaticData = async () => {
+    try {
+      console.log("🔄 Fetching static data (drivers & shuttles)...");
+
+      const [driversRes, shuttlesRes] = await Promise.all([
         api.get("/admin/get/driver"),
         api.get("/admin/get/shuttle"),
       ]);
 
-      setSchedules(schedulesRes.schedules);
       setDrivers(driversRes.drivers);
       setShuttles(shuttlesRes.shuttles);
-      setCurrentWeekOffset(weekOffset);
+
+      console.log("✅ Static data loaded");
     } catch (error) {
-      console.error("Error fetching week data:", error);
-      toast.error("Failed to fetch schedules data");
-    } finally {
-      setLoading(false);
+      console.error("❌ Error fetching static data:", error);
+      toast.error("Failed to fetch drivers and shuttles data");
     }
   };
 
@@ -398,7 +517,7 @@ function SchedulesPage() {
       setIsWeeklyDialogOpen(false);
       resetWeeklyForm();
 
-      // Refresh the current week data
+      // Refresh current week data since we added new schedules
       fetchSchedulesForWeek(currentWeekOffset);
     } catch (error) {
       console.error("Error creating weekly schedule:", error);
@@ -409,8 +528,20 @@ function SchedulesPage() {
   };
 
   useEffect(() => {
-    // Initialize with current week
-    fetchSchedulesForWeek(0);
+    // Initialize: fetch static data once and current week schedules
+    const initializeData = async () => {
+      console.log("🚀 Initializing schedules page...");
+
+      // Fetch static data first (drivers & shuttles)
+      await fetchStaticData();
+
+      // Then fetch current week schedules
+      await fetchSchedulesForWeek(0);
+
+      console.log("✅ Initialization complete");
+    };
+
+    initializeData();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -424,7 +555,7 @@ function SchedulesPage() {
           {
             driverId: parseInt(formData.driverId),
             shuttleId: parseInt(formData.shuttleId),
-            scheduleDate: formData.scheduleDate,
+            scheduleDate: new Date(formData.scheduleDate).toISOString(),
             startTime: formatTimeForDB(
               formData.scheduleDate,
               formData.startTime
@@ -444,7 +575,7 @@ function SchedulesPage() {
         const response = await api.post("/admin/add/schedule", {
           driverId: parseInt(formData.driverId),
           shuttleId: parseInt(formData.shuttleId),
-          scheduleDate: formData.scheduleDate,
+          scheduleDate: new Date(formData.scheduleDate).toISOString(),
           startTime: formatTimeForDB(formData.scheduleDate, formData.startTime),
           endTime: formatTimeForDB(formData.scheduleDate, formData.endTime),
         });
@@ -454,6 +585,9 @@ function SchedulesPage() {
       }
       resetForm();
       setIsAddDialogOpen(false);
+
+      // Refresh current week data since we added/updated a schedule
+      fetchSchedulesForWeek(currentWeekOffset);
     } catch (error) {
       console.error("Error submitting schedule:", error);
       toast.error("Failed to save schedule");
@@ -465,16 +599,36 @@ function SchedulesPage() {
   const handleEdit = (schedule: Schedule) => {
     setEditingSchedule(schedule);
 
-    // Extract just the date part from scheduleDate (YYYY-MM-DD format)
-    const scheduleDateOnly = schedule.scheduleDate.split("T")[0];
+    // Parse the schedule date properly - handle timezone consistently
+    const scheduleDate = new Date(schedule.scheduleDate);
+    // Use UTC to avoid timezone shifts
+    const year = scheduleDate.getUTCFullYear();
+    const month = String(scheduleDate.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(scheduleDate.getUTCDate()).padStart(2, "0");
+    const scheduleDateOnly = `${year}-${month}-${day}`;
+
+    console.log("🔧 Editing schedule:", {
+      originalDate: schedule.scheduleDate,
+      parsedDate: scheduleDate,
+      finalDateString: scheduleDateOnly,
+      originalStartTime: schedule.startTime,
+      originalEndTime: schedule.endTime,
+    });
 
     setFormData({
-      driverId: schedule.driver.id,
-      shuttleId: schedule.shuttle.id,
+      driverId: String(schedule.driver.id),
+      shuttleId: String(schedule.shuttle.id),
       scheduleDate: scheduleDateOnly,
       startTime: formatTimeForDisplay(schedule.startTime),
       endTime: formatTimeForDisplay(schedule.endTime),
     });
+
+    // Set the selected date for the calendar component using the same logic
+    setSelectedDate(
+      new Date(
+        Date.UTC(year, scheduleDate.getUTCMonth(), scheduleDate.getUTCDate())
+      )
+    );
     setIsAddDialogOpen(true);
   };
 
@@ -493,13 +647,15 @@ function SchedulesPage() {
   };
 
   const resetForm = () => {
+    const today = new Date();
     setFormData({
       driverId: "",
       shuttleId: "",
-      scheduleDate: new Date().toISOString().split("T")[0], // Default to today
+      scheduleDate: today.toISOString().split("T")[0], // Default to today
       startTime: "",
       endTime: "",
     });
+    setSelectedDate(today); // Reset calendar to today
     setEditingSchedule(null);
   };
 
@@ -519,8 +675,10 @@ function SchedulesPage() {
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Calendar className="w-5 h-5 text-purple-600" />
-              <span>Schedules Overview</span>
+              <>
+                <CalendarIcon className="w-5 h-5 text-purple-600" />
+                <span>Schedules Overview</span>
+              </>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -601,7 +759,7 @@ function SchedulesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {drivers.map((driver) => (
-                        <SelectItem key={driver.id} value={driver.id}>
+                        <SelectItem key={driver.id} value={String(driver.id)}>
                           {driver.name} ({driver.email})
                         </SelectItem>
                       ))}
@@ -623,7 +781,7 @@ function SchedulesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {shuttles.map((shuttle) => (
-                        <SelectItem key={shuttle.id} value={shuttle.id}>
+                        <SelectItem key={shuttle.id} value={String(shuttle.id)}>
                           {shuttle.vehicleNumber} ({shuttle.seats} seats)
                         </SelectItem>
                       ))}
@@ -631,29 +789,71 @@ function SchedulesPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="scheduleDate">Date</Label>
-                  <Input
-                    id="scheduleDate"
-                    type="date"
-                    value={formData.scheduleDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, scheduleDate: e.target.value })
-                    }
-                    required
-                    className="w-full"
-                    disabled={submitting}
-                  />
-                  {formData.scheduleDate && (
-                    <div className="text-sm text-slate-600 mt-1">
-                      {new Date(formData.scheduleDate).toLocaleDateString(
-                        "en-US",
-                        {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
+                  <Label htmlFor="scheduleDate">Schedule Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={`w-full justify-start text-left font-normal ${
+                          !selectedDate ? "text-muted-foreground" : ""
+                        }`}
+                        disabled={submitting}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? (
+                          selectedDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          setSelectedDate(date);
+                          if (date) {
+                            // Use local date parts to prevent timezone shift from toISOString()
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(
+                              2,
+                              "0"
+                            );
+                            const day = String(date.getDate()).padStart(2, "0");
+                            const dateString = `${year}-${month}-${day}`;
+                            setFormData({
+                              ...formData,
+                              scheduleDate: dateString,
+                            });
+                          }
+                        }}
+                        disabled={(date) =>
+                          date < new Date(new Date().setHours(0, 0, 0, 0))
                         }
-                      )}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {selectedDate && (
+                    <div className="text-sm text-slate-600 mt-2 p-2 bg-blue-50 rounded-md border border-blue-200">
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4 text-blue-600" />
+                        <span className="font-medium">Selected:</span>
+                        <span>
+                          {selectedDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -759,7 +959,10 @@ function SchedulesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {shuttles.map((shuttle) => (
-                          <SelectItem key={shuttle.id} value={shuttle.id}>
+                          <SelectItem
+                            key={shuttle.id}
+                            value={String(shuttle.id)}
+                          >
                             {shuttle.vehicleNumber} ({shuttle.seats} seats)
                           </SelectItem>
                         ))}
@@ -783,7 +986,7 @@ function SchedulesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {drivers.map((driver) => (
-                          <SelectItem key={driver.id} value={driver.id}>
+                          <SelectItem key={driver.id} value={String(driver.id)}>
                             {driver.name} ({driver.email})
                           </SelectItem>
                         ))}
@@ -993,7 +1196,7 @@ function SchedulesPage() {
                       </>
                     ) : (
                       <>
-                        <Calendar className="w-4 h-4 mr-2" />
+                        <CalendarIcon className="w-4 h-4 mr-2" />
                         Create Weekly Schedule
                       </>
                     )}
@@ -1008,7 +1211,7 @@ function SchedulesPage() {
       <Card className="border-slate-200">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-purple-600" />
+            <CalendarIcon className="w-5 h-5 text-purple-600" />
             <span>Schedules Overview</span>
           </CardTitle>
         </CardHeader>
@@ -1034,77 +1237,114 @@ function SchedulesPage() {
             </TabsList>
 
             <TabsContent value="timeline" className="mt-6">
-              {!schedules || schedules.length === 0 ? (
-                <EmptyState
-                  icon={Calendar}
-                  title="No schedules available"
-                  description="Create your first schedule to assign drivers to shuttles."
-                />
-              ) : (
-                <div className="space-y-4 lg:space-y-6">
-                  {/* Legend */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 lg:gap-4 p-3 lg:p-4 bg-slate-50 rounded-lg">
-                    <h3 className="font-semibold text-slate-900 col-span-full lg:w-full mb-1 lg:mb-2 text-sm lg:text-base">
-                      Shuttles Legend:
-                    </h3>
-                    {shuttles.map((shuttle) => (
+              <div className="space-y-4 lg:space-y-6">
+                {/* Legend */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 lg:gap-4 p-3 lg:p-4 bg-slate-50 rounded-lg">
+                  <h3 className="font-semibold text-slate-900 col-span-full lg:w-full mb-1 lg:mb-2 text-sm lg:text-base">
+                    Shuttles Legend:
+                  </h3>
+                  {shuttles.map((shuttle) => (
+                    <div
+                      key={shuttle.id}
+                      className="flex items-center gap-2 min-w-0"
+                    >
                       <div
-                        key={shuttle.id}
-                        className="flex items-center gap-2 min-w-0"
-                      >
-                        <div
-                          className={`w-3 h-3 lg:w-4 lg:h-4 rounded border-2 flex-shrink-0 ${getShuttleColor(
-                            shuttle.id
-                          )}`}
-                        ></div>
-                        <span className="text-xs lg:text-sm font-medium truncate">
-                          {shuttle.vehicleNumber}
-                        </span>
-                        <span className="text-xs text-slate-500 flex-shrink-0">
-                          ({shuttle.seats} seats)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                        className={`w-3 h-3 lg:w-4 lg:h-4 rounded border-2 flex-shrink-0 ${getShuttleColor(
+                          shuttle.id
+                        )}`}
+                      ></div>
+                      <span className="text-xs lg:text-sm font-medium truncate">
+                        {shuttle.vehicleNumber}
+                      </span>
+                      <span className="text-xs text-slate-500 flex-shrink-0">
+                        ({shuttle.seats} seats)
+                      </span>
+                    </div>
+                  ))}
+                </div>
 
-                  {/* Mobile/Tablet scroll hint */}
-                  <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
-                    👈 Scroll horizontally to view the full weekly timeline
-                  </div>
+                {/* Mobile/Tablet scroll hint */}
+                <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
+                  👈 Scroll horizontally to view the full weekly timeline
+                </div>
 
-                  {/* Weekly Timeline Container */}
-                  <div className="relative bg-white border border-slate-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[1200px] p-3 lg:p-6">
-                        {/* Week header with days */}
-                        <div className="relative h-12 lg:h-16 border-b border-slate-200 mb-3 lg:mb-4">
-                          <div className="grid grid-cols-7 h-full">
-                            {weekDays.map((day, index) => (
-                              <div
-                                key={index}
-                                className={`flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 ${
-                                  day.isToday
-                                    ? "bg-blue-50 text-blue-700"
-                                    : "text-slate-600"
-                                }`}
-                              >
-                                <div className="text-xs lg:text-sm font-semibold">
-                                  {day.dayName}
-                                </div>
-                                <div className="text-xs lg:text-sm">
-                                  {day.month} {day.dayNumber}
-                                </div>
-                                {day.isToday && (
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-1"></div>
-                                )}
+                {/* Weekly Timeline Container */}
+                <div className="relative bg-white border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[1200px] p-3 lg:p-6">
+                      {/* Week header with days */}
+                      <div className="relative h-12 lg:h-16 border-b border-slate-200 mb-3 lg:mb-4">
+                        <div className="grid grid-cols-7 h-full">
+                          {weekDays.map((day, index) => (
+                            <div
+                              key={index}
+                              className={`flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 ${
+                                day.isToday
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "text-slate-600"
+                              }`}
+                            >
+                              <div className="text-xs lg:text-sm font-semibold">
+                                {day.dayName}
                               </div>
-                            ))}
-                          </div>
+                              <div className="text-xs lg:text-sm">
+                                {day.month} {day.dayNumber}
+                              </div>
+                              {day.isToday && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full mt-1"></div>
+                              )}
+                            </div>
+                          ))}
                         </div>
+                      </div>
 
-                        {/* Weekly Timeline tracks for each shuttle */}
-                        <div className="space-y-4 lg:space-y-6">
-                          {shuttles.map((shuttle) => {
+                      {/* Weekly Timeline tracks for each shuttle */}
+                      <div className="space-y-4 lg:space-y-6">
+                        {!schedules || schedules.length === 0 ? (
+                          /* Empty week display - show empty calendar structure */
+                          <div className="text-center py-12">
+                            <div className="mb-6">
+                              <CalendarIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                              <h3 className="text-lg font-semibold text-slate-700 mb-2">
+                                No schedules for this week
+                              </h3>
+                              <p className="text-slate-500 mb-4">
+                                This week doesn't have any schedules assigned
+                                yet.
+                              </p>
+                              <p className="text-sm text-slate-400">
+                                Use the navigation below to check other weeks or
+                                create a new schedule.
+                              </p>
+                            </div>
+
+                            {/* Show empty calendar grid for reference */}
+                            <div className="max-w-4xl mx-auto">
+                              <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-lg overflow-hidden">
+                                {weekDays.map((day, dayIndex) => (
+                                  <div
+                                    key={dayIndex}
+                                    className={`min-h-[80px] bg-white p-2 flex flex-col items-center justify-center ${
+                                      day.isToday ? "bg-blue-50/50" : ""
+                                    }`}
+                                  >
+                                    <div className="text-xs font-semibold text-slate-600">
+                                      {day.dayName}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      {day.month} {day.dayNumber}
+                                    </div>
+                                    <div className="mt-2 text-xs text-slate-400">
+                                      No schedules
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Normal shuttle timeline display */
+                          shuttles.map((shuttle) => {
                             const shuttleDaySchedules =
                               weeklyScheduleData[shuttle.id] || {};
 
@@ -1151,14 +1391,14 @@ function SchedulesPage() {
                                                   onClick={() =>
                                                     handleEdit(schedule)
                                                   }
-                                                  title={`${schedule.driver.name} - ${schedule.startTime} to ${schedule.endTime}`}
+                                                  title={`${schedule.driver.name} - ${schedule.displayStartTime} to ${schedule.displayEndTime}`}
                                                 >
                                                   <div className="font-semibold truncate">
                                                     {schedule.driver.name}
                                                   </div>
                                                   <div className="text-[10px] opacity-75">
-                                                    {schedule.startTime} -{" "}
-                                                    {schedule.endTime}
+                                                    {schedule.displayStartTime}{" "}
+                                                    - {schedule.displayEndTime}
                                                   </div>
                                                 </div>
                                               )
@@ -1175,68 +1415,62 @@ function SchedulesPage() {
                                 </div>
                               </div>
                             );
-                          })}
-                        </div>
+                          })
+                        )}
+                      </div>
 
-                        {/* Week navigation */}
-                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
-                          <div className="text-sm text-slate-600">
-                            Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
-                            {weekDays[6]?.date.toLocaleDateString()}
-                            {currentWeekOffset === 0 && " (Current Week)"}
-                            {currentWeekOffset < 0 &&
-                              ` (${Math.abs(currentWeekOffset)} week${
-                                Math.abs(currentWeekOffset) > 1 ? "s" : ""
-                              } ago)`}
-                            {currentWeekOffset > 0 &&
-                              ` (${currentWeekOffset} week${
-                                currentWeekOffset > 1 ? "s" : ""
-                              } from now)`}
-                          </div>
-                          <div className="flex space-x-2">
+                      {/* Week navigation */}
+                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+                        <div className="text-sm text-slate-600">
+                          Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
+                          {weekDays[6]?.date.toLocaleDateString()}
+                          {currentWeekOffset === 0 && " (Current Week)"}
+                          {currentWeekOffset < 0 &&
+                            ` (${Math.abs(currentWeekOffset)} week${
+                              Math.abs(currentWeekOffset) > 1 ? "s" : ""
+                            } ago)`}
+                          {currentWeekOffset > 0 &&
+                            ` (${currentWeekOffset} week${
+                              currentWeekOffset > 1 ? "s" : ""
+                            } from now)`}
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToPreviousWeek}
+                            disabled={loading}
+                          >
+                            ← Previous Week
+                          </Button>
+                          {currentWeekOffset !== 0 && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={goToPreviousWeek}
+                              onClick={goToCurrentWeek}
                               disabled={loading}
                             >
-                              ← Previous Week
+                              Current Week
                             </Button>
-                            {currentWeekOffset !== 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToCurrentWeek}
-                                disabled={loading}
-                              >
-                                Current Week
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={goToNextWeek}
-                              disabled={loading}
-                            >
-                              Next Week →
-                            </Button>
-                          </div>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToNextWeek}
+                            disabled={loading}
+                          >
+                            Next Week →
+                          </Button>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
             </TabsContent>
 
             <TabsContent value="table" className="mt-6">
-              {!schedules || schedules.length === 0 ? (
-                <EmptyState
-                  icon={Calendar}
-                  title="No schedules available"
-                  description="Create your first schedule to assign drivers to shuttles."
-                />
-              ) : (
+              <div className="space-y-4">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1250,106 +1484,175 @@ function SchedulesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {schedules
-                      .sort(
-                        (a, b) =>
-                          new Date(a.scheduleDate).getTime() -
-                          new Date(b.scheduleDate).getTime()
-                      )
-                      .map((schedule) => {
-                        const startTime = new Date(schedule.startTime);
-                        const endTime = new Date(schedule.endTime);
-                        const duration =
-                          Math.round(
-                            ((endTime.getTime() - startTime.getTime()) /
-                              (1000 * 60 * 60)) *
-                              10
-                          ) / 10;
+                    {schedules && schedules.length > 0 ? (
+                      schedules
+                        .sort(
+                          (a, b) =>
+                            new Date(a.scheduleDate).getTime() -
+                            new Date(b.scheduleDate).getTime()
+                        )
+                        .map((schedule) => {
+                          const startTime = new Date(schedule.startTime);
+                          const endTime = new Date(schedule.endTime);
+                          const duration =
+                            Math.round(
+                              ((endTime.getTime() - startTime.getTime()) /
+                                (1000 * 60 * 60)) *
+                                10
+                            ) / 10;
 
-                        return (
-                          <TableRow key={schedule.id}>
-                            <TableCell className="font-medium">
-                              <div className="font-semibold">
-                                {formatDateForDisplay(schedule.scheduleDate)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              <div>
+                          return (
+                            <TableRow key={schedule.id}>
+                              <TableCell className="font-medium">
                                 <div className="font-semibold">
-                                  {schedule.driver.name}
+                                  {formatDateForDisplay(schedule.scheduleDate)}
                                 </div>
-                                <div className="text-sm text-slate-500">
-                                  {schedule.driver.email}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`w-3 h-3 rounded border-2 ${getShuttleColor(
-                                    schedule.shuttle.id
-                                  )}`}
-                                ></div>
+                              </TableCell>
+                              <TableCell className="font-medium">
                                 <div>
                                   <div className="font-semibold">
-                                    {schedule.shuttle.vehicleNumber}
+                                    {schedule.driver.name}
                                   </div>
                                   <div className="text-sm text-slate-500">
-                                    {schedule.shuttle.seats} seats
+                                    {schedule.driver.email}
                                   </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center space-x-2">
-                                <Clock className="w-4 h-4 text-green-600" />
-                                <span>
-                                  {formatTimeForDisplay(schedule.startTime)}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center space-x-2">
-                                <Clock className="w-4 h-4 text-red-600" />
-                                <span>
-                                  {formatTimeForDisplay(schedule.endTime)}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{duration}h</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end space-x-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEdit(schedule)}
-                                  disabled={deleting === schedule.id}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDelete(schedule.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                  disabled={deleting === schedule.id}
-                                >
-                                  {deleting === schedule.id ? (
-                                    <Loader className="w-4 h-4" />
-                                  ) : (
-                                    <Trash2 className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-3 h-3 rounded border-2 ${getShuttleColor(
+                                      schedule.shuttle.id
+                                    )}`}
+                                  ></div>
+                                  <div>
+                                    <div className="font-semibold">
+                                      {schedule.shuttle.vehicleNumber}
+                                    </div>
+                                    <div className="text-sm text-slate-500">
+                                      {schedule.shuttle.seats} seats
+                                    </div>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-2">
+                                  <Clock className="w-4 h-4 text-green-600" />
+                                  <span>
+                                    {formatTimeForDisplay(schedule.startTime)}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-2">
+                                  <Clock className="w-4 h-4 text-red-600" />
+                                  <span>
+                                    {formatTimeForDisplay(schedule.endTime)}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{duration}h</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end space-x-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEdit(schedule)}
+                                    disabled={deleting === schedule.id}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDelete(schedule.id)}
+                                    className="text-red-600 hover:text-red-700"
+                                    disabled={deleting === schedule.id}
+                                  >
+                                    {deleting === schedule.id ? (
+                                      <Loader className="w-4 h-4" />
+                                    ) : (
+                                      <Trash2 className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <div className="flex flex-col items-center">
+                            <CalendarIcon className="w-12 h-12 text-slate-300 mb-4" />
+                            <h3 className="text-lg font-semibold text-slate-700 mb-2">
+                              No schedules for this week
+                            </h3>
+                            <p className="text-slate-500 mb-2">
+                              This week doesn't have any schedules assigned yet.
+                            </p>
+                            <p className="text-sm text-slate-400">
+                              Use the navigation above to check other weeks or
+                              create a new schedule.
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
-              )}
+
+                {/* Bottom navigation for table view */}
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-4">
+                  <div className="text-sm text-slate-600">
+                    <div className="font-semibold">
+                      Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
+                      {weekDays[6]?.date.toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {currentWeekOffset === 0 && "Current Week"}
+                      {currentWeekOffset < 0 &&
+                        `${Math.abs(currentWeekOffset)} week${
+                          Math.abs(currentWeekOffset) > 1 ? "s" : ""
+                        } ago`}
+                      {currentWeekOffset > 0 &&
+                        `${currentWeekOffset} week${
+                          currentWeekOffset > 1 ? "s" : ""
+                        } from now`}
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToPreviousWeek}
+                      disabled={loading}
+                    >
+                      ← Previous Week
+                    </Button>
+                    {currentWeekOffset !== 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToCurrentWeek}
+                        disabled={loading}
+                      >
+                        Current Week
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextWeek}
+                      disabled={loading}
+                    >
+                      Next Week →
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>
