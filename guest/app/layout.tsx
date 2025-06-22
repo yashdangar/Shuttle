@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { GuestTopbar } from "@/components/guest-topbar";
 import { ConditionalTopbar } from "@/components/conditional-topbar";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: 'shuttle guest App',
@@ -14,10 +15,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <ConditionalTopbar />
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <ConditionalTopbar />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

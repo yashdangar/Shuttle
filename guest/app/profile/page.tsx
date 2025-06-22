@@ -17,7 +17,6 @@ import {
   Star,
   MapPin,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -55,7 +54,6 @@ export default function ProfilePage() {
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { theme, setTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
@@ -89,12 +87,6 @@ export default function ProfilePage() {
     localStorage.removeItem("guestToken");
     toast.success("Logged out successfully");
     router.push("/login");
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    toast.success(`Switched to ${newTheme} mode`);
   };
 
   if (loading) {

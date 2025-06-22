@@ -75,7 +75,6 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-
 /* Smooth transitions */
 * {
   transition: all 0.2s ease-in-out;
@@ -98,3 +97,4 @@ button:hover {
 button:active {
   @apply transform scale-95;
 }
+

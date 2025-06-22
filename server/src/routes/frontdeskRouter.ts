@@ -118,13 +118,13 @@ router.post(
 router.post(
   "/bookings/:bookingId/verify",
   frontdeskAuthMiddleware as RequestHandler,
-  controller.verifyGuestBooking as RequestHandler
+  frontdeskController.verifyGuestBooking as RequestHandler
 );
 
 router.post(
   "/bookings/:bookingId/reject",
   frontdeskAuthMiddleware as RequestHandler,
-  controller.rejectGuestBooking as RequestHandler
+  frontdeskController.rejectGuestBooking as RequestHandler
 );
 
 // Assignment routes
