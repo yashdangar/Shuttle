@@ -599,12 +599,17 @@ const deleteLocation = async (req: Request, res: Response) => {
 
 const addSchedule = async (req: Request, res: Response) => {
   try {
-    const { driverId, shuttleId, startTime, endTime } = req.body;
+    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+
+    // Parse scheduleDate and set to start of day to ensure consistent date-only storage
+    const dateOnly = new Date(scheduleDate);
+    dateOnly.setHours(0, 0, 0, 0);
 
     const schedule = await prisma.schedule.create({
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
+        scheduleDate: dateOnly,
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       },
@@ -623,13 +628,18 @@ const addSchedule = async (req: Request, res: Response) => {
 const editSchedule = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { driverId, shuttleId, startTime, endTime } = req.body;
+    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+
+    // Parse scheduleDate and set to start of day to ensure consistent date-only storage
+    const dateOnly = new Date(scheduleDate);
+    dateOnly.setHours(0, 0, 0, 0);
 
     const schedule = await prisma.schedule.update({
       where: { id: parseInt(id) },
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
+        scheduleDate: dateOnly,
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       },
@@ -682,6 +692,154 @@ const getSchedule = async (req: Request, res: Response) => {
   }
 };
 
+const addWeeklySchedule = async (req: Request, res: Response) => {
+  try {
+    const { driverId, shuttleId, startDate, weekSchedule } = req.body;
+
+    if (!driverId || !shuttleId || !startDate || !weekSchedule) {
+      return res.status(400).json({
+        message:
+          "Driver ID, shuttle ID, start date, and week schedule are required",
+      });
+    }
+
+    const schedules = [];
+    const weekStart = new Date(startDate);
+
+    // Array of day keys in order (Monday = 0, Sunday = 6)
+    const dayKeys = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+
+    for (let i = 0; i < 7; i++) {
+      const dayKey = dayKeys[i];
+      const dayData = weekSchedule[dayKey];
+
+      if (dayData && dayData.enabled) {
+        const scheduleDate = new Date(weekStart);
+        scheduleDate.setDate(scheduleDate.getDate() + i);
+        scheduleDate.setHours(0, 0, 0, 0); // Set to start of day
+
+        // Create start and end times for this day
+        const [startHour, startMinute] = dayData.startTime.split(":");
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(
+          parseInt(startHour),
+          parseInt(startMinute),
+          0,
+          0
+        );
+
+        const [endHour, endMinute] = dayData.endTime.split(":");
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(parseInt(endHour), parseInt(endMinute), 0, 0);
+
+        const schedule = await prisma.schedule.create({
+          data: {
+            driverId: parseInt(driverId),
+            shuttleId: parseInt(shuttleId),
+            scheduleDate: scheduleDate,
+            startTime: startDateTime,
+            endTime: endDateTime,
+          },
+          include: {
+            driver: true,
+            shuttle: true,
+          },
+        });
+
+        schedules.push(schedule);
+      }
+    }
+
+    res.json({
+      schedules,
+      message: `Created ${schedules.length} schedules for the week`,
+    });
+  } catch (error) {
+    console.error("Add weekly schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getScheduleByWeek = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { weekOffset = 0 } = req.query; // 0 = current week, -1 = prev week, 1 = next week
+
+    // Calculate the week start (Monday)
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+    const day = currentWeekStart.getDay();
+    const diff = currentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
+    currentWeekStart.setDate(diff);
+    currentWeekStart.setHours(0, 0, 0, 0);
+
+    // Apply week offset
+    const targetWeekStart = new Date(currentWeekStart);
+    targetWeekStart.setDate(
+      targetWeekStart.getDate() + parseInt(weekOffset as string) * 7
+    );
+
+    const targetWeekEnd = new Date(targetWeekStart);
+    targetWeekEnd.setDate(targetWeekEnd.getDate() + 6);
+    targetWeekEnd.setHours(23, 59, 59, 999);
+
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              {
+                driver: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+              {
+                shuttle: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+            ],
+          },
+          {
+            scheduleDate: {
+              gte: targetWeekStart,
+              lte: targetWeekEnd,
+            },
+          },
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+      orderBy: {
+        scheduleDate: "asc",
+      },
+    });
+
+    res.json({
+      schedules,
+      weekInfo: {
+        weekStart: targetWeekStart.toISOString(),
+        weekEnd: targetWeekEnd.toISOString(),
+        weekOffset: parseInt(weekOffset as string),
+        isCurrentWeek: parseInt(weekOffset as string) === 0,
+      },
+    });
+  } catch (error) {
+    console.error("Get schedule by week error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -707,6 +865,8 @@ export default {
   editSchedule,
   deleteSchedule,
   getSchedule,
+  addWeeklySchedule,
+  getScheduleByWeek,
   addLocation,
   editLocation,
   deleteLocation,

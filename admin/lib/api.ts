@@ -12,17 +12,24 @@ export const api = {
             ...options,
             headers,
         });
-
+        const data = await response.json();
+        // console.log(data);
+        if(data.message === "Invalid token") {
+            localStorage.removeItem("adminToken");
+            window.location.href = "/login";
+        }
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'API request failed');
         }
-
-        return response.json();
+        return data;
     },
 
     async get(endpoint: string) {
-        return this.fetch(endpoint);
+        const res = await this.fetch(endpoint);
+        console.log(res);
+        console.log(res.data);
+        return res;
     },
 
     async post(endpoint: string, data: any) {

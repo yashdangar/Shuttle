@@ -4,7 +4,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { PaymentMethod, BookingType } from "@prisma/client";
-import { generateEncryptionKey, generateQRCode, verifyQRCode } from "../utils/qrCodeUtils";
+import {
+  generateEncryptionKey,
+  generateQRCode,
+  verifyQRCode,
+} from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
@@ -319,7 +323,7 @@ const createBooking = async (req: Request, res: Response) => {
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
-    
+
     console.log(`Creating booking for hotelId: ${hotelId}`);
     console.log(`Request body:`, req.body);
 
@@ -328,7 +332,7 @@ const createBooking = async (req: Request, res: Response) => {
     if (isNonResident) {
       // First check if a guest with this email already exists (regardless of isNonResident status)
       const existingGuest = await prisma.guest.findFirst({
-        where: { 
+        where: {
           email,
           hotelId,
         },
@@ -337,7 +341,9 @@ const createBooking = async (req: Request, res: Response) => {
       if (existingGuest) {
         // Use existing guest
         guestId = existingGuest.id;
-        console.log(`Using existing guest for non-resident booking: ${existingGuest.email}`);
+        console.log(
+          `Using existing guest for non-resident booking: ${existingGuest.email}`
+        );
       } else {
         // Create a new guest for non-resident
         const guest = await prisma.guest.create({
@@ -351,14 +357,18 @@ const createBooking = async (req: Request, res: Response) => {
           },
         });
         guestId = guest.id;
-        console.log(`Created new guest for non-resident booking: ${guest.email}`);
+        console.log(
+          `Created new guest for non-resident booking: ${guest.email}`
+        );
       }
     } else {
       // Find existing guest by email
-      console.log(`Looking for guest with email: ${email} and hotelId: ${hotelId}`);
-      
+      console.log(
+        `Looking for guest with email: ${email} and hotelId: ${hotelId}`
+      );
+
       const guest = await prisma.guest.findFirst({
-        where: { 
+        where: {
           email,
           hotelId,
           // Don't filter by isNonResident - just find any guest with this email at this hotel
@@ -371,10 +381,17 @@ const createBooking = async (req: Request, res: Response) => {
         // Let's also check what guests exist with this email
         const allGuestsWithEmail = await prisma.guest.findMany({
           where: { email },
-          select: { id: true, email: true, hotelId: true, isNonResident: true, firstName: true, lastName: true }
+          select: {
+            id: true,
+            email: true,
+            hotelId: true,
+            isNonResident: true,
+            firstName: true,
+            lastName: true,
+          },
         });
         console.log(`All guests with email ${email}:`, allGuestsWithEmail);
-        
+
         return res.status(404).json({ message: "Hotel resident not found" });
       }
       guestId = guest.id;
@@ -390,7 +407,10 @@ const createBooking = async (req: Request, res: Response) => {
         numberOfBags: parseInt(numberOfBags),
         preferredTime: new Date(preferredTime),
         paymentMethod: paymentMethod as PaymentMethod,
-        bookingType: tripType === "hotel-to-airport" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL",
+        bookingType:
+          tripType === "hotel-to-airport"
+            ? "HOTEL_TO_AIRPORT"
+            : "AIRPORT_TO_HOTEL",
         pickupLocationId: pickupLocation ? parseInt(pickupLocation) : null,
         dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
         guestId,
@@ -401,11 +421,21 @@ const createBooking = async (req: Request, res: Response) => {
     });
 
     // Find an available shuttle for this hotel and assign the booking
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const availableShuttle = await prisma.shuttle.findFirst({
       where: {
         hotelId: hotelId,
         schedules: {
           some: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
             startTime: { lte: new Date() },
             endTime: { gte: new Date() },
           },
@@ -414,6 +444,10 @@ const createBooking = async (req: Request, res: Response) => {
       include: {
         schedules: {
           where: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
             startTime: { lte: new Date() },
             endTime: { gte: new Date() },
           },
@@ -430,17 +464,21 @@ const createBooking = async (req: Request, res: Response) => {
         where: { id: booking.id },
         data: { shuttleId: availableShuttle.id },
       });
-      
-      console.log(`Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`);
+
+      console.log(
+        `Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`
+      );
     } else {
-      console.log(`No available shuttle found for hotel ${hotelId}, booking ${booking.id} remains unassigned`);
+      console.log(
+        `No available shuttle found for hotel ${hotelId}, booking ${booking.id} remains unassigned`
+      );
     }
 
     // Generate QR code
     const qrCodeData = await generateQRCode({
       bookingId: booking.id,
       guestId: booking.guestId,
-      preferredTime: booking.preferredTime?.toISOString() || '',
+      preferredTime: booking.preferredTime?.toISOString() || "",
       encryptionKey: booking.encryptionKey!,
     });
 
@@ -515,7 +553,9 @@ const verifyBookingQR = async (req: Request, res: Response) => {
 
     // Verify booking belongs to the hotel
     if (verificationToken.booking.guest.hotelId !== hotelId) {
-      return res.status(403).json({ message: "Not authorized to verify this booking" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to verify this booking" });
     }
 
     // Check if booking is valid
@@ -531,10 +571,10 @@ const verifyBookingQR = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Booking is already verified" });
     }
 
-    res.json({ 
+    res.json({
       booking: verificationToken.booking,
       isValid: true,
-      message: "QR code verified successfully" 
+      message: "QR code verified successfully",
     });
   } catch (error) {
     console.error("Verify QR code error:", error);
@@ -551,7 +591,7 @@ const getSignedUrl = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Path is required" });
     }
 
-    const bookingId = path.split('/')[1];
+    const bookingId = path.split("/")[1];
     if (!bookingId) {
       return res.status(400).json({ message: "Invalid path format" });
     }
@@ -679,7 +719,7 @@ const getBookings = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        preferredTime: 'desc',
+        preferredTime: "desc",
       },
     });
 
@@ -706,9 +746,11 @@ const cancelBooking = async (req: Request, res: Response) => {
     }
 
     if (booking.guest.hotelId !== (req as any).user.hotelId) {
-      return res.status(403).json({ error: "Forbidden: Booking does not belong to this hotel." });
+      return res
+        .status(403)
+        .json({ error: "Forbidden: Booking does not belong to this hotel." });
     }
-    
+
     if (booking.isCancelled) {
       return res.status(400).json({ error: "Booking is already cancelled" });
     }
@@ -717,8 +759,8 @@ const cancelBooking = async (req: Request, res: Response) => {
       where: { id: bookingId },
       data: {
         isCancelled: true,
-        cancelledBy: 'FRONTDESK',
-        cancellationReason: reason || 'Cancelled by Frontdesk',
+        cancelledBy: "FRONTDESK",
+        cancellationReason: reason || "Cancelled by Frontdesk",
       },
     });
 
@@ -727,7 +769,9 @@ const cancelBooking = async (req: Request, res: Response) => {
       data: {
         guestId: booking.guestId,
         title: "Booking Cancelled by Frontdesk",
-        message: `Your booking has been cancelled by the frontdesk. Reason: ${reason || 'No reason provided.'}`,
+        message: `Your booking has been cancelled by the frontdesk. Reason: ${
+          reason || "No reason provided."
+        }`,
       },
     });
 
@@ -763,11 +807,15 @@ const rescheduleBooking = async (req: Request, res: Response) => {
 
     // Check if booking can be rescheduled (not completed, not cancelled)
     if (booking.isCompleted) {
-      return res.status(400).json({ error: "Cannot reschedule a completed booking" });
+      return res
+        .status(400)
+        .json({ error: "Cannot reschedule a completed booking" });
     }
 
     if (booking.isCancelled) {
-      return res.status(400).json({ error: "Cannot reschedule a cancelled booking" });
+      return res
+        .status(400)
+        .json({ error: "Cannot reschedule a cancelled booking" });
     }
 
     // Validate the new preferred time
@@ -784,25 +832,25 @@ const rescheduleBooking = async (req: Request, res: Response) => {
     const now = new Date();
     const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute
     if (newPreferredTime <= oneMinuteFromNow) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Preferred time must be at least 1 minute in the future",
         newTime: newPreferredTime.toISOString(),
-        currentTime: now.toISOString()
+        currentTime: now.toISOString(),
       });
     }
 
     // Update the booking with new preferred time
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         preferredTime: newPreferredTime,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
     });
 
-    res.json({ 
+    res.json({
       message: "Booking rescheduled successfully",
-      booking: updatedBooking 
+      booking: updatedBooking,
     });
   } catch (error) {
     console.error("Error rescheduling booking:", error);
@@ -828,21 +876,33 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
         guest: true,
       },
       orderBy: {
-        preferredTime: 'asc',
+        preferredTime: "asc",
       },
     });
 
-    console.log(`Found ${unassignedBookings.length} unassigned bookings for hotel ${hotelId}`);
+    console.log(
+      `Found ${unassignedBookings.length} unassigned bookings for hotel ${hotelId}`
+    );
 
     const assignmentResults = [];
 
     for (const booking of unassignedBookings) {
       // Find an available shuttle for this hotel
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const availableShuttle = await prisma.shuttle.findFirst({
         where: {
           hotelId: hotelId,
           schedules: {
             some: {
+              scheduleDate: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
               startTime: { lte: new Date() },
               endTime: { gte: new Date() },
             },
@@ -851,6 +911,10 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
         include: {
           schedules: {
             where: {
+              scheduleDate: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
               startTime: { lte: new Date() },
               endTime: { gte: new Date() },
             },
@@ -867,26 +931,29 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
           where: { id: booking.id },
           data: { shuttleId: availableShuttle.id },
         });
-        
+
         const result = {
           bookingId: booking.id,
           guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
           assignedTo: {
             shuttleId: availableShuttle.id,
             vehicleNumber: availableShuttle.vehicleNumber,
-            driverName: availableShuttle.schedules[0]?.driver?.name || 'Unknown',
+            driverName:
+              availableShuttle.schedules[0]?.driver?.name || "Unknown",
           },
-          status: 'assigned',
+          status: "assigned",
         };
-        
+
         assignmentResults.push(result);
-        console.log(`Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber}`);
+        console.log(
+          `Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber}`
+        );
       } else {
         assignmentResults.push({
           bookingId: booking.id,
           guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
           assignedTo: null,
-          status: 'no_available_shuttle',
+          status: "no_available_shuttle",
         });
         console.log(`No available shuttle for booking ${booking.id}`);
       }
@@ -925,15 +992,15 @@ const debugGuests = async (req: Request, res: Response) => {
         createdAt: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
 
-    res.json({ 
+    res.json({
       hotelId,
       searchEmail: email,
       totalGuests: guests.length,
-      guests 
+      guests,
     });
   } catch (error) {
     console.error("Debug guests error:", error);
@@ -966,15 +1033,15 @@ const publicDebugGuests = async (req: Request, res: Response) => {
         createdAt: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
 
-    res.json({ 
+    res.json({
       searchEmail: email,
       searchHotelId: hotelId,
       totalGuests: guests.length,
-      guests 
+      guests,
     });
   } catch (error) {
     console.error("Public debug guests error:", error);

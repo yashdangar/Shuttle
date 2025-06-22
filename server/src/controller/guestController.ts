@@ -4,7 +4,7 @@ import axios from "axios";
 import { PaymentMethod, BookingType } from "@prisma/client";
 import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
-import { googleMapsService, type Location } from '../utils/googleMapsUtils';
+import { googleMapsService, type Location } from "../utils/googleMapsUtils";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -110,9 +110,14 @@ const createTrip = async (req: Request, res: Response) => {
         numberOfBags,
         preferredTime: new Date(preferredTime),
         paymentMethod: paymentMethod as PaymentMethod,
-        bookingType: tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL",
+        bookingType:
+          tripType === "HOTEL_TO_AIRPORT"
+            ? "HOTEL_TO_AIRPORT"
+            : "AIRPORT_TO_HOTEL",
         pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
-        dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
+        dropoffLocationId: dropoffLocationId
+          ? parseInt(dropoffLocationId)
+          : null,
         guestId: userId,
         encryptionKey,
         createdAt: new Date(),
@@ -128,11 +133,21 @@ const createTrip = async (req: Request, res: Response) => {
 
     if (guest?.hotelId) {
       // Find an available shuttle for this hotel and assign the booking
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const availableShuttle = await prisma.shuttle.findFirst({
         where: {
           hotelId: guest.hotelId,
           schedules: {
             some: {
+              scheduleDate: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
               startTime: { lte: new Date() },
               endTime: { gte: new Date() },
             },
@@ -141,6 +156,10 @@ const createTrip = async (req: Request, res: Response) => {
         include: {
           schedules: {
             where: {
+              scheduleDate: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
               startTime: { lte: new Date() },
               endTime: { gte: new Date() },
             },
@@ -157,10 +176,14 @@ const createTrip = async (req: Request, res: Response) => {
           where: { id: trip.id },
           data: { shuttleId: availableShuttle.id },
         });
-        
-        console.log(`Booking ${trip.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`);
+
+        console.log(
+          `Booking ${trip.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`
+        );
       } else {
-        console.log(`No available shuttle found for hotel ${guest.hotelId}, booking ${trip.id} remains unassigned`);
+        console.log(
+          `No available shuttle found for hotel ${guest.hotelId}, booking ${trip.id} remains unassigned`
+        );
       }
     }
 
@@ -168,7 +191,7 @@ const createTrip = async (req: Request, res: Response) => {
     const qrCodeData = await generateQRCode({
       bookingId: trip.id,
       guestId: trip.guestId,
-      preferredTime: trip.preferredTime?.toISOString() || '',
+      preferredTime: trip.preferredTime?.toISOString() || "",
       encryptionKey: trip.encryptionKey!,
     });
 
@@ -211,7 +234,7 @@ const getTrips = async (req: Request, res: Response) => {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
 
@@ -220,22 +243,27 @@ const getTrips = async (req: Request, res: Response) => {
       trips.map(async (trip) => {
         let eta = trip.eta;
         let distance = "Unknown";
-        
+
         // If we have driver location and destination, calculate ETA
-        const driverLocation = trip.shuttle?.schedules[0]?.driver?.currentLocation;
+        const driverLocation =
+          trip.shuttle?.schedules[0]?.driver?.currentLocation;
         if (driverLocation) {
           let destination: Location | null = null;
-          
-          if (trip.bookingType === 'HOTEL_TO_AIRPORT') {
-            destination = trip.dropoffLocation ? {
-              latitude: trip.dropoffLocation.latitude,
-              longitude: trip.dropoffLocation.longitude,
-            } : null;
+
+          if (trip.bookingType === "HOTEL_TO_AIRPORT") {
+            destination = trip.dropoffLocation
+              ? {
+                  latitude: trip.dropoffLocation.latitude,
+                  longitude: trip.dropoffLocation.longitude,
+                }
+              : null;
           } else {
-            destination = trip.pickupLocation ? {
-              latitude: trip.pickupLocation.latitude,
-              longitude: trip.pickupLocation.longitude,
-            } : null;
+            destination = trip.pickupLocation
+              ? {
+                  latitude: trip.pickupLocation.latitude,
+                  longitude: trip.pickupLocation.longitude,
+                }
+              : null;
           }
 
           if (destination) {
@@ -245,10 +273,13 @@ const getTrips = async (req: Request, res: Response) => {
             };
 
             try {
-              const etaResult = await googleMapsService.calculateETA(origin, destination);
+              const etaResult = await googleMapsService.calculateETA(
+                origin,
+                destination
+              );
               eta = etaResult.duration;
               distance = etaResult.distance;
-              
+
               // Update the booking with new ETA if it's different
               if (eta !== trip.eta) {
                 await prisma.booking.update({
@@ -269,7 +300,8 @@ const getTrips = async (req: Request, res: Response) => {
           ...trip,
           eta,
           distance,
-          driverLocation: trip.shuttle?.schedules[0]?.driver?.currentLocation || null,
+          driverLocation:
+            trip.shuttle?.schedules[0]?.driver?.currentLocation || null,
         };
       })
     );
@@ -325,7 +357,7 @@ const getSignedUrl = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Path is required" });
     }
 
-    const tripId = path.split('/')[1];
+    const tripId = path.split("/")[1];
     if (!tripId) {
       return res.status(400).json({ message: "Invalid path format" });
     }
@@ -358,14 +390,14 @@ const getProfile = async (req: Request, res: Response) => {
       include: {
         hotel: true,
         bookings: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take: 5, // Get last 5 bookings
           include: {
             pickupLocation: true,
             dropoffLocation: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     if (!guest) {
@@ -374,14 +406,14 @@ const getProfile = async (req: Request, res: Response) => {
 
     // Get booking statistics
     const totalBookings = await prisma.booking.count({
-      where: { guestId: userId }
+      where: { guestId: userId },
     });
 
     const completedBookings = await prisma.booking.count({
-      where: { 
+      where: {
         guestId: userId,
-        isCompleted: true
-      }
+        isCompleted: true,
+      },
     });
 
     const uniqueHotels = await prisma.booking.findMany({
@@ -389,14 +421,16 @@ const getProfile = async (req: Request, res: Response) => {
       include: {
         pickupLocation: true,
         dropoffLocation: true,
-      }
+      },
     });
 
     // Count unique hotels visited (this is a simplified approach)
     const hotelNames = new Set();
-    uniqueHotels.forEach(booking => {
-      if (booking.pickupLocation?.name) hotelNames.add(booking.pickupLocation.name);
-      if (booking.dropoffLocation?.name) hotelNames.add(booking.dropoffLocation.name);
+    uniqueHotels.forEach((booking) => {
+      if (booking.pickupLocation?.name)
+        hotelNames.add(booking.pickupLocation.name);
+      if (booking.dropoffLocation?.name)
+        hotelNames.add(booking.dropoffLocation.name);
     });
 
     const profileData = {
@@ -432,7 +466,9 @@ const cancelBooking = async (req: Request, res: Response) => {
     }
 
     if (booking.guestId !== guestId) {
-      return res.status(403).json({ error: "You are not authorized to cancel this booking" });
+      return res
+        .status(403)
+        .json({ error: "You are not authorized to cancel this booking" });
     }
 
     if (booking.isCancelled) {
@@ -443,19 +479,18 @@ const cancelBooking = async (req: Request, res: Response) => {
     // For now, we just mark it as cancelled
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         isCancelled: true,
-        cancelledBy: 'GUEST',
-        cancellationReason: 'Cancelled by guest via the app',
+        cancelledBy: "GUEST",
+        cancellationReason: "Cancelled by guest via the app",
         // Should we refund? Add logic here.
       },
     });
 
-    res.json({ 
-      message: "Booking cancelled successfully", 
-      booking: updatedBooking 
+    res.json({
+      message: "Booking cancelled successfully",
+      booking: updatedBooking,
     });
-
   } catch (error) {
     console.error("Error cancelling booking:", error);
     res.status(500).json({ error: "Failed to cancel booking" });
@@ -484,11 +519,15 @@ const rescheduleBooking = async (req: Request, res: Response) => {
 
     // Check if booking can be rescheduled (not completed, not cancelled)
     if (booking.isCompleted) {
-      return res.status(400).json({ error: "Cannot reschedule a completed booking" });
+      return res
+        .status(400)
+        .json({ error: "Cannot reschedule a completed booking" });
     }
 
     if (booking.isCancelled) {
-      return res.status(400).json({ error: "Cannot reschedule a cancelled booking" });
+      return res
+        .status(400)
+        .json({ error: "Cannot reschedule a cancelled booking" });
     }
 
     // Validate the new preferred time
@@ -505,31 +544,31 @@ const rescheduleBooking = async (req: Request, res: Response) => {
     console.log("Time comparison:", {
       newPreferredTime: newPreferredTime.toISOString(),
       now: now.toISOString(),
-      difference: newPreferredTime.getTime() - now.getTime()
+      difference: newPreferredTime.getTime() - now.getTime(),
     });
 
     // Check if the new time is in the future (allow 1 minute buffer)
     const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute
     if (newPreferredTime <= oneMinuteFromNow) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Preferred time must be at least 1 minute in the future",
         newTime: newPreferredTime.toISOString(),
-        currentTime: now.toISOString()
+        currentTime: now.toISOString(),
       });
     }
 
     // Update the booking with new preferred time
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { 
+      data: {
         preferredTime: newPreferredTime,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
     });
 
-    res.json({ 
+    res.json({
       message: "Booking rescheduled successfully",
-      booking: updatedBooking 
+      booking: updatedBooking,
     });
   } catch (error) {
     console.error("Error rescheduling booking:", error);
@@ -544,7 +583,7 @@ const getBookingETA = async (req: Request, res: Response) => {
 
     // Get booking details
     const booking = await prisma.booking.findUnique({
-      where: { 
+      where: {
         id: bookingId,
         guestId: guestId, // Ensure guest can only access their own bookings
       },
@@ -573,10 +612,11 @@ const getBookingETA = async (req: Request, res: Response) => {
     }
 
     // Get driver's current location
-    const driverLocation = booking.shuttle?.schedules[0]?.driver?.currentLocation;
-    
+    const driverLocation =
+      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+
     if (!driverLocation) {
-      return res.json({ 
+      return res.json({
         eta: "Driver location not available",
         distance: "Unknown",
         driverLocation: null,
@@ -586,22 +626,26 @@ const getBookingETA = async (req: Request, res: Response) => {
 
     // Determine destination based on booking type
     let destination: Location | null = null;
-    
+
     // Always calculate ETA to pickup location (where driver will pick up the guest)
-    if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     } else {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     }
 
     if (!destination) {
-      return res.json({ 
+      return res.json({
         eta: "Destination not available",
         distance: "Unknown",
         driverLocation,
@@ -646,7 +690,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
 
     // Get booking details
     const booking = await prisma.booking.findUnique({
-      where: { 
+      where: {
         id: bookingId,
         guestId: guestId, // Ensure guest can only access their own bookings
       },
@@ -674,35 +718,40 @@ const getBookingTracking = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    const driverLocation = booking.shuttle?.schedules[0]?.driver?.currentLocation;
-    
+    const driverLocation =
+      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+
     if (!driverLocation) {
-      return res.json({ 
+      return res.json({
         tracking: {
           driverLocation: null,
           pickupLocation: booking.pickupLocation,
           dropoffLocation: booking.dropoffLocation,
           eta: booking.eta || "Not available",
           status: "Driver location not available",
-        }
+        },
       });
     }
 
     // Get directions if Google Maps is available
     let directions = null;
     let destination: Location | null = null;
-    
+
     // Always calculate directions to pickup location (where driver will pick up the guest)
-    if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     } else {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     }
 
     if (destination) {
@@ -710,7 +759,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
         latitude: driverLocation.latitude,
         longitude: driverLocation.longitude,
       };
-      
+
       directions = await googleMapsService.getDirections(origin, destination);
     }
 
@@ -723,7 +772,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
         directions,
         status: "Active",
         lastUpdate: driverLocation.timestamp,
-      }
+      },
     });
   } catch (error) {
     console.error("Get booking tracking error:", error);
@@ -740,7 +789,7 @@ const getCurrentBooking = async (req: Request, res: Response) => {
       where: {
         guestId: guestId,
         isCompleted: false, // Only get active bookings
-        isCancelled: false // Exclude cancelled bookings
+        isCancelled: false, // Exclude cancelled bookings
       },
       include: {
         pickupLocation: true,
@@ -760,7 +809,7 @@ const getCurrentBooking = async (req: Request, res: Response) => {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
     });
 
@@ -771,22 +820,27 @@ const getCurrentBooking = async (req: Request, res: Response) => {
     // Add ETA information if driver location is available
     let eta = currentBooking.eta;
     let distance = "Unknown";
-    
-    const driverLocation = currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
+
+    const driverLocation =
+      currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
     if (driverLocation) {
       let destination: Location | null = null;
-      
+
       // Calculate ETA to pickup location (where driver will pick up the guest)
-      if (currentBooking.bookingType === 'HOTEL_TO_AIRPORT') {
-        destination = currentBooking.pickupLocation ? {
-          latitude: currentBooking.pickupLocation.latitude,
-          longitude: currentBooking.pickupLocation.longitude,
-        } : null;
+      if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
+        destination = currentBooking.pickupLocation
+          ? {
+              latitude: currentBooking.pickupLocation.latitude,
+              longitude: currentBooking.pickupLocation.longitude,
+            }
+          : null;
       } else {
-        destination = currentBooking.pickupLocation ? {
-          latitude: currentBooking.pickupLocation.latitude,
-          longitude: currentBooking.pickupLocation.longitude,
-        } : null;
+        destination = currentBooking.pickupLocation
+          ? {
+              latitude: currentBooking.pickupLocation.latitude,
+              longitude: currentBooking.pickupLocation.longitude,
+            }
+          : null;
       }
 
       if (destination) {
@@ -796,10 +850,13 @@ const getCurrentBooking = async (req: Request, res: Response) => {
         };
 
         try {
-          const etaResult = await googleMapsService.calculateETA(origin, destination);
+          const etaResult = await googleMapsService.calculateETA(
+            origin,
+            destination
+          );
           eta = etaResult.duration;
           distance = etaResult.distance;
-          
+
           // Update the booking with new ETA if it's different
           if (eta !== currentBooking.eta) {
             await prisma.booking.update({
@@ -811,7 +868,11 @@ const getCurrentBooking = async (req: Request, res: Response) => {
             });
           }
         } catch (error) {
-          console.error("Error calculating ETA for current booking:", currentBooking.id, error);
+          console.error(
+            "Error calculating ETA for current booking:",
+            currentBooking.id,
+            error
+          );
         }
       }
     }
@@ -830,4 +891,21 @@ const getCurrentBooking = async (req: Request, res: Response) => {
   }
 };
 
-export default { getGuest, getHotels, setHotel, getHotel, getLocations, createTrip, getTrips, getTrip, getTripQRUrl, getSignedUrl, getProfile, cancelBooking, rescheduleBooking, getBookingETA, getBookingTracking, getCurrentBooking };
+export default {
+  getGuest,
+  getHotels,
+  setHotel,
+  getHotel,
+  getLocations,
+  createTrip,
+  getTrips,
+  getTrip,
+  getTripQRUrl,
+  getSignedUrl,
+  getProfile,
+  cancelBooking,
+  rescheduleBooking,
+  getBookingETA,
+  getBookingTracking,
+  getCurrentBooking,
+};

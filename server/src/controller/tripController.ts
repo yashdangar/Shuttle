@@ -9,15 +9,26 @@ const startTrip = async (req: Request, res: Response) => {
     const { direction } = req.body;
 
     if (!direction || !Object.values(TripDirection).includes(direction)) {
-      return res.status(400).json({ 
-        message: "Valid direction (HOTEL_TO_AIRPORT or AIRPORT_TO_HOTEL) is required" 
+      return res.status(400).json({
+        message:
+          "Valid direction (HOTEL_TO_AIRPORT or AIRPORT_TO_HOTEL) is required",
       });
     }
 
     // Check if driver has an active schedule
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const currentSchedule = await prisma.schedule.findFirst({
       where: {
         driverId,
+        scheduleDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
         startTime: { lte: new Date() },
         endTime: { gte: new Date() },
       },
@@ -27,8 +38,8 @@ const startTrip = async (req: Request, res: Response) => {
     });
 
     if (!currentSchedule) {
-      return res.status(400).json({ 
-        message: "No active schedule found for driver" 
+      return res.status(400).json({
+        message: "No active schedule found for driver",
       });
     }
 
@@ -41,8 +52,9 @@ const startTrip = async (req: Request, res: Response) => {
     });
 
     if (activeTrip) {
-      return res.status(400).json({ 
-        message: "Driver already has an active trip. Please end the current trip first." 
+      return res.status(400).json({
+        message:
+          "Driver already has an active trip. Please end the current trip first.",
       });
     }
 
@@ -71,13 +83,13 @@ const startTrip = async (req: Request, res: Response) => {
         dropoffLocation: true,
       },
       orderBy: {
-        preferredTime: 'asc',
+        preferredTime: "asc",
       },
     });
 
     if (unassignedBookings.length === 0) {
-      return res.status(400).json({ 
-        message: `No bookings found for ${direction} direction` 
+      return res.status(400).json({
+        message: `No bookings found for ${direction} direction`,
       });
     }
 
@@ -98,7 +110,7 @@ const startTrip = async (req: Request, res: Response) => {
     });
 
     // Assign bookings to this trip
-    const bookingIds = unassignedBookings.map(booking => booking.id);
+    const bookingIds = unassignedBookings.map((booking) => booking.id);
     await prisma.booking.updateMany({
       where: {
         id: { in: bookingIds },
@@ -125,7 +137,7 @@ const startTrip = async (req: Request, res: Response) => {
         dropoffLocation: true,
       },
       orderBy: {
-        preferredTime: 'asc',
+        preferredTime: "asc",
       },
     });
 
@@ -135,33 +147,51 @@ const startTrip = async (req: Request, res: Response) => {
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
       bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || 'Hotel',
-      dropoff: booking.dropoffLocation?.name || 'Airport',
+      pickup: booking.pickupLocation?.name || "Hotel",
+      dropoff: booking.dropoffLocation?.name || "Airport",
       paymentMethod: booking.paymentMethod,
-      status: booking.isVerified ? 'checked-in' : index === 0 ? 'next' : 'pending',
+      status: booking.isVerified
+        ? "checked-in"
+        : index === 0
+        ? "next"
+        : "pending",
       seatNumber: booking.isVerified ? `A${index + 1}` : null,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
       isVerified: booking.isVerified,
       verifiedAt: booking.verifiedAt,
       // Include actual location coordinates
-      pickupLocation: booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-        name: booking.pickupLocation.name
-      } : null,
-      dropoffLocation: booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
-        name: booking.dropoffLocation.name
-      } : null,
+      pickupLocation: booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+            name: booking.pickupLocation.name,
+          }
+        : null,
+      dropoffLocation: booking.dropoffLocation
+        ? {
+            latitude: booking.dropoffLocation.latitude,
+            longitude: booking.dropoffLocation.longitude,
+            name: booking.dropoffLocation.name,
+          }
+        : null,
     }));
 
-    const totalPeople = assignedBookings.reduce((sum, b) => sum + b.numberOfPersons, 0);
-    const checkedInPeople = assignedBookings.filter(b => b.isVerified).reduce((sum, b) => sum + b.numberOfPersons, 0);
+    const totalPeople = assignedBookings.reduce(
+      (sum, b) => sum + b.numberOfPersons,
+      0
+    );
+    const checkedInPeople = assignedBookings
+      .filter((b) => b.isVerified)
+      .reduce((sum, b) => sum + b.numberOfPersons, 0);
     const totalBookings = assignedBookings.length;
-    const checkedInBookings = assignedBookings.filter(b => b.isVerified).length;
-    const totalBags = assignedBookings.reduce((sum, b) => sum + b.numberOfBags, 0);
+    const checkedInBookings = assignedBookings.filter(
+      (b) => b.isVerified
+    ).length;
+    const totalBags = assignedBookings.reduce(
+      (sum, b) => sum + b.numberOfBags,
+      0
+    );
 
     const message = `Trip started successfully with ${totalBookings} bookings for ${totalPeople} passengers`;
 
@@ -177,7 +207,6 @@ const startTrip = async (req: Request, res: Response) => {
       },
       message,
     });
-
   } catch (error) {
     console.error("Start trip error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -212,14 +241,18 @@ const endTrip = async (req: Request, res: Response) => {
     });
 
     if (!trip) {
-      return res.status(404).json({ 
-        message: "Active trip not found" 
+      return res.status(404).json({
+        message: "Active trip not found",
       });
     }
 
     // Separate verified and unverified bookings
-    const verifiedBookings = trip.bookings.filter(booking => booking.isVerified);
-    const unverifiedBookings = trip.bookings.filter(booking => !booking.isVerified);
+    const verifiedBookings = trip.bookings.filter(
+      (booking) => booking.isVerified
+    );
+    const unverifiedBookings = trip.bookings.filter(
+      (booking) => !booking.isVerified
+    );
 
     // Update trip status
     const updatedTrip = await prisma.trip.update({
@@ -238,7 +271,7 @@ const endTrip = async (req: Request, res: Response) => {
     if (verifiedBookings.length > 0) {
       await prisma.booking.updateMany({
         where: {
-          id: { in: verifiedBookings.map(b => b.id) },
+          id: { in: verifiedBookings.map((b) => b.id) },
         },
         data: {
           isCompleted: true,
@@ -250,12 +283,12 @@ const endTrip = async (req: Request, res: Response) => {
     if (unverifiedBookings.length > 0) {
       await prisma.booking.updateMany({
         where: {
-          id: { in: unverifiedBookings.map(b => b.id) },
+          id: { in: unverifiedBookings.map((b) => b.id) },
         },
         data: {
           isCancelled: true,
-          cancelledBy: 'SYSTEM',
-          cancellationReason: 'Driver marked as no-show at end of trip',
+          cancelledBy: "SYSTEM",
+          cancellationReason: "Driver marked as no-show at end of trip",
           tripId: null,
         },
       });
@@ -263,7 +296,7 @@ const endTrip = async (req: Request, res: Response) => {
 
     // Create notifications for cancelled bookings
     if (unverifiedBookings.length > 0) {
-      const notifications = unverifiedBookings.map(booking => ({
+      const notifications = unverifiedBookings.map((booking) => ({
         title: "Booking Cancelled",
         message: `Your shuttle booking has been cancelled as you were not present for pickup.`,
         guestId: booking.guestId,
@@ -275,9 +308,10 @@ const endTrip = async (req: Request, res: Response) => {
       });
     }
 
-    const message = unverifiedBookings.length > 0 
-      ? `Trip completed. ${verifiedBookings.length} passengers served, ${unverifiedBookings.length} bookings cancelled due to no-show.`
-      : `Trip completed successfully. ${verifiedBookings.length} passengers served.`;
+    const message =
+      unverifiedBookings.length > 0
+        ? `Trip completed. ${verifiedBookings.length} passengers served, ${unverifiedBookings.length} bookings cancelled due to no-show.`
+        : `Trip completed successfully. ${verifiedBookings.length} passengers served.`;
 
     res.json({
       trip: updatedTrip,
@@ -288,7 +322,6 @@ const endTrip = async (req: Request, res: Response) => {
         cancelledBookings: unverifiedBookings.length,
       },
     });
-
   } catch (error) {
     console.error("End trip error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -321,16 +354,16 @@ const getCurrentTrip = async (req: Request, res: Response) => {
             dropoffLocation: true,
           },
           orderBy: {
-            preferredTime: 'asc',
+            preferredTime: "asc",
           },
         },
       },
     });
 
     if (!activeTrip) {
-      return res.json({ 
-        currentTrip: null, 
-        message: "No active trip found" 
+      return res.json({
+        currentTrip: null,
+        message: "No active trip found",
       });
     }
 
@@ -340,35 +373,51 @@ const getCurrentTrip = async (req: Request, res: Response) => {
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
       bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || 'Hotel',
-      dropoff: booking.dropoffLocation?.name || 'Airport',
+      pickup: booking.pickupLocation?.name || "Hotel",
+      dropoff: booking.dropoffLocation?.name || "Airport",
       paymentMethod: booking.paymentMethod,
-      status: booking.isVerified ? 'checked-in' : index === 0 ? 'next' : 'pending',
+      status: booking.isVerified
+        ? "checked-in"
+        : index === 0
+        ? "next"
+        : "pending",
       seatNumber: booking.isVerified ? `A${index + 1}` : null,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
       isVerified: booking.isVerified,
       verifiedAt: booking.verifiedAt,
       // Include actual location coordinates
-      pickupLocation: booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-        name: booking.pickupLocation.name
-      } : null,
-      dropoffLocation: booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
-        name: booking.dropoffLocation.name
-      } : null,
+      pickupLocation: booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+            name: booking.pickupLocation.name,
+          }
+        : null,
+      dropoffLocation: booking.dropoffLocation
+        ? {
+            latitude: booking.dropoffLocation.latitude,
+            longitude: booking.dropoffLocation.longitude,
+            name: booking.dropoffLocation.name,
+          }
+        : null,
     }));
 
-    const totalPeople = activeTrip.bookings.reduce((sum, booking) => sum + booking.numberOfPersons, 0);
+    const totalPeople = activeTrip.bookings.reduce(
+      (sum, booking) => sum + booking.numberOfPersons,
+      0
+    );
     const checkedInPeople = activeTrip.bookings
-        .filter(booking => booking.isVerified)
-        .reduce((sum, booking) => sum + booking.numberOfPersons, 0);
+      .filter((booking) => booking.isVerified)
+      .reduce((sum, booking) => sum + booking.numberOfPersons, 0);
     const totalBookings = activeTrip.bookings.length;
-    const checkedInBookings = activeTrip.bookings.filter(b => b.isVerified).length;
-    const totalBags = activeTrip.bookings.reduce((sum, booking) => sum + booking.numberOfBags, 0);
+    const checkedInBookings = activeTrip.bookings.filter(
+      (b) => b.isVerified
+    ).length;
+    const totalBags = activeTrip.bookings.reduce(
+      (sum, booking) => sum + booking.numberOfBags,
+      0
+    );
 
     res.json({
       currentTrip: {
@@ -381,7 +430,6 @@ const getCurrentTrip = async (req: Request, res: Response) => {
         totalBags,
       },
     });
-
   } catch (error) {
     console.error("Get current trip error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -394,8 +442,8 @@ const getTripHistory = async (req: Request, res: Response) => {
     const driverId = (req as any).user.userId;
     const { page = 1, limit = 10 } = req.query;
 
-    console.log('Getting trip history for driver:', driverId);
-    console.log('Query params:', { page, limit });
+    console.log("Getting trip history for driver:", driverId);
+    console.log("Query params:", { page, limit });
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -418,13 +466,13 @@ const getTripHistory = async (req: Request, res: Response) => {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       skip,
       take: Number(limit),
     });
 
-    console.log('Found trips:', trips.length);
+    console.log("Found trips:", trips.length);
 
     const totalTrips = await prisma.trip.count({
       where: {
@@ -433,19 +481,28 @@ const getTripHistory = async (req: Request, res: Response) => {
       },
     });
 
-    console.log('Total completed trips:', totalTrips);
+    console.log("Total completed trips:", totalTrips);
 
-    const tripHistory = trips.map(trip => ({
+    const tripHistory = trips.map((trip) => ({
       ...trip,
       passengerCount: trip.bookings.length,
-      totalPersons: trip.bookings.reduce((sum, booking) => sum + booking.numberOfPersons, 0),
-      totalBags: trip.bookings.reduce((sum, booking) => sum + booking.numberOfBags, 0),
-      duration: trip.startTime && trip.endTime 
-        ? Math.round((trip.endTime.getTime() - trip.startTime.getTime()) / (1000 * 60)) // minutes
-        : null,
+      totalPersons: trip.bookings.reduce(
+        (sum, booking) => sum + booking.numberOfPersons,
+        0
+      ),
+      totalBags: trip.bookings.reduce(
+        (sum, booking) => sum + booking.numberOfBags,
+        0
+      ),
+      duration:
+        trip.startTime && trip.endTime
+          ? Math.round(
+              (trip.endTime.getTime() - trip.startTime.getTime()) / (1000 * 60)
+            ) // minutes
+          : null,
     }));
 
-    console.log('Processed trip history:', tripHistory.length);
+    console.log("Processed trip history:", tripHistory.length);
 
     res.json({
       trips: tripHistory,
@@ -456,7 +513,6 @@ const getTripHistory = async (req: Request, res: Response) => {
         pages: Math.ceil(totalTrips / Number(limit)),
       },
     });
-
   } catch (error) {
     console.error("Get trip history error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -470,9 +526,19 @@ const getAvailableTrips = async (req: Request, res: Response) => {
     const hotelId = (req as any).user.hotelId;
 
     // Check if driver has an active schedule
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const currentSchedule = await prisma.schedule.findFirst({
       where: {
         driverId,
+        scheduleDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
         startTime: { lte: new Date() },
         endTime: { gte: new Date() },
       },
@@ -510,21 +576,28 @@ const getAvailableTrips = async (req: Request, res: Response) => {
         dropoffLocation: true,
       },
       orderBy: {
-        preferredTime: 'asc',
+        preferredTime: "asc",
       },
     });
 
     // Group by booking type
-    const hotelToAirport = unassignedBookings.filter(b => b.bookingType === 'HOTEL_TO_AIRPORT');
-    const airportToHotel = unassignedBookings.filter(b => b.bookingType === 'AIRPORT_TO_HOTEL');
+    const hotelToAirport = unassignedBookings.filter(
+      (b) => b.bookingType === "HOTEL_TO_AIRPORT"
+    );
+    const airportToHotel = unassignedBookings.filter(
+      (b) => b.bookingType === "AIRPORT_TO_HOTEL"
+    );
 
     const availableTrips = [];
 
     if (hotelToAirport.length > 0) {
       availableTrips.push({
-        direction: 'HOTEL_TO_AIRPORT',
+        direction: "HOTEL_TO_AIRPORT",
         bookingCount: hotelToAirport.length,
-        totalPersons: hotelToAirport.reduce((sum, b) => sum + b.numberOfPersons, 0),
+        totalPersons: hotelToAirport.reduce(
+          (sum, b) => sum + b.numberOfPersons,
+          0
+        ),
         totalBags: hotelToAirport.reduce((sum, b) => sum + b.numberOfBags, 0),
         earliestTime: hotelToAirport[0]?.preferredTime,
         latestTime: hotelToAirport[hotelToAirport.length - 1]?.preferredTime,
@@ -533,9 +606,12 @@ const getAvailableTrips = async (req: Request, res: Response) => {
 
     if (airportToHotel.length > 0) {
       availableTrips.push({
-        direction: 'AIRPORT_TO_HOTEL',
+        direction: "AIRPORT_TO_HOTEL",
         bookingCount: airportToHotel.length,
-        totalPersons: airportToHotel.reduce((sum, b) => sum + b.numberOfPersons, 0),
+        totalPersons: airportToHotel.reduce(
+          (sum, b) => sum + b.numberOfPersons,
+          0
+        ),
         totalBags: airportToHotel.reduce((sum, b) => sum + b.numberOfBags, 0),
         earliestTime: airportToHotel[0]?.preferredTime,
         latestTime: airportToHotel[airportToHotel.length - 1]?.preferredTime,
@@ -550,7 +626,6 @@ const getAvailableTrips = async (req: Request, res: Response) => {
         shuttle: currentSchedule.shuttle,
       },
     });
-
   } catch (error) {
     console.error("Get available trips error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -563,4 +638,4 @@ export {
   getCurrentTrip,
   getTripHistory,
   getAvailableTrips,
-}; 
+};

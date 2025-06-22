@@ -136,13 +136,14 @@ model Schedule {
   id        Int      @id @default(autoincrement())
   driverId  Int
   shuttleId Int
+  scheduleDate DateTime @default(now())
   startTime DateTime
   endTime   DateTime
   driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id], onDelete: Cascade)
   shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
   trips     Trip[]
 
-  @@unique([driverId, startTime])
+  @@unique([driverId, scheduleDate, startTime])
 }
 
 model Notification {

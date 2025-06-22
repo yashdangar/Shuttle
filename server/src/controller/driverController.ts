@@ -3,8 +3,12 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import prisma from "../db/prisma";
 import { env } from "../config/env";
-import { verifyQRCode, validateVerificationToken, markTokenAsUsed } from "../utils/qrCodeUtils";
-import { googleMapsService, type Location } from '../utils/googleMapsUtils';
+import {
+  verifyQRCode,
+  validateVerificationToken,
+  markTokenAsUsed,
+} from "../utils/qrCodeUtils";
+import { googleMapsService, type Location } from "../utils/googleMapsUtils";
 
 const login = async (req: Request, res: Response) => {
   try {
@@ -83,13 +87,13 @@ const getCurrentTrip = async (req: Request, res: Response) => {
   try {
     const driverId = (req as any).user.userId;
 
-    console.log('Getting current trip for driver:', driverId);
+    console.log("Getting current trip for driver:", driverId);
 
     // Get current active trip using the new trip system
     const activeTrip = await prisma.trip.findFirst({
       where: {
         driverId,
-        status: 'ACTIVE' as any,
+        status: "ACTIVE" as any,
       },
       include: {
         shuttle: true,
@@ -107,51 +111,61 @@ const getCurrentTrip = async (req: Request, res: Response) => {
             dropoffLocation: true,
           },
           orderBy: {
-            preferredTime: 'asc',
+            preferredTime: "asc",
           },
         },
       },
     });
 
-    console.log('Active trip found:', activeTrip);
+    console.log("Active trip found:", activeTrip);
 
     if (!activeTrip) {
-      console.log('No active trip found');
-      return res.json({ 
-        currentTrip: null, 
-        message: "No active trip found" 
+      console.log("No active trip found");
+      return res.json({
+        currentTrip: null,
+        message: "No active trip found",
       });
     }
 
     // Transform bookings to passenger format
-    const passengers = activeTrip.bookings.map((booking: any, index: number) => ({
-      id: booking.id,
-      name: `${booking.guest.firstName} ${booking.guest.lastName}`,
-      persons: booking.numberOfPersons,
-      bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || 'Hotel',
-      dropoff: booking.dropoffLocation?.name || 'Airport',
-      paymentMethod: booking.paymentMethod,
-      status: booking.isVerified ? 'checked-in' : index === 0 ? 'next' : 'pending',
-      seatNumber: booking.isVerified ? `A${index + 1}` : null,
-      phoneNumber: booking.guest.phoneNumber,
-      preferredTime: booking.preferredTime,
-      isVerified: booking.isVerified,
-      verifiedAt: booking.verifiedAt,
-      // Include actual location coordinates
-      pickupLocation: booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-        name: booking.pickupLocation.name
-      } : null,
-      dropoffLocation: booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
-        name: booking.dropoffLocation.name
-      } : null,
-    }));
+    const passengers = activeTrip.bookings.map(
+      (booking: any, index: number) => ({
+        id: booking.id,
+        name: `${booking.guest.firstName} ${booking.guest.lastName}`,
+        persons: booking.numberOfPersons,
+        bags: booking.numberOfBags,
+        pickup: booking.pickupLocation?.name || "Hotel",
+        dropoff: booking.dropoffLocation?.name || "Airport",
+        paymentMethod: booking.paymentMethod,
+        status: booking.isVerified
+          ? "checked-in"
+          : index === 0
+          ? "next"
+          : "pending",
+        seatNumber: booking.isVerified ? `A${index + 1}` : null,
+        phoneNumber: booking.guest.phoneNumber,
+        preferredTime: booking.preferredTime,
+        isVerified: booking.isVerified,
+        verifiedAt: booking.verifiedAt,
+        // Include actual location coordinates
+        pickupLocation: booking.pickupLocation
+          ? {
+              latitude: booking.pickupLocation.latitude,
+              longitude: booking.pickupLocation.longitude,
+              name: booking.pickupLocation.name,
+            }
+          : null,
+        dropoffLocation: booking.dropoffLocation
+          ? {
+              latitude: booking.dropoffLocation.latitude,
+              longitude: booking.dropoffLocation.longitude,
+              name: booking.dropoffLocation.name,
+            }
+          : null,
+      })
+    );
 
-    console.log('Passengers found:', passengers.length);
+    console.log("Passengers found:", passengers.length);
 
     res.json({
       currentTrip: {
@@ -172,17 +186,20 @@ const checkQRCode = async (req: Request, res: Response) => {
     const { qrData } = req.body;
     const driverId = (req as any).user.userId;
     console.log("QR data:", qrData);
-    
+
     if (!qrData) {
       return res.status(400).json({ message: "QR data is required" });
     }
 
     // Parse and validate QR code data
     const verificationData = verifyQRCode(qrData);
-    
+
     // Validate the verification token (but don't mark as used yet)
-    const validationResult = await validateVerificationToken(verificationData.token, driverId);
-    
+    const validationResult = await validateVerificationToken(
+      verificationData.token,
+      driverId
+    );
+
     // Return passenger information for confirmation
     const booking = validationResult.booking;
     const passenger = {
@@ -190,8 +207,8 @@ const checkQRCode = async (req: Request, res: Response) => {
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
       bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || 'Hotel',
-      dropoff: booking.dropoffLocation?.name || 'Airport',
+      pickup: booking.pickupLocation?.name || "Hotel",
+      dropoff: booking.dropoffLocation?.name || "Airport",
       paymentMethod: booking.paymentMethod,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
@@ -207,9 +224,9 @@ const checkQRCode = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("QR check error:", error);
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
-      message: (error as Error).message || "QR code validation failed" 
+      message: (error as Error).message || "QR code validation failed",
     });
   }
 };
@@ -218,16 +235,21 @@ const confirmCheckIn = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
     const driverId = (req as any).user.userId;
-    
+
     if (!token) {
       return res.status(400).json({ message: "Token is required" });
     }
 
     // Validate the verification token again
     const validationResult = await validateVerificationToken(token, driverId);
-    
+
     // Mark token as used and update booking
-    await markTokenAsUsed(token, driverId, true, "QR code verified and check-in confirmed");
+    await markTokenAsUsed(
+      token,
+      driverId,
+      true,
+      "QR code verified and check-in confirmed"
+    );
 
     // Return updated passenger information
     const booking = validationResult.booking;
@@ -236,8 +258,8 @@ const confirmCheckIn = async (req: Request, res: Response) => {
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
       bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || 'Hotel',
-      dropoff: booking.dropoffLocation?.name || 'Airport',
+      pickup: booking.pickupLocation?.name || "Hotel",
+      dropoff: booking.dropoffLocation?.name || "Airport",
       paymentMethod: booking.paymentMethod,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
@@ -253,9 +275,9 @@ const confirmCheckIn = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Confirm check-in error:", error);
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
-      message: (error as Error).message || "Check-in confirmation failed" 
+      message: (error as Error).message || "Check-in confirmation failed",
     });
   }
 };
@@ -263,10 +285,10 @@ const confirmCheckIn = async (req: Request, res: Response) => {
 const getNotifications = async (req: Request, res: Response) => {
   try {
     const driverId = (req as any).user.userId;
-    
+
     const notifications = await prisma.notification.findMany({
       where: { driverId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 50,
     });
 
@@ -311,7 +333,9 @@ const updateLocation = async (req: Request, res: Response) => {
     const { latitude, longitude, accuracy, speed, heading } = req.body;
 
     if (!latitude || !longitude) {
-      return res.status(400).json({ message: "Latitude and longitude are required" });
+      return res
+        .status(400)
+        .json({ message: "Latitude and longitude are required" });
     }
 
     // Update or create current location
@@ -354,12 +378,15 @@ const updateLocation = async (req: Request, res: Response) => {
     });
 
     // Update ETA for all active bookings for this driver
-    await updateETAForDriverBookings(driverId, { latitude: parseFloat(latitude), longitude: parseFloat(longitude) });
+    await updateETAForDriverBookings(driverId, {
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+    });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Location updated successfully",
-      location: currentLocation 
+      location: currentLocation,
     });
   } catch (error) {
     console.error("Update location error:", error);
@@ -370,7 +397,7 @@ const updateLocation = async (req: Request, res: Response) => {
 const getLocation = async (req: Request, res: Response) => {
   try {
     const { driverId } = req.params;
-    
+
     const location = await prisma.driverLocation.findUnique({
       where: { driverId: parseInt(driverId) },
     });
@@ -389,7 +416,7 @@ const getLocation = async (req: Request, res: Response) => {
 const getCurrentDriverLocation = async (req: Request, res: Response) => {
   try {
     const driverId = (req as any).user.userId;
-    
+
     const location = await prisma.driverLocation.findUnique({
       where: { driverId },
     });
@@ -408,9 +435,9 @@ const getCurrentDriverLocation = async (req: Request, res: Response) => {
 const getHotelLocation = async (req: Request, res: Response) => {
   try {
     const { hotelId } = req.params;
-    
+
     // Validate hotelId parameter
-    if (!hotelId || hotelId === 'undefined' || hotelId === 'null') {
+    if (!hotelId || hotelId === "undefined" || hotelId === "null") {
       return res.status(400).json({ message: "Hotel ID is required" });
     }
 
@@ -418,7 +445,7 @@ const getHotelLocation = async (req: Request, res: Response) => {
     if (isNaN(hotelIdNumber)) {
       return res.status(400).json({ message: "Invalid hotel ID format" });
     }
-    
+
     const hotel = await prisma.hotel.findUnique({
       where: { id: hotelIdNumber },
       select: {
@@ -452,12 +479,14 @@ const getLocationHistory = async (req: Request, res: Response) => {
     const requestingUserRole = (req as any).user.role;
 
     // Check if the requesting user has permission to view this driver's location history
-    if (requestingUserRole === 'driver' && requestingUserId !== driverId) {
+    if (requestingUserRole === "driver" && requestingUserId !== driverId) {
       return res.status(403).json({ message: "Access denied" });
     }
 
     const { hours = 24 } = req.query;
-    const hoursAgo = new Date(Date.now() - parseInt(hours as string) * 60 * 60 * 1000);
+    const hoursAgo = new Date(
+      Date.now() - parseInt(hours as string) * 60 * 60 * 1000
+    );
 
     const locationHistory = await prisma.locationHistory.findMany({
       where: {
@@ -467,7 +496,7 @@ const getLocationHistory = async (req: Request, res: Response) => {
         },
       },
       orderBy: {
-        timestamp: 'desc',
+        timestamp: "desc",
       },
     });
 
@@ -512,22 +541,25 @@ const getBookingETA = async (req: Request, res: Response) => {
     }
 
     // Check if user has permission to view this booking's ETA
-    if (userRole === 'guest' && booking.guestId !== userId) {
+    if (userRole === "guest" && booking.guestId !== userId) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (userRole === 'driver') {
-      const driverSchedule = booking.shuttle?.schedules.find(s => s.driverId === userId);
+    if (userRole === "driver") {
+      const driverSchedule = booking.shuttle?.schedules.find(
+        (s) => s.driverId === userId
+      );
       if (!driverSchedule) {
         return res.status(403).json({ message: "Access denied" });
       }
     }
 
     // Get driver's current location
-    const driverLocation = booking.shuttle?.schedules[0]?.driver?.currentLocation;
-    
+    const driverLocation =
+      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+
     if (!driverLocation) {
-      return res.json({ 
+      return res.json({
         eta: "Driver location not available",
         distance: "Unknown",
         driverLocation: null,
@@ -537,22 +569,26 @@ const getBookingETA = async (req: Request, res: Response) => {
 
     // Determine destination based on booking type
     let destination: Location | null = null;
-    
+
     // Always calculate ETA to pickup location (where driver will pick up the guest)
-    if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     } else {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     }
 
     if (!destination) {
-      return res.json({ 
+      return res.json({
         eta: "Destination not available",
         distance: "Unknown",
         driverLocation,
@@ -624,38 +660,43 @@ const getBookingTracking = async (req: Request, res: Response) => {
     }
 
     // Check if user has permission to view this booking's tracking
-    if (userRole === 'guest' && booking.guestId !== userId) {
+    if (userRole === "guest" && booking.guestId !== userId) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const driverLocation = booking.shuttle?.schedules[0]?.driver?.currentLocation;
-    
+    const driverLocation =
+      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+
     if (!driverLocation) {
-      return res.json({ 
+      return res.json({
         tracking: {
           driverLocation: null,
           pickupLocation: booking.pickupLocation,
           dropoffLocation: booking.dropoffLocation,
           eta: booking.eta || "Not available",
           status: "Driver location not available",
-        }
+        },
       });
     }
 
     // Get directions if Google Maps is available
     let directions = null;
     let destination: Location | null = null;
-    
-    if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      destination = booking.dropoffLocation ? {
-        latitude: booking.dropoffLocation.latitude,
-        longitude: booking.dropoffLocation.longitude,
-      } : null;
+
+    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      destination = booking.dropoffLocation
+        ? {
+            latitude: booking.dropoffLocation.latitude,
+            longitude: booking.dropoffLocation.longitude,
+          }
+        : null;
     } else {
-      destination = booking.pickupLocation ? {
-        latitude: booking.pickupLocation.latitude,
-        longitude: booking.pickupLocation.longitude,
-      } : null;
+      destination = booking.pickupLocation
+        ? {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        : null;
     }
 
     if (destination) {
@@ -663,7 +704,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
         latitude: driverLocation.latitude,
         longitude: driverLocation.longitude,
       };
-      
+
       directions = await googleMapsService.getDirections(origin, destination);
     }
 
@@ -676,7 +717,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
         directions,
         status: "Active",
         lastUpdate: driverLocation.timestamp,
-      }
+      },
     });
   } catch (error) {
     console.error("Get booking tracking error:", error);
@@ -685,7 +726,10 @@ const getBookingTracking = async (req: Request, res: Response) => {
 };
 
 // Helper function to update ETA for all active bookings for a driver
-const updateETAForDriverBookings = async (driverId: number, driverLocation: Location) => {
+const updateETAForDriverBookings = async (
+  driverId: number,
+  driverLocation: Location
+) => {
   try {
     // Get all active bookings for this driver
     const activeBookings = await prisma.booking.findMany({
@@ -710,23 +754,30 @@ const updateETAForDriverBookings = async (driverId: number, driverLocation: Loca
     // Update ETA for each booking
     for (const booking of activeBookings) {
       let destination: Location | null = null;
-      
+
       // Always calculate ETA to pickup location (where driver will pick up the guest)
-      if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-        destination = booking.pickupLocation ? {
-          latitude: booking.pickupLocation.latitude,
-          longitude: booking.pickupLocation.longitude,
-        } : null;
+      if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+        destination = booking.pickupLocation
+          ? {
+              latitude: booking.pickupLocation.latitude,
+              longitude: booking.pickupLocation.longitude,
+            }
+          : null;
       } else {
-        destination = booking.pickupLocation ? {
-          latitude: booking.pickupLocation.latitude,
-          longitude: booking.pickupLocation.longitude,
-        } : null;
+        destination = booking.pickupLocation
+          ? {
+              latitude: booking.pickupLocation.latitude,
+              longitude: booking.pickupLocation.longitude,
+            }
+          : null;
       }
 
       if (destination) {
-        const etaResult = await googleMapsService.calculateETA(driverLocation, destination);
-        
+        const etaResult = await googleMapsService.calculateETA(
+          driverLocation,
+          destination
+        );
+
         await prisma.booking.update({
           where: { id: booking.id },
           data: {
@@ -789,9 +840,19 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     const hotelId = (req as any).user.hotelId;
 
     // Get current schedule for the driver
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const currentSchedule = await prisma.schedule.findFirst({
       where: {
         driverId,
+        scheduleDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
         startTime: { lte: new Date() },
         endTime: { gte: new Date() },
       },
@@ -802,8 +863,8 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     });
 
     if (!currentSchedule) {
-      return res.status(400).json({ 
-        message: "No active schedule found for driver" 
+      return res.status(400).json({
+        message: "No active schedule found for driver",
       });
     }
 
@@ -821,11 +882,13 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
         guest: true,
       },
       orderBy: {
-        preferredTime: 'asc',
+        preferredTime: "asc",
       },
     });
 
-    console.log(`Found ${unassignedBookings.length} unassigned bookings for hotel ${hotelId}`);
+    console.log(
+      `Found ${unassignedBookings.length} unassigned bookings for hotel ${hotelId}`
+    );
 
     const assignmentResults = [];
 
@@ -835,20 +898,22 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
         where: { id: booking.id },
         data: { shuttleId: currentSchedule.shuttleId },
       });
-      
+
       const result = {
         bookingId: booking.id,
         guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
         assignedTo: {
           shuttleId: currentSchedule.shuttleId,
           vehicleNumber: currentSchedule.shuttle.vehicleNumber,
-          driverName: currentSchedule.driver?.name || 'Unknown',
+          driverName: currentSchedule.driver?.name || "Unknown",
         },
-        status: 'assigned',
+        status: "assigned",
       };
-      
+
       assignmentResults.push(result);
-      console.log(`Booking ${booking.id} assigned to shuttle ${currentSchedule.shuttle.vehicleNumber}`);
+      console.log(
+        `Booking ${booking.id} assigned to shuttle ${currentSchedule.shuttle.vehicleNumber}`
+      );
     }
 
     res.json({

@@ -114,6 +114,11 @@ router.post(
   adminAuthMiddleware as RequestHandler,
   controller.addSchedule as RequestHandler
 );
+router.post(
+  "/add/weekly-schedule",
+  adminAuthMiddleware as RequestHandler,
+  controller.addWeeklySchedule as RequestHandler
+);
 router.put(
   "/edit/schedule/:id",
   adminAuthMiddleware as RequestHandler,
@@ -128,6 +133,11 @@ router.get(
   "/get/schedule",
   adminAuthMiddleware as RequestHandler,
   controller.getSchedule as RequestHandler
+);
+router.get(
+  "/get/schedule/week",
+  adminAuthMiddleware as RequestHandler,
+  controller.getScheduleByWeek as RequestHandler
 );
 
 //location routes
