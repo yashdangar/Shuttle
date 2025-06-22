@@ -43,6 +43,9 @@ export default function BookingHistory() {
   const getStatusColor = (booking: any) => {
     if (booking.isCancelled) return "bg-red-100 text-red-800"
     if (booking.isCompleted) return "bg-green-100 text-green-800"
+    if (booking.needsFrontdeskVerification) return "bg-orange-100 text-orange-800"
+    if (!booking.needsFrontdeskVerification && !booking.isVerified) return "bg-blue-100 text-blue-800"
+    if (booking.isVerified) return "bg-green-100 text-green-800"
     if (booking.isPaid) return "bg-blue-100 text-blue-800"
     return "bg-yellow-100 text-yellow-800"
   }
@@ -50,6 +53,9 @@ export default function BookingHistory() {
   const getStatusText = (booking: any) => {
     if (booking.isCancelled) return "Cancelled"
     if (booking.isCompleted) return "Completed"
+    if (booking.needsFrontdeskVerification) return "Pending Verification"
+    if (!booking.needsFrontdeskVerification && !booking.isVerified) return "Frontdesk Verified"
+    if (booking.isVerified) return "Driver Checked In"
     if (booking.isPaid) return "Paid"
     return "Pending"
   }

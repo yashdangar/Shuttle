@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, QrCode, Navigation, Phone, Users } from "lucide-react"
+import { MapPin, Clock, QrCode, Navigation, Phone, Users, CheckCircle } from "lucide-react"
 import { QRCodeDisplay } from "./qr-code-display"
 import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
@@ -88,15 +88,49 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             <Badge variant={
               booking.isCancelled ? "destructive" : 
               booking.isCompleted ? "default" : 
+              booking.needsFrontdeskVerification ? "secondary" :
+              !booking.needsFrontdeskVerification && !booking.isVerified ? "default" :
+              booking.isVerified ? "default" :
               booking.isPaid ? "secondary" : "outline"
             } className="text-sm">
               {booking.isCancelled ? "Cancelled" : 
                booking.isCompleted ? "Completed" : 
+               booking.needsFrontdeskVerification ? "Pending Verification" :
+               !booking.needsFrontdeskVerification && !booking.isVerified ? "Frontdesk Verified" :
+               booking.isVerified ? "Driver Checked In" :
                booking.isPaid ? "Paid" : "Pending"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
+          {booking.needsFrontdeskVerification && (
+            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-orange-600" />
+                <p className="text-sm text-orange-800 font-medium">
+                  Waiting for frontdesk verification
+                </p>
+              </div>
+              <p className="text-xs text-orange-700 mt-1">
+                Your booking is being reviewed by the hotel frontdesk. You'll be notified once it's verified.
+              </p>
+            </div>
+          )}
+          
+          {!booking.needsFrontdeskVerification && !booking.isVerified && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-4 h-4 text-blue-600" />
+                <p className="text-sm text-blue-800 font-medium">
+                  Frontdesk verified - waiting for driver
+                </p>
+              </div>
+              <p className="text-xs text-blue-700 mt-1">
+                Your booking has been verified by the frontdesk and assigned to a shuttle. The driver will check you in when they arrive.
+              </p>
+            </div>
+          )}
+          
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center space-x-3">

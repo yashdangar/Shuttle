@@ -67,6 +67,8 @@ const startTrip = async (req: Request, res: Response) => {
         bookingType: direction,
         isCompleted: false,
         isCancelled: false,
+        needsFrontdeskVerification: false, // Frontdesk has verified this booking
+        isVerified: false, // Driver has not checked in yet
         guest: {
           hotelId: hotelId,
         },
@@ -561,6 +563,8 @@ const getAvailableTrips = async (req: Request, res: Response) => {
         tripId: null,
         isCompleted: false,
         isCancelled: false,
+        needsFrontdeskVerification: false, // Frontdesk has verified this booking
+        isVerified: false, // Driver has not checked in yet
         guest: {
           hotelId: hotelId,
         },
