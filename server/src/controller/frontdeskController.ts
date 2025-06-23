@@ -694,7 +694,16 @@ const getBookings = async (req: Request, res: Response) => {
         },
       },
       include: {
-        guest: true,
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+          },
+        },
         pickupLocation: true,
         dropoffLocation: true,
         shuttle: true,

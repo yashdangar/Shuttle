@@ -97,10 +97,36 @@ const createTrip = async (req: Request, res: Response) => {
     tripType,
     pickupLocationId,
     dropoffLocationId,
+    firstName,
+    lastName,
+    confirmationNum,
   } = req.body;
   const userId = (req as any).user.userId;
 
   try {
+    // Validation: Either both firstName and lastName OR confirmationNum must be provided
+    const hasName = firstName?.trim() && lastName?.trim();
+    const hasConfirmation = confirmationNum?.trim();
+    
+    if (!hasName && !hasConfirmation) {
+      return res.status(400).json({ 
+        error: "Please provide either your first name and last name, or your confirmation number" 
+      });
+    }
+
+    // Update guest information if provided
+    if (firstName || lastName || confirmationNum) {
+      const updateData: any = {};
+      if (firstName) updateData.firstName = firstName;
+      if (lastName) updateData.lastName = lastName;
+      if (confirmationNum) updateData.confirmationNum = confirmationNum;
+
+      await prisma.guest.update({
+        where: { id: userId },
+        data: updateData,
+      });
+    }
+
     // Generate encryption key
     const encryptionKey = generateEncryptionKey();
 
@@ -119,6 +145,7 @@ const createTrip = async (req: Request, res: Response) => {
           ? parseInt(dropoffLocationId)
           : null,
         guestId: userId,
+        confirmationNum: confirmationNum || null,
         encryptionKey,
         needsFrontdeskVerification: true, // Guest bookings need frontdesk verification
         createdAt: new Date(),

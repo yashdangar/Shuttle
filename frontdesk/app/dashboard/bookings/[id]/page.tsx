@@ -9,7 +9,7 @@ import { fetchWithAuth } from "@/lib/api";
 import { useToast } from "@/components/hooks/use-toast";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { Loader2, User, Hash } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +36,7 @@ interface BookingDetails {
   isRefunded: boolean;
   qrCodePath: string | null;
   qrCodeUrl: string | null;
+  confirmationNum: string | null;
   guest: {
     firstName: string;
     lastName: string;
@@ -51,7 +52,7 @@ interface BookingDetails {
   } | null;
   shuttle: {
     id: number;
-    name: string;
+    vehicleNumber: string;
   } | null;
   cancelledBy?: string;
   cancellationReason?: string;
@@ -144,12 +145,38 @@ export default function BookingDetailsPage() {
       return <Badge variant="destructive">Cancelled</Badge>;
     }
     if (booking.isCompleted) {
-      return <Badge variant="success">Completed</Badge>;
+      return <Badge variant="default">Completed</Badge>;
     }
     if (booking.isPaid) {
       return <Badge variant="default">Paid</Badge>;
     }
     return <Badge variant="outline">Pending</Badge>;
+  };
+
+  // Helper function to get guest display name
+  const getGuestDisplayName = (booking: BookingDetails) => {
+    const hasName = booking.guest.firstName?.trim() && booking.guest.lastName?.trim();
+    const hasConfirmation = booking.confirmationNum?.trim();
+    
+    if (hasName) {
+      return {
+        display: `${booking.guest.firstName} ${booking.guest.lastName}`,
+        type: 'name' as const,
+        icon: User
+      };
+    } else if (hasConfirmation) {
+      return {
+        display: `Confirmation: ${booking.confirmationNum}`,
+        type: 'confirmation' as const,
+        icon: Hash
+      };
+    } else {
+      return {
+        display: booking.guest.email || 'Unknown Guest',
+        type: 'email' as const,
+        icon: User
+      };
+    }
   };
 
   return (
@@ -181,10 +208,28 @@ export default function BookingDetailsPage() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-gray-500">Name</p>
-              <p className="font-medium">
-                {booking.guest.firstName} {booking.guest.lastName}
-              </p>
+              {(() => {
+                const guestInfo = getGuestDisplayName(booking);
+                const IconComponent = guestInfo.icon;
+                return (
+                  <div className="flex items-center space-x-2">
+                    <IconComponent className="w-4 h-4 text-gray-400" />
+                    <p className="font-medium">
+                      {guestInfo.display}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
+            {booking.confirmationNum && (
+              <div>
+                <p className="text-sm text-gray-500">Confirmation Number</p>
+                <div className="flex items-center space-x-2">
+                  <Hash className="w-4 h-4 text-gray-400" />
+                  <p className="font-medium">{booking.confirmationNum}</p>
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-sm text-gray-500">Email</p>
               <p className="font-medium">{booking.guest.email}</p>
@@ -280,7 +325,7 @@ export default function BookingDetailsPage() {
             {booking.shuttle && (
               <div>
                 <p className="text-sm text-gray-500">Assigned Shuttle</p>
-                <p className="font-medium">{booking.shuttle.name}</p>
+                <p className="font-medium">{booking.shuttle.vehicleNumber}</p>
               </div>
             )}
           </CardContent>

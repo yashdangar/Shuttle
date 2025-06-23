@@ -30,6 +30,8 @@ import {
   MoreHorizontal,
   Clock,
   CheckCircle,
+  User,
+  Hash,
 } from "lucide-react";
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
@@ -47,6 +49,7 @@ interface Booking {
   isRefunded: boolean;
   needsFrontdeskVerification: boolean;
   isVerified: boolean;
+  confirmationNum: string | null;
   guest: {
     firstName: string;
     lastName: string;
@@ -271,6 +274,32 @@ export default function BookingsPage() {
     return !booking.isCompleted && !booking.isCancelled;
   };
 
+  // Helper function to get guest display name
+  const getGuestDisplayName = (booking: Booking) => {
+    const hasName = booking.guest.firstName?.trim() && booking.guest.lastName?.trim();
+    const hasConfirmation = booking.confirmationNum?.trim();
+    
+    if (hasName) {
+      return {
+        display: `${booking.guest.firstName} ${booking.guest.lastName}`,
+        type: 'name' as const,
+        icon: User
+      };
+    } else if (hasConfirmation) {
+      return {
+        display: `Confirmation: ${booking.confirmationNum}`,
+        type: 'confirmation' as const,
+        icon: Hash
+      };
+    } else {
+      return {
+        display: booking.guest.email || 'Unknown Guest',
+        type: 'email' as const,
+        icon: User
+      };
+    }
+  };
+
   if (loading) {
     return <BookingsSkeleton />;
   }
@@ -303,12 +332,23 @@ export default function BookingsPage() {
                 <TableRow key={booking.id}>
                   <TableCell>
                     <div>
-                      <p className="font-medium">
-                        {booking.guest.firstName} {booking.guest.lastName}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {booking.guest.email}
-                      </p>
+                      {(() => {
+                        const guestInfo = getGuestDisplayName(booking);
+                        const IconComponent = guestInfo.icon;
+                        return (
+                          <div className="flex items-center space-x-2">
+                            <IconComponent className="w-4 h-4 text-gray-400" />
+                            <div>
+                              <p className="font-medium">
+                                {guestInfo.display}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {booking.guest.email}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </TableCell>
                   <TableCell>

@@ -65,7 +65,18 @@ export function GuestTopbar({
       if (profileResponse.guest) {
         const email = profileResponse.guest.email || "guest@example.com";
         setGuestEmail(email);
-        setGuestName(createGuestName(email));
+        
+        // Use actual firstName and lastName if available, otherwise fallback to email-based name
+        if (profileResponse.guest.firstName && profileResponse.guest.lastName) {
+          setGuestName(`${profileResponse.guest.firstName} ${profileResponse.guest.lastName}`);
+        } else if (profileResponse.guest.firstName) {
+          setGuestName(profileResponse.guest.firstName);
+        } else if (profileResponse.guest.lastName) {
+          setGuestName(profileResponse.guest.lastName);
+        } else {
+          setGuestName(createGuestName(email));
+        }
+        
         setHotelId(profileResponse.guest.hotelId || null);
       }
 
