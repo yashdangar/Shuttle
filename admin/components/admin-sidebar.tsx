@@ -13,6 +13,7 @@ import {
   Route,
   MapPin,
   X,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -46,6 +47,11 @@ const navigation = [
     name: "Schedules",
     href: "/schedules",
     icon: Calendar,
+  },
+  {
+    name: "Bookings",
+    href: "/bookings",
+    icon: BookOpen,
   },
   // {
   //   name: "Trips",

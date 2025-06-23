@@ -65,6 +65,10 @@ model Booking {
   eta               String?
   trackingEnabled   Boolean       @default(true)
   lastEtaUpdate     DateTime?
+  isWaived          Boolean       @default(false)
+  waiverReason      String?
+  waivedBy          Int?
+  waivedAt          DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
@@ -75,6 +79,7 @@ model Booking {
   verificationToken QRVerificationToken?
   verificationLogs  QRVerificationLog[]
   verifier          Driver?       @relation("BookingVerifier", fields: [verifiedBy], references: [id])
+  waiverUser        FrontDesk?    @relation("BookingWaiver", fields: [waivedBy], references: [id])
 }
 
 model FrontDesk {
@@ -88,6 +93,7 @@ model FrontDesk {
   updatedAt     DateTime       @updatedAt
   hotel         Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications Notification[]
+  waivedBookings Booking[]     @relation("BookingWaiver")
 }
 
 model Admin {

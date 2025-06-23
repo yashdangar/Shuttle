@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -52,6 +54,8 @@ export default function NewBookingPage() {
     firstName: "",
     lastName: "",
     phoneNumber: "",
+    isWaived: false,
+    waiverReason: "",
   });
   const { toast } = useToast();
   const [showQRCode, setShowQRCode] = useState(false);
@@ -103,6 +107,16 @@ export default function NewBookingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate waiver reason if booking is waived
+    if (formData.isWaived && !formData.waiverReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a reason for waiving the booking fee.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const token = localStorage.getItem("frontdeskToken");
       if (!token) {
@@ -127,7 +141,9 @@ export default function NewBookingPage() {
 
       toast({
         title: "Booking Created",
-        description: "New trip booking has been successfully created.",
+        description: formData.isWaived 
+          ? "New trip booking has been successfully created with waived fee." 
+          : "New trip booking has been successfully created.",
       });
 
       // Show QR code
@@ -150,6 +166,8 @@ export default function NewBookingPage() {
         firstName: "",
         lastName: "",
         phoneNumber: "",
+        isWaived: false,
+        waiverReason: "",
       });
     } catch (error) {
       toast({
@@ -374,6 +392,7 @@ export default function NewBookingPage() {
                   setFormData({ ...formData, paymentMethod: value })
                 }
                 required
+                disabled={formData.isWaived}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select payment method" />
@@ -386,6 +405,42 @@ export default function NewBookingPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Waiver Section */}
+            <div className="space-y-4 p-4 border border-orange-200 rounded-lg bg-orange-50">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isWaived"
+                  checked={formData.isWaived}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isWaived: checked as boolean })
+                  }
+                />
+                <Label htmlFor="isWaived" className="text-orange-800 font-medium">
+                  Waive Booking Fee
+                </Label>
+              </div>
+              {formData.isWaived && (
+                <div className="space-y-2">
+                  <Label htmlFor="waiverReason" className="text-orange-800">
+                    Reason for Waiver *
+                  </Label>
+                  <Textarea
+                    id="waiverReason"
+                    placeholder="Please provide a detailed reason for waiving the booking fee..."
+                    value={formData.waiverReason}
+                    onChange={(e) =>
+                      setFormData({ ...formData, waiverReason: e.target.value })
+                    }
+                    className="min-h-[100px]"
+                    required
+                  />
+                  <p className="text-sm text-orange-700">
+                    Note: This waiver will be visible to admin for review and approval.
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button type="submit" className="w-full">

@@ -162,4 +162,11 @@ router.get(
   controller.getLocation as RequestHandler
 );
 
+//booking routes
+router.get(
+  "/bookings",
+  adminAuthMiddleware as RequestHandler,
+  controller.getBookings as RequestHandler
+);
+
 export default router;
