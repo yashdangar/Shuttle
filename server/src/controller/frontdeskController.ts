@@ -302,9 +302,13 @@ const createBooking = async (req: Request, res: Response) => {
       lastName,
       phoneNumber,
       isNonResident,
+      // Waiver fields
+      isWaived,
+      waiverReason,
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
+    const frontdeskUserId = (req as any).user.userId;
 
     console.log(`Creating booking for hotelId: ${hotelId}`);
     console.log(`Request body:`, req.body);
@@ -382,25 +386,39 @@ const createBooking = async (req: Request, res: Response) => {
     // Generate encryption key
     const encryptionKey = generateEncryptionKey();
 
+    // Prepare booking data
+    const bookingData: any = {
+      numberOfPersons: parseInt(numberOfPersons),
+      numberOfBags: parseInt(numberOfBags),
+      preferredTime: new Date(preferredTime),
+      paymentMethod: paymentMethod as PaymentMethod,
+      bookingType:
+        tripType === "hotel-to-airport"
+          ? "HOTEL_TO_AIRPORT"
+          : "AIRPORT_TO_HOTEL",
+      pickupLocationId: pickupLocation ? parseInt(pickupLocation) : null,
+      dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
+      guestId,
+      encryptionKey,
+      needsFrontdeskVerification: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Add waiver data if booking is waived
+    if (isWaived) {
+      bookingData.isWaived = true;
+      bookingData.waiverReason = waiverReason;
+      bookingData.waivedBy = frontdeskUserId;
+      bookingData.waivedAt = new Date();
+      bookingData.isPaid = true; // Mark as paid since it's waived
+      bookingData.paymentMethod = "FRONTDESK"; // Set payment method for waived bookings
+      bookingData.needsFrontdeskVerification = false; // No admin verification needed for waived bookings
+    }
+
     // Create the booking
     const booking = await prisma.booking.create({
-      data: {
-        numberOfPersons: parseInt(numberOfPersons),
-        numberOfBags: parseInt(numberOfBags),
-        preferredTime: new Date(preferredTime),
-        paymentMethod: paymentMethod as PaymentMethod,
-        bookingType:
-          tripType === "hotel-to-airport"
-            ? "HOTEL_TO_AIRPORT"
-            : "AIRPORT_TO_HOTEL",
-        pickupLocationId: pickupLocation ? parseInt(pickupLocation) : null,
-        dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
-        guestId,
-        encryptionKey,
-        needsFrontdeskVerification: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      data: bookingData,
     });
 
     // Find an available shuttle for this hotel and assign the booking
@@ -696,7 +714,16 @@ const getBookings = async (req: Request, res: Response) => {
         },
       },
       include: {
-        guest: true,
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+          },
+        },
         pickupLocation: true,
         dropoffLocation: true,
         shuttle: true,

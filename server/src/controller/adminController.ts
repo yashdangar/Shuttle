@@ -866,6 +866,60 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
   }
 };
 
+const getBookings = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    
+    // Get all bookings for hotels that this admin manages
+    const bookings = await prisma.booking.findMany({
+      where: {
+        guest: {
+          hotel: {
+            admins: {
+              some: {
+                id: parseInt(userId)
+              }
+            }
+          }
+        }
+      },
+      include: {
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            isNonResident: true,
+          }
+        },
+        pickupLocation: {
+          select: {
+            name: true,
+          }
+        },
+        dropoffLocation: {
+          select: {
+            name: true,
+          }
+        },
+        waiverUser: {
+          select: {
+            name: true,
+          }
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json({ bookings });
+  } catch (error) {
+    console.error("Get bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   login,
@@ -897,4 +951,5 @@ export default {
   editLocation,
   deleteLocation,
   getLocation,
+  getBookings,
 };

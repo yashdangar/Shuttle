@@ -16,6 +16,7 @@ import {
   Sun,
   Star,
   MapPin,
+  Hash,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ interface ProfileData {
     lastName: string | null;
     email: string | null;
     phoneNumber: string | null;
+    confirmationNum: string | null;
     createdAt: string;
     hotel: {
       id: number;
@@ -168,6 +170,14 @@ export default function ProfilePage() {
                 {guest.email || "Email not provided"}
               </span>
             </div>
+            {guest.confirmationNum && (
+              <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                <Hash className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium text-foreground">
+                  Confirmation: {guest.confirmationNum}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
               <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <span className="font-medium text-foreground">

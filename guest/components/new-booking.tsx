@@ -22,10 +22,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { MapPin, Clock, Users, CreditCard, Briefcase } from "lucide-react";
+import { MapPin, Clock, Users, CreditCard, Briefcase, User, Hash } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/qr-code-display";
+import { toast } from "sonner";
 
 interface NewBookingProps {
   hotel: any;
@@ -82,12 +83,21 @@ export default function NewBooking({
     dropoffLocation: "",
     tripType: "",
     isCompleted: false,
+    // New fields for guest information
+    firstName: "",
+    lastName: "",
+    confirmationNum: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
   const [showQRCode, setShowQRCode] = useState(false);
   const [bookingQRCode, setBookingQRCode] = useState<string>("");
   const [bookingId, setBookingId] = useState<string | null>(null);
+
+  // Validation state
+  const hasName = formData.firstName.trim() && formData.lastName.trim();
+  const hasConfirmation = formData.confirmationNum.trim();
+  const isValid = hasName || hasConfirmation;
 
   const fetchLocations = async () => {
     try {
@@ -121,6 +131,13 @@ export default function NewBooking({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation: Either both firstName and lastName OR confirmationNum must be provided
+    if (!isValid) {
+      toast.error("Please provide either your first name and last name, or your confirmation number");
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -150,6 +167,10 @@ export default function NewBooking({
               )?.id,
               dropoffLocationId: null, // Hotel dropoff doesn't need location ID
             }),
+        // Add guest information
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        confirmationNum: formData.confirmationNum,
       };
 
       // Send request to backend
@@ -207,6 +228,81 @@ export default function NewBooking({
             </TabsList>
             <TabsContent value="hotel-to-airport">
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Guest Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                    </p>
+                  </div>
+                  
+                  {/* First Name and Last Name */}
+                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="firstName"
+                          value={formData.firstName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, firstName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your first name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="lastName"
+                          value={formData.lastName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, lastName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your last name"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                  </div>
+
+                  {/* Confirmation Number */}
+                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
+                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                    </Label>
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="confirmationNum"
+                        value={formData.confirmationNum}
+                        onChange={(e) =>
+                          setFormData({ ...formData, confirmationNum: e.target.value })
+                        }
+                        className="pl-10"
+                        placeholder="Enter your hotel confirmation number"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Pickup Location */}
                 <div className="space-y-2">
                   <Label htmlFor="pickup">Pickup Location</Label>
@@ -233,7 +329,7 @@ export default function NewBooking({
                     <SelectTrigger>
                       <div className="flex items-center">
                         <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                        <SelectValue placeholder="Select terminal" />
+                        <SelectValue placeholder="Select destination" />
                       </div>
                     </SelectTrigger>
                     <SelectContent>
@@ -333,20 +429,6 @@ export default function NewBooking({
                   </RadioGroup>
                 </div>
 
-                {/* Special Notes */}
-                {/* <div className="space-y-2">
-                  <Label htmlFor="notes">Special Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Any special requirements or notes for the driver"
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    rows={3}
-                  />
-                </div> */}
-
                 {/* Submit Button */}
                 <Button
                   type="submit"
@@ -367,6 +449,81 @@ export default function NewBooking({
             </TabsContent>
             <TabsContent value="airport-to-hotel">
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Guest Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                    </p>
+                  </div>
+                  
+                  {/* First Name and Last Name */}
+                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="firstName"
+                          value={formData.firstName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, firstName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your first name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="lastName"
+                          value={formData.lastName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, lastName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your last name"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                  </div>
+
+                  {/* Confirmation Number */}
+                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
+                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                    </Label>
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="confirmationNum"
+                        value={formData.confirmationNum}
+                        onChange={(e) =>
+                          setFormData({ ...formData, confirmationNum: e.target.value })
+                        }
+                        className="pl-10"
+                        placeholder="Enter your hotel confirmation number"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Pickup Location */}
                 <div className="space-y-2">
                   <Label htmlFor="pickup">Pickup Location</Label>
@@ -379,7 +536,7 @@ export default function NewBooking({
                     <SelectTrigger>
                       <div className="flex items-center">
                         <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                        <SelectValue placeholder="Select terminal" />
+                        <SelectValue placeholder="Select pickup location" />
                       </div>
                     </SelectTrigger>
                     <SelectContent>
@@ -492,20 +649,6 @@ export default function NewBooking({
                     </div>
                   </RadioGroup>
                 </div>
-
-                {/* Special Notes */}
-                {/* <div className="space-y-2">
-                  <Label htmlFor="notes">Special Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Any special requirements or notes for the driver"
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    rows={3}
-                  />
-                </div> */}
 
                 {/* Submit Button */}
                 <Button
