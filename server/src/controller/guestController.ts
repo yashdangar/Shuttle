@@ -5,6 +5,8 @@ import { PaymentMethod, BookingType } from "@prisma/client";
 import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
 import { googleMapsService, type Location } from "../utils/googleMapsUtils";
+import { sendToRoleInHotel, sendToUser } from "../ws";
+import { WsEvents } from "../ws/events";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -200,6 +202,24 @@ const createTrip = async (req: Request, res: Response) => {
       where: { id: trip.id },
       data: { qrCodePath: qrCodeData },
     });
+
+    // Send notification to all frontdesks in the hotel
+    const guestData = await prisma.guest.findUnique({ where: { id: userId } });
+    if (guestData?.hotelId) {
+      const notificationPayload = {
+        title: "New Booking Created",
+        message: `A new booking has been created by ${
+          guestData.firstName || "a guest"
+        }.`,
+        booking: updatedTrip,
+      };
+      sendToRoleInHotel(
+        guestData.hotelId,
+        "frontdesk",
+        WsEvents.NEW_BOOKING,
+        notificationPayload
+      );
+    }
 
     res.json({ trip: updatedTrip });
   } catch (error) {
@@ -453,39 +473,68 @@ const getProfile = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  const { bookingId } = req.params;
+  const { id } = req.params;
+  console.log("Cancel booking request:", { id });
+  const { reason } = req.body;
   const guestId = (req as any).user.userId;
 
   try {
     const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
+      where: { id: id },
+      include: {
+        guest: true,
+        trip: {
+          include: {
+            driver: true,
+          },
+        },
+      },
     });
 
-    if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
-    }
-
-    if (booking.guestId !== guestId) {
+    if (!booking || booking.guestId !== guestId) {
       return res
-        .status(403)
-        .json({ error: "You are not authorized to cancel this booking" });
+        .status(404)
+        .json({ error: "Booking not found or access denied" });
     }
 
-    if (booking.isCancelled) {
-      return res.status(400).json({ error: "Booking is already cancelled" });
-    }
-
-    // You might want to add logic here to check if the booking is refundable
-    // For now, we just mark it as cancelled
     const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
+      where: { id: id },
       data: {
         isCancelled: true,
         cancelledBy: "GUEST",
-        cancellationReason: "Cancelled by guest via the app",
-        // Should we refund? Add logic here.
+        cancellationReason: reason,
       },
     });
+
+    // Notify relevant parties
+    if (booking.guest.hotelId) {
+      const notificationPayload = {
+        title: "Booking Cancelled by Guest",
+        message: `Booking #${booking.id.substring(0, 8)} for ${
+          booking.guest.firstName || "a guest"
+        } has been cancelled.`,
+        booking: updatedBooking,
+      };
+
+      // Notify all frontdesk users at the hotel
+      sendToRoleInHotel(
+        booking.guest.hotelId,
+        "frontdesk",
+        WsEvents.BOOKING_CANCELLED,
+        notificationPayload
+      );
+
+      // Notify the assigned driver, if any
+      const driverId = booking.trip?.driverId;
+      if (driverId) {
+        sendToUser(
+          driverId,
+          "driver",
+          WsEvents.BOOKING_CANCELLED,
+          notificationPayload
+        );
+      }
+    }
 
     res.json({
       message: "Booking cancelled successfully",

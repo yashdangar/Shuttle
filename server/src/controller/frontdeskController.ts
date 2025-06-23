@@ -10,6 +10,8 @@ import {
   verifyQRCode,
 } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
+import { sendToUser } from "../ws";
+import { WsEvents } from "../ws/events";
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -711,57 +713,74 @@ const getBookings = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  const { bookingId } = req.params;
+  const { id } = req.params;
   const { reason } = req.body;
   const frontdeskId = (req as any).user.userId;
 
   try {
     const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: { guest: true },
+      where: { id },
+      include: {
+        guest: true,
+        trip: {
+          include: {
+            driver: true,
+          },
+        },
+      },
     });
 
     if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
-    }
-
-    if (booking.guest.hotelId !== (req as any).user.hotelId) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Booking does not belong to this hotel." });
-    }
-
-    if (booking.isCancelled) {
-      return res.status(400).json({ error: "Booking is already cancelled" });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
     const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
+      where: { id },
       data: {
         isCancelled: true,
         cancelledBy: "FRONTDESK",
-        cancellationReason: reason || "Cancelled by Frontdesk",
+        cancellationReason: reason,
       },
     });
 
+    const notificationPayload = {
+      title: "Booking Cancelled by Front Desk",
+      message: `Your booking #${booking.id.substring(
+        0,
+        8
+      )} has been cancelled by the front desk.`,
+      booking: updatedBooking,
+    };
+
     // Notify the guest
-    await prisma.notification.create({
-      data: {
-        guestId: booking.guestId,
-        title: "Booking Cancelled by Frontdesk",
-        message: `Your booking has been cancelled by the frontdesk. Reason: ${
-          reason || "No reason provided."
-        }`,
-      },
-    });
+    sendToUser(
+      booking.guestId,
+      "guest",
+      WsEvents.BOOKING_CANCELLED,
+      notificationPayload
+    );
+
+    // Notify the assigned driver, if any
+    const driverId = booking.trip?.driverId;
+    if (driverId) {
+      sendToUser(
+        driverId,
+        "driver",
+        WsEvents.BOOKING_CANCELLED,
+        notificationPayload
+      );
+    }
+
+    // You might also want to notify other frontdesk users
+    // sendToRoleInHotel(booking.guest.hotelId, 'frontdesk', 'booking_cancelled', notificationPayload);
 
     res.json({
       message: "Booking cancelled successfully",
       booking: updatedBooking,
     });
   } catch (error) {
-    console.error("Error cancelling booking:", error);
-    res.status(500).json({ error: "Failed to cancel booking" });
+    console.error("Cancel booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 

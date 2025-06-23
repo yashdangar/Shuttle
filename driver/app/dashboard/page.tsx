@@ -7,11 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Bell, MapPin, Users, Clock, Car, TrendingUp } from "lucide-react";
 import { NotificationDropdown } from "@/components/notification-dropdown";
 import { toast } from "sonner";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 export default function DashboardPage() {
   const [driverName, setDriverName] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
+  const { socket, isConnected } = useWebSocket();
+
+  useEffect(() => {
+    // You can add other WebSocket listeners here if they are specific to this page
+    // For example, listening for live trip updates
+  }, [socket]);
 
   useEffect(() => {
     const name = localStorage.getItem("driverName") || "Driver";
@@ -40,9 +47,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Welcome back,</h1>
-          <p className="text-xl font-semibold text-foreground">
-            {driverName}
-          </p>
+          <p className="text-xl font-semibold text-foreground">{driverName}</p>
         </div>
       </div>
 
@@ -66,9 +71,7 @@ export default function DashboardPage() {
             <p className="text-sm text-foreground">
               Terminal A → Downtown Hotels
             </p>
-            <p className="text-sm text-foreground">
-              Started: {currentTime}
-            </p>
+            <p className="text-sm text-foreground">Started: {currentTime}</p>
           </CardContent>
         </Card>
 
@@ -87,12 +90,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-2xl font-bold text-foreground">2:30 PM</p>
-            <p className="text-sm text-foreground">
-              Downtown → Terminal B
-            </p>
-            <p className="text-sm text-foreground">
-              8 passengers scheduled
-            </p>
+            <p className="text-sm text-foreground">Downtown → Terminal B</p>
+            <p className="text-sm text-foreground">8 passengers scheduled</p>
           </CardContent>
         </Card>
 
@@ -111,9 +110,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-2xl font-bold text-foreground">6 / 12</p>
-            <p className="text-sm text-foreground">
-              4 checked in, 2 pending
-            </p>
+            <p className="text-sm text-foreground">4 checked in, 2 pending</p>
             <div className="w-full bg-blue-100 dark:bg-blue-900 rounded-full h-2">
               <div
                 className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
@@ -139,12 +136,8 @@ export default function DashboardPage() {
           <CardContent className="space-y-3">
             <div>
               <p className="font-semibold text-foreground">Sarah Johnson</p>
-              <p className="text-sm text-foreground">
-                Hilton Downtown Hotel
-              </p>
-              <p className="text-sm text-foreground">
-                2 passengers, 3 bags
-              </p>
+              <p className="text-sm text-foreground">Hilton Downtown Hotel</p>
+              <p className="text-sm text-foreground">2 passengers, 3 bags</p>
             </div>
             <Button
               size="sm"

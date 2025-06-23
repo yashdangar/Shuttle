@@ -9,6 +9,8 @@ import {
   markTokenAsUsed,
 } from "../utils/qrCodeUtils";
 import { googleMapsService, type Location } from "../utils/googleMapsUtils";
+import { sendToUser } from "../ws";
+import { WsEvents } from "../ws/events";
 
 const login = async (req: Request, res: Response) => {
   try {
@@ -42,6 +44,11 @@ const login = async (req: Request, res: Response) => {
         expiresIn: "24h",
       }
     );
+
+    // Send a welcome notification
+    sendToUser(driver.id, "driver", WsEvents.WELCOME, {
+      message: `Welcome back, ${driver.name}!`,
+    });
 
     res.json({ token });
   } catch (error) {

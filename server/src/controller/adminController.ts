@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import prisma from "../db/prisma";
 import { env } from "../config/env";
+import { sendToUser } from "../ws";
+import { WsEvents } from "../ws/events";
 
 const signup = async (req: Request, res: Response) => {
   try {
@@ -618,6 +620,14 @@ const addSchedule = async (req: Request, res: Response) => {
         shuttle: true,
       },
     });
+
+    // Notify the assigned driver
+    sendToUser(schedule.driverId, "driver", WsEvents.NEW_SCHEDULE, {
+      title: "New Schedule Assigned",
+      message: `You have a new schedule for ${schedule.scheduleDate.toDateString()}.`,
+      schedule,
+    });
+
     res.json({ schedule });
   } catch (error) {
     console.error("Add schedule error:", error);
@@ -648,6 +658,14 @@ const editSchedule = async (req: Request, res: Response) => {
         shuttle: true,
       },
     });
+
+    // Notify the assigned driver
+    sendToUser(schedule.driverId, "driver", WsEvents.UPDATED_SCHEDULE, {
+      title: "Schedule Updated",
+      message: `Your schedule for ${schedule.scheduleDate.toDateString()} has been updated.`,
+      schedule,
+    });
+
     res.json({ schedule });
   } catch (error) {
     console.error("Edit schedule error:", error);
@@ -661,6 +679,14 @@ const deleteSchedule = async (req: Request, res: Response) => {
     const schedule = await prisma.schedule.delete({
       where: { id: parseInt(id) },
     });
+
+    // Notify the assigned driver
+    sendToUser(schedule.driverId, "driver", WsEvents.DELETED_SCHEDULE, {
+      title: "Schedule Canceled",
+      message: `Your schedule for ${schedule.scheduleDate.toDateString()} has been canceled.`,
+      schedule,
+    });
+
     res.json({ schedule });
   } catch (error) {
     console.error("Delete schedule error:", error);

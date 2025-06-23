@@ -73,3 +73,12 @@ export const env = envSchema.parse({
     bucket: process.env.AWS_S3_BUCKET,
   },
 } as const); 
+
+export const CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3004',
+  'http://localhost:3005',
+  'http://localhost:3003',
+] ;

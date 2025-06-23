@@ -18,7 +18,7 @@ export const superAdminController = {
 
       if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
         const token = jwt.sign(
-          { id: "super-admin", email, role: "super-admin" },
+          { userId: "super-admin", email, role: "super-admin" },
           process.env.JWT_SECRET || "fallback-secret",
           { expiresIn: "24h" }
         );

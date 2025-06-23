@@ -74,7 +74,7 @@ router.get(
 
 // Booking management routes
 router.put(
-  "/bookings/:bookingId/cancel",
+  "/bookings/:id/cancel",
   guestAuthMiddleware as RequestHandler,
   controller.cancelBooking as RequestHandler
 );
