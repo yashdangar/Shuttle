@@ -122,72 +122,14 @@ const createTrip = async (req: Request, res: Response) => {
           : null,
         guestId: userId,
         encryptionKey,
+        needsFrontdeskVerification: true, // Guest bookings need frontdesk verification
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
 
-    // Get the guest's hotel ID to find available shuttles
-    const guest = await prisma.guest.findUnique({
-      where: { id: userId },
-      select: { hotelId: true },
-    });
-
-    if (guest?.hotelId) {
-      // Find an available shuttle for this hotel and assign the booking
-      const today = new Date();
-      const startOfDay = new Date(today);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(today);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const availableShuttle = await prisma.shuttle.findFirst({
-        where: {
-          hotelId: guest.hotelId,
-          schedules: {
-            some: {
-              scheduleDate: {
-                gte: startOfDay,
-                lte: endOfDay,
-              },
-              startTime: { lte: new Date() },
-              endTime: { gte: new Date() },
-            },
-          },
-        },
-        include: {
-          schedules: {
-            where: {
-              scheduleDate: {
-                gte: startOfDay,
-                lte: endOfDay,
-              },
-              startTime: { lte: new Date() },
-              endTime: { gte: new Date() },
-            },
-            include: {
-              driver: true,
-            },
-          },
-        },
-      });
-
-      if (availableShuttle) {
-        // Assign booking to the available shuttle
-        await prisma.booking.update({
-          where: { id: trip.id },
-          data: { shuttleId: availableShuttle.id },
-        });
-
-        console.log(
-          `Booking ${trip.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`
-        );
-      } else {
-        console.log(
-          `No available shuttle found for hotel ${guest.hotelId}, booking ${trip.id} remains unassigned`
-        );
-      }
-    }
+    // For guest bookings, we don't assign shuttle immediately - wait for frontdesk verification
+    // The shuttle assignment will happen after frontdesk verifies the booking
 
     // Generate QR code
     const qrCodeData = await generateQRCode({

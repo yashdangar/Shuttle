@@ -108,10 +108,23 @@ router.post(
   frontdeskController.cancelBooking as RequestHandler
 );
 
-router.put(
+router.post(
   "/bookings/:bookingId/reschedule",
   frontdeskAuthMiddleware as RequestHandler,
   frontdeskController.rescheduleBooking as RequestHandler
+);
+
+// Guest booking verification routes
+router.post(
+  "/bookings/:bookingId/verify",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.verifyGuestBooking as RequestHandler
+);
+
+router.post(
+  "/bookings/:bookingId/reject",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.rejectGuestBooking as RequestHandler
 );
 
 // Assignment routes

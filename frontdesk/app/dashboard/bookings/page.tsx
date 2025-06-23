@@ -29,6 +29,7 @@ import {
   Loader2,
   MoreHorizontal,
   Clock,
+  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
@@ -44,6 +45,8 @@ interface Booking {
   isPaid: boolean;
   isCancelled: boolean;
   isRefunded: boolean;
+  needsFrontdeskVerification: boolean;
+  isVerified: boolean;
   guest: {
     firstName: string;
     lastName: string;
@@ -160,6 +163,15 @@ export default function BookingsPage() {
     if (booking.isCompleted) {
       return <Badge variant="default">Completed</Badge>;
     }
+    if (booking.needsFrontdeskVerification) {
+      return <Badge variant="secondary">Pending Verification</Badge>;
+    }
+    if (!booking.needsFrontdeskVerification && !booking.isVerified) {
+      return <Badge variant="default">Frontdesk Verified</Badge>;
+    }
+    if (booking.isVerified) {
+      return <Badge variant="default">Driver Checked In</Badge>;
+    }
     if (booking.isPaid) {
       return <Badge variant="default">Paid</Badge>;
     }
@@ -186,6 +198,52 @@ export default function BookingsPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to cancel booking",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleVerifyBooking = async (bookingId: string) => {
+    try {
+      await api.post(`/frontdesk/bookings/${bookingId}/verify`);
+
+      toast({
+        title: "Success",
+        description: "Booking verified and assigned to shuttle successfully",
+      });
+
+      // Refresh the bookings list
+      const data = await api.get("/frontdesk/bookings");
+      setBookings(data.bookings);
+    } catch (error: any) {
+      console.error("Error verifying booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to verify booking",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectBooking = async (bookingId: string) => {
+    try {
+      await api.post(`/frontdesk/bookings/${bookingId}/reject`, {
+        reason: "Rejected by frontdesk",
+      });
+
+      toast({
+        title: "Success",
+        description: "Booking rejected successfully",
+      });
+
+      // Refresh the bookings list
+      const data = await api.get("/frontdesk/bookings");
+      setBookings(data.bookings);
+    } catch (error: any) {
+      console.error("Error rejecting booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reject booking",
         variant: "destructive",
       });
     }
@@ -288,7 +346,25 @@ export default function BookingsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {canModifyBooking(booking) && (
+                          {booking.needsFrontdeskVerification && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleVerifyBooking(booking.id)}
+                                className="cursor-pointer text-green-600"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Verify Booking
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleRejectBooking(booking.id)}
+                                className="cursor-pointer text-red-600"
+                              >
+                                <X className="w-4 h-4 mr-2" />
+                                Reject Booking
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {canModifyBooking(booking) && !booking.needsFrontdeskVerification && (
                             <>
                               <DropdownMenuItem
                                 onClick={() => handleRescheduleBooking(booking)}
@@ -306,7 +382,7 @@ export default function BookingsPage() {
                               </DropdownMenuItem>
                             </>
                           )}
-                          {!canModifyBooking(booking) && (
+                          {!canModifyBooking(booking) && !booking.needsFrontdeskVerification && (
                             <DropdownMenuItem disabled>
                               No actions available
                             </DropdownMenuItem>

@@ -11,11 +11,8 @@ import {
   Calendar,
   Clock,
   LogOut,
-  Moon,
-  Sun,
   Star,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -52,7 +49,6 @@ const schedules = [
 
 export default function ProfilePage() {
   const [driverName, setDriverName] = useState("");
-  const { theme, setTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
@@ -66,12 +62,6 @@ export default function ProfilePage() {
     localStorage.removeItem("driverName");
     toast.success("Logged out successfully");
     router.push("/login");
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    toast.success(`Switched to ${newTheme} mode`);
   };
 
   return (
@@ -196,25 +186,6 @@ export default function ProfilePage() {
           <CardTitle className="text-foreground">Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-950 rounded-xl">
-            <div className="flex items-center gap-3">
-              {theme === "dark" ? (
-                <Moon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              ) : (
-                <Sun className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              )}
-              <span className="font-medium text-foreground">Theme</span>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={toggleTheme}
-              className="border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950"
-            >
-              Switch to {theme === "dark" ? "Light" : "Dark"}
-            </Button>
-          </div>
-
           <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-950 rounded-xl">
             <div className="flex items-center gap-3">
               <LogOut className="h-5 w-5 text-destructive" />

@@ -397,6 +397,7 @@ const createBooking = async (req: Request, res: Response) => {
         dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
         guestId,
         encryptionKey,
+        needsFrontdeskVerification: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -1311,6 +1312,182 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
   }
 };
 
+// Verify guest booking and assign to shuttle
+const verifyGuestBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const hotelId = (req as any).user.hotelId;
+    const frontdeskId = (req as any).user.userId;
+
+    // Find the booking
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+        needsFrontdeskVerification: true,
+        isCancelled: false,
+      },
+      include: {
+        guest: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ 
+        message: "Booking not found or already verified/cancelled" 
+      });
+    }
+
+    // Find an available shuttle for this hotel
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const availableShuttle = await prisma.shuttle.findFirst({
+      where: {
+        hotelId: hotelId,
+        schedules: {
+          some: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+            startTime: { lte: new Date() },
+            endTime: { gte: new Date() },
+          },
+        },
+      },
+      include: {
+        schedules: {
+          where: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+            startTime: { lte: new Date() },
+            endTime: { gte: new Date() },
+          },
+          include: {
+            driver: true,
+          },
+        },
+      },
+    });
+
+    if (!availableShuttle) {
+      return res.status(400).json({ 
+        message: "No available shuttle found for this booking" 
+      });
+    }
+
+    // Update booking: verify it, assign shuttle, and mark as verified
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        needsFrontdeskVerification: false,
+        shuttleId: availableShuttle.id,
+      },
+      include: {
+        guest: true,
+        shuttle: {
+          include: {
+            schedules: {
+              include: {
+                driver: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Notify the guest that their booking has been verified
+    await prisma.notification.create({
+      data: {
+        guestId: booking.guestId,
+        title: "Booking Verified",
+        message: `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+      },
+    });
+
+    res.json({
+      message: "Booking verified and assigned to shuttle successfully",
+      booking: updatedBooking,
+      assignedShuttle: {
+        id: availableShuttle.id,
+        vehicleNumber: availableShuttle.vehicleNumber,
+        driverName: availableShuttle.schedules[0]?.driver?.name || "Unknown",
+      },
+    });
+  } catch (error) {
+    console.error("Verify guest booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Reject guest booking
+const rejectGuestBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+    const hotelId = (req as any).user.hotelId;
+    const frontdeskId = (req as any).user.userId;
+
+    // Find the booking
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guest: {
+          hotelId: hotelId,
+        },
+        needsFrontdeskVerification: true,
+        isCancelled: false,
+      },
+      include: {
+        guest: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ 
+        message: "Booking not found or already verified/cancelled" 
+      });
+    }
+
+    // Cancel the booking
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        isCancelled: true,
+        cancelledBy: "FRONTDESK",
+        cancellationReason: reason || "Rejected by frontdesk",
+        needsFrontdeskVerification: false,
+      },
+    });
+
+    // Notify the guest that their booking has been rejected
+    await prisma.notification.create({
+      data: {
+        guestId: booking.guestId,
+        title: "Booking Rejected",
+        message: `Your booking has been rejected by the frontdesk. Reason: ${reason || "No reason provided."}`,
+      },
+    });
+
+    res.json({
+      message: "Booking rejected successfully",
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    console.error("Reject guest booking error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -1332,6 +1509,8 @@ export default {
   cancelBooking,
   rescheduleBooking,
   assignUnassignedBookings,
+  verifyGuestBooking,
+  rejectGuestBooking,
   debugGuests,
   publicDebugGuests,
   getScheduleByWeek,

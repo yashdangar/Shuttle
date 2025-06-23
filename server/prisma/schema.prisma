@@ -60,6 +60,7 @@ model Booking {
   isVerified        Boolean       @default(false)
   verifiedAt        DateTime?
   verifiedBy        Int?
+  needsFrontdeskVerification Boolean @default(false)
   eta               String?
   trackingEnabled   Boolean       @default(true)
   lastEtaUpdate     DateTime?

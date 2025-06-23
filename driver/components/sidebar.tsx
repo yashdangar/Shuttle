@@ -13,15 +13,12 @@ import {
   User,
   LogOut,
   ShuffleIcon as Shuttle,
-  Moon,
-  Sun,
   ChevronLeft,
   ChevronRight,
   MapPin,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -51,7 +48,6 @@ const navItems = [
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
   const [driverName, setDriverName] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -65,12 +61,6 @@ export function Sidebar() {
     localStorage.removeItem("driverName");
     toast.error("Failed to sign out");
     router.push("/login");
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    toast.success(`Switched to ${newTheme} mode`);
   };
 
   return (
@@ -127,22 +117,6 @@ export function Sidebar() {
             ))}
           </div>
         </ScrollArea>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-border space-y-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2 hover:bg-blue-50 dark:hover:bg-blue-950"
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            ) : (
-              <Moon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            )}
-            {!isCollapsed && <span className="text-foreground">Toggle Theme</span>}
-          </Button>
-        </div>
       </div>
     </div>
   );
