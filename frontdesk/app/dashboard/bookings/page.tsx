@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Booking {
   id: string;
@@ -50,7 +51,7 @@ interface Booking {
   needsFrontdeskVerification: boolean;
   isVerified: boolean;
   confirmationNum: string | null;
-  guest: {
+  guest?: {
     firstName: string;
     lastName: string;
     email: string;
@@ -133,31 +134,157 @@ function BookingsSkeleton() {
 
 export default function BookingsPage() {
   const { toast } = useToast();
+  const { socket, isConnected } = useWebSocket();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
     null
   );
+  const [newBookingIds, setNewBookingIds] = useState<Set<string>>(new Set());
 
+  // Function to fetch bookings
+  const fetchBookings = async () => {
+    try {
+      const data = await api.get("/frontdesk/bookings");
+      setBookings(data.bookings);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch bookings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
   useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const data = await api.get("/frontdesk/bookings");
-        setBookings(data.bookings);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch bookings. Please try again.",
-          variant: "destructive",
+    fetchBookings();
+  }, [toast]);
+
+  // WebSocket event listeners for live updates
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    // Listen for new bookings
+    const handleNewBooking = async (data: any) => {
+      console.log("New booking received via WebSocket:", data);
+      console.log("Booking guest data:", data.booking?.guest);
+      
+      // Add the new booking to the top of the list
+      if (data.booking) {
+        let completeBooking = data.booking;
+        
+        // If the WebSocket booking doesn't have guest information, fetch it from the API
+        if (!data.booking.guest) {
+          try {
+            console.log("Fetching complete booking data from API...");
+            const response = await api.get(`/frontdesk/bookings/${data.booking.id}`);
+            completeBooking = response.booking;
+            console.log("Complete booking data fetched:", completeBooking);
+          } catch (error) {
+            console.error("Error fetching complete booking data:", error);
+            // Continue with the incomplete data if API call fails
+          }
+        }
+        
+        setBookings(prevBookings => {
+          // Check if booking already exists to avoid duplicates
+          const exists = prevBookings.find(b => b.id === completeBooking.id);
+          if (exists) {
+            return prevBookings;
+          }
+          return [completeBooking, ...prevBookings];
         });
-      } finally {
-        setLoading(false);
+        
+        // Add to new booking IDs for highlighting
+        setNewBookingIds(prev => new Set([...prev, completeBooking.id]));
+        
+        // Show a toast notification for the new booking
+        const guestName = completeBooking.guest?.firstName 
+          ? `${completeBooking.guest.firstName} ${completeBooking.guest.lastName}`
+          : completeBooking.guest?.email || completeBooking.confirmationNum 
+            ? `Confirmation: ${completeBooking.confirmationNum}`
+            : 'Guest';
+        
+        toast({
+          title: "New Booking Received",
+          description: `${guestName} has made a new booking`,
+          duration: 4000,
+        });
+        
+        // Remove highlight after 5 seconds
+        setTimeout(() => {
+          setNewBookingIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(completeBooking.id);
+            return newSet;
+          });
+        }, 5000);
       }
     };
 
-    fetchBookings();
-  }, [toast]);
+    // Listen for booking updates (cancelled, verified, etc.)
+    const handleBookingUpdate = (data: any) => {
+      console.log("Booking update received via WebSocket:", data);
+      
+      if (data.booking) {
+        setBookings(prevBookings => 
+          prevBookings.map(booking => 
+            booking.id === data.booking.id 
+              ? { ...booking, ...data.booking }
+              : booking
+          )
+        );
+      }
+    };
+
+    // Listen for booking cancellations
+    const handleBookingCancelled = (data: any) => {
+      console.log("Booking cancelled via WebSocket:", data);
+      
+      if (data.booking) {
+        setBookings(prevBookings => 
+          prevBookings.map(booking => 
+            booking.id === data.booking.id 
+              ? { ...booking, isCancelled: true }
+              : booking
+          )
+        );
+      }
+    };
+
+    // Listen for booking assignments
+    const handleBookingAssigned = (data: any) => {
+      console.log("Booking assigned via WebSocket:", data);
+      
+      if (data.booking) {
+        setBookings(prevBookings => 
+          prevBookings.map(booking => 
+            booking.id === data.booking.id 
+              ? { ...booking, ...data.booking }
+              : booking
+          )
+        );
+      }
+    };
+
+    // Add event listeners
+    socket.on("new_booking", handleNewBooking);
+    socket.on("booking_updated", handleBookingUpdate);
+    socket.on("booking_cancelled", handleBookingCancelled);
+    socket.on("booking_assigned", handleBookingAssigned);
+
+    // Cleanup event listeners
+    return () => {
+      socket.off("new_booking", handleNewBooking);
+      socket.off("booking_updated", handleBookingUpdate);
+      socket.off("booking_cancelled", handleBookingCancelled);
+      socket.off("booking_assigned", handleBookingAssigned);
+    };
+  }, [socket, isConnected]);
 
   const getStatusBadge = (booking: Booking) => {
     if (booking.isCancelled) {
@@ -208,7 +335,9 @@ export default function BookingsPage() {
 
   const handleVerifyBooking = async (bookingId: string) => {
     try {
-      await api.post(`/frontdesk/bookings/${bookingId}/verify`);
+      await api.post(`/frontdesk/bookings/${bookingId}/verify`, {
+        reason: "Verified by frontdesk from bookings list",
+      });
 
       toast({
         title: "Success",
@@ -276,12 +405,15 @@ export default function BookingsPage() {
 
   // Helper function to get guest display name
   const getGuestDisplayName = (booking: Booking) => {
-    const hasName = booking.guest.firstName?.trim() && booking.guest.lastName?.trim();
+    // Check if guest object exists and has the required properties
+    const guest = booking.guest;
+    const hasName = guest?.firstName?.trim() && guest?.lastName?.trim();
     const hasConfirmation = booking.confirmationNum?.trim();
+    const hasEmail = guest?.email?.trim();
     
-    if (hasName) {
+    if (hasName && guest) {
       return {
-        display: `${booking.guest.firstName} ${booking.guest.lastName}`,
+        display: `${guest.firstName} ${guest.lastName}`,
         type: 'name' as const,
         icon: User
       };
@@ -291,10 +423,16 @@ export default function BookingsPage() {
         type: 'confirmation' as const,
         icon: Hash
       };
+    } else if (hasEmail && guest) {
+      return {
+        display: guest.email,
+        type: 'email' as const,
+        icon: User
+      };
     } else {
       return {
-        display: booking.guest.email || 'Unknown Guest',
-        type: 'email' as const,
+        display: 'Unknown Guest',
+        type: 'unknown' as const,
         icon: User
       };
     }
@@ -306,9 +444,17 @@ export default function BookingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-        <p className="text-gray-600">View and manage all shuttle bookings</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
+          <p className="text-gray-600">View and manage all shuttle bookings</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-sm text-gray-600">
+            {isConnected ? 'Live updates active' : 'Live updates disconnected'}
+          </span>
+        </div>
       </div>
 
       <Card>
@@ -329,7 +475,14 @@ export default function BookingsPage() {
             </TableHeader>
             <TableBody>
               {bookings.map((booking) => (
-                <TableRow key={booking.id}>
+                <TableRow 
+                  key={booking.id}
+                  className={`${
+                    newBookingIds.has(booking.id) 
+                      ? 'animate-pulse bg-green-50 border-l-4 border-l-green-500' 
+                      : ''
+                  } transition-all duration-300`}
+                >
                   <TableCell>
                     <div>
                       {(() => {
@@ -343,7 +496,9 @@ export default function BookingsPage() {
                                 {guestInfo.display}
                               </p>
                               <p className="text-sm text-gray-500">
-                                {booking.guest.email}
+                                {booking.guest?.email || (booking.confirmationNum 
+                                  ? `Confirmation: ${booking.confirmationNum}`
+                                  : 'No email provided')}
                               </p>
                             </div>
                           </div>

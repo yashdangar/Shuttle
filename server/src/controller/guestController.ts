@@ -175,12 +175,32 @@ const createTrip = async (req: Request, res: Response) => {
     // Send notification to all frontdesks in the hotel
     const guestData = await prisma.guest.findUnique({ where: { id: userId } });
     if (guestData?.hotelId) {
+      // Fetch the complete booking with guest information for the WebSocket event
+      const completeBooking = await prisma.booking.findUnique({
+        where: { id: updatedTrip.id },
+        include: {
+          guest: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phoneNumber: true,
+              isNonResident: true,
+            },
+          },
+          pickupLocation: true,
+          dropoffLocation: true,
+          shuttle: true,
+        },
+      });
+
       const notificationPayload = {
         title: "New Booking Created",
         message: `A new booking has been created by ${
           guestData.firstName || "a guest"
         }.`,
-        booking: updatedTrip,
+        booking: completeBooking,
       };
       sendToRoleInHotel(
         guestData.hotelId,

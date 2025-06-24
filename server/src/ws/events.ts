@@ -48,6 +48,11 @@ export const WsEvents = {
   BOOKING_CANCELLED: "booking_cancelled",
 
   /**
+   * Sent to frontdesk users when a booking is updated (verified, rescheduled, etc.).
+   */
+  BOOKING_UPDATED: "booking_updated",
+
+  /**
    * Sent to a driver when they are assigned a new schedule.
    */
   NEW_SCHEDULE: "new_schedule",
@@ -94,6 +99,12 @@ export type WsPayloads = {
   };
 
   [WsEvents.BOOKING_CANCELLED]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
+  };
+
+  [WsEvents.BOOKING_UPDATED]: {
     title: string;
     message: string;
     booking: BookingPayload;
