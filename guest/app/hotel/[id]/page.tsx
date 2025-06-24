@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, QrCode, History, Plus } from "lucide-react";
@@ -9,6 +9,7 @@ import BookingHistory from "@/components/booking-history";
 import NewBooking from "@/components/new-booking";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Hotel {
   id: number;
@@ -70,23 +71,49 @@ function HotelPageSkeleton() {
 export default function HotelPage() {
   const params = useParams();
   const router = useRouter();
+  const { onBookingUpdate } = useWebSocket();
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeTab, setActiveTab] = useState("current");
   const [currentBooking, setCurrentBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch current booking from API
-  const fetchCurrentBooking = async () => {
+  const fetchCurrentBooking = useCallback(async () => {
     try {
       const response = await api.get('/guest/current-booking');
       if (response.currentBooking) {
         console.log("Found current booking from API:", response.currentBooking);
         setCurrentBooking(response.currentBooking);
+      } else {
+        setCurrentBooking(null);
       }
     } catch (error) {
       console.error("Error fetching current booking:", error);
+      setCurrentBooking(null);
     }
-  };
+  }, []);
+
+  // Memoize the booking update handler to prevent infinite loops
+  const handleBookingUpdate = useCallback((updatedBooking: any) => {
+    console.log("Received booking update via WebSocket:", updatedBooking);
+    
+    // Update the current booking with the new data
+    setCurrentBooking(updatedBooking);
+    
+    // If we're not on the current booking tab, switch to it
+    if (activeTab !== "current") {
+      setActiveTab("current");
+    }
+  }, [activeTab]);
+
+  // Memoize the onBookingCreated callback to prevent unnecessary re-renders
+  const handleBookingCreated = useCallback(async (booking: any) => {
+    console.log("New booking created:", booking);
+    setCurrentBooking(booking);
+    // Refresh current booking from API
+    await fetchCurrentBooking();
+    setActiveTab("current");
+  }, [fetchCurrentBooking]);
 
   useEffect(() => {
     const hotelId = params.id as string;
@@ -111,7 +138,15 @@ export default function HotelPage() {
 
     // Fetch current booking from API
     fetchCurrentBooking();
-  }, [params.id, router]);
+  }, [params.id, router, fetchCurrentBooking]);
+
+  // Listen for booking updates via WebSocket
+  useEffect(() => {
+    if (!onBookingUpdate) return;
+
+    const cleanup = onBookingUpdate(handleBookingUpdate);
+    return cleanup;
+  }, [onBookingUpdate, handleBookingUpdate]);
 
   if (isLoading || !selectedHotel) {
     return <HotelPageSkeleton />;
@@ -193,14 +228,9 @@ export default function HotelPage() {
         )}
         {activeTab === "new" && (
           <NewBooking
+            key={selectedHotel.id}
             hotel={selectedHotel}
-            onBookingCreated={async (booking) => {
-              console.log("New booking created:", booking);
-              setCurrentBooking(booking);
-              // Refresh current booking from API
-              await fetchCurrentBooking();
-              setActiveTab("current");
-            }}
+            onBookingCreated={handleBookingCreated}
           />
         )}
         {activeTab === "history" && <BookingHistory />}

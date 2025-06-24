@@ -1,12 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
 interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  onBookingUpdate?: (callback: (booking: any) => void) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -27,6 +28,7 @@ export const WebSocketProvider = ({
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
+  const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -69,13 +71,56 @@ export const WebSocketProvider = ({
       console.log("Guest received heartbeat:", data.timestamp);
     });
 
+    // Listen for booking updates
+    socketInstance.on("booking_verified", (data: any) => {
+      console.log("Booking verified via WebSocket:", data);
+      toast.success("Your booking has been verified by the frontdesk!");
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+    });
+
+    socketInstance.on("booking_cancelled", (data: any) => {
+      console.log("Booking cancelled via WebSocket:", data);
+      toast.error("Your booking has been cancelled.");
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+    });
+
+    socketInstance.on("booking_assigned", (data: any) => {
+      console.log("Booking assigned to driver via WebSocket:", data);
+      toast.info("Your booking has been assigned to a driver!");
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+    });
+
     return () => {
       socketInstance.disconnect();
     };
   }, [hasMounted]);
 
+  const onBookingUpdate = (callback: (booking: any) => void) => {
+    bookingUpdateCallbacksRef.current.push(callback);
+    
+    // Return cleanup function
+    return () => {
+      const index = bookingUpdateCallbacksRef.current.indexOf(callback);
+      if (index > -1) {
+        bookingUpdateCallbacksRef.current.splice(index, 1);
+      }
+    };
+  };
+
   return (
-    <WebSocketContext.Provider value={{ socket, isConnected }}>
+    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate }}>
       {children}
     </WebSocketContext.Provider>
   );

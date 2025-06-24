@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import prisma from "../db/prisma";
 import { env } from "../config/env";
-import { sendToUser } from "../ws";
+import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 
 const signup = async (req: Request, res: Response) => {

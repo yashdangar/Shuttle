@@ -10,8 +10,10 @@ import {
   verifyQRCode,
 } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
-import { sendToUser, sendToRoleInHotel } from "../ws";
+import { sendToUser, sendToRoleInHotel } from "../ws/index";
 import { WsEvents } from "../ws/events";
+import { googleMapsService } from "../utils/googleMapsUtils";
+import { getBookingDataForWebSocket } from "../utils/bookingUtils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -619,12 +621,17 @@ const getSignedUrl = async (req: Request, res: Response) => {
 
 const getBookingQRUrl = async (req: Request, res: Response) => {
   try {
-    const bookingId = req.params.id;
+    const { id } = req.params;
     const hotelId = (req as any).user.hotelId;
+
+    // Validate that booking ID is provided
+    if (!id) {
+      return res.status(400).json({ message: "Booking ID is required" });
+    }
 
     const booking = await prisma.booking.findFirst({
       where: {
-        id: bookingId,
+        id,
         guest: {
           hotelId: hotelId,
         },
@@ -649,6 +656,11 @@ const getBookingQRUrl = async (req: Request, res: Response) => {
 const getBookingDetails = async (req: Request, res: Response) => {
   const { id } = req.params;
   const hotelId = (req as any).user.hotelId;
+
+  // Validate that booking ID is provided
+  if (!id) {
+    return res.status(400).json({ message: "Booking ID is required" });
+  }
 
   try {
     const booking = await prisma.booking.findFirst({
@@ -741,13 +753,18 @@ const getBookings = async (req: Request, res: Response) => {
 };
 
 const cancelBooking = async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const { bookingId } = req.params;
   const { reason } = req.body;
   const frontdeskId = (req as any).user.userId;
 
+  // Validate that booking ID is provided
+  if (!bookingId) {
+    return res.status(400).json({ message: "Booking ID is required" });
+  }
+
   try {
     const booking = await prisma.booking.findUnique({
-      where: { id },
+      where: { id: bookingId },
       include: {
         guest: true,
         trip: {
@@ -763,7 +780,7 @@ const cancelBooking = async (req: Request, res: Response) => {
     }
 
     const updatedBooking = await prisma.booking.update({
-      where: { id },
+      where: { id: bookingId },
       data: {
         isCancelled: true,
         cancelledBy: "FRONTDESK",
@@ -780,12 +797,26 @@ const cancelBooking = async (req: Request, res: Response) => {
       booking: updatedBooking,
     };
 
-    // Notify the guest
+    // Notify the guest that their booking has been cancelled
+    await prisma.notification.create({
+      data: {
+        guestId: booking.guestId,
+        title: "Booking Cancelled by Front Desk",
+        message: `Your booking #${booking.id.substring(0, 8)} has been cancelled by the front desk.`,
+      },
+    });
+
+    // Notify the guest via WebSocket
+    const guestNotificationPayload = {
+      title: "Booking Cancelled",
+      message: `Your booking has been cancelled by the frontdesk.`,
+      booking: updatedBooking,
+    };
     sendToUser(
       booking.guestId,
       "guest",
-      WsEvents.BOOKING_CANCELLED,
-      notificationPayload
+      "booking_cancelled",
+      guestNotificationPayload
     );
 
     // Notify the assigned driver, if any
@@ -807,24 +838,7 @@ const cancelBooking = async (req: Request, res: Response) => {
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await prisma.booking.findUnique({
-        where: { id: updatedBooking.id },
-        include: {
-          guest: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              isNonResident: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: true,
-        },
-      });
+      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
 
       const completeNotificationPayload = {
         title: "Booking Cancelled",
@@ -855,6 +869,11 @@ const rescheduleBooking = async (req: Request, res: Response) => {
     const { bookingId } = req.params;
     const { preferredTime } = req.body;
     const hotelId = (req as any).user.hotelId;
+
+    // Validate that booking ID is provided
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
 
     // Check if booking exists and belongs to the hotel
     const booking = await prisma.booking.findFirst({
@@ -924,24 +943,7 @@ const rescheduleBooking = async (req: Request, res: Response) => {
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await prisma.booking.findUnique({
-        where: { id: updatedBooking.id },
-        include: {
-          guest: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              isNonResident: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: true,
-        },
-      });
+      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
 
       const completeNotificationPayload = {
         title: "Booking Rescheduled",
@@ -1428,6 +1430,11 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     const hotelId = (req as any).user.hotelId;
     const frontdeskId = (req as any).user.userId;
 
+    // Validate that booking ID is provided
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
+
     // Find the booking
     const booking = await prisma.booking.findFirst({
       where: {
@@ -1523,6 +1530,19 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       },
     });
 
+    // Notify the guest via WebSocket
+    const guestNotificationPayload = {
+      title: "Booking Verified",
+      message: `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+      booking: updatedBooking,
+    };
+    sendToUser(
+      booking.guestId,
+      "guest",
+      WsEvents.BOOKING_VERIFIED,
+      guestNotificationPayload
+    );
+
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Verified",
@@ -1531,24 +1551,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await prisma.booking.findUnique({
-        where: { id: updatedBooking.id },
-        include: {
-          guest: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              isNonResident: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: true,
-        },
-      });
+      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
 
       const completeNotificationPayload = {
         title: "Booking Verified",
@@ -1604,6 +1607,11 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
     const hotelId = (req as any).user.hotelId;
     const frontdeskId = (req as any).user.userId;
 
+    // Validate that booking ID is provided
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
+
     // Find the booking
     const booking = await prisma.booking.findFirst({
       where: {
@@ -1645,6 +1653,19 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
       },
     });
 
+    // Notify the guest via WebSocket
+    const guestNotificationPayload = {
+      title: "Booking Rejected",
+      message: `Your booking has been rejected by the frontdesk. Reason: ${reason || "No reason provided."}`,
+      booking: updatedBooking,
+    };
+    sendToUser(
+      booking.guestId,
+      "guest",
+      "booking_cancelled",
+      guestNotificationPayload
+    );
+
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Rejected",
@@ -1653,24 +1674,7 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await prisma.booking.findUnique({
-        where: { id: updatedBooking.id },
-        include: {
-          guest: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              isNonResident: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: true,
-        },
-      });
+      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
 
       const completeNotificationPayload = {
         title: "Booking Rejected",

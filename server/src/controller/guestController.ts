@@ -5,8 +5,9 @@ import { PaymentMethod, BookingType } from "@prisma/client";
 import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
 import { googleMapsService, type Location } from "../utils/googleMapsUtils";
-import { sendToRoleInHotel, sendToUser } from "../ws";
+import { sendToRoleInHotel, sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
+import { getBookingDataForWebSocket } from "../utils/bookingUtils";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -176,24 +177,7 @@ const createTrip = async (req: Request, res: Response) => {
     const guestData = await prisma.guest.findUnique({ where: { id: userId } });
     if (guestData?.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await prisma.booking.findUnique({
-        where: { id: updatedTrip.id },
-        include: {
-          guest: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phoneNumber: true,
-              isNonResident: true,
-            },
-          },
-          pickupLocation: true,
-          dropoffLocation: true,
-          shuttle: true,
-        },
-      });
+      const completeBooking = await getBookingDataForWebSocket(updatedTrip.id, updatedTrip);
 
       const notificationPayload = {
         title: "New Booking Created",
@@ -467,6 +451,11 @@ const cancelBooking = async (req: Request, res: Response) => {
   const { reason } = req.body;
   const guestId = (req as any).user.userId;
 
+  // Validate that booking ID is provided
+  if (!id) {
+    return res.status(400).json({ error: "Booking ID is required" });
+  }
+
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: id },
@@ -543,6 +532,11 @@ const rescheduleBooking = async (req: Request, res: Response) => {
 
     console.log("Reschedule request:", { bookingId, preferredTime, userId });
 
+    // Validate that booking ID is provided
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
+
     // Check if booking exists and belongs to the user
     const booking = await prisma.booking.findFirst({
       where: {
@@ -618,6 +612,11 @@ const getBookingETA = async (req: Request, res: Response) => {
   try {
     const bookingId = req.params.bookingId;
     const guestId = (req as any).user.userId;
+
+    // Validate that booking ID is provided
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
 
     // Get booking details
     const booking = await prisma.booking.findUnique({

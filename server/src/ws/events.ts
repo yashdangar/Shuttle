@@ -48,6 +48,11 @@ export const WsEvents = {
   BOOKING_CANCELLED: "booking_cancelled",
 
   /**
+   * Sent to a guest when their booking has been verified by frontdesk.
+   */
+  BOOKING_VERIFIED: "booking_verified",
+
+  /**
    * Sent to frontdesk users when a booking is updated (verified, rescheduled, etc.).
    */
   BOOKING_UPDATED: "booking_updated",
@@ -99,6 +104,12 @@ export type WsPayloads = {
   };
 
   [WsEvents.BOOKING_CANCELLED]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
+  };
+
+  [WsEvents.BOOKING_VERIFIED]: {
     title: string;
     message: string;
     booking: BookingPayload;

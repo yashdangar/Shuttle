@@ -89,7 +89,13 @@ export const sendToUser = (
   event: string,
   payload: any
 ) => {
-  getIo().to(`${userType}:${userId}`).emit(event, payload);
+  try {
+    const room = `${userType}:${userId}`;
+    console.log(`Sending event '${event}' to user room '${room}'`);
+    getIo().to(room).emit(event, payload);
+  } catch (error) {
+    console.error(`Error sending event '${event}' to user ${userType}:${userId}:`, error);
+  }
 };
 
 export const sendToRoleInHotel = (
@@ -98,7 +104,11 @@ export const sendToRoleInHotel = (
   event: string,
   payload: any
 ) => {
-  const room = `hotel:${hotelId}:${role}`;
-  console.log(`Sending event '${event}' to room '${room}'`);
-  getIo().to(room).emit(event, payload);
+  try {
+    const room = `hotel:${hotelId}:${role}`;
+    console.log(`Sending event '${event}' to room '${room}'`);
+    getIo().to(room).emit(event, payload);
+  } catch (error) {
+    console.error(`Error sending event '${event}' to room 'hotel:${hotelId}:${role}':`, error);
+  }
 };
