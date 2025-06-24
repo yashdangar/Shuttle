@@ -47,9 +47,27 @@ interface Schedule {
 }
 
 function ShuttlesPage() {
-  const [shuttles, setShuttles] = useState<Shuttle[]>();
+  const [shuttles, setShuttles] = useState<Shuttle[]>([]);
   const [selectedShuttle, setSelectedShuttle] = useState<Shuttle | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Helper function to format time in UTC to avoid timezone issues
+  const formatTimeForDisplay = (isoString: string | null | undefined) => {
+    if (!isoString) return "";
+    
+    // Parse the ISO string and extract the time in UTC
+    const date = new Date(isoString);
+    
+    // Get UTC hours and minutes to avoid timezone conversion
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    
+    // Convert to 12-hour format
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
 
   useEffect(() => {
     const fetchShuttles = async () => {
@@ -244,14 +262,7 @@ function ShuttlesPage() {
                               Start Time
                             </label>
                             <p className="font-medium">
-                              {new Date(schedule.startTime).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              )}
+                              {formatTimeForDisplay(schedule.startTime)}
                             </p>
                           </div>
                           <div>
@@ -259,14 +270,7 @@ function ShuttlesPage() {
                               End Time
                             </label>
                             <p className="font-medium">
-                              {new Date(schedule.endTime).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              )}
+                              {formatTimeForDisplay(schedule.endTime)}
                             </p>
                           </div>
                         </div>

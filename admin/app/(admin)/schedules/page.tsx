@@ -171,12 +171,32 @@ function SchedulesPage() {
 
   const formatTimeForDisplay = (isoString: string | null | undefined) => {
     if (!isoString) return "";
+    
+    // Parse the ISO string and extract the time in UTC
     const date = new Date(isoString);
-    return date.toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    
+    // Get UTC hours and minutes to avoid timezone conversion
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    
+    return `${hours}:${minutes}`;
+  };
+
+  const formatTimeForDisplayWithAMPM = (isoString: string | null | undefined) => {
+    if (!isoString) return "";
+    
+    // Parse the ISO string and extract the time in UTC
+    const date = new Date(isoString);
+    
+    // Get UTC hours and minutes to avoid timezone conversion
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    
+    // Convert to 12-hour format
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
   const formatDateForDisplay = (isoString: string | null | undefined) => {
@@ -1492,13 +1512,29 @@ function SchedulesPage() {
                             new Date(b.scheduleDate).getTime()
                         )
                         .map((schedule) => {
+                          // Use UTC times for duration calculation to avoid timezone issues
                           const startTime = new Date(schedule.startTime);
                           const endTime = new Date(schedule.endTime);
+                          
+                          // Calculate duration using UTC times
+                          const startUTC = Date.UTC(
+                            startTime.getUTCFullYear(),
+                            startTime.getUTCMonth(),
+                            startTime.getUTCDate(),
+                            startTime.getUTCHours(),
+                            startTime.getUTCMinutes()
+                          );
+                          const endUTC = Date.UTC(
+                            endTime.getUTCFullYear(),
+                            endTime.getUTCMonth(),
+                            endTime.getUTCDate(),
+                            endTime.getUTCHours(),
+                            endTime.getUTCMinutes()
+                          );
+                          
                           const duration =
                             Math.round(
-                              ((endTime.getTime() - startTime.getTime()) /
-                                (1000 * 60 * 60)) *
-                                10
+                              ((endUTC - startUTC) / (1000 * 60 * 60)) * 10
                             ) / 10;
 
                           return (
