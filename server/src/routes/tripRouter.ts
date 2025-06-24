@@ -6,6 +6,7 @@ import {
   getCurrentTrip,
   getTripHistory,
   getAvailableTrips,
+  getCurrentTripBookings,
 } from "../controller/tripController";
 
 const router = express.Router();
@@ -27,6 +28,12 @@ router.get(
   "/current",
   driverAuthMiddleware as RequestHandler,
   getCurrentTrip as RequestHandler
+);
+
+router.get(
+  "/current/bookings",
+  driverAuthMiddleware as RequestHandler,
+  getCurrentTripBookings as RequestHandler
 );
 
 router.get(

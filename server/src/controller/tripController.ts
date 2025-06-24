@@ -636,10 +636,80 @@ const getAvailableTrips = async (req: Request, res: Response) => {
   }
 };
 
+// Get live bookings for current trip
+const getCurrentTripBookings = async (req: Request, res: Response) => {
+  try {
+    const driverId = (req as any).user.userId;
+
+    // Get current active trip
+    const currentTrip = await prisma.trip.findFirst({
+      where: {
+        driverId,
+        status: TripStatus.ACTIVE,
+      },
+    });
+
+    if (!currentTrip) {
+      return res.json({
+        bookings: [],
+        message: "No active trip found",
+      });
+    }
+
+    // Get all bookings for this trip
+    const bookings = await prisma.booking.findMany({
+      where: {
+        tripId: currentTrip.id,
+        isCancelled: false,
+      },
+      include: {
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
+      orderBy: {
+        preferredTime: "asc",
+      },
+    });
+
+    // Transform bookings to live booking format
+    const liveBookings = bookings.map((booking) => ({
+      id: booking.id,
+      guest: booking.guest,
+      numberOfPersons: booking.numberOfPersons,
+      numberOfBags: booking.numberOfBags,
+      preferredTime: booking.preferredTime,
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
+      bookingType: booking.bookingType,
+      assignedAt: booking.updatedAt || booking.createdAt,
+      isVerified: booking.isVerified,
+      verifiedAt: booking.verifiedAt,
+    }));
+
+    res.json({
+      bookings: liveBookings,
+      tripId: currentTrip.id,
+      direction: currentTrip.direction,
+    });
+  } catch (error) {
+    console.error("Get current trip bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export {
   startTrip,
   endTrip,
   getCurrentTrip,
   getTripHistory,
   getAvailableTrips,
+  getCurrentTripBookings,
 };

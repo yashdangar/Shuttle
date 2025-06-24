@@ -19,6 +19,21 @@ export const useWebSocket = () => {
   return context;
 };
 
+// WebSocket event names - matching server events
+export const WsEvents = {
+  WELCOME: "welcome",
+  HEARTBEAT: "heartbeat",
+  NEW_BOOKING: "new_booking",
+  BOOKING_CANCELLED: "booking_cancelled",
+  BOOKING_VERIFIED: "booking_verified",
+  BOOKING_UPDATED: "booking_updated",
+  NEW_SCHEDULE: "new_schedule",
+  UPDATED_SCHEDULE: "updated_schedule",
+  DELETED_SCHEDULE: "deleted_schedule",
+  BOOKING_ASSIGNED: "booking_assigned",
+  DRIVER_LOCATION_UPDATE: "driver_location_update",
+} as const;
+
 export const WebSocketProvider = ({
   children,
 }: {
@@ -42,7 +57,7 @@ export const WebSocketProvider = ({
       return;
     }
 
-    const socketInstance = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL!, {
+    const socketInstance = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080", {
       auth: {
         token,
       },

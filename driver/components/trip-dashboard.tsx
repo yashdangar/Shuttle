@@ -17,9 +17,12 @@ import {
   Package,
   AlertTriangle,
   ClipboardList,
+  Bell,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
+import { WsEvents } from "@/context/WebSocketContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,10 +76,32 @@ interface TripHistory {
   bookings: any[];
 }
 
+interface LiveBooking {
+  id: string;
+  guest: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string;
+  };
+  numberOfPersons: number;
+  numberOfBags: number;
+  preferredTime: string;
+  pickupLocation: {
+    name: string;
+  } | null;
+  dropoffLocation: {
+    name: string;
+  } | null;
+  bookingType: string;
+  assignedAt: string;
+}
+
 export default function TripDashboard() {
   const [availableTrips, setAvailableTrips] = useState<AvailableTrip[]>([]);
   const [currentTrip, setCurrentTrip] = useState<CurrentTrip | null>(null);
   const [tripHistory, setTripHistory] = useState<TripHistory[]>([]);
+  const [liveBookings, setLiveBookings] = useState<LiveBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [startingTrip, setStartingTrip] = useState(false);
   const [endingTrip, setEndingTrip] = useState(false);
@@ -84,15 +109,73 @@ export default function TripDashboard() {
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [showEndTripDialog, setShowEndTripDialog] = useState(false);
+  const [newBookingNotification, setNewBookingNotification] =
+    useState<LiveBooking | null>(null);
   const { toast } = useToast();
-  const mountedRef = useRef(false);
+  const { socket, isConnected } = useWebSocket();
 
+  // WebSocket event listeners for real-time updates
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
+    if (!socket || !isConnected) return;
+
+    // Listen for new booking assignments
+    const handleBookingAssigned = (data: any) => {
+      if (data.booking) {
+        const newBooking: LiveBooking = {
+          id: data.booking.id,
+          guest: data.booking.guest,
+          numberOfPersons: data.booking.numberOfPersons,
+          numberOfBags: data.booking.numberOfBags,
+          preferredTime: data.booking.preferredTime,
+          pickupLocation: data.booking.pickupLocation,
+          dropoffLocation: data.booking.dropoffLocation,
+          bookingType: data.booking.bookingType,
+          assignedAt: new Date().toISOString(),
+        };
+        setLiveBookings((prev) => [...prev, newBooking]);
+        setNewBookingNotification(newBooking);
+        toast({
+          title: "🚗 New Booking Assigned!",
+          description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
+        });
+      }
     };
-  }, []);
+
+    // Listen for booking updates
+    const handleBookingUpdated = (data: any) => {
+      if (data.booking) {
+        setLiveBookings((prev) =>
+          prev.map((b) =>
+            b.id === data.booking.id
+              ? {
+                  ...b,
+                  ...data.booking,
+                }
+              : b
+          )
+        );
+      }
+    };
+
+    // Listen for booking cancellations
+    const handleBookingCancelled = (data: any) => {
+      if (data.booking?.id) {
+        setLiveBookings((prev) =>
+          prev.filter((booking) => booking.id !== data.booking.id)
+        );
+      }
+    };
+
+    socket.on(WsEvents.BOOKING_ASSIGNED, handleBookingAssigned);
+    socket.on(WsEvents.BOOKING_UPDATED, handleBookingUpdated);
+    socket.on(WsEvents.BOOKING_CANCELLED, handleBookingCancelled);
+
+    return () => {
+      socket.off(WsEvents.BOOKING_ASSIGNED, handleBookingAssigned);
+      socket.off(WsEvents.BOOKING_UPDATED, handleBookingUpdated);
+      socket.off(WsEvents.BOOKING_CANCELLED, handleBookingCancelled);
+    };
+  }, [socket, isConnected, toast]);
 
   const fetchTripData = useCallback(async () => {
     try {
@@ -108,26 +191,32 @@ export default function TripDashboard() {
       console.log("Available trips response:", availableTripsResponse);
       setAvailableTrips(availableTripsResponse.availableTrips);
 
+      // Fetch live bookings for current trip
+      if (currentTripResponse.currentTrip) {
+        try {
+          const liveBookingsResponse = await api.get("/trips/current/bookings");
+          console.log("Live bookings response:", liveBookingsResponse);
+          setLiveBookings(liveBookingsResponse.bookings || []);
+        } catch (error) {
+          console.log("No live bookings endpoint available, using empty array");
+          setLiveBookings([]);
+        }
+      }
+
       // Fetch initial trip history
       await fetchTripHistory(1);
     } catch (error) {
       console.error("Error fetching trip data:", error);
       // Only show toast if component is mounted and not during initial render
-      if (mountedRef.current) {
-        setTimeout(() => {
-          if (mountedRef.current) {
-            toast({
-              title: "Error",
-              description: "Failed to load trip data",
-              variant: "destructive",
-            });
-          }
-        }, 100);
-      }
+      setTimeout(() => {
+        toast({
+          title: "Error",
+          description: "Failed to load trip data",
+          variant: "destructive",
+        });
+      }, 100);
     } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [toast]);
 
@@ -153,17 +242,13 @@ export default function TripDashboard() {
         setHasMoreHistory(pagination && page < pagination.pages);
       } catch (error) {
         console.error("Error fetching trip history:", error);
-        if (mountedRef.current) {
-          toast({
-            title: "Error",
-            description: "Failed to load trip history",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Error",
+          description: "Failed to load trip history",
+          variant: "destructive",
+        });
       } finally {
-        if (mountedRef.current) {
-          setHistoryLoading(false);
-        }
+        setHistoryLoading(false);
       }
     },
     [toast]
@@ -171,9 +256,6 @@ export default function TripDashboard() {
 
   useEffect(() => {
     fetchTripData();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchTripData, 30000);
-    return () => clearInterval(interval);
   }, [fetchTripData]);
 
   const handleStartTrip = useCallback(
@@ -183,33 +265,25 @@ export default function TripDashboard() {
         const response = await api.post("/trips/start", { direction });
 
         // Only show toast if component is mounted
-        if (mountedRef.current) {
-          setTimeout(() => {
-            if (mountedRef.current) {
-              toast({
-                title: "✅ Trip Started!",
-                description: response.message,
-              });
-            }
-          }, 100);
-        }
+        setTimeout(() => {
+          toast({
+            title: "✅ Trip Started!",
+            description: response.message,
+          });
+        }, 100);
 
         // Refresh trip data
         await fetchTripData();
       } catch (error: any) {
         console.error("Error starting trip:", error);
-        if (mountedRef.current) {
-          toast({
-            title: "Error",
-            description:
-              error.response?.data?.message || "Failed to start trip",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Error",
+          description:
+            error.response?.data?.message || "Failed to start trip",
+          variant: "destructive",
+        });
       } finally {
-        if (mountedRef.current) {
-          setStartingTrip(false);
-        }
+        setStartingTrip(false);
       }
     },
     [toast, fetchTripData]
@@ -224,41 +298,35 @@ export default function TripDashboard() {
         direction: currentTrip.direction,
       });
 
-      if (mountedRef.current) {
-        setTimeout(() => {
-          if (mountedRef.current) {
-            const summary = response.summary;
-            if (summary && summary.cancelledBookings > 0) {
-              toast({
-                title: "✅ Trip Completed!",
-                description: `${summary.completedBookings} passengers served, ${summary.cancelledBookings} bookings cancelled due to no-show.`,
-                variant: "default",
-              });
-            } else {
-              toast({
-                title: "✅ Trip Completed!",
-                description: response.message,
-              });
-            }
+      setTimeout(() => {
+        if (toast) {
+          const summary = response.summary;
+          if (summary && summary.cancelledBookings > 0) {
+            toast({
+              title: "✅ Trip Completed!",
+              description: `${summary.completedBookings} passengers served, ${summary.cancelledBookings} bookings cancelled due to no-show.`,
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "✅ Trip Completed!",
+              description: response.message,
+            });
           }
-        }, 100);
-      }
+        }
+      }, 100);
 
       await fetchTripData();
     } catch (error: any) {
       console.error("Error ending trip:", error);
-      if (mountedRef.current) {
-        toast({
-          title: "Error",
-          description: error.response?.data?.message || "Failed to end trip",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to end trip",
+        variant: "destructive",
+      });
     } finally {
-      if (mountedRef.current) {
-        setEndingTrip(false);
-        setShowEndTripDialog(false);
-      }
+      setEndingTrip(false);
+      setShowEndTripDialog(false);
     }
   }, [currentTrip, toast, fetchTripData]);
 
@@ -283,6 +351,10 @@ export default function TripDashboard() {
 
   const getDirectionIcon = (direction: string) => {
     return direction === "HOTEL_TO_AIRPORT" ? "🏨→✈️" : "✈️→🏨";
+  };
+
+  const dismissNewBookingNotification = () => {
+    setNewBookingNotification(null);
   };
 
   if (loading) {
@@ -310,25 +382,64 @@ export default function TripDashboard() {
             Manage your shuttle trips and passengers
           </p>
         </div>
-        <Button
-          onClick={fetchTripData}
-          variant="outline"
-          size="sm"
-          disabled={loading}
-        >
-          <div className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
-            </svg>
-          </div>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {!isConnected && (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              Offline
+            </Badge>
+          )}
+          <Button
+            onClick={fetchTripData}
+            variant="outline"
+            size="sm"
+            disabled={loading}
+          >
+            <div className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+              </svg>
+            </div>
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {/* New Booking Notification */}
+      {newBookingNotification && (
+        <Card className="border-green-200 bg-green-50 animate-pulse">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="h-5 w-5 text-green-600" />
+                <div>
+                  <h3 className="font-semibold text-green-800">
+                    New Booking Assigned!
+                  </h3>
+                  <p className="text-sm text-green-700">
+                    {newBookingNotification.guest.firstName}{" "}
+                    {newBookingNotification.guest.lastName} -{" "}
+                    {newBookingNotification.numberOfPersons} person(s)
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={dismissNewBookingNotification}
+                className="text-green-600 hover:text-green-800"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Trip Status */}
       {currentTrip ? (
@@ -406,64 +517,129 @@ export default function TripDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-600 mb-4">
-              You don't have any active trips. Start a new trip to begin serving
-              passengers.
+              Start a trip to begin serving passengers
             </p>
+            {availableTrips.length > 0 ? (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleStartTrip("HOTEL_TO_AIRPORT")}
+                  disabled={startingTrip}
+                  className="flex-1"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {startingTrip ? "Starting..." : "Start Hotel → Airport"}
+                </Button>
+                <Button
+                  onClick={() => handleStartTrip("AIRPORT_TO_HOTEL")}
+                  disabled={startingTrip}
+                  className="flex-1"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {startingTrip ? "Starting..." : "Start Airport → Hotel"}
+                </Button>
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-4">
+                No trips available to start
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Live Bookings */}
+      {currentTrip && liveBookings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Live Bookings ({liveBookings.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {liveBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex items-center justify-between p-3 border rounded-lg bg-blue-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Users className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">
+                        {booking.guest.firstName} {booking.guest.lastName}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {booking.numberOfPersons} person(s) •{" "}
+                        {booking.numberOfBags} bag(s)
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {booking.pickupLocation?.name || "Hotel Lobby"} →{" "}
+                        {booking.dropoffLocation?.name || "Airport"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">
+                      {new Date(booking.preferredTime).toLocaleTimeString()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Assigned{" "}
+                      {new Date(booking.assignedAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* Available Trips */}
-      {availableTrips.length > 0 && !currentTrip && (
+      {availableTrips.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Play className="h-5 w-5" />
+              <Calendar className="h-5 w-5" />
               Available Trips
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-4">
               {availableTrips.map((trip, index) => (
-                <Card key={index} className="border-blue-200">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">
-                          {getDirectionIcon(trip.direction)}
-                        </span>
-                        <div>
-                          <h3 className="font-semibold">
-                            {getDirectionLabel(trip.direction)}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {trip.bookingCount} bookings
-                          </p>
-                        </div>
-                      </div>
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">
+                      {getDirectionIcon(trip.direction)}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        <span>{trip.totalPersons} persons</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        <span>{trip.totalBags} bags</span>
-                      </div>
+                    <div>
+                      <h4 className="font-medium">
+                        {getDirectionLabel(trip.direction)}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {trip.bookingCount} bookings • {trip.totalPersons}{" "}
+                        passengers • {trip.totalBags} bags
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(trip.earliestTime).toLocaleTimeString()} -{" "}
+                        {new Date(trip.latestTime).toLocaleTimeString()}
+                      </p>
                     </div>
-
-                    <Button
-                      onClick={() => handleStartTrip(trip.direction)}
-                      disabled={startingTrip}
-                      className="w-full"
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      {startingTrip ? "Starting..." : "Start Trip"}
-                    </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                  <Button
+                    onClick={() => handleStartTrip(trip.direction)}
+                    disabled={startingTrip}
+                    size="sm"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Trip
+                  </Button>
+                </div>
               ))}
             </div>
           </CardContent>
@@ -473,212 +649,84 @@ export default function TripDashboard() {
       {/* Trip History */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Trip History
-              {tripHistory.length > 0 && (
-                <Badge variant="secondary">{tripHistory.length} trips</Badge>
-              )}
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchTripHistory(1)}
-                disabled={historyLoading}
-              >
-                <div
-                  className={`w-4 h-4 mr-2 ${
-                    historyLoading ? "animate-spin" : ""
-                  }`}
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
-                  </svg>
-                </div>
-                Refresh
-              </Button>
-              {tripHistory.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // TODO: Navigate to detailed history page
-                    toast({
-                      title: "Trip History",
-                      description: "Detailed history page coming soon!",
-                    });
-                  }}
-                >
-                  View All
-                </Button>
-              )}
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Recent Trips
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {tripHistory.length > 0 ? (
-            <div className="space-y-3">
-              {tripHistory.map((trip) => {
-                const completedBookings = trip.bookings.filter(
-                  (b) => b.isCompleted
-                ).length;
-                const cancelledBookings = trip.bookings.filter(
-                  (b) => b.isCancelled
-                ).length;
-
-                return (
-                  <div
-                    key={trip.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">
-                        {getDirectionIcon(trip.direction)}
-                      </span>
-                      <div>
-                        <p className="font-medium">
-                          {getDirectionLabel(trip.direction)}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {trip.totalPersons} passengers • {completedBookings}{" "}
-                          bookings completed
-                        </p>
-                        {cancelledBookings > 0 && (
-                          <p className="text-xs text-red-600">
-                            {cancelledBookings} bookings cancelled
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500">
-                          Vehicle: {trip.shuttle?.vehicleNumber || "Unknown"}
-                        </p>
-                      </div>
+          {tripHistory.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              No recent trips found
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {tripHistory.map((trip) => (
+                <div
+                  key={trip.id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">
+                      {getDirectionIcon(trip.direction)}
                     </div>
-                    <div className="text-right">
-                      {trip.duration && (
-                        <p className="text-sm font-medium text-green-600">
-                          {trip.duration} min
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-600">
-                        {new Date(trip.startTime).toLocaleDateString()}
+                    <div>
+                      <h4 className="font-medium">
+                        {getDirectionLabel(trip.direction)}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {trip.totalPersons} passengers • {trip.totalBags} bags •{" "}
+                        {trip.duration} min
                       </p>
                       <p className="text-xs text-gray-500">
+                        {new Date(trip.startTime).toLocaleDateString()}{" "}
                         {new Date(trip.startTime).toLocaleTimeString()} -{" "}
-                        {trip.endTime
-                          ? new Date(trip.endTime).toLocaleTimeString()
-                          : "Ongoing"}
+                        {new Date(trip.endTime).toLocaleTimeString()}
                       </p>
                     </div>
                   </div>
-                );
-              })}
-
-              {hasMoreHistory && (
-                <div className="text-center pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchTripHistory(historyPage + 1, true)}
-                    disabled={historyLoading}
-                  >
-                    {historyLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
-                        Loading...
-                      </>
-                    ) : (
-                      "Load More"
-                    )}
-                  </Button>
+                  <Badge variant="outline">Completed</Badge>
                 </div>
+              ))}
+              {hasMoreHistory && (
+                <Button
+                  onClick={() => fetchTripHistory(historyPage + 1, true)}
+                  disabled={historyLoading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {historyLoading ? "Loading..." : "Load More"}
+                </Button>
               )}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <History className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No Trip History
-              </h3>
-              <p className="text-gray-600">
-                You haven't completed any trips yet. Start your first trip to
-                see it here.
-              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* No Data State */}
-      {!currentTrip && availableTrips.length === 0 && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <Navigation className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No Trips Available
-              </h3>
-              <p className="text-gray-600">
-                There are no available trips to start at the moment.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* End Trip Confirmation Dialog */}
-      {showEndTripDialog && currentTrip && (
-        <AlertDialog
-          open={showEndTripDialog}
-          onOpenChange={setShowEndTripDialog}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-orange-500" />
-                Confirm End Trip
-              </AlertDialogTitle>
-            </AlertDialogHeader>
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                <p className="mb-2">
-                  You have{" "}
-                  <strong>
-                    {currentTrip.totalBookings - currentTrip.checkedInBookings}{" "}
-                    unverified bookings
-                  </strong>{" "}
-                  out of {currentTrip.totalBookings} total. This affects a total
-                  of{" "}
-                  <strong>
-                    {currentTrip.totalPeople - currentTrip.checkedInPeople}{" "}
-                    passengers
-                  </strong>
-                  .
-                </p>
-                <p className="text-orange-600 mb-2">
-                  Ending the trip will automatically cancel bookings for these
-                  unverified passengers.
-                </p>
-                <p>Are you sure you want to proceed?</p>
-              </div>
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={endTripConfirmed}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                End Trip & Cancel Unverified
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
+      <AlertDialog open={showEndTripDialog} onOpenChange={setShowEndTripDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              End Trip with Unverified Bookings?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have{" "}
+              {currentTrip
+                ? currentTrip.totalBookings - currentTrip.checkedInBookings
+                : 0}{" "}
+              unverified bookings. These bookings will be cancelled if you end
+              the trip now. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={endTripConfirmed}>
+              End Trip
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
