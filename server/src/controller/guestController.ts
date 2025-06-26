@@ -928,6 +928,125 @@ const getCurrentBooking = async (req: Request, res: Response) => {
   }
 };
 
+// Get guest notifications
+const getNotifications = async (req: Request, res: Response) => {
+  try {
+    const guestId = (req as any).user.userId;
+    const { page = 1, limit = 20 } = req.query;
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    const notifications = await prisma.notification.findMany({
+      where: { guestId },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: parseInt(limit as string),
+    });
+
+    const total = await prisma.notification.count({
+      where: { guestId },
+    });
+
+    const unreadCount = await prisma.notification.count({
+      where: { 
+        guestId,
+        isRead: false,
+      },
+    });
+
+    res.json({
+      notifications,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        pages: Math.ceil(total / parseInt(limit as string)),
+      },
+      unreadCount,
+    });
+  } catch (error) {
+    console.error("Get notifications error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Mark notification as read
+const markNotificationAsRead = async (req: Request, res: Response) => {
+  try {
+    const { notificationId } = req.params;
+    const guestId = (req as any).user.userId;
+
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: parseInt(notificationId),
+        guestId,
+      },
+    });
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    await prisma.notification.update({
+      where: { id: parseInt(notificationId) },
+      data: { isRead: true },
+    });
+
+    res.json({ message: "Notification marked as read" });
+  } catch (error) {
+    console.error("Mark notification as read error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Mark all notifications as read
+const markAllNotificationsAsRead = async (req: Request, res: Response) => {
+  try {
+    const guestId = (req as any).user.userId;
+
+    await prisma.notification.updateMany({
+      where: {
+        guestId,
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    res.json({ message: "All notifications marked as read" });
+  } catch (error) {
+    console.error("Mark all notifications as read error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Delete notification
+const deleteNotification = async (req: Request, res: Response) => {
+  try {
+    const { notificationId } = req.params;
+    const guestId = (req as any).user.userId;
+
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: parseInt(notificationId),
+        guestId,
+      },
+    });
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    await prisma.notification.delete({
+      where: { id: parseInt(notificationId) },
+    });
+
+    res.json({ message: "Notification deleted" });
+  } catch (error) {
+    console.error("Delete notification error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getGuest,
   getHotels,
@@ -945,4 +1064,8 @@ export default {
   getBookingETA,
   getBookingTracking,
   getCurrentBooking,
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
 };

@@ -8,6 +8,7 @@ import { MapPin, Clock, QrCode, Navigation, Phone, Users, CheckCircle } from "lu
 import { QRCodeDisplay } from "./qr-code-display"
 import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
+import { useWebSocket } from "@/context/WebSocketContext"
 
 interface CurrentBookingProps {
   booking: any
@@ -20,28 +21,49 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
   const [showQR, setShowQR] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [currentBooking, setCurrentBooking] = useState(booking)
+  const { onBookingUpdate } = useWebSocket()
+
+  // Update local booking state when prop changes
+  useEffect(() => {
+    setCurrentBooking(booking)
+  }, [booking])
+
+  // Listen for real-time booking updates via WebSocket
+  useEffect(() => {
+    if (!onBookingUpdate) return
+
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      console.log("Received booking update via WebSocket:", updatedBooking)
+      if (updatedBooking.id === currentBooking?.id) {
+        setCurrentBooking(prev => ({ ...prev, ...updatedBooking }))
+      }
+    })
+
+    return cleanup
+  }, [onBookingUpdate, currentBooking?.id])
 
   useEffect(() => {
-    if (booking) {
+    if (currentBooking) {
       // Debug: Log booking data to understand structure
-      console.log("Current booking data:", booking);
-      console.log("QR Code Path:", booking.qrCodePath);
+      console.log("Current booking data:", currentBooking);
+      console.log("QR Code Path:", currentBooking.qrCodePath);
       
       // Set initial ETA from booking data
-      if (booking.eta) {
-        setEta(booking.eta);
+      if (currentBooking.eta) {
+        setEta(currentBooking.eta);
       }
-      if (booking.distance) {
-        setDistance(booking.distance);
+      if (currentBooking.distance) {
+        setDistance(currentBooking.distance);
       }
       
       // Start real-time ETA updates
       const updateETA = async () => {
-        if (!booking.id) return;
+        if (!currentBooking.id) return;
         
         try {
           setIsLoading(true);
-          const response = await api.get(`/guest/booking/${booking.id}/eta`);
+          const response = await api.get(`/guest/booking/${currentBooking.id}/eta`);
           setEta(response.eta);
           setDistance(response.distance);
           setLastUpdate(new Date());
@@ -60,9 +82,9 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
 
       return () => clearInterval(interval);
     }
-  }, [booking])
+  }, [currentBooking])
 
-  if (!booking) {
+  if (!currentBooking) {
     return (
       <div className="text-center py-12">
         <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -83,27 +105,27 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl">Current Booking</CardTitle>
-              <CardDescription>Booking ID: {booking.id}</CardDescription>
+              <CardDescription>Booking ID: {currentBooking.id}</CardDescription>
             </div>
             <Badge variant={
-              booking.isCancelled ? "destructive" : 
-              booking.isCompleted ? "default" : 
-              booking.needsFrontdeskVerification ? "secondary" :
-              !booking.needsFrontdeskVerification && !booking.isVerified ? "default" :
-              booking.isVerified ? "default" :
-              booking.isPaid ? "secondary" : "outline"
+              currentBooking.isCancelled ? "destructive" : 
+              currentBooking.isCompleted ? "default" : 
+              currentBooking.needsFrontdeskVerification ? "secondary" :
+              !currentBooking.needsFrontdeskVerification && !currentBooking.isVerified ? "default" :
+              currentBooking.isVerified ? "default" :
+              currentBooking.isPaid ? "secondary" : "outline"
             } className="text-sm">
-              {booking.isCancelled ? "Cancelled" : 
-               booking.isCompleted ? "Completed" : 
-               booking.needsFrontdeskVerification ? "Pending Verification" :
-               !booking.needsFrontdeskVerification && !booking.isVerified ? "Frontdesk Verified" :
-               booking.isVerified ? "Driver Checked In" :
-               booking.isPaid ? "Paid" : "Pending"}
+              {currentBooking.isCancelled ? "Cancelled" : 
+               currentBooking.isCompleted ? "Completed" : 
+               currentBooking.needsFrontdeskVerification ? "Pending Verification" :
+               !currentBooking.needsFrontdeskVerification && !currentBooking.isVerified ? "Frontdesk Verified" :
+               currentBooking.isVerified ? "Driver Checked In" :
+               currentBooking.isPaid ? "Paid" : "Pending"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {booking.needsFrontdeskVerification && (
+          {currentBooking.needsFrontdeskVerification && (
             <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-orange-600" />
@@ -117,7 +139,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             </div>
           )}
           
-          {!booking.needsFrontdeskVerification && !booking.isVerified && (
+          {!currentBooking.needsFrontdeskVerification && !currentBooking.isVerified && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="w-4 h-4 text-blue-600" />
@@ -131,6 +153,20 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             </div>
           )}
           
+          {currentBooking.isVerified && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <p className="text-sm text-green-800 font-medium">
+                  ✅ Check-in Confirmed!
+                </p>
+              </div>
+              <p className="text-xs text-green-700 mt-1">
+                You have been successfully checked in by the driver. Your shuttle is ready to depart. Have a great journey!
+              </p>
+            </div>
+          )}
+          
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
@@ -138,7 +174,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
                 <div>
                   <p className="font-medium">Trip Type</p>
                   <p className="text-sm text-gray-600">
-                    {booking.bookingType === "HOTEL_TO_AIRPORT" ? "Hotel to Airport" : "Airport to Hotel"}
+                    {currentBooking.bookingType === "HOTEL_TO_AIRPORT" ? "Hotel to Airport" : "Airport to Hotel"}
                   </p>
                 </div>
               </div>
@@ -147,7 +183,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
                 <div>
                   <p className="font-medium">Passengers & Bags</p>
                   <p className="text-sm text-gray-600">
-                    {booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)
+                    {currentBooking.numberOfPersons} person(s), {currentBooking.numberOfBags} bag(s)
                   </p>
                 </div>
               </div>
@@ -158,7 +194,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
                 <div>
                   <p className="font-medium">Preferred Time</p>
                   <p className="text-sm text-gray-600">
-                    {new Date(booking.preferredTime).toLocaleString()}
+                    {new Date(currentBooking.preferredTime).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -183,7 +219,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            {booking.qrCodePath ? (
+            {currentBooking.qrCodePath ? (
               <Button onClick={() => setShowQR(true)} className="flex-1">
                 <QrCode className="w-4 h-4 mr-2" />
                 Show QR Code
@@ -233,9 +269,9 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
             </div>
           </div>
           {/* Live Google Map */}
-          {booking.id && (
+          {currentBooking.id && (
             <div className="mt-6">
-              <GuestRouteMap booking={booking} />
+              <GuestRouteMap booking={currentBooking} />
             </div>
           )}
         </CardContent>
@@ -243,8 +279,8 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
 
       {/* QR Code Modal - Always render, let component handle missing qrCodePath */}
       <QRCodeDisplay
-        qrCodePath={booking.qrCodePath || ""}
-        bookingId={booking.id}
+        qrCodePath={currentBooking.qrCodePath || ""}
+        bookingId={currentBooking.id}
         isOpen={showQR}
         onClose={() => setShowQR(false)}
       />

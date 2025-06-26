@@ -112,70 +112,41 @@ export default function TripDashboard() {
   const [newBookingNotification, setNewBookingNotification] =
     useState<LiveBooking | null>(null);
   const { toast } = useToast();
-  const { socket, isConnected } = useWebSocket();
+  const { socket, isConnected, onBookingUpdate } = useWebSocket();
 
-  // WebSocket event listeners for real-time updates
-  useEffect(() => {
-    if (!socket || !isConnected) return;
+  const fetchTripHistory = useCallback(
+    async (page: number = 1, append: boolean = false) => {
+      try {
+        setHistoryLoading(true);
+        const historyResponse = await api.get(
+          `/trips/history?page=${page}&limit=5`
+        );
+        console.log("Trip history response:", historyResponse);
 
-    // Listen for new booking assignments
-    const handleBookingAssigned = (data: any) => {
-      if (data.booking) {
-        const newBooking: LiveBooking = {
-          id: data.booking.id,
-          guest: data.booking.guest,
-          numberOfPersons: data.booking.numberOfPersons,
-          numberOfBags: data.booking.numberOfBags,
-          preferredTime: data.booking.preferredTime,
-          pickupLocation: data.booking.pickupLocation,
-          dropoffLocation: data.booking.dropoffLocation,
-          bookingType: data.booking.bookingType,
-          assignedAt: new Date().toISOString(),
-        };
-        setLiveBookings((prev) => [...prev, newBooking]);
-        setNewBookingNotification(newBooking);
+        const newTrips = historyResponse.trips || [];
+        const pagination = historyResponse.pagination;
+
+        if (append) {
+          setTripHistory((prev) => [...prev, ...newTrips]);
+        } else {
+          setTripHistory(newTrips);
+        }
+
+        setHistoryPage(page);
+        setHasMoreHistory(pagination && page < pagination.pages);
+      } catch (error) {
+        console.error("Error fetching trip history:", error);
         toast({
-          title: "🚗 New Booking Assigned!",
-          description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
+          title: "Error",
+          description: "Failed to load trip history",
+          variant: "destructive",
         });
+      } finally {
+        setHistoryLoading(false);
       }
-    };
-
-    // Listen for booking updates
-    const handleBookingUpdated = (data: any) => {
-      if (data.booking) {
-        setLiveBookings((prev) =>
-          prev.map((b) =>
-            b.id === data.booking.id
-              ? {
-                  ...b,
-                  ...data.booking,
-                }
-              : b
-          )
-        );
-      }
-    };
-
-    // Listen for booking cancellations
-    const handleBookingCancelled = (data: any) => {
-      if (data.booking?.id) {
-        setLiveBookings((prev) =>
-          prev.filter((booking) => booking.id !== data.booking.id)
-        );
-      }
-    };
-
-    socket.on(WsEvents.BOOKING_ASSIGNED, handleBookingAssigned);
-    socket.on(WsEvents.BOOKING_UPDATED, handleBookingUpdated);
-    socket.on(WsEvents.BOOKING_CANCELLED, handleBookingCancelled);
-
-    return () => {
-      socket.off(WsEvents.BOOKING_ASSIGNED, handleBookingAssigned);
-      socket.off(WsEvents.BOOKING_UPDATED, handleBookingUpdated);
-      socket.off(WsEvents.BOOKING_CANCELLED, handleBookingCancelled);
-    };
-  }, [socket, isConnected, toast]);
+    },
+    [toast]
+  );
 
   const fetchTripData = useCallback(async () => {
     try {
@@ -218,41 +189,42 @@ export default function TripDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, fetchTripHistory]);
 
-  const fetchTripHistory = useCallback(
-    async (page: number = 1, append: boolean = false) => {
-      try {
-        setHistoryLoading(true);
-        const historyResponse = await api.get(
-          `/trips/history?page=${page}&limit=5`
-        );
-        console.log("Trip history response:", historyResponse);
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!onBookingUpdate) return;
 
-        const newTrips = historyResponse.trips || [];
-        const pagination = historyResponse.pagination;
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      console.log("Booking update received via WebSocket:", updatedBooking);
+      
+      // Create a new booking notification
+      const newBooking: LiveBooking = {
+        id: updatedBooking.id,
+        guest: updatedBooking.guest,
+        numberOfPersons: updatedBooking.numberOfPersons,
+        numberOfBags: updatedBooking.numberOfBags,
+        preferredTime: updatedBooking.preferredTime,
+        pickupLocation: updatedBooking.pickupLocation,
+        dropoffLocation: updatedBooking.dropoffLocation,
+        bookingType: updatedBooking.bookingType,
+        assignedAt: new Date().toISOString(),
+      };
+      
+      setLiveBookings((prev) => [...prev, newBooking]);
+      setNewBookingNotification(newBooking);
+      
+      toast({
+        title: "🚗 New Booking Assigned!",
+        description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
+      });
+      
+      // Refresh trip data
+      fetchTripData();
+    });
 
-        if (append) {
-          setTripHistory((prev) => [...prev, ...newTrips]);
-        } else {
-          setTripHistory(newTrips);
-        }
-
-        setHistoryPage(page);
-        setHasMoreHistory(pagination && page < pagination.pages);
-      } catch (error) {
-        console.error("Error fetching trip history:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load trip history",
-          variant: "destructive",
-        });
-      } finally {
-        setHistoryLoading(false);
-      }
-    },
-    [toast]
-  );
+    return cleanup;
+  }, [onBookingUpdate, toast, fetchTripData]);
 
   useEffect(() => {
     fetchTripData();

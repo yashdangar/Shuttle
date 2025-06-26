@@ -1,12 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
 interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  onBookingUpdate?: (callback: (booking: any) => void) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -42,6 +43,7 @@ export const WebSocketProvider = ({
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
+  const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -84,13 +86,42 @@ export const WebSocketProvider = ({
       });
     });
 
+    socketInstance.on("booking_assigned", (data: any) => {
+      console.log("New booking assigned via WebSocket:", data);
+      toast.success("🚗 New Booking Assigned!", {
+        description: data.message,
+        duration: 5000,
+      });
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+    });
+
+    socketInstance.on("heartbeat", (data: any) => {
+      console.log("Received heartbeat:", data.timestamp);
+    });
+
     return () => {
       socketInstance.disconnect();
     };
   }, [hasMounted]);
 
+  const onBookingUpdate = (callback: (booking: any) => void) => {
+    bookingUpdateCallbacksRef.current.push(callback);
+    
+    // Return cleanup function
+    return () => {
+      const index = bookingUpdateCallbacksRef.current.indexOf(callback);
+      if (index > -1) {
+        bookingUpdateCallbacksRef.current.splice(index, 1);
+      }
+    };
+  };
+
   return (
-    <WebSocketContext.Provider value={{ socket, isConnected }}>
+    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate }}>
       {children}
     </WebSocketContext.Provider>
   );

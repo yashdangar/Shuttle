@@ -137,6 +137,30 @@ export const validateVerificationToken = async (token: string, driverId: number)
       throw new Error('Driver not authorized to verify this booking');
     }
 
+    // Check if driver has an active trip and verify route direction
+    const activeTrip = await prisma.trip.findFirst({
+      where: {
+        driverId,
+        status: 'ACTIVE',
+      },
+    });
+
+    if (!activeTrip) {
+      throw new Error('Driver must be on an active trip to verify bookings');
+    }
+
+    // Check if booking direction matches trip direction
+    if (verificationToken.booking.bookingType !== activeTrip.direction) {
+      const tripDirectionText = activeTrip.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'Airport to Hotel';
+      const bookingDirectionText = verificationToken.booking.bookingType === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'Airport to Hotel';
+      throw new Error(`Route mismatch: Driver is currently on a ${tripDirectionText} trip, but this booking is for ${bookingDirectionText}. Please ensure you're on the correct route before scanning QR codes.`);
+    }
+
+    // Check if booking is assigned to the current trip
+    if (verificationToken.booking.tripId !== activeTrip.id) {
+      throw new Error('This booking is not assigned to your current trip. Please contact the frontdesk for assistance.');
+    }
+
     // Check if booking is valid
     if (verificationToken.booking.isCancelled) {
       throw new Error('Booking is cancelled');

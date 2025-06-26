@@ -1,69 +1,89 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Users, CreditCard, Navigation } from "lucide-react";
+import { Clock, MapPin, Users, CreditCard, Navigation, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-const nextTripData = {
-  time: "2:30 PM",
-  route: "Downtown Hotels → Terminal B",
-  totalPassengers: 8,
-  estimatedDuration: "45 minutes",
-};
-
-const nextTripPassengers = [
-  {
-    id: 1,
-    name: "David Thompson",
-    persons: 1,
-    bags: 2,
-    pickup: "Sheraton Downtown",
-    dropoff: "Terminal B - Gate 3",
-    paymentMethod: "Credit Card",
-  },
-  {
-    id: 2,
-    name: "Lisa Rodriguez",
-    persons: 2,
-    bags: 3,
-    pickup: "Hyatt Regency",
-    dropoff: "Terminal B - Gate 7",
-    paymentMethod: "Mobile Pay",
-  },
-  {
-    id: 3,
-    name: "James Park",
-    persons: 1,
-    bags: 1,
-    pickup: "Four Seasons Hotel",
-    dropoff: "Terminal B - Gate 12",
-    paymentMethod: "Cash",
-  },
-  {
-    id: 4,
-    name: "Maria Santos",
-    persons: 3,
-    bags: 4,
-    pickup: "Renaissance Hotel",
-    dropoff: "Terminal B - Gate 15",
-    paymentMethod: "Credit Card",
-  },
-  {
-    id: 5,
-    name: "Kevin Liu",
-    persons: 1,
-    bags: 1,
-    pickup: "Westin Downtown",
-    dropoff: "Terminal B - Gate 9",
-    paymentMethod: "Mobile Pay",
-  },
-];
+import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 export default function NextTripPage() {
+  const [nextTrip, setNextTrip] = useState<any>(null);
+  const [passengers, setPassengers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { onBookingUpdate } = useWebSocket();
+
+  const fetchNextTrip = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/trips/next');
+      console.log('Next trip response:', response);
+      
+      if (response.nextTrip) {
+        setNextTrip(response.nextTrip);
+        setPassengers(response.nextTrip.passengers || []);
+      } else {
+        setNextTrip(null);
+        setPassengers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching next trip:', error);
+      toast.error("Failed to fetch next trip data");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchNextTrip();
+  }, [fetchNextTrip]);
+
+  // Listen for real-time booking updates
+  useEffect(() => {
+    if (!onBookingUpdate) return;
+
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      console.log("Booking update received via WebSocket:", updatedBooking);
+      // Refresh next trip data when new bookings are assigned
+      fetchNextTrip();
+    });
+
+    return cleanup;
+  }, [onBookingUpdate, fetchNextTrip]);
+
   const handleCardClick = (passengerName: string) => {
-    toast.error("Failed to fetch next trip");
+    toast.info(`Viewing details for ${passengerName}`);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-foreground">Next Trip</h1>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading next trip...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!nextTrip) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-foreground">Next Trip</h1>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Clock className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Upcoming Trips</h2>
+            <p className="text-gray-600">You don't have any scheduled trips at the moment.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -86,28 +106,28 @@ export default function NextTripPage() {
               <p className="text-sm font-medium text-foreground">
                 Departure Time
               </p>
-              <p className="text-3xl font-bold text-foreground">{nextTripData.time}</p>
+              <p className="text-3xl font-bold text-foreground">{nextTrip.time}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">
                 Duration
               </p>
               <p className="text-xl font-semibold text-foreground">
-                {nextTripData.estimatedDuration}
+                {nextTrip.estimatedDuration}
               </p>
             </div>
           </div>
 
           <div>
             <p className="text-sm font-medium text-foreground">Route</p>
-            <p className="font-bold text-lg text-foreground">{nextTripData.route}</p>
+            <p className="font-bold text-lg text-foreground">{nextTrip.route}</p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               <span className="text-sm font-medium text-foreground">
-                {nextTripData.totalPassengers} passengers
+                {nextTrip.totalPassengers} passengers
               </span>
             </div>
             <Badge className="bg-blue-600 dark:bg-blue-500 text-white">Scheduled</Badge>
@@ -129,7 +149,7 @@ export default function NextTripPage() {
               <MapPin className="h-16 w-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
               <p className="text-lg font-medium text-foreground">Route Map Preview</p>
               <p className="text-sm text-foreground">
-                Downtown Hotels to Terminal B
+                {nextTrip.route}
               </p>
             </div>
           </div>
@@ -139,37 +159,41 @@ export default function NextTripPage() {
       {/* Passenger List */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-foreground">
-          Passengers ({nextTripPassengers.length})
+          Passengers ({passengers.length})
         </h2>
         <div className="grid gap-3">
-          {nextTripPassengers.map((passenger) => (
+          {passengers.map((passenger) => (
             <Card
               key={passenger.id}
               className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
-              onClick={() => handleCardClick(passenger.name)}
+              onClick={() => handleCardClick(`${passenger.guest?.firstName} ${passenger.guest?.lastName}`)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
-                      <h3 className="font-bold text-lg text-foreground">{passenger.name}</h3>
+                      <h3 className="font-bold text-lg text-foreground">
+                        {passenger.guest?.firstName} {passenger.guest?.lastName}
+                      </h3>
                       <Badge variant="outline" className="border-blue-200 dark:border-blue-800 text-foreground">Scheduled</Badge>
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 text-sm">
                       <div className="flex items-center gap-2 text-foreground">
                         <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="font-medium">{passenger.pickup}</span>
+                        <span className="font-medium">
+                          {passenger.pickupLocation?.name || 'Pickup Location'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 text-foreground">
                         <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span>
-                          {passenger.persons} passengers • {passenger.bags} bags
+                          {passenger.numberOfPersons} passengers • {passenger.numberOfBags} bags
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-foreground">
                         <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span>{passenger.paymentMethod}</span>
+                        <span>{passenger.bookingType || 'Standard'}</span>
                       </div>
                     </div>
                   </div>
@@ -181,7 +205,9 @@ export default function NextTripPage() {
                   <p className="text-sm font-medium text-foreground">
                     Drop-off:
                   </p>
-                  <p className="text-sm text-foreground">{passenger.dropoff}</p>
+                  <p className="text-sm text-foreground">
+                    {passenger.dropoffLocation?.name || 'Dropoff Location'}
+                  </p>
                 </div>
               </CardContent>
             </Card>

@@ -262,18 +262,66 @@ const confirmCheckIn = async (req: Request, res: Response) => {
       "QR code verified and check-in confirmed"
     );
 
+    // Get the updated booking with guest information
+    const updatedBooking = await prisma.booking.findUnique({
+      where: { id: validationResult.booking.id },
+      include: {
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        pickupLocation: true,
+        dropoffLocation: true,
+        trip: {
+          include: {
+            driver: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Create notification for the guest
+    await prisma.notification.create({
+      data: {
+        guestId: updatedBooking!.guestId,
+        title: "Check-in Confirmed",
+        message: `You have been successfully checked in by driver ${updatedBooking!.trip?.driver?.name || 'the driver'}. Your shuttle is ready to depart.`,
+      },
+    });
+
+    // Send WebSocket notification to the guest
+    const guestNotificationPayload = {
+      title: "✅ Check-in Confirmed!",
+      message: `You have been successfully checked in by driver ${updatedBooking!.trip?.driver?.name || 'the driver'}. Your shuttle is ready to depart.`,
+      booking: updatedBooking,
+    };
+
+    sendToUser(
+      updatedBooking!.guestId,
+      "guest",
+      WsEvents.DRIVER_CHECK_IN,
+      guestNotificationPayload
+    );
+
     // Return updated passenger information
-    const booking = validationResult.booking;
     const passenger = {
-      id: booking.id,
-      name: `${booking.guest.firstName} ${booking.guest.lastName}`,
-      persons: booking.numberOfPersons,
-      bags: booking.numberOfBags,
-      pickup: booking.pickupLocation?.name || "Hotel",
-      dropoff: booking.dropoffLocation?.name || "Airport",
-      paymentMethod: booking.paymentMethod,
-      phoneNumber: booking.guest.phoneNumber,
-      preferredTime: booking.preferredTime,
+      id: updatedBooking!.id,
+      name: `${updatedBooking!.guest.firstName} ${updatedBooking!.guest.lastName}`,
+      persons: updatedBooking!.numberOfPersons,
+      bags: updatedBooking!.numberOfBags,
+      pickup: updatedBooking!.pickupLocation?.name || "Hotel",
+      dropoff: updatedBooking!.dropoffLocation?.name || "Airport",
+      paymentMethod: updatedBooking!.paymentMethod,
+      phoneNumber: updatedBooking!.guest.phoneNumber,
+      preferredTime: updatedBooking!.preferredTime,
       seatNumber: `A${Math.floor(Math.random() * 12) + 1}`, // Assign random seat
       isVerified: true,
       verifiedAt: new Date(),

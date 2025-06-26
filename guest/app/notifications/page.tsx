@@ -1,173 +1,330 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, CheckCircle, AlertTriangle, Info, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Bell, 
+  Check, 
+  Trash2, 
+  CheckCheck, 
+  Clock, 
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Info
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 import { toast } from "sonner";
 
-const notifications = [
-  {
-    id: 1,
-    title: "Booking Confirmed",
-    message:
-      "Your shuttle booking for tomorrow has been confirmed. Driver will arrive at 9:00 AM.",
-    time: "2 minutes ago",
-    type: "success",
-    read: false,
-  },
-  {
-    id: 2,
-    title: "Driver Update",
-    message:
-      "Your driver will arrive 5 minutes early. Please be ready at 8:55 AM.",
-    time: "5 minutes ago",
-    type: "info",
-    read: false,
-  },
-  {
-    id: 3,
-    title: "Payment Successful",
-    message: "Payment for your recent booking has been processed successfully. Receipt sent to your email.",
-    time: "8 minutes ago",
-    type: "success",
-    read: false,
-  },
-  {
-    id: 4,
-    title: "Service Reminder",
-    message:
-      "Don't forget to rate your recent shuttle experience. Your feedback helps us improve our service.",
-    time: "15 minutes ago",
-    type: "warning",
-    read: true,
-  },
-  {
-    id: 5,
-    title: "Booking Cancelled",
-    message: "Your booking for today has been cancelled due to driver unavailability. We apologize for the inconvenience.",
-    time: "1 hour ago",
-    type: "warning",
-    read: true,
-  },
-  {
-    id: 6,
-    title: "New Feature Available",
-    message: "You can now track your shuttle in real-time! Check the app for live updates.",
-    time: "2 hours ago",
-    type: "info",
-    read: true,
-  },
-];
+interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+interface NotificationResponse {
+  notifications: Notification[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+  unreadCount: number;
+}
 
 export default function NotificationsPage() {
-  const [notificationList, setNotificationList] = useState(notifications);
-  const unreadCount = notificationList.filter((n) => !n.read).length;
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+  const { onBookingUpdate } = useWebSocket();
 
-  const markAsRead = (id: number) => {
-    setNotificationList((prev) =>
-      prev.map((notification) =>
-        notification.id === id ? { ...notification, read: true } : notification
-      )
-    );
-    toast.success("Notification marked as read");
-  };
-
-  const markAllAsRead = () => {
-    setNotificationList((prev) =>
-      prev.map((notification) => ({ ...notification, read: true }))
-    );
-    toast.success("All notifications marked as read", {
-      description: `${unreadCount} notifications updated`,
-    });
-  };
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "success":
-        return <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
-      case "warning":
-        return <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
-      case "info":
-      default:
-        return <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+  const fetchNotifications = async (page: number = 1) => {
+    try {
+      setIsLoading(true);
+      const response: NotificationResponse = await api.get(`/guest/notifications?page=${page}&limit=20`);
+      setNotifications(response.notifications);
+      setUnreadCount(response.unreadCount);
+      setCurrentPage(response.pagination.page);
+      setTotalPages(response.pagination.pages);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      toast.error("Failed to load notifications");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  // Listen for real-time booking updates that might affect notifications
+  useEffect(() => {
+    if (!onBookingUpdate) return;
+
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      // Refresh notifications when booking status changes
+      fetchNotifications(currentPage);
+    });
+
+    return cleanup;
+  }, [onBookingUpdate, currentPage]);
+
+  const markAsRead = async (notificationId: number) => {
+    try {
+      await api.put(`/guest/notifications/${notificationId}/read`);
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, isRead: true }
+            : notification
+        )
+      );
+      
+      // Update unread count
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      toast.success("Notification marked as read");
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      toast.error("Failed to mark notification as read");
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      setIsMarkingAllRead(true);
+      await api.put("/guest/notifications/read-all");
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, isRead: true }))
+      );
+      
+      setUnreadCount(0);
+      toast.success("All notifications marked as read");
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      toast.error("Failed to mark all notifications as read");
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  };
+
+  const deleteNotification = async (notificationId: number) => {
+    try {
+      await api.delete(`/guest/notifications/${notificationId}`);
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.filter(notification => notification.id !== notificationId)
+      );
+      
+      // Update unread count if notification was unread
+      const notification = notifications.find(n => n.id === notificationId);
+      if (notification && !notification.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+      toast.success("Notification deleted");
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      toast.error("Failed to delete notification");
+    }
+  };
+
+  const getNotificationIcon = (title: string) => {
+    if (title.includes("Completed") || title.includes("Check-in")) {
+      return <CheckCircle className="w-5 h-5 text-green-600" />;
+    }
+    if (title.includes("Cancelled") || title.includes("Rejected")) {
+      return <XCircle className="w-5 h-5 text-red-600" />;
+    }
+    if (title.includes("Verified") || title.includes("Assigned")) {
+      return <CheckCircle className="w-5 h-5 text-blue-600" />;
+    }
+    return <Info className="w-5 h-5 text-gray-600" />;
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return "Just now";
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
-          {unreadCount > 0 && (
-            <p className="text-sm text-foreground">
-              {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
-            </p>
-          )}
+          <h1 className="text-2xl font-bold">Notifications</h1>
+          <p className="text-gray-600">
+            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All caught up!'}
+          </p>
         </div>
         {unreadCount > 0 && (
           <Button 
-            variant="outline" 
-            onClick={markAllAsRead}
-            className="border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950"
+            onClick={markAllAsRead} 
+            disabled={isMarkingAllRead}
+            variant="outline"
+            size="sm"
           >
-            Mark All Read
+            {isMarkingAllRead ? (
+              <>
+                <Clock className="w-4 h-4 mr-2 animate-spin" />
+                Marking...
+              </>
+            ) : (
+              <>
+                <CheckCheck className="w-4 h-4 mr-2" />
+                Mark all read
+              </>
+            )}
           </Button>
         )}
       </div>
 
       {/* Notifications List */}
-      <div className="space-y-3">
-        {notificationList.map((notification) => (
-          <Card
-            key={notification.id}
-            className={`hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700 ${
-              !notification.read ? "bg-blue-50 dark:bg-blue-950" : ""
-            }`}
-            onClick={() => !notification.read && markAsRead(notification.id)}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 mt-1">
-                  {getIcon(notification.type)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-bold text-lg text-foreground">{notification.title}</h3>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!notification.read && (
-                        <Badge className="text-xs bg-blue-600 dark:bg-blue-500 text-white">New</Badge>
-                      )}
+      {notifications.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Bell className="w-16 h-16 text-gray-300 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications yet</h3>
+            <p className="text-gray-600 text-center">
+              You'll see notifications here when there are updates about your bookings.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {notifications.map((notification) => (
+            <Card 
+              key={notification.id} 
+              className={`transition-all duration-200 ${
+                !notification.isRead 
+                  ? 'border-l-4 border-l-blue-500 bg-blue-50/50' 
+                  : 'border-l-4 border-l-gray-200'
+              }`}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-3 flex-1">
+                    {getNotificationIcon(notification.title)}
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-semibold text-gray-900">
+                          {notification.title}
+                        </h3>
+                        {!notification.isRead && (
+                          <Badge variant="secondary" className="text-xs">
+                            New
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {formatTimeAgo(notification.createdAt)}
+                      </p>
                     </div>
                   </div>
-
-                  <p className="text-sm text-foreground mb-3 leading-relaxed">
-                    {notification.message}
-                  </p>
-
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm text-foreground">
-                      {notification.time}
-                    </span>
+                  <div className="flex items-center space-x-2">
+                    {!notification.isRead && (
+                      <Button
+                        onClick={() => markAsRead(notification.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => deleteNotification(notification.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {notificationList.length === 0 && (
-        <div className="text-center py-16">
-          <Bell className="h-16 w-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
-          <h3 className="text-xl font-semibold mb-2 text-foreground">
-            No notifications
-          </h3>
-          <p className="text-foreground">You're all caught up!</p>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center space-x-2">
+          <Button
+            onClick={() => fetchNotifications(currentPage - 1)}
+            disabled={currentPage === 1}
+            variant="outline"
+            size="sm"
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            onClick={() => fetchNotifications(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            variant="outline"
+            size="sm"
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, User, PanelLeft } from "lucide-react";
+import { User, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,9 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { NotificationDropdown } from "@/components/notification-dropdown";
+import { NotificationDrawer } from "@/components/notification-drawer";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,8 +23,6 @@ export function GuestTopbar({
   onToggleSidebar?: () => void;
 }) {
   const router = useRouter();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
   const [guestEmail, setGuestEmail] = useState("guest@example.com");
   const [guestName, setGuestName] = useState("Guest User");
   const [hotelId, setHotelId] = useState<string | null>(null);
@@ -116,29 +113,6 @@ export function GuestTopbar({
     router.push("/login");
   };
 
-  const handleToggleNotifications = useCallback(() => {
-    const newState = !showNotifications;
-    setShowNotifications(newState);
-    
-    // Use setTimeout to avoid state updates during render
-    setTimeout(() => {
-      if (newState) {
-        toast.success("Opening notifications", {
-          description: "You can view your notifications here",
-        });
-      }
-    }, 0);
-  }, [showNotifications]);
-
-  const handleCloseNotifications = useCallback(() => {
-    setShowNotifications(false);
-    
-    // Use setTimeout to avoid state updates during render
-    setTimeout(() => {
-      toast.success("Closing notifications");
-    }, 0);
-  }, []);
-
   return (
     <>
       <header className="bg-background border-b border-border px-6 py-4">
@@ -157,26 +131,7 @@ export function GuestTopbar({
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative hover:bg-blue-50 dark:hover:bg-blue-950"
-                onClick={handleToggleNotifications}
-              >
-                <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                {notificationCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-xs">
-                    {notificationCount}
-                  </Badge>
-                )}
-              </Button>
-              {showNotifications && (
-                <NotificationDropdown
-                  onClose={handleCloseNotifications}
-                />
-              )}
-            </div>
+            <NotificationDrawer />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -247,4 +202,4 @@ export function GuestTopbar({
       <Toaster />
     </>
   );
-}
+} 

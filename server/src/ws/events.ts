@@ -77,6 +77,16 @@ export const WsEvents = {
    */
   BOOKING_ASSIGNED: "booking_assigned",
 
+  /**
+   * Sent to a guest when their QR code is verified by a driver during check-in.
+   */
+  DRIVER_CHECK_IN: "driver_check_in",
+
+  /**
+   * Sent to a guest when their trip is completed by the driver.
+   */
+  TRIP_COMPLETED: "trip_completed",
+
   // Client-to-Server Events (Example for future use)
 
   /**
@@ -144,6 +154,18 @@ export type WsPayloads = {
     message: string;
     booking: BookingPayload;
     tripId: string;
+  };
+
+  [WsEvents.DRIVER_CHECK_IN]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
+  };
+
+  [WsEvents.TRIP_COMPLETED]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
   };
 
   [WsEvents.DRIVER_LOCATION_UPDATE]: {

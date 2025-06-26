@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import LocationTracker from "@/components/location-tracker";
 import DriverRouteMap from "@/components/driver-route-map";
+import { useWebSocket } from "@/context/WebSocketContext";
 import Link from "next/link";
 
 export default function CurrentTripPage() {
@@ -20,6 +21,7 @@ export default function CurrentTripPage() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { toast } = useToast();
+  const { onBookingUpdate } = useWebSocket();
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -73,6 +75,19 @@ export default function CurrentTripPage() {
     const interval = setInterval(fetchCurrentTrip, 120000);
     return () => clearInterval(interval);
   }, [fetchCurrentTrip]);
+
+  // Listen for real-time booking updates
+  useEffect(() => {
+    if (!onBookingUpdate) return
+
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      console.log("Booking update received via WebSocket:", updatedBooking);
+      // Refresh trip data when a new booking is assigned
+      fetchCurrentTrip();
+    })
+
+    return cleanup
+  }, [onBookingUpdate, fetchCurrentTrip])
 
   const checkedInCount = passengerList.filter((p) => p.isVerified).length;
   const totalPassengers = passengerList.reduce((sum, p) => sum + p.persons, 0);

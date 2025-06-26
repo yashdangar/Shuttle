@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import prisma from "../db/prisma";
 import { TripDirection, TripStatus } from "@prisma/client";
+import { sendToUser } from "../ws/index";
+import { WsEvents } from "../ws/events";
 
 // Start a new trip
 const startTrip = async (req: Request, res: Response) => {
@@ -279,6 +281,35 @@ const endTrip = async (req: Request, res: Response) => {
           isCompleted: true,
         },
       });
+
+      // Send notifications to guests with completed bookings
+      for (const booking of verifiedBookings) {
+        // Create database notification
+        await prisma.notification.create({
+          data: {
+            guestId: booking.guestId,
+            title: "Trip Completed",
+            message: `Your shuttle trip has been completed successfully. Thank you for choosing our service!`,
+          },
+        });
+
+        // Send WebSocket notification
+        const completedNotificationPayload = {
+          title: "✅ Trip Completed!",
+          message: `Your shuttle trip has been completed successfully. Thank you for choosing our service!`,
+          booking: {
+            ...booking,
+            isCompleted: true,
+          },
+        };
+
+        sendToUser(
+          booking.guestId,
+          "guest",
+          WsEvents.TRIP_COMPLETED,
+          completedNotificationPayload
+        );
+      }
     }
 
     // Mark unverified bookings as cancelled (abandoned)
@@ -294,20 +325,37 @@ const endTrip = async (req: Request, res: Response) => {
           tripId: null,
         },
       });
-    }
 
-    // Create notifications for cancelled bookings
-    if (unverifiedBookings.length > 0) {
-      const notifications = unverifiedBookings.map((booking) => ({
-        title: "Booking Cancelled",
-        message: `Your shuttle booking has been cancelled as you were not present for pickup.`,
-        guestId: booking.guestId,
-        createdAt: new Date(),
-      }));
+      // Send notifications to guests with cancelled bookings
+      for (const booking of unverifiedBookings) {
+        // Create database notification
+        await prisma.notification.create({
+          data: {
+            guestId: booking.guestId,
+            title: "Booking Cancelled",
+            message: `Your shuttle booking has been cancelled as you were not present for pickup.`,
+          },
+        });
 
-      await prisma.notification.createMany({
-        data: notifications,
-      });
+        // Send WebSocket notification
+        const cancelledNotificationPayload = {
+          title: "❌ Booking Cancelled",
+          message: `Your shuttle booking has been cancelled as you were not present for pickup.`,
+          booking: {
+            ...booking,
+            isCancelled: true,
+            cancelledBy: "SYSTEM",
+            cancellationReason: "Driver marked as no-show at end of trip",
+          },
+        };
+
+        sendToUser(
+          booking.guestId,
+          "guest",
+          WsEvents.BOOKING_CANCELLED,
+          cancelledNotificationPayload
+        );
+      }
     }
 
     const message =

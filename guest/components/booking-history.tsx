@@ -16,6 +16,7 @@ import { api } from "@/lib/api"
 import { QRCodeDisplay } from "./qr-code-display"
 import { RescheduleModal } from "./reschedule-modal"
 import { toast } from "sonner"
+import { useWebSocket } from "@/context/WebSocketContext"
 
 export default function BookingHistory() {
   const [bookings, setBookings] = useState<any[]>([])
@@ -24,6 +25,7 @@ export default function BookingHistory() {
   const [isLoading, setIsLoading] = useState(true)
   const [showReschedule, setShowReschedule] = useState(false)
   const [rescheduleBooking, setRescheduleBooking] = useState<any>(null)
+  const { onBookingUpdate } = useWebSocket()
 
   useEffect(() => {
     const getHistory = async () => {
@@ -39,6 +41,24 @@ export default function BookingHistory() {
     }
     getHistory()
   }, [])
+
+  // Listen for real-time booking updates via WebSocket
+  useEffect(() => {
+    if (!onBookingUpdate) return
+
+    const cleanup = onBookingUpdate((updatedBooking) => {
+      console.log("Received booking update in history:", updatedBooking)
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking.id === updatedBooking.id 
+            ? { ...booking, ...updatedBooking }
+            : booking
+        )
+      )
+    })
+
+    return cleanup
+  }, [onBookingUpdate])
 
   const getStatusColor = (booking: any) => {
     if (booking.isCancelled) return "bg-red-100 text-red-800"

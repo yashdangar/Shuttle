@@ -8,6 +8,7 @@ interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   onBookingUpdate?: (callback: (booking: any) => void) => void;
+  onNotificationUpdate?: (callback: () => void) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -29,6 +30,7 @@ export const WebSocketProvider = ({
   const [isConnected, setIsConnected] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
+  const notificationUpdateCallbacksRef = useRef<(() => void)[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -80,6 +82,11 @@ export const WebSocketProvider = ({
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
       });
+      
+      // Trigger notification update callbacks
+      notificationUpdateCallbacksRef.current.forEach(callback => {
+        callback();
+      });
     });
 
     socketInstance.on("booking_cancelled", (data: any) => {
@@ -90,6 +97,11 @@ export const WebSocketProvider = ({
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
       });
+      
+      // Trigger notification update callbacks
+      notificationUpdateCallbacksRef.current.forEach(callback => {
+        callback();
+      });
     });
 
     socketInstance.on("booking_assigned", (data: any) => {
@@ -99,6 +111,41 @@ export const WebSocketProvider = ({
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
+      });
+      
+      // Trigger notification update callbacks
+      notificationUpdateCallbacksRef.current.forEach(callback => {
+        callback();
+      });
+    });
+
+    socketInstance.on("driver_check_in", (data: any) => {
+      console.log("Driver check-in confirmed via WebSocket:", data);
+      toast.success("✅ Check-in confirmed! You're all set for your journey!");
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+      
+      // Trigger notification update callbacks
+      notificationUpdateCallbacksRef.current.forEach(callback => {
+        callback();
+      });
+    });
+
+    socketInstance.on("trip_completed", (data: any) => {
+      console.log("Trip completed via WebSocket:", data);
+      toast.success("🎉 Trip completed! Thank you for choosing our service!");
+      
+      // Notify all registered callbacks
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking);
+      });
+      
+      // Trigger notification update callbacks
+      notificationUpdateCallbacksRef.current.forEach(callback => {
+        callback();
       });
     });
 
@@ -119,8 +166,20 @@ export const WebSocketProvider = ({
     };
   };
 
+  const onNotificationUpdate = (callback: () => void) => {
+    notificationUpdateCallbacksRef.current.push(callback);
+    
+    // Return cleanup function
+    return () => {
+      const index = notificationUpdateCallbacksRef.current.indexOf(callback);
+      if (index > -1) {
+        notificationUpdateCallbacksRef.current.splice(index, 1);
+      }
+    };
+  };
+
   return (
-    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate }}>
+    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate, onNotificationUpdate }}>
       {children}
     </WebSocketContext.Provider>
   );

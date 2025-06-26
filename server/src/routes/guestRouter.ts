@@ -98,4 +98,29 @@ router.get(
   controller.getBookingTracking as RequestHandler
 );
 
+// Notification routes
+router.get(
+  "/notifications",
+  guestAuthMiddleware as RequestHandler,
+  controller.getNotifications as RequestHandler
+);
+
+router.put(
+  "/notifications/:notificationId/read",
+  guestAuthMiddleware as RequestHandler,
+  controller.markNotificationAsRead as RequestHandler
+);
+
+router.put(
+  "/notifications/read-all",
+  guestAuthMiddleware as RequestHandler,
+  controller.markAllNotificationsAsRead as RequestHandler
+);
+
+router.delete(
+  "/notifications/:notificationId",
+  guestAuthMiddleware as RequestHandler,
+  controller.deleteNotification as RequestHandler
+);
+
 export default router;
