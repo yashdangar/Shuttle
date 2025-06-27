@@ -15,7 +15,6 @@ import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Toaster } from "@/components/ui/sonner";
 
 export function DriverTopbar({
   onToggleSidebar,
@@ -135,7 +134,6 @@ export function DriverTopbar({
           </div>
         </div>
       </header>
-      <Toaster />
     </>
   );
 }

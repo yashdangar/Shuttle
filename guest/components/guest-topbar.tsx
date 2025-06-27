@@ -13,8 +13,6 @@ import {
 import { useRouter } from "next/navigation";
 import { NotificationDrawer } from "@/components/notification-drawer";
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
-import { Toaster } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 
 export function GuestTopbar({
@@ -199,7 +197,6 @@ export function GuestTopbar({
           </div>
         </div>
       </header>
-      <Toaster />
     </>
   );
 } 
