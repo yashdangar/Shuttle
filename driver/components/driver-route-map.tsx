@@ -4,9 +4,17 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Navigation, Users, CheckCircle, Clock } from "lucide-react";
-import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline } from "@react-google-maps/api";
+import { MapPin, Navigation, Users, CheckCircle, Clock, Plane } from "lucide-react";
+import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline, Polygon } from "@react-google-maps/api";
 import { api } from "@/lib/api";
+import { 
+  isDriverInAirportBoundary, 
+  getDriverTerminalArea, 
+  getAirportBoundaryForMap, 
+  getTerminalAreasForMap,
+  isDriverApproachingAirport 
+} from "@/lib/airportBoundary";
+import { toast } from "sonner";
 
 interface Location {
   latitude: number;
@@ -47,8 +55,8 @@ const containerStyle = {
 };
 
 const defaultCenter = {
-  lat: 19.0760, // Mumbai as fallback
-  lng: 72.8777,
+  lat: 19.0896, // Airport center (Terminal 1)
+  lng: 72.8656,
 };
 
 export default function DriverRouteMap({ 
@@ -64,7 +72,15 @@ export default function DriverRouteMap({
   const [error, setError] = useState<string | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<Passenger | null>(null);
   const [activeInfoWindow, setActiveInfoWindow] = useState<string | null>(null);
+  const [isInAirportBoundary, setIsInAirportBoundary] = useState(false);
+  const [terminalArea, setTerminalArea] = useState<string | null>(null);
+  const [isApproachingAirport, setIsApproachingAirport] = useState(false);
+  const [lastBoundaryCheck, setLastBoundaryCheck] = useState<Date | null>(null);
+  const [userInteractedWithMap, setUserInteractedWithMap] = useState(false);
+  const [lastUserInteraction, setLastUserInteraction] = useState<Date | null>(null);
+  const [autoFollowDriver, setAutoFollowDriver] = useState(true);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const locationCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Load Google Maps JS API
   const { isLoaded, loadError } = useJsApiLoader({
@@ -72,6 +88,60 @@ export default function DriverRouteMap({
   });
 
   console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
+
+  // Function to check airport boundary and handle trip transitions
+  const checkAirportBoundary = async (location: Location) => {
+    const driverCoords = { lat: location.latitude, lng: location.longitude };
+    const wasInAirport = isInAirportBoundary;
+    const isNowInAirport = isDriverInAirportBoundary(driverCoords);
+    const currentTerminalArea = getDriverTerminalArea(driverCoords);
+    const approaching = isDriverApproachingAirport(driverCoords);
+
+    setIsInAirportBoundary(isNowInAirport);
+    setTerminalArea(currentTerminalArea);
+    setIsApproachingAirport(approaching);
+
+    // Only trigger transitions if we have a current trip and enough time has passed since last check
+    if (currentTrip && (!lastBoundaryCheck || Date.now() - lastBoundaryCheck.getTime() > 10000)) {
+      setLastBoundaryCheck(new Date());
+
+      if (isNowInAirport && !wasInAirport) {
+        // Driver entered airport boundary
+        console.log('🚁 Driver entered airport boundary');
+        
+        if (currentTrip.direction === 'HOTEL_TO_AIRPORT' && currentTrip.phase === 'OUTBOUND') {
+          // Automatically transition to RETURN phase
+          try {
+            console.log('🔄 Automatically transitioning to RETURN phase');
+            await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
+            
+            toast.success("Outbound trip completed!", {
+              description: "Return trip has started automatically",
+            });
+            
+            // Refresh trip data
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } catch (error) {
+            console.error('Error transitioning trip phase:', error);
+            toast.error("Failed to transition trip phase", {
+              description: "Please manually end the outbound trip",
+            });
+          }
+        }
+      } else if (!isNowInAirport && wasInAirport) {
+        // Driver left airport boundary
+        console.log('🚗 Driver left airport boundary');
+        
+        if (currentTrip.direction === 'AIRPORT_TO_HOTEL' && currentTrip.phase === 'OUTBOUND') {
+          // For airport to hotel trips, we don't auto-transition when leaving airport
+          // The driver should manually end the trip when they reach the hotel
+          console.log('📍 Driver left airport - outbound trip continues to hotel');
+        }
+      }
+    }
+  };
 
   // Fetch driver location and setup locations based on trip direction
   const fetchMapData = async () => {
@@ -82,11 +152,15 @@ export default function DriverRouteMap({
       // Get driver's current location
       const driverResponse = await api.get('/driver/current-location');
       if (driverResponse.location) {
-        setDriverLocation({
+        const newDriverLocation = {
           latitude: driverResponse.location.latitude,
           longitude: driverResponse.location.longitude,
           name: "Driver Location"
-        });
+        };
+        setDriverLocation(newDriverLocation);
+        
+        // Check airport boundary immediately
+        await checkAirportBoundary(newDriverLocation);
       }
 
       // Get current trip data with hotel information
@@ -256,6 +330,43 @@ export default function DriverRouteMap({
     }
   };
 
+  // Set up periodic location checking for airport boundary detection
+  useEffect(() => {
+    if (currentTrip && driverLocation) {
+      // Check location every 30 seconds for boundary detection
+      locationCheckInterval.current = setInterval(async () => {
+        try {
+          const driverResponse = await api.get('/driver/current-location');
+          if (driverResponse.location) {
+            const newLocation = {
+              latitude: driverResponse.location.latitude,
+              longitude: driverResponse.location.longitude,
+              name: "Driver Location"
+            };
+            setDriverLocation(newLocation);
+            await checkAirportBoundary(newLocation);
+            
+            // Only auto-follow driver if user hasn't interacted with map recently
+            // and auto-follow is enabled
+            if (autoFollowDriver && (!lastUserInteraction || Date.now() - lastUserInteraction.getTime() > 60000)) {
+              if (mapRef.current) {
+                mapRef.current.panTo({ lat: newLocation.latitude, lng: newLocation.longitude });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error updating driver location:', error);
+        }
+      }, 30000); // 30 seconds
+    }
+
+    return () => {
+      if (locationCheckInterval.current) {
+        clearInterval(locationCheckInterval.current);
+      }
+    };
+  }, [currentTrip, driverLocation, autoFollowDriver, lastUserInteraction]);
+
   useEffect(() => {
     if (passengers && passengers.length > 0 && currentTrip) {
       fetchMapData();
@@ -271,6 +382,25 @@ export default function DriverRouteMap({
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
+    
+    // Add event listeners for user interaction
+    map.addListener('dragstart', () => {
+      setUserInteractedWithMap(true);
+      setLastUserInteraction(new Date());
+      console.log('User started dragging map');
+    });
+    
+    map.addListener('zoom_changed', () => {
+      setUserInteractedWithMap(true);
+      setLastUserInteraction(new Date());
+      console.log('User changed zoom level');
+    });
+    
+    map.addListener('click', () => {
+      setUserInteractedWithMap(true);
+      setLastUserInteraction(new Date());
+      console.log('User clicked on map');
+    });
   };
 
   const onUnmount = () => {
@@ -435,6 +565,43 @@ export default function DriverRouteMap({
             <div className="w-3 h-3 bg-cyan-500 rounded-full mr-1"></div>
             Dropoff
           </Badge>
+          <Badge variant="outline" className="text-xs">
+            <div className="w-3 h-3 bg-purple-500 rounded-full mr-1"></div>
+            Airport
+          </Badge>
+        </div>
+        
+        {/* Airport Boundary Status */}
+        {(isInAirportBoundary || isApproachingAirport) && (
+          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Plane className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                {isInAirportBoundary 
+                  ? `In Airport Boundary${terminalArea ? ` (${terminalArea})` : ''}`
+                  : 'Approaching Airport'
+                }
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {/* Auto-follow Status */}
+        <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Navigation className={`h-4 w-4 ${autoFollowDriver ? 'text-green-600' : 'text-gray-400'}`} />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Auto-follow: {autoFollowDriver ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            {userInteractedWithMap && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span className="text-xs text-gray-500">Manual control</span>
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -442,7 +609,7 @@ export default function DriverRouteMap({
           <GoogleMap
             mapContainerStyle={containerStyle}
             center={center}
-            zoom={13}
+            zoom={15}
             onLoad={onLoad}
             onUnmount={onUnmount}
             options={{
@@ -452,6 +619,52 @@ export default function DriverRouteMap({
               fullscreenControl: true,
             }}
           >
+            {/* Airport Boundary Polygon */}
+            <Polygon
+              paths={getAirportBoundaryForMap()}
+              options={{
+                fillColor: "#3B82F6",
+                fillOpacity: 0.3,
+                strokeColor: "#1D4ED8",
+                strokeOpacity: 1.0,
+                strokeWeight: 3,
+              }}
+            />
+
+            {/* Terminal Areas */}
+            {getTerminalAreasForMap().terminal1 && (
+              <Polygon
+                paths={getTerminalAreasForMap().terminal1}
+                options={{
+                  fillColor: "#10B981",
+                  fillOpacity: 0.4,
+                  strokeColor: "#059669",
+                  strokeOpacity: 1.0,
+                  strokeWeight: 2,
+                }}
+              />
+            )}
+
+            {getTerminalAreasForMap().terminal2 && (
+              <Polygon
+                paths={getTerminalAreasForMap().terminal2}
+                options={{
+                  fillColor: "#F59E0B",
+                  fillOpacity: 0.4,
+                  strokeColor: "#D97706",
+                  strokeOpacity: 1.0,
+                  strokeWeight: 2,
+                }}
+              />
+            )}
+
+            {/* Airport Center Marker for reference */}
+            <Marker
+              position={{ lat: 19.0896, lng: 72.8656 }}
+              title="Airport Center (Terminal 1)"
+              icon="https://maps.google.com/mapfiles/ms/icons/airport.png"
+            />
+
             {/* Driver Location Marker */}
             {driverLocation && (
               <Marker
@@ -525,6 +738,16 @@ export default function DriverRouteMap({
                 <div className="p-2">
                   <h3 className="font-bold text-blue-600">🚗 Driver Location</h3>
                   <p className="text-sm">Current position</p>
+                  {isInAirportBoundary && (
+                    <p className="text-sm text-green-600 mt-1">
+                      ✓ In Airport Boundary{terminalArea ? ` (${terminalArea})` : ''}
+                    </p>
+                  )}
+                  {isApproachingAirport && !isInAirportBoundary && (
+                    <p className="text-sm text-yellow-600 mt-1">
+                      ⚠ Approaching Airport
+                    </p>
+                  )}
                 </div>
               </InfoWindow>
             )}
@@ -607,16 +830,55 @@ export default function DriverRouteMap({
           <div className="absolute top-4 right-4 space-y-2">
             <Button
               size="sm"
+              variant={autoFollowDriver ? "default" : "secondary"}
+              className={`shadow-lg ${autoFollowDriver ? 'bg-blue-500 text-white' : 'bg-white'}`}
+              onClick={() => {
+                setAutoFollowDriver(!autoFollowDriver);
+                if (!autoFollowDriver) {
+                  // When enabling auto-follow, immediately follow driver
+                  if (driverLocation && mapRef.current) {
+                    mapRef.current.panTo({ lat: driverLocation.latitude, lng: driverLocation.longitude });
+                    mapRef.current.setZoom(15);
+                  }
+                }
+                toast.info(autoFollowDriver ? "Auto-follow disabled" : "Auto-follow enabled", {
+                  description: autoFollowDriver ? "Map will stay in place" : "Map will follow your location"
+                });
+              }}
+            >
+              <Navigation className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
               variant="secondary"
               className="bg-white shadow-lg"
               onClick={() => {
                 if (driverLocation && mapRef.current) {
                   mapRef.current.panTo({ lat: driverLocation.latitude, lng: driverLocation.longitude });
                   mapRef.current.setZoom(15);
+                  setLastUserInteraction(null); // Reset user interaction to allow auto-follow
                 }
               }}
             >
-              <Navigation className="h-4 w-4" />
+              <div className="h-4 w-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white shadow-lg"
+              onClick={() => {
+                if (mapRef.current) {
+                  mapRef.current.panTo({ lat: 19.0896, lng: 72.8656 });
+                  mapRef.current.setZoom(16);
+                  setLastUserInteraction(new Date()); // Mark as user interaction
+                }
+              }}
+            >
+              <Plane className="h-4 w-4" />
             </Button>
             <Button
               size="sm"
@@ -637,6 +899,7 @@ export default function DriverRouteMap({
                     bounds.extend({ lat: driverLocation.latitude, lng: driverLocation.longitude });
                   }
                   mapRef.current.fitBounds(bounds);
+                  setLastUserInteraction(new Date()); // Mark as user interaction
                 }
               }}
             >
@@ -666,7 +929,15 @@ export default function DriverRouteMap({
                     dropoffLocations,
                     driverLocation,
                     hotelLocation,
-                    currentTrip
+                    currentTrip,
+                    isInAirportBoundary,
+                    terminalArea,
+                    isApproachingAirport,
+                    airportBoundary: getAirportBoundaryForMap(),
+                    terminalAreas: getTerminalAreasForMap(),
+                    autoFollowDriver,
+                    userInteractedWithMap,
+                    lastUserInteraction
                   });
                 }}
               >
@@ -717,6 +988,24 @@ export default function DriverRouteMap({
                 <p><strong>Loading:</strong> {loading ? 'Yes' : 'No'}</p>
                 <p><strong>Error:</strong> {error || 'None'}</p>
               </div>
+            </div>
+            <div className="mt-2">
+              <p><strong>Airport Boundary:</strong> {isInAirportBoundary ? 'Yes' : 'No'}</p>
+              <p><strong>Terminal Area:</strong> {terminalArea || 'None'}</p>
+              <p><strong>Approaching Airport:</strong> {isApproachingAirport ? 'Yes' : 'No'}</p>
+            </div>
+            <div className="mt-2">
+              <p><strong>Auto-follow:</strong> {autoFollowDriver ? 'ON' : 'OFF'}</p>
+              <p><strong>User Interacted:</strong> {userInteractedWithMap ? 'Yes' : 'No'}</p>
+              <p><strong>Last Interaction:</strong> {lastUserInteraction ? lastUserInteraction.toLocaleTimeString() : 'None'}</p>
+            </div>
+            <div className="mt-2">
+              <p><strong>Airport Boundary Coordinates:</strong></p>
+              <p className="ml-2 text-xs font-mono">
+                {getAirportBoundaryForMap().map((coord, i) => 
+                  `${i}: ${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`
+                ).join(', ')}
+              </p>
             </div>
             {pickupLocations.length > 0 && (
               <div className="mt-2">
