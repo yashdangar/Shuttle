@@ -607,6 +607,25 @@ const addSchedule = async (req: Request, res: Response) => {
     const dateOnly = new Date(scheduleDate);
     dateOnly.setUTCHours(0, 0, 0, 0);
 
+    // Check if a schedule already exists for this driver on this date
+    const existingSchedule = await prisma.schedule.findFirst({
+      where: {
+        driverId: parseInt(driverId),
+        scheduleDate: dateOnly,
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+
+    if (existingSchedule) {
+      return res.status(400).json({
+        message: `Driver ${existingSchedule.driver.name} already has a schedule for ${dateOnly.toDateString()}. Please edit the existing schedule instead.`,
+        existingSchedule,
+      });
+    }
+
     const schedule = await prisma.schedule.create({
       data: {
         driverId: parseInt(driverId),
@@ -631,6 +650,14 @@ const addSchedule = async (req: Request, res: Response) => {
     res.json({ schedule });
   } catch (error) {
     console.error("Add schedule error:", error);
+    
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === 'P2002') {
+      return res.status(400).json({
+        message: "A schedule already exists for this driver on the selected date.",
+      });
+    }
+    
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -743,6 +770,32 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
       "sunday",
     ];
 
+    // Check for existing schedules for this driver in the week
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const existingSchedules = await prisma.schedule.findMany({
+      where: {
+        driverId: parseInt(driverId),
+        scheduleDate: {
+          gte: weekStart,
+          lte: weekEnd,
+        },
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    if (existingSchedules.length > 0) {
+      const existingDates = existingSchedules.map(s => s.scheduleDate.toDateString()).join(', ');
+      return res.status(400).json({
+        message: `Driver ${existingSchedules[0].driver.name} already has schedules for the following dates: ${existingDates}. Please edit existing schedules or choose a different week.`,
+        existingSchedules,
+      });
+    }
+
     for (let i = 0; i < 7; i++) {
       const dayKey = dayKeys[i];
       const dayData = weekSchedule[dayKey];
@@ -784,12 +837,29 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
       }
     }
 
+    // Notify the assigned driver about the new weekly schedule
+    if (schedules.length > 0) {
+      sendToUser(parseInt(driverId), "driver", WsEvents.NEW_SCHEDULE, {
+        title: "New Weekly Schedule Assigned",
+        message: `You have been assigned a new weekly schedule starting from ${weekStart.toDateString()}.`,
+        schedules,
+      });
+    }
+
     res.json({
       schedules,
       message: `Created ${schedules.length} schedules for the week`,
     });
   } catch (error) {
     console.error("Add weekly schedule error:", error);
+    
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === 'P2002') {
+      return res.status(400).json({
+        message: "One or more schedules already exist for this driver on the selected dates.",
+      });
+    }
+    
     res.status(500).json({ message: "Internal server error" });
   }
 };

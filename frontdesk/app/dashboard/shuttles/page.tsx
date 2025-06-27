@@ -33,6 +33,10 @@ interface Shuttle {
   seats: number;
   createdAt: string;
   schedules?: Schedule[];
+  currentPassengers?: number;
+  availableSeats?: number;
+  utilization?: number;
+  isAvailable?: boolean;
 }
 
 interface Schedule {
@@ -50,6 +54,7 @@ function ShuttlesPage() {
   const [shuttles, setShuttles] = useState<Shuttle[]>([]);
   const [selectedShuttle, setSelectedShuttle] = useState<Shuttle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [capacityStatus, setCapacityStatus] = useState<any>(null);
 
   // Helper function to format time in UTC to avoid timezone issues
   const formatTimeForDisplay = (isoString: string | null | undefined) => {
@@ -72,9 +77,13 @@ function ShuttlesPage() {
   useEffect(() => {
     const fetchShuttles = async () => {
       try {
+        setLoading(true);
         const response = await fetchWithAuth("/frontdesk/get/shuttle");
-        const data = await response.json();
-        setShuttles(data.shuttles);
+        setShuttles(response.shuttles);
+        
+        // Also fetch capacity status
+        const capacityResponse = await fetchWithAuth("/frontdesk/shuttle-capacity-status");
+        setCapacityStatus(capacityResponse);
       } catch (error) {
         console.error("Error fetching shuttles:", error);
       } finally {
@@ -107,13 +116,14 @@ function ShuttlesPage() {
                 <TableRow>
                   <TableHead>Vehicle Number</TableHead>
                   <TableHead>Seats</TableHead>
+                  <TableHead>Capacity Status</TableHead>
                   <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableLoader columns={5} />
+                <TableLoader columns={6} />
               </TableBody>
             </Table>
           </CardContent>
@@ -151,6 +161,7 @@ function ShuttlesPage() {
                 <TableRow>
                   <TableHead>Vehicle Number</TableHead>
                   <TableHead>Seats</TableHead>
+                  <TableHead>Capacity Status</TableHead>
                   <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -164,6 +175,27 @@ function ShuttlesPage() {
                         {shuttle.vehicleNumber}
                       </TableCell>
                       <TableCell>{shuttle.seats} seats</TableCell>
+                      <TableCell>
+                        {capacityStatus && capacityStatus.shuttles ? (
+                          <div className="space-y-1">
+                            {capacityStatus.shuttles
+                              .filter((cs: any) => cs.shuttleId === shuttle.id)
+                              .map((cs: any) => (
+                                <div key={cs.shuttleId} className="text-sm">
+                                  <div className="flex items-center space-x-2">
+                                    <span className={`w-2 h-2 rounded-full ${cs.isAvailable ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                    <span>{cs.currentPassengers}/{cs.totalSeats} passengers</span>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {cs.availableSeats} seats available ({cs.utilization}% full)
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Loading capacity...</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {shuttle.schedules && shuttle.schedules.length > 0 ? (
                           <div className="space-y-1">

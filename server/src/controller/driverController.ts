@@ -15,6 +15,7 @@ import { getSignedUrlFromPath } from "../utils/s3Utils";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { PaymentMethod, BookingType } from "@prisma/client";
+import { assignBookingToTrip, findAvailableShuttleWithCapacity, checkShuttleCapacity, getISTDateRange } from "../utils/bookingUtils";
 
 const login = async (req: Request, res: Response) => {
   try {
@@ -898,28 +899,52 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     const driverId = (req as any).user.userId;
     const hotelId = (req as any).user.hotelId;
 
-    // Get current schedule for the driver
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Get current date in Indian Standard Time (IST)
+    const { istTime, startOfDay, endOfDay } = getISTDateRange();
 
-    const currentSchedule = await prisma.schedule.findFirst({
+    console.log(`Driver assignment - Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+
+    const schedules = await prisma.schedule.findMany({
       where: {
         driverId,
         scheduleDate: {
           gte: startOfDay,
           lte: endOfDay,
         },
-        startTime: { lte: new Date() },
-        endTime: { gte: new Date() },
       },
       include: {
         shuttle: true,
         driver: true,
       },
     });
+
+    console.log(`Found ${schedules.length} schedules for driver today`);
+
+    // Find the currently active schedule
+    let currentSchedule = null;
+    for (const schedule of schedules) {
+      // The schedule times are stored as UTC, so we need to compare with current UTC time
+      const scheduleStartTime = new Date(schedule.startTime);
+      const scheduleEndTime = new Date(schedule.endTime);
+      const currentTime = new Date(); // Current time in server timezone (IST)
+      
+      // Convert current time to UTC for comparison
+      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      
+      console.log(`Schedule ${schedule.id}:`);
+      console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
+      console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
+      console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
+      console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
+      
+      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+        console.log(`✅ Schedule ${schedule.id} is currently active`);
+        currentSchedule = schedule;
+        break;
+      } else {
+        console.log(`❌ Schedule ${schedule.id} is not active`);
+      }
+    }
 
     if (!currentSchedule) {
       return res.status(400).json({
@@ -952,31 +977,56 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     const assignmentResults = [];
 
     for (const booking of unassignedBookings) {
-      // Assign booking to the driver's current shuttle
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { shuttleId: currentSchedule.shuttleId },
-      });
+      // Check if current shuttle has capacity, otherwise find another available shuttle
+      const currentShuttleHasCapacity = await checkShuttleCapacity(currentSchedule.shuttleId, booking.numberOfPersons);
+      
+      let targetShuttleId = currentSchedule.shuttleId;
+      
+      if (!currentShuttleHasCapacity) {
+        // Current shuttle is full, find another available shuttle
+        const alternativeShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
+        if (alternativeShuttle) {
+          targetShuttleId = alternativeShuttle.id;
+        } else {
+          // No shuttle with capacity available
+          assignmentResults.push({
+            bookingId: booking.id,
+            guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+            assignedTo: null,
+            status: "no_available_shuttle_with_capacity",
+          });
+          console.log(`No available shuttle with capacity for booking ${booking.id}`);
+          continue;
+        }
+      }
+
+      // Use intelligent booking assignment logic
+      const assignmentResult = await assignBookingToTrip(
+        booking.id, 
+        targetShuttleId, 
+        hotelId
+      );
 
       const result = {
         bookingId: booking.id,
         guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
         assignedTo: {
-          shuttleId: currentSchedule.shuttleId,
-          vehicleNumber: currentSchedule.shuttle.vehicleNumber,
+          shuttleId: targetShuttleId,
+          vehicleNumber: targetShuttleId === currentSchedule.shuttleId ? currentSchedule.shuttle.vehicleNumber : "Alternative Shuttle",
           driverName: currentSchedule.driver?.name || "Unknown",
         },
-        status: "assigned",
+        status: assignmentResult.assigned ? "assigned_to_trip" : "assigned_to_shuttle",
+        assignmentResult,
       };
 
       assignmentResults.push(result);
       console.log(
-        `Booking ${booking.id} assigned to shuttle ${currentSchedule.shuttle.vehicleNumber}`
+        `Booking ${booking.id} assignment result:`, assignmentResult
       );
     }
 
     res.json({
-      message: `Assigned ${unassignedBookings.length} bookings to your shuttle`,
+      message: `Processed ${unassignedBookings.length} unassigned bookings`,
       results: assignmentResults,
     });
   } catch (error) {

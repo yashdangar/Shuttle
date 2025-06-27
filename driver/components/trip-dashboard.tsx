@@ -47,7 +47,10 @@ interface CurrentTrip {
   id: string;
   direction: "HOTEL_TO_AIRPORT" | "AIRPORT_TO_HOTEL";
   status: "PENDING" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+  phase: "OUTBOUND" | "RETURN" | "COMPLETED";
   startTime: string;
+  outboundEndTime?: string;
+  returnStartTime?: string;
   endTime?: string;
   shuttle: {
     vehicleNumber: string;
@@ -64,7 +67,10 @@ interface TripHistory {
   id: string;
   direction: "HOTEL_TO_AIRPORT" | "AIRPORT_TO_HOTEL";
   status: "COMPLETED";
+  phase: "COMPLETED";
   startTime: string;
+  outboundEndTime?: string;
+  returnStartTime?: string;
   endTime: string;
   passengerCount: number;
   totalPersons: number;
@@ -161,6 +167,21 @@ export default function TripDashboard() {
       const availableTripsResponse = await api.get("/trips/available");
       console.log("Available trips response:", availableTripsResponse);
       setAvailableTrips(availableTripsResponse.availableTrips);
+
+      // Log schedule information for debugging
+      console.log("=== SCHEDULE DEBUG INFO ===");
+      console.log("Current schedule:", availableTripsResponse.currentSchedule);
+      if (availableTripsResponse.currentSchedule) {
+        console.log("Schedule ID:", availableTripsResponse.currentSchedule.id);
+        console.log("Shuttle:", availableTripsResponse.currentSchedule.shuttle);
+        console.log("Start Time:", availableTripsResponse.currentSchedule.startTime);
+        console.log("End Time:", availableTripsResponse.currentSchedule.endTime);
+        console.log("Current time:", new Date().toISOString());
+      } else {
+        console.log("❌ No current schedule found");
+      }
+      console.log("Available trips count:", availableTripsResponse.availableTrips?.length || 0);
+      console.log("=== END SCHEDULE DEBUG ===");
 
       // Fetch live bookings for current trip
       if (currentTripResponse.currentTrip) {
@@ -315,6 +336,28 @@ export default function TripDashboard() {
     }
   }, [currentTrip, endTripConfirmed]);
 
+  const handleTransitionPhase = useCallback(async (phase: "RETURN") => {
+    if (!currentTrip) return;
+
+    try {
+      await api.post(`/trips/${currentTrip.id}/transition`, { phase });
+      
+      toast({
+        title: "Trip Phase Updated",
+        description: `Trip transitioned to ${phase.toLowerCase()} phase`,
+      });
+      
+      fetchTripData();
+    } catch (error: any) {
+      console.error("Error transitioning trip phase:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to transition trip phase",
+        variant: "destructive",
+      });
+    }
+  }, [currentTrip, toast, fetchTripData]);
+
   const getDirectionLabel = (direction: string) => {
     return direction === "HOTEL_TO_AIRPORT"
       ? "Hotel → Airport"
@@ -323,6 +366,32 @@ export default function TripDashboard() {
 
   const getDirectionIcon = (direction: string) => {
     return direction === "HOTEL_TO_AIRPORT" ? "🏨→✈️" : "✈️→🏨";
+  };
+
+  const getPhaseLabel = (phase: string) => {
+    switch (phase) {
+      case "OUTBOUND":
+        return "Outbound (Hotel → Airport)";
+      case "RETURN":
+        return "Return (Airport → Hotel)";
+      case "COMPLETED":
+        return "Completed";
+      default:
+        return phase;
+    }
+  };
+
+  const getPhaseColor = (phase: string) => {
+    switch (phase) {
+      case "OUTBOUND":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "RETURN":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "COMPLETED":
+        return "bg-green-100 text-green-800 border-green-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
   };
 
   const dismissNewBookingNotification = () => {
@@ -379,6 +448,66 @@ export default function TripDashboard() {
             </div>
             Refresh
           </Button>
+          <Button
+            onClick={async () => {
+              try {
+                // Get booking debug info
+                const bookingResponse = await api.get("/trips/debug/bookings");
+                console.log("=== DEBUG DRIVER BOOKINGS ===");
+                console.log("Response:", bookingResponse);
+                
+                // Get schedule debug info
+                const scheduleResponse = await api.get("/trips/debug/schedule");
+                console.log("=== DEBUG DRIVER SCHEDULE ===");
+                console.log("Schedule Response:", scheduleResponse);
+                
+                // Get detailed schedule info
+                console.log("=== SCHEDULE DETAILED DEBUG ===");
+                const today = new Date();
+                const startOfDay = new Date(today);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(today);
+                endOfDay.setHours(23, 59, 59, 999);
+                
+                console.log("Today's date range:", {
+                  startOfDay: startOfDay.toISOString(),
+                  endOfDay: endOfDay.toISOString(),
+                  currentTime: today.toISOString()
+                });
+                
+                if (bookingResponse.currentSchedule) {
+                  console.log("Current Schedule Details:", {
+                    id: bookingResponse.currentSchedule.id,
+                    shuttleId: bookingResponse.currentSchedule.shuttleId,
+                    shuttle: bookingResponse.currentSchedule.shuttle,
+                    startTime: bookingResponse.currentSchedule.startTime,
+                    endTime: bookingResponse.currentSchedule.endTime,
+                    isActive: new Date(bookingResponse.currentSchedule.startTime) <= today && 
+                              new Date(bookingResponse.currentSchedule.endTime) >= today
+                  });
+                }
+                
+                console.log("=== END SCHEDULE DEBUG ===");
+                
+                toast({
+                  title: "Debug Info",
+                  description: `Found ${bookingResponse.availableBookings?.length || 0} available bookings. Check console for details.`,
+                });
+              } catch (error) {
+                console.error("Debug error:", error);
+                toast({
+                  title: "Debug Error",
+                  description: "Failed to get debug info",
+                  variant: "destructive",
+                });
+              }
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Debug
+          </Button>
         </div>
       </div>
 
@@ -419,13 +548,35 @@ export default function TripDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Navigation className="h-5 w-5 text-green-600" />
-              Active Trip
+              Active Round Trip
               <Badge variant="secondary" className="ml-auto">
                 {getDirectionLabel(currentTrip.direction)}
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Trip Phase Display */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Trip Phase:</span>
+                <Badge className={getPhaseColor(currentTrip.phase)}>
+                  {getPhaseLabel(currentTrip.phase)}
+                </Badge>
+              </div>
+              
+              {/* Phase Progress */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "OUTBOUND" || currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-blue-500" : "bg-gray-300"}`}></div>
+                <span className="text-xs text-gray-600">Outbound</span>
+                <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-orange-500" : "bg-gray-300"}`}></div>
+                <span className="text-xs text-gray-600">Return</span>
+                <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "COMPLETED" ? "bg-green-500" : "bg-gray-300"}`}></div>
+                <span className="text-xs text-gray-600">Complete</span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-gray-500" />
@@ -466,6 +617,20 @@ export default function TripDashboard() {
               className="mb-4"
             />
 
+            {/* Phase Transition Buttons */}
+            <div className="flex gap-2 mb-4">
+              {currentTrip.phase === "OUTBOUND" && (
+                <Button
+                  onClick={() => handleTransitionPhase("RETURN")}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <Navigation className="h-4 w-4 mr-2" />
+                  Start Return Journey
+                </Button>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <Button
                 onClick={handleEndTrip}
@@ -489,7 +654,7 @@ export default function TripDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-600 mb-4">
-              Start a trip to begin serving passengers
+              Start a round trip to begin serving passengers
             </p>
             {availableTrips.length > 0 ? (
               <div className="flex gap-2">
@@ -499,15 +664,7 @@ export default function TripDashboard() {
                   className="flex-1"
                 >
                   <Play className="h-4 w-4 mr-2" />
-                  {startingTrip ? "Starting..." : "Start Hotel → Airport"}
-                </Button>
-                <Button
-                  onClick={() => handleStartTrip("AIRPORT_TO_HOTEL")}
-                  disabled={startingTrip}
-                  className="flex-1"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  {startingTrip ? "Starting..." : "Start Airport → Hotel"}
+                  {startingTrip ? "Starting..." : "Start Round Trip"}
                 </Button>
               </div>
             ) : (
@@ -575,7 +732,7 @@ export default function TripDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Available Trips
+              Available Round Trips
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -587,11 +744,11 @@ export default function TripDashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">
-                      {getDirectionIcon(trip.direction)}
+                      🏨↔️✈️
                     </div>
                     <div>
                       <h4 className="font-medium">
-                        {getDirectionLabel(trip.direction)}
+                        Round Trip (Hotel ↔ Airport)
                       </h4>
                       <p className="text-sm text-gray-600">
                         {trip.bookingCount} bookings • {trip.totalPersons}{" "}
@@ -609,7 +766,7 @@ export default function TripDashboard() {
                     size="sm"
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    Start Trip
+                    Start Round Trip
                   </Button>
                 </div>
               ))}
@@ -623,7 +780,7 @@ export default function TripDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Recent Trips
+            Recent Round Trips
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -640,11 +797,11 @@ export default function TripDashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">
-                      {getDirectionIcon(trip.direction)}
+                      🏨↔️✈️
                     </div>
                     <div>
                       <h4 className="font-medium">
-                        {getDirectionLabel(trip.direction)}
+                        Round Trip (Hotel ↔ Airport)
                       </h4>
                       <p className="text-sm text-gray-600">
                         {trip.totalPersons} passengers • {trip.totalBags} bags •{" "}

@@ -327,13 +327,16 @@ export default function NewBookingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HOTEL_TO_AIRPORT">
-                      Hotel to Airport
+                      Hotel to Airport (Outbound)
                     </SelectItem>
                     <SelectItem value="AIRPORT_TO_HOTEL">
-                      Airport to Hotel
+                      Airport to Hotel (Return)
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-sm text-gray-500">
+                  Note: Both outbound and return bookings will be part of the same round trip
+                </p>
               </div>
             </div>
 

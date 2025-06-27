@@ -220,13 +220,18 @@ export default function NewBooking({
           >
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="hotel-to-airport">
-                Hotel to Airport
+                Hotel to Airport (Outbound)
               </TabsTrigger>
               <TabsTrigger value="airport-to-hotel">
-                Airport to Hotel
+                Airport to Hotel (Return)
               </TabsTrigger>
             </TabsList>
             <TabsContent value="hotel-to-airport">
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <strong>Round Trip:</strong> This booking will be part of a round trip that includes both outbound and return journeys.
+                </p>
+              </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Guest Information Section */}
                 <div className="space-y-4">
@@ -448,6 +453,11 @@ export default function NewBooking({
               </form>
             </TabsContent>
             <TabsContent value="airport-to-hotel">
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <strong>Round Trip:</strong> This booking will be part of a round trip that includes both outbound and return journeys.
+                </p>
+              </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Guest Information Section */}
                 <div className="space-y-4">

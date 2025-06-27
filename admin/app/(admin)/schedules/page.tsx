@@ -539,9 +539,21 @@ function SchedulesPage() {
 
       // Refresh current week data since we added new schedules
       fetchSchedulesForWeek(currentWeekOffset);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating weekly schedule:", error);
-      toast.error("Failed to create weekly schedule");
+      
+      // Show specific error message from backend if available
+      const errorMessage = error.response?.data?.message || "Failed to create weekly schedule";
+      toast.error(errorMessage);
+      
+      // If there are existing schedules, show them in the form
+      if (error.response?.data?.existingSchedules) {
+        const existingSchedules = error.response.data.existingSchedules;
+        console.log("Existing schedules found:", existingSchedules);
+        
+        // You could potentially show these in a modal or update the form
+        // For now, just log them and let the user handle it manually
+      }
     } finally {
       setSubmitting(false);
     }
@@ -608,9 +620,36 @@ function SchedulesPage() {
 
       // Refresh current week data since we added/updated a schedule
       fetchSchedulesForWeek(currentWeekOffset);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting schedule:", error);
-      toast.error("Failed to save schedule");
+      
+      // Show specific error message from backend if available
+      const errorMessage = error.response?.data?.message || "Failed to save schedule";
+      toast.error(errorMessage);
+      
+      // If there's an existing schedule, show it in the form
+      if (error.response?.data?.existingSchedule) {
+        const existingSchedule = error.response.data.existingSchedule;
+        setEditingSchedule(existingSchedule);
+        
+        // Parse the existing schedule date
+        const scheduleDate = new Date(existingSchedule.scheduleDate);
+        const year = scheduleDate.getUTCFullYear();
+        const month = String(scheduleDate.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(scheduleDate.getUTCDate()).padStart(2, "0");
+        const scheduleDateOnly = `${year}-${month}-${day}`;
+        
+        setFormData({
+          driverId: String(existingSchedule.driver.id),
+          shuttleId: String(existingSchedule.shuttle.id),
+          scheduleDate: scheduleDateOnly,
+          startTime: formatTimeForDisplay(existingSchedule.startTime),
+          endTime: formatTimeForDisplay(existingSchedule.endTime),
+        });
+        
+        setSelectedDate(new Date(Date.UTC(year, scheduleDate.getUTCMonth(), scheduleDate.getUTCDate())));
+        setIsAddDialogOpen(true);
+      }
     } finally {
       setSubmitting(false);
     }

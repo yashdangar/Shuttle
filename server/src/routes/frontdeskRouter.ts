@@ -30,6 +30,20 @@ router.get(
   frontdeskController.getShuttle as RequestHandler
 );
 
+// Shuttle capacity status route
+router.get(
+  "/shuttle-capacity-status",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getShuttleCapacityStatus as RequestHandler
+);
+
+// Debug shuttle bookings route
+router.get(
+  "/debug/shuttle/:shuttleId/bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.debugShuttleBookings as RequestHandler
+);
+
 // Driver routes
 router.get(
   "/get/driver",
@@ -139,6 +153,20 @@ router.get(
   "/debug-guests",
   frontdeskAuthMiddleware as RequestHandler,
   frontdeskController.debugGuests as RequestHandler
+);
+
+// Debug schedule route
+router.get(
+  "/debug/schedule/:scheduleId",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.debugSchedule as RequestHandler
+);
+
+// Debug shuttle schedules route
+router.get(
+  "/debug/shuttle/:shuttleId/schedules",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.debugShuttleSchedules as RequestHandler
 );
 
 // Public debug route (no auth required)

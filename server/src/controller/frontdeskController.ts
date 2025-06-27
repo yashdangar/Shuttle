@@ -14,6 +14,7 @@ import { sendToUser, sendToRoleInHotel } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { googleMapsService } from "../utils/googleMapsUtils";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
+import { assignBookingToTrip, findAvailableShuttleWithCapacity, getISTDateRange } from '../utils/bookingUtils';
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -290,21 +291,18 @@ const getSchedule = async (req: Request, res: Response) => {
 
 const createBooking = async (req: Request, res: Response) => {
   try {
+    console.log("=== CREATE BOOKING START ===");
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    
     const {
       numberOfPersons,
       numberOfBags,
       preferredTime,
       paymentMethod,
       tripType,
-      pickupLocation,
-      dropoffLocation,
-      // Non-resident fields
-      email,
-      firstName,
-      lastName,
-      phoneNumber,
-      isNonResident,
-      // Waiver fields
+      pickupLocationId,
+      dropoffLocationId,
+      confirmationNum,
       isWaived,
       waiverReason,
     } = req.body;
@@ -312,100 +310,82 @@ const createBooking = async (req: Request, res: Response) => {
     const hotelId = (req as any).user.hotelId;
     const frontdeskUserId = (req as any).user.userId;
 
-    console.log(`Creating booking for hotelId: ${hotelId}`);
-    console.log(`Request body:`, req.body);
+    console.log(`Hotel ID: ${hotelId}`);
+    console.log(`Frontdesk User ID: ${frontdeskUserId}`);
+    console.log(`Number of persons: ${numberOfPersons}`);
+    console.log(`Number of bags: ${numberOfBags}`);
 
-    let guestId: number;
-
-    if (isNonResident) {
-      // First check if a guest with this email already exists (regardless of isNonResident status)
-      const existingGuest = await prisma.guest.findFirst({
-        where: {
-          email,
-          hotelId,
-        },
+    // Validate required fields
+    if (!numberOfPersons || !numberOfBags || !preferredTime || !paymentMethod || !tripType) {
+      console.log("Missing required fields");
+      return res.status(400).json({
+        message: "Missing required fields",
       });
-
-      if (existingGuest) {
-        // Use existing guest
-        guestId = existingGuest.id;
-        console.log(
-          `Using existing guest for non-resident booking: ${existingGuest.email}`
-        );
-      } else {
-        // Create a new guest for non-resident
-        const guest = await prisma.guest.create({
-          data: {
-            email,
-            firstName,
-            lastName,
-            phoneNumber,
-            isNonResident: true,
-            hotelId,
-          },
-        });
-        guestId = guest.id;
-        console.log(
-          `Created new guest for non-resident booking: ${guest.email}`
-        );
-      }
-    } else {
-      // Find existing guest by email
-      console.log(
-        `Looking for guest with email: ${email} and hotelId: ${hotelId}`
-      );
-
-      const guest = await prisma.guest.findFirst({
-        where: {
-          email,
-          hotelId,
-          // Don't filter by isNonResident - just find any guest with this email at this hotel
-        },
-      });
-
-      console.log(`Found guest:`, guest);
-
-      if (!guest) {
-        // Let's also check what guests exist with this email
-        const allGuestsWithEmail = await prisma.guest.findMany({
-          where: { email },
-          select: {
-            id: true,
-            email: true,
-            hotelId: true,
-            isNonResident: true,
-            firstName: true,
-            lastName: true,
-          },
-        });
-        console.log(`All guests with email ${email}:`, allGuestsWithEmail);
-
-        return res.status(404).json({ message: "Hotel resident not found" });
-      }
-      guestId = guest.id;
     }
 
-    // Generate encryption key
+    // Validate number of persons
+    if (numberOfPersons <= 0 || numberOfPersons > 50) {
+      console.log(`Invalid number of persons: ${numberOfPersons}`);
+      return res.status(400).json({
+        message: "Number of persons must be between 1 and 50",
+      });
+    }
+
+    // Validate number of bags
+    if (numberOfBags < 0 || numberOfBags > 20) {
+      console.log(`Invalid number of bags: ${numberOfBags}`);
+      return res.status(400).json({
+        message: "Number of bags must be between 0 and 20",
+      });
+    }
+
+    // Validate payment method
+    if (!Object.values(PaymentMethod).includes(paymentMethod)) {
+      console.log(`Invalid payment method: ${paymentMethod}`);
+      return res.status(400).json({
+        message: "Invalid payment method",
+      });
+    }
+
+    // Validate trip type
+    if (!Object.values(BookingType).includes(tripType)) {
+      console.log(`Invalid trip type: ${tripType}`);
+      return res.status(400).json({
+        message: "Invalid trip type",
+      });
+    }
+
+    // Generate encryption key for QR code
     const encryptionKey = generateEncryptionKey();
 
-    // Prepare booking data
+    console.log("Generating encryption key:", encryptionKey);
+
+    // Create booking data
     const bookingData: any = {
-      numberOfPersons: parseInt(numberOfPersons),
-      numberOfBags: parseInt(numberOfBags),
+      numberOfPersons,
+      numberOfBags,
       preferredTime: new Date(preferredTime),
       paymentMethod: paymentMethod as PaymentMethod,
-      bookingType:
-        tripType === "hotel-to-airport"
-          ? "HOTEL_TO_AIRPORT"
-          : "AIRPORT_TO_HOTEL",
-      pickupLocationId: pickupLocation ? parseInt(pickupLocation) : null,
-      dropoffLocationId: dropoffLocation ? parseInt(dropoffLocation) : null,
-      guestId,
+      bookingType: (tripType === "HOTEL_TO_AIRPORT"
+        ? "HOTEL_TO_AIRPORT"
+        : "AIRPORT_TO_HOTEL") as BookingType,
+      pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
+      dropoffLocationId: dropoffLocationId
+        ? parseInt(dropoffLocationId)
+        : null,
+      guestId: 1, // Default guest ID for frontdesk bookings
+      confirmationNum: confirmationNum || null,
       encryptionKey,
-      needsFrontdeskVerification: false,
+      needsFrontdeskVerification: false, // Frontdesk bookings don't need verification
+      isVerified: true, // Mark as verified since frontdesk created it
+      verifiedBy: frontdeskUserId,
+      verifiedAt: new Date(),
+      isPaid: paymentMethod === "FRONTDESK" ? true : false, // Mark as paid if frontdesk payment
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    console.log("Booking data prepared:", JSON.stringify(bookingData, null, 2));
 
     // Add waiver data if booking is waived
     if (isWaived) {
@@ -418,66 +398,40 @@ const createBooking = async (req: Request, res: Response) => {
       bookingData.needsFrontdeskVerification = false; // No admin verification needed for waived bookings
     }
 
+    console.log("Final booking data:", JSON.stringify(bookingData, null, 2));
+
     // Create the booking
+    console.log("Creating booking in database...");
     const booking = await prisma.booking.create({
       data: bookingData,
     });
 
-    // Find an available shuttle for this hotel and assign the booking
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
+    console.log("Booking created successfully:", booking.id);
 
-    const availableShuttle = await prisma.shuttle.findFirst({
-      where: {
-        hotelId: hotelId,
-        schedules: {
-          some: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
-            startTime: { lte: new Date() },
-            endTime: { gte: new Date() },
-          },
-        },
-      },
-      include: {
-        schedules: {
-          where: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
-            startTime: { lte: new Date() },
-            endTime: { gte: new Date() },
-          },
-          include: {
-            driver: true,
-          },
-        },
-      },
-    });
+    // Find an available shuttle for this hotel with capacity
+    console.log(`Looking for available shuttle with capacity for ${numberOfPersons} passengers...`);
+    const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, numberOfPersons);
+
+    console.log("Available shuttle result:", availableShuttle ? {
+      id: availableShuttle.id,
+      vehicleNumber: availableShuttle.vehicleNumber,
+      seats: availableShuttle.seats
+    } : "No shuttle found");
+
+    let assignmentResult = null;
 
     if (availableShuttle) {
-      // Assign booking to the available shuttle
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { shuttleId: availableShuttle.id },
-      });
-
-      console.log(
-        `Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber} with driver ${availableShuttle.schedules[0]?.driver?.name}`
-      );
+      // Use intelligent booking assignment logic
+      console.log(`Assigning booking ${booking.id} to shuttle ${availableShuttle.id}...`);
+      assignmentResult = await assignBookingToTrip(booking.id, availableShuttle.id, hotelId);
+      
+      console.log("Assignment result:", assignmentResult);
     } else {
-      console.log(
-        `No available shuttle found for hotel ${hotelId}, booking ${booking.id} remains unassigned`
-      );
+      console.log(`No available shuttle with capacity found for hotel ${hotelId}, booking ${booking.id} remains unassigned`);
     }
 
     // Generate QR code
+    console.log("Generating QR code...");
     const qrCodeData = await generateQRCode({
       bookingId: booking.id,
       guestId: booking.guestId,
@@ -485,14 +439,35 @@ const createBooking = async (req: Request, res: Response) => {
       encryptionKey: booking.encryptionKey!,
     });
 
+    console.log("QR code generated successfully");
+
     // Update booking with QR code data
+    console.log("Updating booking with QR code data...");
     const updatedBooking = await prisma.booking.update({
       where: { id: booking.id },
       data: { qrCodePath: qrCodeData },
+      include: {
+        guest: true,
+        shuttle: true,
+      },
     });
 
-    res.json({ booking: updatedBooking });
+    console.log("Booking updated with QR code");
+
+    console.log("=== CREATE BOOKING SUCCESS ===");
+    console.log("Final booking:", {
+      id: updatedBooking.id,
+      numberOfPersons: updatedBooking.numberOfPersons,
+      shuttleId: updatedBooking.shuttleId,
+      assignmentResult: assignmentResult
+    });
+
+    res.json({ 
+      booking: updatedBooking,
+      assignmentResult 
+    });
   } catch (error) {
+    console.error("=== CREATE BOOKING ERROR ===");
     console.error("Create booking error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
@@ -998,50 +973,16 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     const assignmentResults = [];
 
     for (const booking of unassignedBookings) {
-      // Find an available shuttle for this hotel
-      const today = new Date();
-      const startOfDay = new Date(today);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(today);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const availableShuttle = await prisma.shuttle.findFirst({
-        where: {
-          hotelId: hotelId,
-          schedules: {
-            some: {
-              scheduleDate: {
-                gte: startOfDay,
-                lte: endOfDay,
-              },
-              startTime: { lte: new Date() },
-              endTime: { gte: new Date() },
-            },
-          },
-        },
-        include: {
-          schedules: {
-            where: {
-              scheduleDate: {
-                gte: startOfDay,
-                lte: endOfDay,
-              },
-              startTime: { lte: new Date() },
-              endTime: { gte: new Date() },
-            },
-            include: {
-              driver: true,
-            },
-          },
-        },
-      });
+      // Find an available shuttle for this hotel with capacity
+      const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
 
       if (availableShuttle) {
-        // Assign booking to the available shuttle
-        await prisma.booking.update({
-          where: { id: booking.id },
-          data: { shuttleId: availableShuttle.id },
-        });
+        // Use intelligent booking assignment logic
+        const assignmentResult = await assignBookingToTrip(
+          booking.id, 
+          availableShuttle.id, 
+          hotelId
+        );
 
         const result = {
           bookingId: booking.id,
@@ -1052,21 +993,22 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
             driverName:
               availableShuttle.schedules[0]?.driver?.name || "Unknown",
           },
-          status: "assigned",
+          status: assignmentResult.assigned ? "assigned_to_trip" : "assigned_to_shuttle",
+          assignmentResult,
         };
 
         assignmentResults.push(result);
         console.log(
-          `Booking ${booking.id} assigned to shuttle ${availableShuttle.vehicleNumber}`
+          `Booking ${booking.id} assignment result:`, assignmentResult
         );
       } else {
         assignmentResults.push({
           bookingId: booking.id,
           guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
           assignedTo: null,
-          status: "no_available_shuttle",
+          status: "no_available_shuttle_with_capacity",
         });
-        console.log(`No available shuttle for booking ${booking.id}`);
+        console.log(`No available shuttle with capacity for booking ${booking.id}`);
       }
     }
 
@@ -1242,6 +1184,25 @@ const addSchedule = async (req: Request, res: Response) => {
     const dateOnly = new Date(scheduleDate);
     dateOnly.setUTCHours(0, 0, 0, 0);
 
+    // Check if a schedule already exists for this driver on this date
+    const existingSchedule = await prisma.schedule.findFirst({
+      where: {
+        driverId: parseInt(driverId),
+        scheduleDate: dateOnly,
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+
+    if (existingSchedule) {
+      return res.status(400).json({
+        message: `Driver ${existingSchedule.driver.name} already has a schedule for ${dateOnly.toDateString()}. Please edit the existing schedule instead.`,
+        existingSchedule,
+      });
+    }
+
     const schedule = await prisma.schedule.create({
       data: {
         driverId: parseInt(driverId),
@@ -1255,6 +1216,14 @@ const addSchedule = async (req: Request, res: Response) => {
     res.json({ schedule });
   } catch (error) {
     console.error("Add schedule error:", error);
+    
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === 'P2002') {
+      return res.status(400).json({
+        message: "A schedule already exists for this driver on the selected date.",
+      });
+    }
+    
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1368,6 +1337,32 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     const weekStart = new Date(startDate);
     weekStart.setUTCHours(0, 0, 0, 0);
 
+    // Check for existing schedules for this driver in the week
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const existingSchedules = await prisma.schedule.findMany({
+      where: {
+        driverId: parseInt(driverId),
+        scheduleDate: {
+          gte: weekStart,
+          lte: weekEnd,
+        },
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    if (existingSchedules.length > 0) {
+      const existingDates = existingSchedules.map(s => s.scheduleDate.toDateString()).join(', ');
+      return res.status(400).json({
+        message: `Driver ${existingSchedules[0].driver.name} already has schedules for the following dates: ${existingDates}. Please edit existing schedules or choose a different week.`,
+        existingSchedules,
+      });
+    }
+
     const dayKeys = [
       "monday",
       "tuesday",
@@ -1419,6 +1414,14 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Add weekly schedule error:", error);
+    
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === 'P2002') {
+      return res.status(400).json({
+        message: "One or more schedules already exist for this driver on the selected dates.",
+      });
+    }
+    
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1456,56 +1459,23 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Find an available shuttle for this hotel
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const availableShuttle = await prisma.shuttle.findFirst({
-      where: {
-        hotelId: hotelId,
-        schedules: {
-          some: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
-            startTime: { lte: new Date() },
-            endTime: { gte: new Date() },
-          },
-        },
-      },
-      include: {
-        schedules: {
-          where: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
-            startTime: { lte: new Date() },
-            endTime: { gte: new Date() },
-          },
-          include: {
-            driver: true,
-          },
-        },
-      },
-    });
+    // Find an available shuttle for this hotel with capacity
+    const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
 
     if (!availableShuttle) {
       return res.status(400).json({ 
-        message: "No available shuttle found for this booking" 
+        message: "No available shuttle with capacity found for this booking" 
       });
     }
 
-    // Update booking: verify it, assign shuttle, and mark as verified
+    // Use intelligent booking assignment logic
+    const assignmentResult = await assignBookingToTrip(bookingId, availableShuttle.id, hotelId);
+
+    // Update booking: verify it and mark as verified
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         needsFrontdeskVerification: false,
-        shuttleId: availableShuttle.id,
       },
       include: {
         guest: true,
@@ -1521,20 +1491,29 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       },
     });
 
+    // Create notification message based on assignment result
+    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`;
+    if (assignmentResult.assigned) {
+      notificationMessage += ` It has been added to the current active trip.`;
+    } else if (assignmentResult.shuttleAssigned) {
+      notificationMessage += ` It will be included in the next available trip.`;
+    }
+
     // Notify the guest that their booking has been verified
     await prisma.notification.create({
       data: {
         guestId: booking.guestId,
         title: "Booking Verified",
-        message: `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+        message: notificationMessage,
       },
     });
 
     // Notify the guest via WebSocket
     const guestNotificationPayload = {
       title: "Booking Verified",
-      message: `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+      message: notificationMessage,
       booking: updatedBooking,
+      assignmentResult,
     };
     sendToUser(
       booking.guestId,
@@ -1548,6 +1527,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       title: "Booking Verified",
       message: `Booking #${booking.id.substring(0, 8)} has been verified and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
       booking: updatedBooking,
+      assignmentResult,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
@@ -1557,6 +1537,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
         title: "Booking Verified",
         message: `Booking #${booking.id.substring(0, 8)} has been verified and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
         booking: completeBooking,
+        assignmentResult,
       };
 
       sendToRoleInHotel(
@@ -1570,11 +1551,18 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     // Notify the assigned driver about the new booking
     const driverId = availableShuttle.schedules[0]?.driverId;
     if (driverId) {
+      let driverMessage = `A new booking has been assigned to your shuttle ${availableShuttle.vehicleNumber}.`;
+      if (assignmentResult.assigned) {
+        driverMessage += ` It has been added to your current active trip.`;
+      } else if (assignmentResult.shuttleAssigned) {
+        driverMessage += ` It will be included in your next trip.`;
+      }
+
       const driverNotificationPayload = {
         title: "New Booking Assigned",
-        message: `A new booking has been assigned to your shuttle ${availableShuttle.vehicleNumber}.`,
+        message: driverMessage,
         booking: updatedBooking,
-        tripId: bookingId,
+        assignmentResult,
       };
       sendToUser(
         driverId,
@@ -1587,6 +1575,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     res.json({
       message: "Booking verified and assigned to shuttle successfully",
       booking: updatedBooking,
+      assignmentResult,
       assignedShuttle: {
         id: availableShuttle.id,
         vehicleNumber: availableShuttle.vehicleNumber,
@@ -1700,6 +1689,302 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
   }
 };
 
+// Test endpoint to check shuttle capacity
+const getShuttleCapacityStatus = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    // Get current date in Indian Standard Time (IST)
+    const { istTime, startOfDay, endOfDay } = getISTDateRange();
+
+    console.log(`Capacity status check - Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+
+    // Get all shuttles for this hotel with schedules for today
+    const shuttles = await prisma.shuttle.findMany({
+      where: {
+        hotelId: hotelId,
+        schedules: {
+          some: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+        },
+      },
+      include: {
+        schedules: {
+          where: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+          include: {
+            driver: true,
+          },
+        },
+        bookings: {
+          where: {
+            isCompleted: false,
+            isCancelled: false,
+            // Include all bookings assigned to this shuttle, whether they have a tripId or not
+          },
+        },
+      },
+    });
+
+    const capacityStatus = shuttles.map(shuttle => {
+      // Check if any schedule is currently active
+      let hasActiveSchedule = false;
+      let activeDriver = null;
+      
+      for (const schedule of shuttle.schedules) {
+        // The schedule times are stored as UTC, so we need to compare with current UTC time
+        const scheduleStartTime = new Date(schedule.startTime);
+        const scheduleEndTime = new Date(schedule.endTime);
+        const currentTime = new Date(); // Current time in server timezone (IST)
+        
+        // Convert current time to UTC for comparison
+        const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+        
+        if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+          hasActiveSchedule = true;
+          activeDriver = schedule.driver;
+          break;
+        }
+      }
+      
+      const currentPassengers = shuttle.bookings.reduce(
+        (sum, booking) => sum + booking.numberOfPersons,
+        0
+      );
+      
+      return {
+        shuttleId: shuttle.id,
+        vehicleNumber: shuttle.vehicleNumber,
+        totalSeats: shuttle.seats,
+        currentPassengers,
+        availableSeats: shuttle.seats - currentPassengers,
+        utilization: Math.round((currentPassengers / shuttle.seats) * 100),
+        driver: activeDriver?.name || "No active driver",
+        isAvailable: hasActiveSchedule && (shuttle.seats - currentPassengers) > 0,
+        hasActiveSchedule,
+      };
+    });
+
+    res.json({
+      shuttles: capacityStatus,
+      totalShuttles: shuttles.length,
+      availableShuttles: capacityStatus.filter(s => s.isAvailable).length,
+      activeSchedules: capacityStatus.filter(s => s.hasActiveSchedule).length,
+      currentTime: istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    });
+  } catch (error) {
+    console.error("Get shuttle capacity status error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Debug endpoint to show detailed booking information
+const debugShuttleBookings = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+    const { shuttleId } = req.params;
+
+    const shuttle = await prisma.shuttle.findFirst({
+      where: {
+        id: parseInt(shuttleId),
+        hotelId: hotelId,
+      },
+      include: {
+        bookings: {
+          where: {
+            isCompleted: false,
+            isCancelled: false,
+          },
+          include: {
+            guest: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!shuttle) {
+      return res.status(404).json({ message: "Shuttle not found" });
+    }
+
+    const currentPassengers = shuttle.bookings.reduce(
+      (sum, booking) => sum + booking.numberOfPersons,
+      0
+    );
+
+    const bookingDetails = shuttle.bookings.map(booking => ({
+      bookingId: booking.id,
+      guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+      numberOfPersons: booking.numberOfPersons,
+      tripId: booking.tripId,
+      isAssignedToTrip: booking.tripId !== null,
+      createdAt: booking.createdAt,
+    }));
+
+    res.json({
+      shuttle: {
+        id: shuttle.id,
+        vehicleNumber: shuttle.vehicleNumber,
+        totalSeats: shuttle.seats,
+        currentPassengers,
+        availableSeats: shuttle.seats - currentPassengers,
+        utilization: Math.round((currentPassengers / shuttle.seats) * 100),
+      },
+      bookings: bookingDetails,
+      totalBookings: shuttle.bookings.length,
+    });
+  } catch (error) {
+    console.error("Debug shuttle bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Debug endpoint to check schedule data
+const debugSchedule = async (req: Request, res: Response) => {
+  try {
+    const { scheduleId } = req.params;
+    const hotelId = (req as any).user.hotelId;
+
+    const schedule = await prisma.schedule.findFirst({
+      where: {
+        id: parseInt(scheduleId),
+        OR: [{ driver: { hotelId } }, { shuttle: { hotelId } }],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    res.json({
+      schedule: {
+        id: schedule.id,
+        driverId: schedule.driverId,
+        shuttleId: schedule.shuttleId,
+        scheduleDate: schedule.scheduleDate,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        startTimeISO: schedule.startTime.toISOString(),
+        endTimeISO: schedule.endTime.toISOString(),
+        startTimeLocal: schedule.startTime.toLocaleString(),
+        endTimeLocal: schedule.endTime.toLocaleString(),
+        driver: schedule.driver,
+        shuttle: schedule.shuttle,
+      },
+      rawData: {
+        startTimeRaw: schedule.startTime,
+        endTimeRaw: schedule.endTime,
+        startTimeType: typeof schedule.startTime,
+        endTimeType: typeof schedule.endTime,
+      },
+    });
+  } catch (error) {
+    console.error("Debug schedule error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Debug endpoint to check all schedules for a shuttle
+const debugShuttleSchedules = async (req: Request, res: Response) => {
+  try {
+    const { shuttleId } = req.params;
+    const hotelId = (req as any).user.hotelId;
+
+    // Get current date in IST
+    const { istTime, startOfDay, endOfDay } = getISTDateRange();
+
+    const shuttle = await prisma.shuttle.findFirst({
+      where: {
+        id: parseInt(shuttleId),
+        hotelId: hotelId,
+      },
+      include: {
+        schedules: {
+          where: {
+            scheduleDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+          include: {
+            driver: true,
+          },
+        },
+      },
+    });
+
+    if (!shuttle) {
+      return res.status(404).json({ message: "Shuttle not found" });
+    }
+
+    // Check each schedule for active status
+    const schedulesWithStatus = shuttle.schedules.map(schedule => {
+      const scheduleStartTime = new Date(schedule.startTime);
+      const scheduleEndTime = new Date(schedule.endTime);
+      const currentTime = new Date();
+      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      
+      const isActive = currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime;
+      
+      return {
+        id: schedule.id,
+        scheduleDate: schedule.scheduleDate,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        startTimeUTC: scheduleStartTime.toISOString(),
+        endTimeUTC: scheduleEndTime.toISOString(),
+        currentTimeUTC: currentTimeUTC.toISOString(),
+        isActive,
+        driver: schedule.driver,
+      };
+    });
+
+    const currentTime = new Date();
+    const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+
+    res.json({
+      shuttle: {
+        id: shuttle.id,
+        vehicleNumber: shuttle.vehicleNumber,
+        hotelId: shuttle.hotelId,
+      },
+      currentTime: {
+        ist: currentTime.toLocaleString(),
+        utc: currentTimeUTC.toISOString(),
+      },
+      dateRange: {
+        startOfDay: startOfDay.toISOString(),
+        endOfDay: endOfDay.toISOString(),
+      },
+      schedules: schedulesWithStatus,
+      totalSchedules: shuttle.schedules.length,
+      activeSchedules: schedulesWithStatus.filter(s => s.isActive).length,
+    });
+  } catch (error) {
+    console.error("Debug shuttle schedules error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -1730,4 +2015,8 @@ export default {
   editSchedule,
   deleteSchedule,
   addWeeklySchedule,
+  getShuttleCapacityStatus,
+  debugShuttleBookings,
+  debugSchedule,
+  debugShuttleSchedules,
 };

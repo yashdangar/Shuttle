@@ -151,7 +151,7 @@ model Schedule {
   shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
   trips     Trip[]
 
-  @@unique([driverId, scheduleDate, startTime])
+  @@unique([driverId, scheduleDate])
 }
 
 model Notification {
@@ -219,6 +219,12 @@ enum TripStatus {
   CANCELLED
 }
 
+enum TripPhase {
+  OUTBOUND
+  RETURN
+  COMPLETED
+}
+
 model QRVerificationToken {
   id        String   @id @default(uuid())
   token     String   @unique
@@ -274,7 +280,10 @@ model Trip {
   shuttleId   Int
   direction   TripDirection
   status      TripStatus  @default(PENDING)
+  phase       TripPhase   @default(OUTBOUND)
   startTime   DateTime?
+  outboundEndTime DateTime?
+  returnStartTime DateTime?
   endTime     DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
