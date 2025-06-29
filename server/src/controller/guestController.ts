@@ -118,15 +118,10 @@ const createTrip = async (req: Request, res: Response) => {
     }
 
     // Update guest information if provided
-    if (firstName || lastName || confirmationNum) {
-      const updateData: any = {};
-      if (firstName) updateData.firstName = firstName;
-      if (lastName) updateData.lastName = lastName;
-      if (confirmationNum) updateData.confirmationNum = confirmationNum;
-
+    if (confirmationNum) {
       await prisma.guest.update({
         where: { id: userId },
-        data: updateData,
+        data: { confirmationNum },
       });
     }
 

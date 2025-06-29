@@ -11,7 +11,6 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Shuttle Driver Dashboard",
   description: "Airport shuttle driver operations dashboard",
-  generator: "v0.dev",
 };
 
 export default function RootLayout({

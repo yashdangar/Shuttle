@@ -14,7 +14,11 @@ import { sendToUser, sendToRoleInHotel } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { googleMapsService } from "../utils/googleMapsUtils";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
-import { assignBookingToTrip, findAvailableShuttleWithCapacity, getISTDateRange } from '../utils/bookingUtils';
+import {
+  assignBookingToTrip,
+  findAvailableShuttleWithCapacity,
+  getISTDateRange,
+} from "../utils/bookingUtils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -293,7 +297,7 @@ const createBooking = async (req: Request, res: Response) => {
   try {
     console.log("=== CREATE BOOKING START ===");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
-    
+
     const {
       numberOfPersons,
       numberOfBags,
@@ -316,7 +320,13 @@ const createBooking = async (req: Request, res: Response) => {
     console.log(`Number of bags: ${numberOfBags}`);
 
     // Validate required fields
-    if (!numberOfPersons || !numberOfBags || !preferredTime || !paymentMethod || !tripType) {
+    if (
+      !numberOfPersons ||
+      !numberOfBags ||
+      !preferredTime ||
+      !paymentMethod ||
+      !tripType
+    ) {
       console.log("Missing required fields");
       return res.status(400).json({
         message: "Missing required fields",
@@ -362,17 +372,15 @@ const createBooking = async (req: Request, res: Response) => {
 
     // Create booking data
     const bookingData: any = {
-      numberOfPersons,
-      numberOfBags,
+      numberOfPersons: numberOfPersons ? parseInt(numberOfPersons) : 1,
+      numberOfBags: numberOfBags ? parseInt(numberOfBags) : 0,
       preferredTime: new Date(preferredTime),
       paymentMethod: paymentMethod as PaymentMethod,
       bookingType: (tripType === "HOTEL_TO_AIRPORT"
         ? "HOTEL_TO_AIRPORT"
         : "AIRPORT_TO_HOTEL") as BookingType,
       pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
-      dropoffLocationId: dropoffLocationId
-        ? parseInt(dropoffLocationId)
-        : null,
+      dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
       guestId: 1, // Default guest ID for frontdesk bookings
       confirmationNum: confirmationNum || null,
       encryptionKey,
@@ -409,25 +417,43 @@ const createBooking = async (req: Request, res: Response) => {
     console.log("Booking created successfully:", booking.id);
 
     // Find an available shuttle for this hotel with capacity
-    console.log(`Looking for available shuttle with capacity for ${numberOfPersons} passengers...`);
-    const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, numberOfPersons);
+    console.log(
+      `Looking for available shuttle with capacity for ${numberOfPersons} passengers...`
+    );
+    const availableShuttle = await findAvailableShuttleWithCapacity(
+      hotelId,
+      numberOfPersons
+    );
 
-    console.log("Available shuttle result:", availableShuttle ? {
-      id: availableShuttle.id,
-      vehicleNumber: availableShuttle.vehicleNumber,
-      seats: availableShuttle.seats
-    } : "No shuttle found");
+    console.log(
+      "Available shuttle result:",
+      availableShuttle
+        ? {
+            id: availableShuttle.id,
+            vehicleNumber: availableShuttle.vehicleNumber,
+            seats: availableShuttle.seats,
+          }
+        : "No shuttle found"
+    );
 
     let assignmentResult = null;
 
     if (availableShuttle) {
       // Use intelligent booking assignment logic
-      console.log(`Assigning booking ${booking.id} to shuttle ${availableShuttle.id}...`);
-      assignmentResult = await assignBookingToTrip(booking.id, availableShuttle.id, hotelId);
-      
+      console.log(
+        `Assigning booking ${booking.id} to shuttle ${availableShuttle.id}...`
+      );
+      assignmentResult = await assignBookingToTrip(
+        booking.id,
+        availableShuttle.id,
+        hotelId
+      );
+
       console.log("Assignment result:", assignmentResult);
     } else {
-      console.log(`No available shuttle with capacity found for hotel ${hotelId}, booking ${booking.id} remains unassigned`);
+      console.log(
+        `No available shuttle with capacity found for hotel ${hotelId}, booking ${booking.id} remains unassigned`
+      );
     }
 
     // Generate QR code
@@ -459,12 +485,12 @@ const createBooking = async (req: Request, res: Response) => {
       id: updatedBooking.id,
       numberOfPersons: updatedBooking.numberOfPersons,
       shuttleId: updatedBooking.shuttleId,
-      assignmentResult: assignmentResult
+      assignmentResult: assignmentResult,
     });
 
-    res.json({ 
+    res.json({
       booking: updatedBooking,
-      assignmentResult 
+      assignmentResult,
     });
   } catch (error) {
     console.error("=== CREATE BOOKING ERROR ===");
@@ -777,7 +803,10 @@ const cancelBooking = async (req: Request, res: Response) => {
       data: {
         guestId: booking.guestId,
         title: "Booking Cancelled by Front Desk",
-        message: `Your booking #${booking.id.substring(0, 8)} has been cancelled by the front desk.`,
+        message: `Your booking #${booking.id.substring(
+          0,
+          8
+        )} has been cancelled by the front desk.`,
       },
     });
 
@@ -808,16 +837,25 @@ const cancelBooking = async (req: Request, res: Response) => {
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Cancelled",
-      message: `Booking #${booking.id.substring(0, 8)} has been cancelled by frontdesk.`,
+      message: `Booking #${booking.id.substring(
+        0,
+        8
+      )} has been cancelled by frontdesk.`,
       booking: updatedBooking,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
+      const completeBooking = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
 
       const completeNotificationPayload = {
         title: "Booking Cancelled",
-        message: `Booking #${booking.id.substring(0, 8)} has been cancelled by frontdesk.`,
+        message: `Booking #${booking.id.substring(
+          0,
+          8
+        )} has been cancelled by frontdesk.`,
         booking: completeBooking,
       };
 
@@ -913,16 +951,25 @@ const rescheduleBooking = async (req: Request, res: Response) => {
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Rescheduled",
-      message: `Booking #${booking.id.substring(0, 8)} has been rescheduled to ${newPreferredTime.toLocaleString()}.`,
+      message: `Booking #${booking.id.substring(
+        0,
+        8
+      )} has been rescheduled to ${newPreferredTime.toLocaleString()}.`,
       booking: updatedBooking,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
+      const completeBooking = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
 
       const completeNotificationPayload = {
         title: "Booking Rescheduled",
-        message: `Booking #${booking.id.substring(0, 8)} has been rescheduled to ${newPreferredTime.toLocaleString()}.`,
+        message: `Booking #${booking.id.substring(
+          0,
+          8
+        )} has been rescheduled to ${newPreferredTime.toLocaleString()}.`,
         booking: completeBooking,
       };
 
@@ -974,13 +1021,16 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
 
     for (const booking of unassignedBookings) {
       // Find an available shuttle for this hotel with capacity
-      const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
+      const availableShuttle = await findAvailableShuttleWithCapacity(
+        hotelId,
+        booking.numberOfPersons
+      );
 
       if (availableShuttle) {
         // Use intelligent booking assignment logic
         const assignmentResult = await assignBookingToTrip(
-          booking.id, 
-          availableShuttle.id, 
+          booking.id,
+          availableShuttle.id,
           hotelId
         );
 
@@ -993,13 +1043,16 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
             driverName:
               availableShuttle.schedules[0]?.driver?.name || "Unknown",
           },
-          status: assignmentResult.assigned ? "assigned_to_trip" : "assigned_to_shuttle",
+          status: assignmentResult.assigned
+            ? "assigned_to_trip"
+            : "assigned_to_shuttle",
           assignmentResult,
         };
 
         assignmentResults.push(result);
         console.log(
-          `Booking ${booking.id} assignment result:`, assignmentResult
+          `Booking ${booking.id} assignment result:`,
+          assignmentResult
         );
       } else {
         assignmentResults.push({
@@ -1008,7 +1061,9 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
           assignedTo: null,
           status: "no_available_shuttle_with_capacity",
         });
-        console.log(`No available shuttle with capacity for booking ${booking.id}`);
+        console.log(
+          `No available shuttle with capacity for booking ${booking.id}`
+        );
       }
     }
 
@@ -1198,7 +1253,9 @@ const addSchedule = async (req: Request, res: Response) => {
 
     if (existingSchedule) {
       return res.status(400).json({
-        message: `Driver ${existingSchedule.driver.name} already has a schedule for ${dateOnly.toDateString()}. Please edit the existing schedule instead.`,
+        message: `Driver ${
+          existingSchedule.driver.name
+        } already has a schedule for ${dateOnly.toDateString()}. Please edit the existing schedule instead.`,
         existingSchedule,
       });
     }
@@ -1216,14 +1273,15 @@ const addSchedule = async (req: Request, res: Response) => {
     res.json({ schedule });
   } catch (error) {
     console.error("Add schedule error:", error);
-    
+
     // Handle Prisma unique constraint violation
-    if ((error as any).code === 'P2002') {
+    if ((error as any).code === "P2002") {
       return res.status(400).json({
-        message: "A schedule already exists for this driver on the selected date.",
+        message:
+          "A schedule already exists for this driver on the selected date.",
       });
     }
-    
+
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1356,7 +1414,9 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     });
 
     if (existingSchedules.length > 0) {
-      const existingDates = existingSchedules.map(s => s.scheduleDate.toDateString()).join(', ');
+      const existingDates = existingSchedules
+        .map((s) => s.scheduleDate.toDateString())
+        .join(", ");
       return res.status(400).json({
         message: `Driver ${existingSchedules[0].driver.name} already has schedules for the following dates: ${existingDates}. Please edit existing schedules or choose a different week.`,
         existingSchedules,
@@ -1414,14 +1474,15 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Add weekly schedule error:", error);
-    
+
     // Handle Prisma unique constraint violation
-    if ((error as any).code === 'P2002') {
+    if ((error as any).code === "P2002") {
       return res.status(400).json({
-        message: "One or more schedules already exist for this driver on the selected dates.",
+        message:
+          "One or more schedules already exist for this driver on the selected dates.",
       });
     }
-    
+
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1454,22 +1515,29 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     });
 
     if (!booking) {
-      return res.status(404).json({ 
-        message: "Booking not found or already verified/cancelled" 
+      return res.status(404).json({
+        message: "Booking not found or already verified/cancelled",
       });
     }
 
     // Find an available shuttle for this hotel with capacity
-    const availableShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
+    const availableShuttle = await findAvailableShuttleWithCapacity(
+      hotelId,
+      booking.numberOfPersons
+    );
 
     if (!availableShuttle) {
-      return res.status(400).json({ 
-        message: "No available shuttle with capacity found for this booking" 
+      return res.status(400).json({
+        message: "No available shuttle with capacity found for this booking",
       });
     }
 
     // Use intelligent booking assignment logic
-    const assignmentResult = await assignBookingToTrip(bookingId, availableShuttle.id, hotelId);
+    const assignmentResult = await assignBookingToTrip(
+      bookingId,
+      availableShuttle.id,
+      hotelId
+    );
 
     // Update booking: verify it and mark as verified
     const updatedBooking = await prisma.booking.update({
@@ -1525,17 +1593,30 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Verified",
-      message: `Booking #${booking.id.substring(0, 8)} has been verified and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+      message: `Booking #${booking.id.substring(
+        0,
+        8
+      )} has been verified and assigned to shuttle ${
+        availableShuttle.vehicleNumber
+      }.`,
       booking: updatedBooking,
       assignmentResult,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
+      const completeBooking = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
 
       const completeNotificationPayload = {
         title: "Booking Verified",
-        message: `Booking #${booking.id.substring(0, 8)} has been verified and assigned to shuttle ${availableShuttle.vehicleNumber}.`,
+        message: `Booking #${booking.id.substring(
+          0,
+          8
+        )} has been verified and assigned to shuttle ${
+          availableShuttle.vehicleNumber
+        }.`,
         booking: completeBooking,
         assignmentResult,
       };
@@ -1617,8 +1698,8 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
     });
 
     if (!booking) {
-      return res.status(404).json({ 
-        message: "Booking not found or already verified/cancelled" 
+      return res.status(404).json({
+        message: "Booking not found or already verified/cancelled",
       });
     }
 
@@ -1638,14 +1719,18 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
       data: {
         guestId: booking.guestId,
         title: "Booking Rejected",
-        message: `Your booking has been rejected by the frontdesk. Reason: ${reason || "No reason provided."}`,
+        message: `Your booking has been rejected by the frontdesk. Reason: ${
+          reason || "No reason provided."
+        }`,
       },
     });
 
     // Notify the guest via WebSocket
     const guestNotificationPayload = {
       title: "Booking Rejected",
-      message: `Your booking has been rejected by the frontdesk. Reason: ${reason || "No reason provided."}`,
+      message: `Your booking has been rejected by the frontdesk. Reason: ${
+        reason || "No reason provided."
+      }`,
       booking: updatedBooking,
     };
     sendToUser(
@@ -1658,16 +1743,25 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Rejected",
-      message: `Booking #${booking.id.substring(0, 8)} has been rejected by frontdesk.`,
+      message: `Booking #${booking.id.substring(
+        0,
+        8
+      )} has been rejected by frontdesk.`,
       booking: updatedBooking,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(updatedBooking.id, updatedBooking);
+      const completeBooking = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
 
       const completeNotificationPayload = {
         title: "Booking Rejected",
-        message: `Booking #${booking.id.substring(0, 8)} has been rejected by frontdesk.`,
+        message: `Booking #${booking.id.substring(
+          0,
+          8
+        )} has been rejected by frontdesk.`,
         booking: completeBooking,
       };
 
@@ -1697,7 +1791,12 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
     // Get current date in Indian Standard Time (IST)
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
 
-    console.log(`Capacity status check - Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+    console.log(
+      `Capacity status check - Current IST time: ${istTime.toLocaleString(
+        "en-IN",
+        { timeZone: "Asia/Kolkata" }
+      )}`
+    );
 
     // Get all shuttles for this hotel with schedules for today
     const shuttles = await prisma.shuttle.findMany({
@@ -1734,32 +1833,37 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
       },
     });
 
-    const capacityStatus = shuttles.map(shuttle => {
+    const capacityStatus = shuttles.map((shuttle) => {
       // Check if any schedule is currently active
       let hasActiveSchedule = false;
       let activeDriver = null;
-      
+
       for (const schedule of shuttle.schedules) {
         // The schedule times are stored as UTC, so we need to compare with current UTC time
         const scheduleStartTime = new Date(schedule.startTime);
         const scheduleEndTime = new Date(schedule.endTime);
         const currentTime = new Date(); // Current time in server timezone (IST)
-        
+
         // Convert current time to UTC for comparison
-        const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
-        
-        if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+        const currentTimeUTC = new Date(
+          currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
+        );
+
+        if (
+          currentTimeUTC >= scheduleStartTime &&
+          currentTimeUTC <= scheduleEndTime
+        ) {
           hasActiveSchedule = true;
           activeDriver = schedule.driver;
           break;
         }
       }
-      
+
       const currentPassengers = shuttle.bookings.reduce(
         (sum, booking) => sum + booking.numberOfPersons,
         0
       );
-      
+
       return {
         shuttleId: shuttle.id,
         vehicleNumber: shuttle.vehicleNumber,
@@ -1768,7 +1872,7 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
         availableSeats: shuttle.seats - currentPassengers,
         utilization: Math.round((currentPassengers / shuttle.seats) * 100),
         driver: activeDriver?.name || "No active driver",
-        isAvailable: hasActiveSchedule && (shuttle.seats - currentPassengers) > 0,
+        isAvailable: hasActiveSchedule && shuttle.seats - currentPassengers > 0,
         hasActiveSchedule,
       };
     });
@@ -1776,9 +1880,11 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
     res.json({
       shuttles: capacityStatus,
       totalShuttles: shuttles.length,
-      availableShuttles: capacityStatus.filter(s => s.isAvailable).length,
-      activeSchedules: capacityStatus.filter(s => s.hasActiveSchedule).length,
-      currentTime: istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      availableShuttles: capacityStatus.filter((s) => s.isAvailable).length,
+      activeSchedules: capacityStatus.filter((s) => s.hasActiveSchedule).length,
+      currentTime: istTime.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+      }),
     });
   } catch (error) {
     console.error("Get shuttle capacity status error:", error);
@@ -1812,7 +1918,7 @@ const debugShuttleBookings = async (req: Request, res: Response) => {
             },
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
@@ -1827,7 +1933,7 @@ const debugShuttleBookings = async (req: Request, res: Response) => {
       0
     );
 
-    const bookingDetails = shuttle.bookings.map(booking => ({
+    const bookingDetails = shuttle.bookings.map((booking) => ({
       bookingId: booking.id,
       guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
       numberOfPersons: booking.numberOfPersons,
@@ -1937,14 +2043,18 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
     }
 
     // Check each schedule for active status
-    const schedulesWithStatus = shuttle.schedules.map(schedule => {
+    const schedulesWithStatus = shuttle.schedules.map((schedule) => {
       const scheduleStartTime = new Date(schedule.startTime);
       const scheduleEndTime = new Date(schedule.endTime);
       const currentTime = new Date();
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
-      
-      const isActive = currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime;
-      
+      const currentTimeUTC = new Date(
+        currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
+      );
+
+      const isActive =
+        currentTimeUTC >= scheduleStartTime &&
+        currentTimeUTC <= scheduleEndTime;
+
       return {
         id: schedule.id,
         scheduleDate: schedule.scheduleDate,
@@ -1959,7 +2069,9 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
     });
 
     const currentTime = new Date();
-    const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+    const currentTimeUTC = new Date(
+      currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
+    );
 
     res.json({
       shuttle: {
@@ -1977,7 +2089,7 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
       },
       schedules: schedulesWithStatus,
       totalSchedules: shuttle.schedules.length,
-      activeSchedules: schedulesWithStatus.filter(s => s.isActive).length,
+      activeSchedules: schedulesWithStatus.filter((s) => s.isActive).length,
     });
   } catch (error) {
     console.error("Debug shuttle schedules error:", error);
