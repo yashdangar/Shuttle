@@ -4,14 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 
-interface WithAuthProps {
-  [key: string]: any;
-}
-
-const withAuth = <P extends WithAuthProps>(
+const withAuth = <P extends Record<string, any> = {}>(
   WrappedComponent: React.ComponentType<P>
-) => {
-  const AuthenticatedComponent = (props: P) => {
+): React.ComponentType<P> => {
+  const AuthenticatedComponent: React.FC<P> = (props: P) => {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
