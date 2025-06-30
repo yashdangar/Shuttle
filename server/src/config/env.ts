@@ -85,4 +85,9 @@ export const CORS_ORIGINS = [
   "http://localhost:3004",
   "http://localhost:3005",
   "http://localhost:3003",
+  "https://admin.devitaliya.me",
+  "https://guest.devitaliya.me",
+  "https://driver.devitaliya.me",
+  "https://frontdesk.devitaliya.me",
+  "https://superadmin.devitaliya.me",
 ];
