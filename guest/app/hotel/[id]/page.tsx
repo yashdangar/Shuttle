@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, QrCode, History, Plus } from "lucide-react";
-import CurrentBooking from "@/components/current-booking";
+import CurrentBookings from "@/components/current-bookings";
 import BookingHistory from "@/components/booking-history";
 import NewBooking from "@/components/new-booking";
 import { useRouter, useParams } from "next/navigation";
@@ -74,22 +74,22 @@ export default function HotelPage() {
   const { onBookingUpdate } = useWebSocket();
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeTab, setActiveTab] = useState("current");
-  const [currentBooking, setCurrentBooking] = useState<any>(null);
+  const [currentBookings, setCurrentBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch current booking from API
-  const fetchCurrentBooking = useCallback(async () => {
+  // Fetch current bookings from API
+  const fetchCurrentBookings = useCallback(async () => {
     try {
       const response = await api.get('/guest/current-booking');
-      if (response.currentBooking) {
-        console.log("Found current booking from API:", response.currentBooking);
-        setCurrentBooking(response.currentBooking);
+      if (response.currentBookings && response.currentBookings.length > 0) {
+        console.log("Found current bookings from API:", response.currentBookings);
+        setCurrentBookings(response.currentBookings);
       } else {
-        setCurrentBooking(null);
+        setCurrentBookings([]);
       }
     } catch (error) {
-      console.error("Error fetching current booking:", error);
-      setCurrentBooking(null);
+      console.error("Error fetching current bookings:", error);
+      setCurrentBookings([]);
     }
   }, []);
 
@@ -97,8 +97,12 @@ export default function HotelPage() {
   const handleBookingUpdate = useCallback((updatedBooking: any) => {
     console.log("Received booking update via WebSocket:", updatedBooking);
     
-    // Update the current booking with the new data
-    setCurrentBooking(updatedBooking);
+    // Update the current bookings with the new data
+    setCurrentBookings(prev => 
+      prev.map(booking => 
+        booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
+      )
+    );
     
     // If we're not on the current booking tab, switch to it
     if (activeTab !== "current") {
@@ -109,11 +113,10 @@ export default function HotelPage() {
   // Memoize the onBookingCreated callback to prevent unnecessary re-renders
   const handleBookingCreated = useCallback(async (booking: any) => {
     console.log("New booking created:", booking);
-    setCurrentBooking(booking);
-    // Refresh current booking from API
-    await fetchCurrentBooking();
+    // Refresh current bookings from API
+    await fetchCurrentBookings();
     setActiveTab("current");
-  }, [fetchCurrentBooking]);
+  }, [fetchCurrentBookings]);
 
   useEffect(() => {
     const hotelId = params.id as string;
@@ -136,9 +139,9 @@ export default function HotelPage() {
       router.push("/select-hotel");
     }
 
-    // Fetch current booking from API
-    fetchCurrentBooking();
-  }, [params.id, router, fetchCurrentBooking]);
+    // Fetch current bookings from API
+    fetchCurrentBookings();
+  }, [params.id, router, fetchCurrentBookings]);
 
   // Listen for booking updates via WebSocket
   useEffect(() => {
@@ -185,7 +188,12 @@ export default function HotelPage() {
             >
               <div className="flex items-center space-x-2">
                 <QrCode className="w-4 h-4" />
-                <span>Current Booking</span>
+                <span>Current Bookings</span>
+                {currentBookings.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {currentBookings.length}
+                  </Badge>
+                )}
               </div>
             </button>
             <button
@@ -221,8 +229,8 @@ export default function HotelPage() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
         {activeTab === "current" && (
-          <CurrentBooking
-            booking={currentBooking}
+          <CurrentBookings
+            bookings={currentBookings}
             onNewBooking={() => setActiveTab("new")}
           />
         )}

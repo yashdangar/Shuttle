@@ -820,12 +820,12 @@ const getBookingTracking = async (req: Request, res: Response) => {
   }
 };
 
-const getCurrentBooking = async (req: Request, res: Response) => {
+const getCurrentBookings = async (req: Request, res: Response) => {
   try {
     const guestId = (req as any).user.userId;
 
-    // Get the most recent active booking for the guest
-    const currentBooking = await prisma.booking.findFirst({
+    // Get all active bookings for the guest
+    const currentBookings = await prisma.booking.findMany({
       where: {
         guestId: guestId,
         isCompleted: false, // Only get active bookings
@@ -853,80 +853,84 @@ const getCurrentBooking = async (req: Request, res: Response) => {
       },
     });
 
-    if (!currentBooking) {
-      return res.json({ currentBooking: null });
+    if (!currentBookings || currentBookings.length === 0) {
+      return res.json({ currentBookings: [] });
     }
 
-    // Add ETA information if driver location is available
-    let eta = currentBooking.eta;
-    let distance = "Unknown";
+    // Add ETA information for each booking if driver location is available
+    const bookingsWithETA = await Promise.all(
+      currentBookings.map(async (currentBooking) => {
+        let eta = currentBooking.eta;
+        let distance = "Unknown";
 
-    const driverLocation =
-      currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
-    if (driverLocation) {
-      let destination: Location | null = null;
+        const driverLocation =
+          currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
+        if (driverLocation) {
+          let destination: Location | null = null;
 
-      // Calculate ETA to pickup location (where driver will pick up the guest)
-      if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
-        destination = currentBooking.pickupLocation
-          ? {
-              latitude: currentBooking.pickupLocation.latitude,
-              longitude: currentBooking.pickupLocation.longitude,
-            }
-          : null;
-      } else {
-        destination = currentBooking.pickupLocation
-          ? {
-              latitude: currentBooking.pickupLocation.latitude,
-              longitude: currentBooking.pickupLocation.longitude,
-            }
-          : null;
-      }
-
-      if (destination) {
-        const origin: Location = {
-          latitude: driverLocation.latitude,
-          longitude: driverLocation.longitude,
-        };
-
-        try {
-          const etaResult = await googleMapsService.calculateETA(
-            origin,
-            destination
-          );
-          eta = etaResult.duration;
-          distance = etaResult.distance;
-
-          // Update the booking with new ETA if it's different
-          if (eta !== currentBooking.eta) {
-            await prisma.booking.update({
-              where: { id: currentBooking.id },
-              data: {
-                eta: eta,
-                lastEtaUpdate: new Date(),
-              },
-            });
+          // Calculate ETA to pickup location (where driver will pick up the guest)
+          if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
+            destination = currentBooking.pickupLocation
+              ? {
+                  latitude: currentBooking.pickupLocation.latitude,
+                  longitude: currentBooking.pickupLocation.longitude,
+                }
+              : null;
+          } else {
+            destination = currentBooking.pickupLocation
+              ? {
+                  latitude: currentBooking.pickupLocation.latitude,
+                  longitude: currentBooking.pickupLocation.longitude,
+                }
+              : null;
           }
-        } catch (error) {
-          console.error(
-            "Error calculating ETA for current booking:",
-            currentBooking.id,
-            error
-          );
+
+          if (destination) {
+            const origin: Location = {
+              latitude: driverLocation.latitude,
+              longitude: driverLocation.longitude,
+            };
+
+            try {
+              const etaResult = await googleMapsService.calculateETA(
+                origin,
+                destination
+              );
+              eta = etaResult.duration;
+              distance = etaResult.distance;
+
+              // Update the booking with new ETA if it's different
+              if (eta !== currentBooking.eta) {
+                await prisma.booking.update({
+                  where: { id: currentBooking.id },
+                  data: {
+                    eta: eta,
+                    lastEtaUpdate: new Date(),
+                  },
+                });
+              }
+            } catch (error) {
+              console.error(
+                "Error calculating ETA for current booking:",
+                currentBooking.id,
+                error
+              );
+            }
+          }
         }
-      }
-    }
 
-    const bookingWithETA = {
-      ...currentBooking,
-      eta,
-      distance,
-      driverLocation: driverLocation || null,
-    };
+        return {
+          ...currentBooking,
+          eta,
+          distance,
+          driverLocation: driverLocation || null,
+        };
+      })
+    );
 
-    res.json({ currentBooking: bookingWithETA });
+    res.json({ currentBookings: bookingsWithETA });
   } catch (error) {
-    console.error("Get current booking error:", error);
+    console.error("Get current bookings error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1066,7 +1070,7 @@ export default {
   rescheduleBooking,
   getBookingETA,
   getBookingTracking,
-  getCurrentBooking,
+  getCurrentBookings,
   getNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,

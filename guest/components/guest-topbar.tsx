@@ -24,7 +24,7 @@ export function GuestTopbar({
   const [guestEmail, setGuestEmail] = useState("guest@example.com");
   const [guestName, setGuestName] = useState("Guest User");
   const [hotelId, setHotelId] = useState<string | null>(null);
-  const [currentBooking, setCurrentBooking] = useState<any>(null);
+  const [currentBookings, setCurrentBookings] = useState<any[]>([]);
 
   // Function to create guest name from email
   const createGuestName = (email: string) => {
@@ -52,7 +52,7 @@ export function GuestTopbar({
     }
   };
 
-  // Fetch guest profile and current booking from API
+  // Fetch guest profile and current bookings from API
   const fetchGuestData = useCallback(async () => {
     try {
       // Get guest profile
@@ -75,14 +75,16 @@ export function GuestTopbar({
         setHotelId(profileResponse.guest.hotelId || null);
       }
 
-      // Get current booking
+      // Get current bookings
       const bookingResponse = await api.get('/guest/current-booking');
-      if (bookingResponse.currentBooking) {
-        setCurrentBooking(bookingResponse.currentBooking);
-        // Update hotelId from current booking if available
-        if (bookingResponse.currentBooking.hotelId) {
-          setHotelId(bookingResponse.currentBooking.hotelId);
+      if (bookingResponse.currentBookings && bookingResponse.currentBookings.length > 0) {
+        setCurrentBookings(bookingResponse.currentBookings);
+        // Update hotelId from first current booking if available
+        if (bookingResponse.currentBookings[0].hotelId) {
+          setHotelId(bookingResponse.currentBookings[0].hotelId);
         }
+      } else {
+        setCurrentBookings([]);
       }
     } catch (error) {
       console.error("Error fetching guest data:", error);
@@ -176,12 +178,12 @@ export function GuestTopbar({
                     Hotel
                   </DropdownMenuItem>
                 )}
-                {currentBooking && (
+                {currentBookings.length > 0 && (
                   <DropdownMenuItem
-                    onClick={() => router.push(`/hotel/${currentBooking.hotelId}`)}
+                    onClick={() => router.push(`/hotel/${hotelId}`)}
                     className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
                   >
-                    Current Booking
+                    Current Bookings ({currentBookings.length})
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator className="bg-border" />

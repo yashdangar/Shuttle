@@ -50,7 +50,7 @@ router.get(
 router.get(
   "/current-booking",
   guestAuthMiddleware as RequestHandler,
-  controller.getCurrentBooking as RequestHandler
+  controller.getCurrentBookings as RequestHandler
 );
 
 // QR code routes
