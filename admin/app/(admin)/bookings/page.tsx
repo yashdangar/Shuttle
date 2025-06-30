@@ -61,6 +61,7 @@ interface Booking {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+  isPaySleepFly?: boolean;
 }
 
 function BookingsPage() {
@@ -284,7 +285,10 @@ function BookingsPage() {
             {filteredBookings.map((booking) => (
               <Card 
                 key={booking.id} 
-                className={`${booking.isWaived ? 'border-orange-200 bg-orange-50/30' : ''}`}
+                className={`${
+                  booking.isWaived ? 'border-orange-200 bg-orange-50/30' : 
+                  booking.isPaySleepFly ? 'border-blue-200 bg-blue-50/30' : ''
+                }`}
               >
                 <CardContent className="p-6">
                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -297,6 +301,11 @@ function BookingsPage() {
                               {booking.guest.firstName && booking.guest.lastName
                                 ? `${booking.guest.firstName} ${booking.guest.lastName}`
                                 : booking.guest.email}
+                              {booking.isPaySleepFly && (
+                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Pay, Sleep & Fly
+                                </span>
+                              )}
                             </p>
                             <p className="text-sm text-gray-500">
                               {booking.guest.email}
@@ -361,6 +370,17 @@ function BookingsPage() {
                         <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                           <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
                           <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Pay Sleep Fly Information */}
+                      {booking.isPaySleepFly && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm font-medium text-blue-800 mb-1">Pay, Sleep & Fly Package</p>
+                          <p className="text-sm text-blue-700">
+                            This booking is part of our Pay, Sleep & Fly package. 
+                            The guest has pre-paid for their accommodation and shuttle service.
+                          </p>
                         </div>
                       )}
 

@@ -310,6 +310,7 @@ const createBooking = async (req: Request, res: Response) => {
       isWaived,
       waiverReason,
       notes,
+      isPaySleepFly,
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
@@ -391,6 +392,7 @@ const createBooking = async (req: Request, res: Response) => {
       verifiedAt: new Date(),
       isPaid: paymentMethod === "FRONTDESK" ? true : false, // Mark as paid if frontdesk payment
       notes: notes || null, // Add notes field
+      isPaySleepFly: isPaySleepFly || false, // Add Pay Sleep Fly field
       createdAt: new Date(),
       updatedAt: new Date(),
     };

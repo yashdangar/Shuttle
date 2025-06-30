@@ -62,7 +62,7 @@ export default function NewBooking({
   onBookingCreated,
 }: NewBookingProps) {
   const [tripDirection, setTripDirection] = useState<
-    "hotel-to-airport" | "airport-to-hotel"
+    "hotel-to-airport" | "airport-to-hotel" | "pay-sleep-fly"
   >("hotel-to-airport");
 
   // Get current date and time
@@ -83,6 +83,7 @@ export default function NewBooking({
     dropoffLocation: "",
     tripType: "",
     isCompleted: false,
+    isPaySleepFly: false,
     // New fields for guest information
     firstName: "",
     lastName: "",
@@ -172,6 +173,7 @@ export default function NewBooking({
         lastName: formData.lastName,
         confirmationNum: formData.confirmationNum,
         notes: formData.notes,
+        isPaySleepFly: tripDirection === "pay-sleep-fly", // Add Pay Sleep Fly flag
       };
 
       // Send request to backend
@@ -202,6 +204,25 @@ export default function NewBooking({
     }
   };
 
+  // Function to handle trip direction change
+  const handleTripDirectionChange = (value: string) => {
+    setTripDirection(value as "hotel-to-airport" | "airport-to-hotel" | "pay-sleep-fly");
+    
+    // Auto-set trip type for Pay Sleep Fly
+    if (value === "pay-sleep-fly") {
+      setFormData({
+        ...formData,
+        tripType: "AIRPORT_TO_HOTEL",
+        isPaySleepFly: true,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        isPaySleepFly: false,
+      });
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
@@ -215,16 +236,17 @@ export default function NewBooking({
           <Tabs
             defaultValue="hotel-to-airport"
             value={tripDirection}
-            onValueChange={(value) =>
-              setTripDirection(value as "hotel-to-airport" | "airport-to-hotel")
-            }
+            onValueChange={handleTripDirectionChange}
           >
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="hotel-to-airport">
                 Hotel to Airport (Outbound)
               </TabsTrigger>
               <TabsTrigger value="airport-to-hotel">
                 Airport to Hotel (Return)
+              </TabsTrigger>
+              <TabsTrigger value="pay-sleep-fly">
+                Pay, Sleep & Fly
               </TabsTrigger>
             </TabsList>
             <TabsContent value="hotel-to-airport">
@@ -709,6 +731,254 @@ export default function NewBooking({
                     </div>
                   ) : (
                     "Confirm Booking"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+            <TabsContent value="pay-sleep-fly">
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <strong>Pay, Sleep & Fly Package:</strong> This booking is for guests who have purchased our Pay, Sleep & Fly package. 
+                  Trip direction is automatically set to Airport to Hotel.
+                </p>
+              </div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Guest Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                    </p>
+                  </div>
+                  
+                  {/* First Name and Last Name */}
+                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="firstName"
+                          value={formData.firstName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, firstName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your first name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
+                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="lastName"
+                          value={formData.lastName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, lastName: e.target.value })
+                          }
+                          className="pl-10"
+                          placeholder="Enter your last name"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                  </div>
+
+                  {/* Confirmation Number */}
+                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
+                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                    </Label>
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="confirmationNum"
+                        value={formData.confirmationNum}
+                        onChange={(e) =>
+                          setFormData({ ...formData, confirmationNum: e.target.value })
+                        }
+                        className="pl-10"
+                        placeholder="Enter your hotel confirmation number"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pickup Location for Pay Sleep Fly */}
+                <div className="space-y-2">
+                  <Label htmlFor="pickup">Pickup Location *</Label>
+                  <Select
+                    value={formData.pickup}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, pickup: value })
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <div className="flex items-center">
+                        <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                        <SelectValue placeholder="Select pickup location" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={location.name}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-blue-600">
+                    Please select your airport terminal or pickup location for the Pay, Sleep & Fly package.
+                  </p>
+                </div>
+
+                {/* Destination */}
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destination</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <Input
+                      id="destination"
+                      value={hotel.name}
+                      className="pl-10 bg-gray-100"
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                {/* Date and Time */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.createdAt}
+                      className="bg-gray-100"
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Time</Label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="time"
+                        type="time"
+                        value={formData.preferredTime}
+                        className="pl-10 bg-gray-100"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Number of Passengers */}
+                <div className="space-y-2">
+                  <Label htmlFor="passengers">Number of Passengers</Label>
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 mr-2 text-gray-400" />
+                    <Input
+                      id="passengers"
+                      type="number"
+                      value={formData.numberOfPersons.toString()}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          numberOfPersons: parseInt(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Number of Bags */}
+                <div className="space-y-2">
+                  <Label htmlFor="bags">Number of Bags</Label>
+                  <div className="flex items-center space-x-2">
+                    <Briefcase className="w-4 h-4 mr-2 text-gray-400" />
+                    <Input
+                      id="bags"
+                      type="number"
+                      value={formData.numberOfBags.toString()}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          numberOfBags: parseInt(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Notes Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Add any special instructions, requests, or notes for this booking..."
+                    value={formData.notes}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                    className="min-h-[100px]"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Add any special requirements, accessibility needs, or other important information for the driver.
+                  </p>
+                </div>
+
+                {/* Payment Method for Pay Sleep Fly */}
+                <div className="space-y-3">
+                  <Label>Payment Method</Label>
+                  <RadioGroup
+                    value={formData.paymentMethod}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, paymentMethod: value })
+                    }
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="frontdesk" id="frontdesk-pay-sleep-fly" />
+                      <Label
+                        htmlFor="frontdesk-pay-sleep-fly"
+                        className="flex items-center space-x-2"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>Pay at Front Desk</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Submit Button */}
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Creating Booking...</span>
+                    </div>
+                  ) : (
+                    "Confirm Pay, Sleep & Fly Booking"
                   )}
                 </Button>
               </form>

@@ -40,7 +40,7 @@ interface DecodedToken {
 }
 
 export default function NewBookingPage() {
-  const [guestType, setGuestType] = useState<"resident" | "non-resident">("resident");
+  const [guestType, setGuestType] = useState<"resident" | "non-resident" | "pay-sleep-fly">("resident");
   const [locations, setLocations] = useState<Location[]>([]);
   const [formData, setFormData] = useState({
     numberOfPersons: "",
@@ -57,6 +57,7 @@ export default function NewBookingPage() {
     isWaived: false,
     waiverReason: "",
     notes: "",
+    isPaySleepFly: false,
   });
   const { toast } = useToast();
   const [showQRCode, setShowQRCode] = useState(false);
@@ -105,6 +106,27 @@ export default function NewBookingPage() {
     }
   };
 
+  // Function to handle guest type change
+  const handleGuestTypeChange = (value: string) => {
+    setGuestType(value as "resident" | "non-resident" | "pay-sleep-fly");
+    
+    // Auto-set trip type for Pay Sleep Fly
+    if (value === "pay-sleep-fly") {
+      setFormData({
+        ...formData,
+        tripType: "AIRPORT_TO_HOTEL",
+        pickupLocation: "", // Will be set from locations
+        dropoffLocation: "Hotel Lobby", // Fixed dropoff location
+        isPaySleepFly: true,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        isPaySleepFly: false,
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -128,6 +150,7 @@ export default function NewBookingPage() {
       const bookingData = {
         ...formData,
         isNonResident: guestType === "non-resident",
+        isPaySleepFly: guestType === "pay-sleep-fly",
         hotelId: decoded.hotelId,
         pickupLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? null : parseInt(formData.pickupLocation),
         dropoffLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? parseInt(formData.dropoffLocation) : null,
@@ -170,6 +193,7 @@ export default function NewBookingPage() {
         isWaived: false,
         waiverReason: "",
         notes: "",
+        isPaySleepFly: false,
       });
     } catch (error) {
       toast({
@@ -193,10 +217,11 @@ export default function NewBookingPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Tabs value={guestType} onValueChange={(value) => setGuestType(value as "resident" | "non-resident")}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={guestType} onValueChange={(value) => handleGuestTypeChange(value as "resident" | "non-resident" | "pay-sleep-fly")}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="resident">Hotel Resident</TabsTrigger>
                 <TabsTrigger value="non-resident">Non-Resident</TabsTrigger>
+                <TabsTrigger value="pay-sleep-fly">Pay, Sleep & Fly</TabsTrigger>
               </TabsList>
 
               <TabsContent value="resident" className="space-y-4">
@@ -221,6 +246,69 @@ export default function NewBookingPage() {
               </TabsContent>
 
               <TabsContent value="non-resident" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name *</Label>
+                    <Input
+                      id="firstName"
+                      value={formData.firstName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, firstName: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Input
+                      id="lastName"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Phone Number *</Label>
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      value={formData.phoneNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phoneNumber: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="pay-sleep-fly" className="space-y-4">
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700 font-medium mb-2">
+                    Pay, Sleep & Fly Package
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    This booking is for guests who have purchased our Pay, Sleep & Fly package. 
+                    Trip direction is automatically set to Airport to Hotel.
+                  </p>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
@@ -323,6 +411,7 @@ export default function NewBookingPage() {
                   value={formData.tripType}
                   onValueChange={handleTripTypeChange}
                   required
+                  disabled={guestType === "pay-sleep-fly"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select trip type" />
@@ -336,9 +425,15 @@ export default function NewBookingPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-sm text-gray-500">
-                  Note: Both outbound and return bookings will be part of the same round trip
-                </p>
+                {guestType === "pay-sleep-fly" ? (
+                  <p className="text-sm text-blue-600">
+                    Trip type is automatically set to Airport to Hotel for Pay, Sleep & Fly packages.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Note: Both outbound and return bookings will be part of the same round trip
+                  </p>
+                )}
               </div>
             </div>
 
@@ -351,7 +446,7 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, pickupLocation: value })
                   }
                   required
-                  disabled={formData.tripType === "HOTEL_TO_AIRPORT"}
+                  disabled={formData.tripType === "HOTEL_TO_AIRPORT" || guestType === "pay-sleep-fly"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pickup location" />
@@ -364,6 +459,11 @@ export default function NewBookingPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {guestType === "pay-sleep-fly" && (
+                  <p className="text-sm text-blue-600">
+                    Pickup location will be set based on the guest's flight details.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Dropoff Location *</Label>

@@ -38,6 +38,7 @@ interface BookingDetails {
   qrCodeUrl: string | null;
   confirmationNum: string | null;
   notes: string | null;
+  isPaySleepFly: boolean;
   guest: {
     firstName: string;
     lastName: string;
@@ -263,6 +264,13 @@ export default function BookingDetailsPage() {
                 {booking.bookingType === "HOTEL_TO_AIRPORT"
                   ? "Hotel to Airport"
                   : "Airport to Hotel"}
+                {booking.isPaySleepFly && (
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      Pay, Sleep & Fly
+                    </Badge>
+                  </div>
+                )}
               </p>
             </div>
             <div>
@@ -327,6 +335,15 @@ export default function BookingDetailsPage() {
               <div>
                 <p className="text-sm text-gray-500">Notes</p>
                 <p className="font-medium whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            )}
+            {booking.isPaySleepFly && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-1">Pay, Sleep & Fly Package</p>
+                <p className="text-sm text-blue-700">
+                  This booking is part of our Pay, Sleep & Fly package. 
+                  The guest has pre-paid for their accommodation and shuttle service.
+                </p>
               </div>
             )}
             {booking.shuttle && (

@@ -52,6 +52,7 @@ interface Booking {
   isVerified: boolean;
   confirmationNum: string | null;
   notes: string | null;
+  isPaySleepFly: boolean;
   guest?: {
     firstName: string;
     lastName: string;
@@ -481,6 +482,8 @@ export default function BookingsPage() {
                   className={`${
                     newBookingIds.has(booking.id) 
                       ? 'animate-pulse bg-green-50 border-l-4 border-l-green-500' 
+                      : booking.isPaySleepFly
+                      ? 'bg-blue-50 border-l-4 border-l-blue-500'
                       : ''
                   } transition-all duration-300`}
                 >
@@ -495,6 +498,11 @@ export default function BookingsPage() {
                             <div>
                               <p className="font-medium">
                                 {guestInfo.display}
+                                {booking.isPaySleepFly && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    Pay, Sleep & Fly
+                                  </span>
+                                )}
                               </p>
                               <p className="text-sm text-gray-500">
                                 {booking.guest?.email || (booking.confirmationNum 

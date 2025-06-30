@@ -70,6 +70,7 @@ model Booking {
   waivedBy          Int?
   waivedAt          DateTime?
   notes             String?
+  isPaySleepFly     Boolean       @default(false)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
