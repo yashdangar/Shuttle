@@ -103,6 +103,7 @@ const createTrip = async (req: Request, res: Response) => {
     firstName,
     lastName,
     confirmationNum,
+    notes,
   } = req.body;
   const userId = (req as any).user.userId;
 
@@ -146,6 +147,7 @@ const createTrip = async (req: Request, res: Response) => {
         confirmationNum: confirmationNum || null,
         encryptionKey,
         needsFrontdeskVerification: true, // Guest bookings need frontdesk verification
+        notes: notes || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       },

@@ -60,6 +60,7 @@ interface Booking {
   };
   createdAt: string;
   updatedAt: string;
+  notes?: string;
 }
 
 function BookingsPage() {
@@ -354,6 +355,14 @@ function BookingsPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Notes Section */}
+                      {booking.notes && (
+                        <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+                        </div>
+                      )}
 
                       {/* Waiver Information */}
                       {booking.isWaived && (

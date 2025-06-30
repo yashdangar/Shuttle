@@ -309,6 +309,7 @@ const createBooking = async (req: Request, res: Response) => {
       confirmationNum,
       isWaived,
       waiverReason,
+      notes,
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
@@ -389,6 +390,7 @@ const createBooking = async (req: Request, res: Response) => {
       verifiedBy: frontdeskUserId,
       verifiedAt: new Date(),
       isPaid: paymentMethod === "FRONTDESK" ? true : false, // Mark as paid if frontdesk payment
+      notes: notes || null, // Add notes field
       createdAt: new Date(),
       updatedAt: new Date(),
     };

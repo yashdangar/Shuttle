@@ -27,10 +27,8 @@ export const api = {
       }
 
       const data = await response.json();
-      console.log(`[API DEBUG] Response data:`, data);
       return data;
     } catch (error) {
-      console.error(`[API DEBUG] Fetch error:`, error);
       throw error;
     }
   },

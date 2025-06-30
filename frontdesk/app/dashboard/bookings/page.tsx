@@ -51,6 +51,7 @@ interface Booking {
   needsFrontdeskVerification: boolean;
   isVerified: boolean;
   confirmationNum: string | null;
+  notes: string | null;
   guest?: {
     firstName: string;
     lastName: string;

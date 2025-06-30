@@ -55,7 +55,6 @@ export const WebSocketProvider = ({
     const token = localStorage.getItem("guestToken");
 
     if (!token) {
-      console.log("No guest token found, WebSocket connection not initiated.");
       return;
     }
 
@@ -71,7 +70,6 @@ export const WebSocketProvider = ({
     setSocket(socketInstance);
 
     socketInstance.on("connect", () => {
-      console.log("Guest WebSocket connected!");
       setIsConnected(true);
       
       // Initial load of notifications
@@ -79,17 +77,15 @@ export const WebSocketProvider = ({
     });
 
     socketInstance.on("disconnect", () => {
-      console.log("Guest WebSocket disconnected.");
       setIsConnected(false);
     });
 
     socketInstance.on("heartbeat", (data: any) => {
-      console.log("Guest received heartbeat:", data.timestamp);
+      // Heartbeat received
     });
 
     // Listen for booking updates
     socketInstance.on("booking_verified", async (data: any) => {
-      console.log("Booking verified via WebSocket:", data);
       toast.success("Your booking has been verified by the frontdesk!");
       
       // Refresh notifications from database
@@ -107,7 +103,6 @@ export const WebSocketProvider = ({
     });
 
     socketInstance.on("booking_cancelled", async (data: any) => {
-      console.log("Booking cancelled via WebSocket:", data);
       toast.error("Your booking has been cancelled.");
       
       // Refresh notifications from database
@@ -125,7 +120,6 @@ export const WebSocketProvider = ({
     });
 
     socketInstance.on("booking_assigned", async (data: any) => {
-      console.log("Booking assigned to driver via WebSocket:", data);
       toast.info("Your booking has been assigned to a driver!");
       
       // Refresh notifications from database
@@ -143,7 +137,6 @@ export const WebSocketProvider = ({
     });
 
     socketInstance.on("driver_check_in", async (data: any) => {
-      console.log("Driver check-in confirmed via WebSocket:", data);
       toast.success("✅ Check-in confirmed! You're all set for your journey!");
       
       // Refresh notifications from database
@@ -161,7 +154,6 @@ export const WebSocketProvider = ({
     });
 
     socketInstance.on("trip_completed", async (data: any) => {
-      console.log("Trip completed via WebSocket:", data);
       toast.success("🎉 Trip completed! Thank you for choosing our service!");
       
       // Refresh notifications from database

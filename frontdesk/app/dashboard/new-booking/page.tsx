@@ -56,6 +56,7 @@ export default function NewBookingPage() {
     phoneNumber: "",
     isWaived: false,
     waiverReason: "",
+    notes: "",
   });
   const { toast } = useToast();
   const [showQRCode, setShowQRCode] = useState(false);
@@ -168,6 +169,7 @@ export default function NewBookingPage() {
         phoneNumber: "",
         isWaived: false,
         waiverReason: "",
+        notes: "",
       });
     } catch (error) {
       toast({
@@ -408,6 +410,23 @@ export default function NewBookingPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Notes Section */}
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Add any special instructions, requests, or notes for this booking..."
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+                className="min-h-[100px]"
+              />
+              <p className="text-sm text-gray-500">
+                Add any special requirements, accessibility needs, or other important information for the driver.
+              </p>
             </div>
 
             {/* Waiver Section */}

@@ -361,6 +361,14 @@ export default function BookingHistory() {
                 </div>
               </div>
             </div>
+            
+            {/* Notes Section */}
+            {booking.notes && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       ))}

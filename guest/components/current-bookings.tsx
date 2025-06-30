@@ -186,6 +186,14 @@ export default function CurrentBookings({ bookings, onNewBooking }: CurrentBooki
               </div>
             </div>
 
+            {/* Notes Section */}
+            {booking.notes && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-1">Notes:</p>
+                <p className="text-sm text-blue-700 whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
               {booking.qrCodePath ? (
                 <Button 

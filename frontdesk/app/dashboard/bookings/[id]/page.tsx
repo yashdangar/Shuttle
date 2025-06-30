@@ -37,6 +37,7 @@ interface BookingDetails {
   qrCodePath: string | null;
   qrCodeUrl: string | null;
   confirmationNum: string | null;
+  notes: string | null;
   guest: {
     firstName: string;
     lastName: string;
@@ -322,6 +323,12 @@ export default function BookingDetailsPage() {
               <p className="text-sm text-gray-500">Number of Bags</p>
               <p className="font-medium">{booking.numberOfBags}</p>
             </div>
+            {booking.notes && (
+              <div>
+                <p className="text-sm text-gray-500">Notes</p>
+                <p className="font-medium whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            )}
             {booking.shuttle && (
               <div>
                 <p className="text-sm text-gray-500">Assigned Shuttle</p>
