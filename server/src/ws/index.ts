@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import jwt from "jsonwebtoken";
+import { CORS_ORIGINS } from "../config/env";
 let io: Server;
 
 interface SocketUser {
@@ -12,12 +13,7 @@ interface SocketUser {
 export const initWebSocket = (server: HttpServer) => {
   io = new Server(server, {
     cors: {
-      origin: [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:3003",
-      ],
+      origin: CORS_ORIGINS,
       methods: ["GET", "POST"],
     },
   });
