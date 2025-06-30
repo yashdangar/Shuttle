@@ -61,14 +61,24 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
       const updateETA = async () => {
         if (!currentBooking.id) return;
         
+        // Check if guest has a valid token
+        const token = localStorage.getItem("guestToken");
+        if (!token) {
+          console.error("No guest token found. Cannot fetch ETA.");
+          setEta("Authentication required");
+          return;
+        }
+        
         try {
           setIsLoading(true);
+          console.log(`[ETA DEBUG] Fetching ETA for booking ${currentBooking.id}`);
           const response = await api.get(`/guest/booking/${currentBooking.id}/eta`);
           setEta(response.eta);
           setDistance(response.distance);
           setLastUpdate(new Date());
         } catch (error) {
           console.error("Error updating ETA:", error);
+          setEta("Error fetching ETA");
         } finally {
           setIsLoading(false);
         }

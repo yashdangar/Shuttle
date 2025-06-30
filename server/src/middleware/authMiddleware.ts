@@ -14,10 +14,8 @@ const superAdminAuthMiddleware = (
 ) => {
   try {
     const authHeader = req.headers.authorization;
-    // console.log("Auth header:", authHeader);
-
+          
     const token = authHeader?.split(" ")[1];
-    // console.log("Extracted token:", token);
 
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
@@ -79,6 +77,7 @@ const guestAuthMiddleware = (
     }
 
     const decoded = jwt.verify(token, env.jwt.secret) as JWTPayload;
+    
     // Add user info to request
     (req as any).user = decoded;
     next();

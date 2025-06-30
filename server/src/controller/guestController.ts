@@ -608,11 +608,6 @@ const getBookingETA = async (req: Request, res: Response) => {
     const bookingId = req.params.bookingId;
     const guestId = (req as any).user.userId;
 
-    // Validate that booking ID is provided
-    if (!bookingId) {
-      return res.status(400).json({ error: "Booking ID is required" });
-    }
-
     // Get booking details
     const booking = await prisma.booking.findUnique({
       where: {
@@ -620,7 +615,11 @@ const getBookingETA = async (req: Request, res: Response) => {
         guestId: guestId, // Ensure guest can only access their own bookings
       },
       include: {
-        guest: true,
+        guest: {
+          include: {
+            hotel: true,
+          },
+        },
         pickupLocation: true,
         dropoffLocation: true,
         shuttle: {
@@ -643,11 +642,19 @@ const getBookingETA = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Get driver's current location
-    const driverLocation =
-      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+    // Find the first schedule with a driver who has a currentLocation
+    const scheduleWithLocation = booking.shuttle?.schedules.find(
+      s => s.driver?.currentLocation
+    );
+    const driverLocation = scheduleWithLocation?.driver?.currentLocation;
 
     if (!driverLocation) {
+      // Try to get driver location directly from DriverLocation table as fallback
+      if (booking.shuttle?.schedules?.[0]?.driverId) {
+        const directLocation = await prisma.driverLocation.findUnique({
+          where: { driverId: booking.shuttle.schedules[0].driverId }
+        });
+      }
       return res.json({
         eta: "Driver location not available",
         distance: "Unknown",
@@ -659,21 +666,18 @@ const getBookingETA = async (req: Request, res: Response) => {
     // Determine destination based on booking type
     let destination: Location | null = null;
 
-    // Always calculate ETA to pickup location (where driver will pick up the guest)
-    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
-      destination = booking.pickupLocation
-        ? {
-            latitude: booking.pickupLocation.latitude,
-            longitude: booking.pickupLocation.longitude,
-          }
-        : null;
-    } else {
-      destination = booking.pickupLocation
-        ? {
-            latitude: booking.pickupLocation.latitude,
-            longitude: booking.pickupLocation.longitude,
-          }
-        : null;
+    // Try pickup location first
+    if (booking.pickupLocation) {
+      destination = {
+        latitude: booking.pickupLocation.latitude,
+        longitude: booking.pickupLocation.longitude,
+      };
+    } else if (booking.guest?.hotel?.latitude && booking.guest?.hotel?.longitude) {
+      // Fallback: use guest's hotel location
+      destination = {
+        latitude: booking.guest.hotel.latitude,
+        longitude: booking.guest.hotel.longitude,
+      };
     }
 
     if (!destination) {
@@ -727,7 +731,11 @@ const getBookingTracking = async (req: Request, res: Response) => {
         guestId: guestId, // Ensure guest can only access their own bookings
       },
       include: {
-        guest: true,
+        guest: {
+          include: {
+            hotel: true,
+          },
+        },
         pickupLocation: true,
         dropoffLocation: true,
         shuttle: {
