@@ -1,12 +1,15 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  notifications: any[];
+  refreshNotifications: () => void;
   onBookingUpdate?: (callback: (booking: any) => void) => void;
   onNotificationUpdate?: (callback: () => void) => void;
 }
@@ -28,12 +31,22 @@ export const WebSocketProvider = ({
 }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
   const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
   const notificationUpdateCallbacksRef = useRef<(() => void)[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const response = await api.get("/guest/notifications?page=1&limit=50");
+      setNotifications(response.notifications || []);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
   }, []);
 
   useEffect(() => {
@@ -59,13 +72,14 @@ export const WebSocketProvider = ({
 
     socketInstance.on("connect", () => {
       console.log("Guest WebSocket connected!");
-      toast.success("Real-time connection established!");
       setIsConnected(true);
+      
+      // Initial load of notifications
+      refreshNotifications();
     });
 
     socketInstance.on("disconnect", () => {
       console.log("Guest WebSocket disconnected.");
-      toast.error("Real-time connection lost.");
       setIsConnected(false);
     });
 
@@ -74,25 +88,31 @@ export const WebSocketProvider = ({
     });
 
     // Listen for booking updates
-    socketInstance.on("booking_verified", (data: any) => {
+    socketInstance.on("booking_verified", async (data: any) => {
       console.log("Booking verified via WebSocket:", data);
       toast.success("Your booking has been verified by the frontdesk!");
       
+      // Refresh notifications from database
+      await refreshNotifications();
+      
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
       });
       
-      // Trigger notification update callbacks
+      // Trigger notification update callbacks to update UI
       notificationUpdateCallbacksRef.current.forEach(callback => {
         callback();
       });
     });
 
-    socketInstance.on("booking_cancelled", (data: any) => {
+    socketInstance.on("booking_cancelled", async (data: any) => {
       console.log("Booking cancelled via WebSocket:", data);
       toast.error("Your booking has been cancelled.");
       
+      // Refresh notifications from database
+      await refreshNotifications();
+      
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
@@ -104,10 +124,13 @@ export const WebSocketProvider = ({
       });
     });
 
-    socketInstance.on("booking_assigned", (data: any) => {
+    socketInstance.on("booking_assigned", async (data: any) => {
       console.log("Booking assigned to driver via WebSocket:", data);
       toast.info("Your booking has been assigned to a driver!");
       
+      // Refresh notifications from database
+      await refreshNotifications();
+      
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
@@ -119,10 +142,13 @@ export const WebSocketProvider = ({
       });
     });
 
-    socketInstance.on("driver_check_in", (data: any) => {
+    socketInstance.on("driver_check_in", async (data: any) => {
       console.log("Driver check-in confirmed via WebSocket:", data);
       toast.success("✅ Check-in confirmed! You're all set for your journey!");
       
+      // Refresh notifications from database
+      await refreshNotifications();
+      
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
         callback(data.booking);
@@ -134,9 +160,12 @@ export const WebSocketProvider = ({
       });
     });
 
-    socketInstance.on("trip_completed", (data: any) => {
+    socketInstance.on("trip_completed", async (data: any) => {
       console.log("Trip completed via WebSocket:", data);
       toast.success("🎉 Trip completed! Thank you for choosing our service!");
+      
+      // Refresh notifications from database
+      await refreshNotifications();
       
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {
@@ -148,11 +177,14 @@ export const WebSocketProvider = ({
         callback();
       });
     });
+
+    // Initial load of notifications
+    refreshNotifications();
 
     return () => {
       socketInstance.disconnect();
     };
-  }, [hasMounted]);
+  }, [hasMounted, refreshNotifications]);
 
   const onBookingUpdate = (callback: (booking: any) => void) => {
     bookingUpdateCallbacksRef.current.push(callback);
@@ -179,7 +211,14 @@ export const WebSocketProvider = ({
   };
 
   return (
-    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate, onNotificationUpdate }}>
+    <WebSocketContext.Provider value={{ 
+      socket, 
+      isConnected, 
+      notifications, 
+      refreshNotifications, 
+      onBookingUpdate, 
+      onNotificationUpdate 
+    }}>
       {children}
     </WebSocketContext.Provider>
   );

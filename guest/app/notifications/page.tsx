@@ -28,32 +28,21 @@ interface Notification {
   createdAt: string;
 }
 
-interface NotificationResponse {
-  notifications: Notification[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-  unreadCount: number;
-}
-
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
-  const { onBookingUpdate } = useWebSocket();
+  const { notifications, refreshNotifications, onBookingUpdate, onNotificationUpdate } = useWebSocket();
+
+  // Use notifications from WebSocket context
+  const displayNotifications = notifications as Notification[]
+  const unreadCount = displayNotifications.filter((n) => !n.isRead).length
 
   const fetchNotifications = async (page: number = 1) => {
     try {
       setIsLoading(true);
-      const response: NotificationResponse = await api.get(`/guest/notifications?page=${page}&limit=20`);
-      setNotifications(response.notifications);
-      setUnreadCount(response.unreadCount);
+      const response = await api.get(`/guest/notifications?page=${page}&limit=20`);
       setCurrentPage(response.pagination.page);
       setTotalPages(response.pagination.pages);
     } catch (error) {
@@ -74,29 +63,32 @@ export default function NotificationsPage() {
 
     const cleanup = onBookingUpdate((updatedBooking) => {
       // Refresh notifications when booking status changes
-      fetchNotifications(currentPage);
+      refreshNotifications();
     });
 
     return cleanup;
-  }, [onBookingUpdate, currentPage]);
+  }, [onBookingUpdate, refreshNotifications]);
+
+  // Listen for notification updates
+  useEffect(() => {
+    if (!onNotificationUpdate) return;
+
+    const cleanup = onNotificationUpdate(() => {
+      // Refresh notifications when new notifications arrive
+      refreshNotifications();
+    });
+
+    return cleanup;
+  }, [onNotificationUpdate, refreshNotifications]);
 
   const markAsRead = async (notificationId: number) => {
     try {
       await api.put(`/guest/notifications/${notificationId}/read`);
       
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-      
-      // Update unread count
-      setUnreadCount(prev => Math.max(0, prev - 1));
-      
       toast.success("Notification marked as read");
+      
+      // Refresh notifications to update the list
+      await refreshNotifications();
     } catch (error) {
       console.error("Error marking notification as read:", error);
       toast.error("Failed to mark notification as read");
@@ -108,13 +100,10 @@ export default function NotificationsPage() {
       setIsMarkingAllRead(true);
       await api.put("/guest/notifications/read-all");
       
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notification => ({ ...notification, isRead: true }))
-      );
-      
-      setUnreadCount(0);
       toast.success("All notifications marked as read");
+      
+      // Refresh notifications to update the list
+      await refreshNotifications();
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
       toast.error("Failed to mark all notifications as read");
@@ -127,18 +116,10 @@ export default function NotificationsPage() {
     try {
       await api.delete(`/guest/notifications/${notificationId}`);
       
-      // Update local state
-      setNotifications(prev => 
-        prev.filter(notification => notification.id !== notificationId)
-      );
-      
-      // Update unread count if notification was unread
-      const notification = notifications.find(n => n.id === notificationId);
-      if (notification && !notification.isRead) {
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-      
       toast.success("Notification deleted");
+      
+      // Refresh notifications to update the list
+      await refreshNotifications();
     } catch (error) {
       console.error("Error deleting notification:", error);
       toast.error("Failed to delete notification");
@@ -232,7 +213,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      {notifications.length === 0 ? (
+      {displayNotifications.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Bell className="w-16 h-16 text-gray-300 mb-4" />
@@ -244,7 +225,7 @@ export default function NotificationsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {notifications.map((notification) => (
+          {displayNotifications.map((notification) => (
             <Card 
               key={notification.id} 
               className={`transition-all duration-200 ${

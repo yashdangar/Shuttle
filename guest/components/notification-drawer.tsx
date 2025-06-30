@@ -15,11 +15,13 @@ import {
   CheckCircle,
   XCircle,
   Info,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useWebSocket } from "@/context/WebSocketContext"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface Notification {
   id: number
@@ -29,45 +31,23 @@ interface Notification {
   createdAt: string
 }
 
-interface NotificationResponse {
-  notifications: Notification[]
-  unreadCount: number
-}
-
 export function NotificationDrawer() {
   const [isOpen, setIsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
   const [hasNewNotifications, setHasNewNotifications] = useState(false)
-  const { onBookingUpdate, onNotificationUpdate } = useWebSocket()
+  const { notifications, refreshNotifications, onBookingUpdate, onNotificationUpdate } = useWebSocket()
+  const router = useRouter()
 
-  const fetchNotifications = async () => {
-    try {
-      setIsLoading(true)
-      const response: NotificationResponse = await api.get("/guest/notifications?page=1&limit=10")
-      setNotifications(response.notifications)
-      setUnreadCount(response.unreadCount)
-      
-      // Check if there are new unread notifications
-      if (response.unreadCount > 0) {
-        setHasNewNotifications(true)
-        // Stop the animation after 5 seconds
-        setTimeout(() => setHasNewNotifications(false), 5000)
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // Use notifications from WebSocket context
+  const displayNotifications = notifications as Notification[]
+  const unreadCount = displayNotifications.filter((n) => !n.isRead).length
 
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications()
+      refreshNotifications()
     }
-  }, [isOpen])
+  }, [isOpen, refreshNotifications])
 
   // Listen for real-time booking updates
   useEffect(() => {
@@ -76,12 +56,12 @@ export function NotificationDrawer() {
     const cleanup = onBookingUpdate((updatedBooking) => {
       // Refresh notifications when booking status changes
       if (isOpen) {
-        fetchNotifications()
+        refreshNotifications()
       }
     })
 
     return cleanup
-  }, [onBookingUpdate, isOpen])
+  }, [onBookingUpdate, isOpen, refreshNotifications])
 
   // Listen for notification updates
   useEffect(() => {
@@ -94,12 +74,12 @@ export function NotificationDrawer() {
       
       // Refresh notifications if drawer is open
       if (isOpen) {
-        fetchNotifications()
+        refreshNotifications()
       }
     })
 
     return cleanup
-  }, [onNotificationUpdate, isOpen])
+  }, [onNotificationUpdate, isOpen, refreshNotifications])
 
   const markAsRead = async (notificationId: number) => {
     try {
@@ -109,19 +89,10 @@ export function NotificationDrawer() {
         },
       })
       
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      )
-      
-      // Update unread count
-      setUnreadCount(prev => Math.max(0, prev - 1))
-      
       toast.success("Notification marked as read")
+      
+      // Refresh notifications to update the list
+      await refreshNotifications()
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
@@ -136,14 +107,11 @@ export function NotificationDrawer() {
         },
       })
       
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notification => ({ ...notification, isRead: true }))
-      )
-      
-      setUnreadCount(0)
       setHasNewNotifications(false)
       toast.success("All notifications marked as read")
+      
+      // Refresh notifications to update the list
+      await refreshNotifications()
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     } finally {
@@ -155,21 +123,18 @@ export function NotificationDrawer() {
     try {
       await api.delete(`/guest/notifications/${notificationId}`)
       
-      // Update local state
-      setNotifications(prev => 
-        prev.filter(notification => notification.id !== notificationId)
-      )
-      
-      // Update unread count if notification was unread
-      const notification = notifications.find(n => n.id === notificationId)
-      if (notification && !notification.isRead) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      }
-      
       toast.success("Notification deleted")
+      
+      // Refresh notifications to update the list
+      await refreshNotifications()
     } catch (error) {
       console.error("Error deleting notification:", error)
     }
+  }
+
+  const handleViewAllNotifications = () => {
+    setIsOpen(false)
+    router.push("/notifications")
   }
 
   const getNotificationIcon = (title: string) => {
@@ -263,7 +228,7 @@ export function NotificationDrawer() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : displayNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Bell className="w-12 h-12 text-gray-300 mb-4" />
               <h3 className="font-semibold text-gray-900 mb-2">No notifications</h3>
@@ -273,7 +238,7 @@ export function NotificationDrawer() {
             </div>
           ) : (
             <div className="space-y-2">
-              {notifications.map((notification, index) => (
+              {displayNotifications.slice(0, 5).map((notification, index) => (
                 <div key={notification.id}>
                   <div className={`p-4 rounded-lg transition-all duration-200 ${
                     !notification.isRead 
@@ -319,11 +284,25 @@ export function NotificationDrawer() {
                       </div>
                     </div>
                   </div>
-                  {index < notifications.length - 1 && (
+                  {index < Math.min(displayNotifications.length, 5) - 1 && (
                     <Separator className="my-2" />
                   )}
                 </div>
               ))}
+              
+              {/* View All Notifications Button */}
+              {displayNotifications.length > 0 && (
+                <div className="pt-4 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                    onClick={handleViewAllNotifications}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View All Notifications ({displayNotifications.length})
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </ScrollArea>

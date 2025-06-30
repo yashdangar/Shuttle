@@ -216,15 +216,16 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
                   </Card>
                 ))}
                 
-                {displayNotifications.length > 5 && (
-                  <div className="pt-2">
+                {/* Always show "See All" button when there are notifications */}
+                {displayNotifications.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200">
                     <Button
                       variant="outline"
-                      className="w-full"
+                      className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
                       onClick={handleSeeAllNotifications}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      See All Notifications ({displayNotifications.length})
+                      View All Notifications ({displayNotifications.length})
                     </Button>
                   </div>
                 )}
