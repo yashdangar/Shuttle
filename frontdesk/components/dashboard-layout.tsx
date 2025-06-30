@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { NotificationDrawer } from "@/components/notification-drawer";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -42,13 +44,17 @@ const navigation = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { notifications, isConnected } = useWebSocket();
 
   const handleSignOut = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("frontdeskToken");
     router.push("/");
   };
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -143,11 +149,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <Button variant="ghost" size="icon" className="relative">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative hover:bg-gray-100 transition-colors"
+                onClick={() => setNotificationDrawerOpen(true)}
+              >
                 <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs">
-                  3
-                </Badge>
+                {unreadCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs bg-red-500 text-white flex items-center justify-center">
+                    {unreadCount}
+                  </Badge>
+                )}
+                {!isConnected && (
+                  <div className="absolute -bottom-1 -right-1 h-2 w-2 bg-red-500 rounded-full border border-white"></div>
+                )}
               </Button>
 
               <DropdownMenu>
@@ -188,6 +204,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Notification Drawer */}
+      <NotificationDrawer 
+        isOpen={notificationDrawerOpen}
+        onClose={() => {
+          setNotificationDrawerOpen(false);
+        }}
+      />
     </div>
   );
 }

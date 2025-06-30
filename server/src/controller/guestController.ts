@@ -181,12 +181,32 @@ const createTrip = async (req: Request, res: Response) => {
         }.`,
         booking: completeBooking,
       };
+      
+      // Send WebSocket notification
       sendToRoleInHotel(
         guestData.hotelId,
         "frontdesk",
         WsEvents.NEW_BOOKING,
         notificationPayload
       );
+
+      // Create database notification for all frontdesk users in the hotel
+      const frontdeskUsers = await prisma.frontDesk.findMany({
+        where: { hotelId: guestData.hotelId },
+      });
+
+      for (const frontdeskUser of frontdeskUsers) {
+        await prisma.notification.create({
+          data: {
+            frontDeskId: frontdeskUser.id,
+            title: "New Booking Created",
+            message: `A new booking has been created by ${
+              guestData.firstName || "a guest"
+            }.`,
+            isRead: false,
+          },
+        });
+      }
     }
 
     res.json({ trip: updatedTrip });

@@ -9,6 +9,7 @@ import { Check, Trash2, Bell, AlertCircle, Info } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Notification {
   id: number;
@@ -20,30 +21,13 @@ interface Notification {
 }
 
 function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { notifications, refreshNotifications } = useWebSocket();
 
   useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetchWithAuth("/frontdesk/notifications");
-      const data = await response.json();
-      setNotifications(data.notifications);
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load notifications. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    refreshNotifications().finally(() => setLoading(false));
+  }, [refreshNotifications]);
 
   const markAsRead = async (id: number) => {
     try {
@@ -58,18 +42,13 @@ function NotificationsPage() {
         throw new Error("Failed to mark notification as read");
       }
 
-      setNotifications((prev) =>
-        prev.map((notification) =>
-          notification.id === id
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-
       toast({
         title: "Marked as read",
         description: "Notification has been marked as read.",
       });
+      
+      // Refresh notifications
+      await refreshNotifications();
     } catch (error) {
       console.error("Error marking notification as read:", error);
       toast({
@@ -90,13 +69,13 @@ function NotificationsPage() {
         throw new Error("Failed to delete notification");
       }
 
-      setNotifications((prev) =>
-        prev.filter((notification) => notification.id !== id)
-      );
       toast({
         title: "Notification deleted",
         description: "Notification has been removed.",
       });
+      
+      // Refresh notifications
+      await refreshNotifications();
     } catch (error) {
       console.error("Error deleting notification:", error);
       toast({
