@@ -15,13 +15,19 @@ export const initWebSocket = (server: HttpServer) => {
     cors: {
       origin: CORS_ORIGINS,
       methods: ["GET", "POST"],
+      credentials: true,
     },
+    transports: ["websocket"], // Only allow websocket transport
+    allowEIO3: true, // Allow Engine.IO v3 clients
+    pingTimeout: 60000, // 60 seconds
+    pingInterval: 25000, // 25 seconds
   });
 
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     const token = socket.handshake.auth.token;
 
     if (!token) {
+      console.log("WebSocket authentication failed: Token not provided");
       return next(new Error("Authentication error: Token not provided"));
     }
 
@@ -37,8 +43,12 @@ export const initWebSocket = (server: HttpServer) => {
         type: decoded.role,
       };
 
+      console.log(
+        `WebSocket authentication successful for user ${decoded.userId} (${decoded.role})`
+      );
       next();
     } catch (err) {
+      console.log("WebSocket authentication failed: Invalid token", err);
       return next(new Error("Authentication error: Invalid token"));
     }
   });
@@ -48,7 +58,7 @@ export const initWebSocket = (server: HttpServer) => {
     const user: SocketUser = socket.data.user;
 
     if (user) {
-      console.log(`User ${user.id} (${user.type}) connected.`);
+      console.log(`User ${user.id} (${user.type}) connected via WebSocket.`);
       // Join a room for the hotel if hotelId is present
       if (user.hotelId) {
         const hotelRoom = `hotel:${user.hotelId}`;
@@ -64,11 +74,32 @@ export const initWebSocket = (server: HttpServer) => {
       const userRoom = `${user.type}:${user.id}`;
       socket.join(userRoom);
       console.log(`User ${user.id} joined personal room: ${userRoom}`);
+
+      // Send a welcome message to confirm connection
+      socket.emit("welcome", {
+        message: `Welcome! WebSocket connection established.`,
+        userId: user.id,
+        userType: user.type,
+      });
     }
 
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
+    socket.on("disconnect", (reason) => {
+      console.log("User disconnected:", socket.id, "Reason:", reason);
     });
+
+    socket.on("error", (error) => {
+      console.error("WebSocket error for socket:", socket.id, error);
+    });
+  });
+
+  // Log server events
+  io.engine.on("connection_error", (err) => {
+    console.error(
+      "WebSocket connection error:",
+      err.req?.url,
+      err.code,
+      err.message
+    );
   });
 };
 
@@ -90,7 +121,10 @@ export const sendToUser = (
     console.log(`Sending event '${event}' to user room '${room}'`);
     getIo().to(room).emit(event, payload);
   } catch (error) {
-    console.error(`Error sending event '${event}' to user ${userType}:${userId}:`, error);
+    console.error(
+      `Error sending event '${event}' to user ${userType}:${userId}:`,
+      error
+    );
   }
 };
 
@@ -105,6 +139,9 @@ export const sendToRoleInHotel = (
     console.log(`Sending event '${event}' to room '${room}'`);
     getIo().to(room).emit(event, payload);
   } catch (error) {
-    console.error(`Error sending event '${event}' to room 'hotel:${hotelId}:${role}':`, error);
+    console.error(
+      `Error sending event '${event}' to room 'hotel:${hotelId}:${role}':`,
+      error
+    );
   }
 };

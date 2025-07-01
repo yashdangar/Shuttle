@@ -42,7 +42,6 @@ export const WebSocketProvider = ({
       return;
     }
 
-    // Get the WebSocket URL and ensure proper protocol
     const wsUrl =
       process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080";
 
@@ -50,11 +49,9 @@ export const WebSocketProvider = ({
       auth: {
         token,
       },
-      transports: ["websocket", "polling"], // Prefer websocket, fallback to polling
-      upgrade: true, // Allow transport upgrades
-      secure: true, // Force secure connections in production
-      rejectUnauthorized: false, // Accept self-signed certificates if needed
-      forceNew: true, // Force a new connection
+      transports: ["websocket"], // Only WebSocket transport
+      upgrade: false, // Don't try to upgrade
+      timeout: 20000, // 20 second timeout
     });
 
     setSocket(socketInstance);
@@ -75,6 +72,14 @@ export const WebSocketProvider = ({
     socketInstance.on("connect_error", (error) => {
       console.error("WebSocket connection error:", error);
       toast.error("Failed to establish real-time connection.");
+      setIsConnected(false);
+    });
+
+    socketInstance.on("welcome", (data: any) => {
+      console.log("Received welcome message:", data);
+      toast.success("WebSocket connection confirmed!", {
+        description: data.message,
+      });
     });
 
     socketInstance.on("heartbeat", (data: any) => {
