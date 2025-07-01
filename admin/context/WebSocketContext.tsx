@@ -42,19 +42,26 @@ export const WebSocketProvider = ({
       return;
     }
 
-    const socketInstance = io(
-      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080",
-      {
-        auth: {
-          token,
-        },
-      }
-    );
+    // Get the WebSocket URL and ensure proper protocol
+    const wsUrl =
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080";
+
+    const socketInstance = io(wsUrl, {
+      auth: {
+        token,
+      },
+      transports: ["websocket", "polling"], // Prefer websocket, fallback to polling
+      upgrade: true, // Allow transport upgrades
+      secure: true, // Force secure connections in production
+      rejectUnauthorized: false, // Accept self-signed certificates if needed
+      forceNew: true, // Force a new connection
+    });
 
     setSocket(socketInstance);
 
     socketInstance.on("connect", () => {
       console.log("Admin WebSocket connected!");
+      console.log("Transport used:", socketInstance.io.engine.transport.name);
       toast.success("Real-time connection established!");
       setIsConnected(true);
     });
@@ -63,6 +70,11 @@ export const WebSocketProvider = ({
       console.log("Admin WebSocket disconnected.");
       toast.error("Real-time connection lost.");
       setIsConnected(false);
+    });
+
+    socketInstance.on("connect_error", (error) => {
+      console.error("WebSocket connection error:", error);
+      toast.error("Failed to establish real-time connection.");
     });
 
     socketInstance.on("heartbeat", (data: any) => {
