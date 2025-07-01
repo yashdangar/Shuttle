@@ -1,0 +1,114 @@
+name: Deploy Changed Apps
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      admin: ${{ steps.changes.outputs.admin }}
+      frontdesk: ${{ steps.changes.outputs.frontdesk }}
+      driver: ${{ steps.changes.outputs.driver }}
+      guest: ${{ steps.changes.outputs.guest }}
+      super-admin: ${{ steps.changes.outputs.super-admin }}
+      server: ${{ steps.changes.outputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            admin:
+              - 'admin/**'
+            frontdesk:
+              - 'frontdesk/**'
+            driver:
+              - 'driver/**'
+            guest:
+              - 'guest/**'
+            super-admin:
+              - 'super-admin/**'
+            server:
+              - 'server/**'
+
+  deploy:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: |
+      needs.detect-changes.outputs.admin == 'true' ||
+      needs.detect-changes.outputs.frontdesk == 'true' ||
+      needs.detect-changes.outputs.driver == 'true' ||
+      needs.detect-changes.outputs.guest == 'true' ||
+      needs.detect-changes.outputs.super-admin == 'true' ||
+      needs.detect-changes.outputs.server == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/Shuttle
+            git pull origin main
+            
+            # Function to build and restart app
+            build_and_restart() {
+              local app=$1
+              echo "Building and restarting $app..."
+              cd ~/Shuttle/$app
+              npm install --force
+              npm run build
+              pm2 restart $app || pm2 start npm --name "$app" -- start
+              cd ~/Shuttle
+            }
+            
+            # Check which apps changed and build them
+            if [ "${{ needs.detect-changes.outputs.admin }}" = "true" ]; then
+              build_and_restart "admin"
+            fi
+            
+            if [ "${{ needs.detect-changes.outputs.frontdesk }}" = "true" ]; then
+              build_and_restart "frontdesk"
+            fi
+            
+            if [ "${{ needs.detect-changes.outputs.driver }}" = "true" ]; then
+              build_and_restart "driver"
+            fi
+            
+            if [ "${{ needs.detect-changes.outputs.guest }}" = "true" ]; then
+              build_and_restart "guest"
+            fi
+            
+            if [ "${{ needs.detect-changes.outputs.super-admin }}" = "true" ]; then
+              build_and_restart "super-admin"
+            fi
+            
+            if [ "${{ needs.detect-changes.outputs.server }}" = "true" ]; then
+              echo "Building and restarting server..."
+              cd ~/Shuttle/server
+              npm install --force
+              npm run build
+              pm2 restart server || pm2 start npm --name "server" -- start
+              cd ~/Shuttle
+            fi
+            
+            # Show PM2 status
+            pm2 status 
