@@ -13,3 +13,7 @@ pm2 start npm --name server -- run start
 
 pm2 stop admin driver frontdesk guest superadmin server
 pm2 delete admin driver frontdesk guest superadmin server
+
+NEXT_PUBLIC_API_URL="https://server.devitaliya.me"
+NEXT_PUBLIC_WEBSOCKET_URL="wss://server.devitaliya.me"
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="AIzaSyCDw4QycSxCmGs1o6GMvifFL32qAR6L5wc"

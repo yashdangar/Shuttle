@@ -64,7 +64,10 @@ export const WebSocketProvider = ({
         auth: {
           token,
         },
-      }
+        transports: ["websocket"],
+        upgrade: false,
+        timeout: 20000,
+        }
     );
 
     setSocket(socketInstance);
