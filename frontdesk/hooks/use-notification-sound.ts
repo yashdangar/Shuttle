@@ -2,8 +2,12 @@ import { useCallback, useRef } from 'react';
 
 export const useNotificationSound = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasUserInteracted = useRef<boolean>(false);
 
-
+  // Function to mark that user has interacted with the page
+  const markUserInteraction = useCallback(() => {
+    hasUserInteracted.current = true;
+  }, []);
 
   const playContinuousNotificationSound = useCallback(async () => {
     console.log('Playing continuous notification sound...');
@@ -15,6 +19,12 @@ export const useNotificationSound = () => {
     if (soundEnabled === "false") {
       console.log('Sound is disabled, not playing');
       return; // Don't play sound if disabled
+    }
+
+    // Check if user has interacted with the page
+    if (!hasUserInteracted.current) {
+      console.log('User has not interacted with the page yet, skipping sound');
+      return;
     }
     
     // Try to use the MP3 file
@@ -50,5 +60,6 @@ export const useNotificationSound = () => {
   return {
     playContinuousNotificationSound,
     stopNotificationSound,
+    markUserInteraction,
   };
 }; 

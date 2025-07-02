@@ -90,4 +90,13 @@ export const api = {
       method: "DELETE",
     });
   },
+
+  // Dashboard specific methods
+  async getLiveShuttleData() {
+    return this.get("/frontdesk/dashboard/live-shuttles");
+  },
+
+  async getPendingBookingsLastHour() {
+    return this.get("/frontdesk/dashboard/pending-bookings");
+  },
 };

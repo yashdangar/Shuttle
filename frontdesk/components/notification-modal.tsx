@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Bell, X } from "lucide-react";
 
@@ -33,6 +33,9 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             <Bell className="h-5 w-5 text-red-500 animate-pulse" />
             {title}
           </DialogTitle>
+          <DialogDescription>
+            New notification received. Please review the details below.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-gray-600 whitespace-pre-line">

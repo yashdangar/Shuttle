@@ -87,6 +87,16 @@ export const WsEvents = {
    */
   TRIP_COMPLETED: "trip_completed",
 
+  /**
+   * Sent to frontdesk when a driver starts a trip.
+   */
+  TRIP_STARTED: "trip_started",
+
+  /**
+   * Sent to frontdesk when a trip status is updated.
+   */
+  TRIP_UPDATED: "trip_updated",
+
   // Client-to-Server Events (Example for future use)
 
   /**
@@ -163,6 +173,18 @@ export type WsPayloads = {
   };
 
   [WsEvents.TRIP_COMPLETED]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
+  };
+
+  [WsEvents.TRIP_STARTED]: {
+    title: string;
+    message: string;
+    booking: BookingPayload;
+  };
+
+  [WsEvents.TRIP_UPDATED]: {
     title: string;
     message: string;
     booking: BookingPayload;

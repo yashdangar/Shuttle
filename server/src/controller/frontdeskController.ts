@@ -2101,6 +2101,231 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
   }
 };
 
+// Get live shuttle data with current bookings and contact details
+const getLiveShuttleData = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    // Get current date in IST
+    const { istTime, startOfDay, endOfDay } = getISTDateRange();
+
+    // Find active trips for today
+    const activeTrips = await prisma.trip.findMany({
+      where: {
+        status: "ACTIVE",
+        schedule: {
+          scheduleDate: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          shuttle: {
+            hotelId: hotelId,
+          },
+        },
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+            email: true,
+          },
+        },
+        shuttle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+            seats: true,
+          },
+        },
+        bookings: {
+          include: {
+            guest: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phoneNumber: true,
+                isNonResident: true,
+              },
+            },
+            pickupLocation: {
+              select: {
+                id: true,
+                name: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+            dropoffLocation: {
+              select: {
+                id: true,
+                name: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Format the response
+    const liveShuttles = activeTrips.map((trip) => ({
+      tripId: trip.id,
+      shuttle: {
+        id: trip.shuttle.id,
+        vehicleNumber: trip.shuttle.vehicleNumber,
+        totalSeats: trip.shuttle.seats,
+        availableSeats: trip.shuttle.seats - trip.bookings.length,
+        utilization: Math.round((trip.bookings.length / trip.shuttle.seats) * 100),
+      },
+      driver: {
+        id: trip.driver.id,
+        name: trip.driver.name,
+        phoneNumber: trip.driver.phoneNumber,
+        email: trip.driver.email,
+      },
+      direction: trip.direction,
+      phase: trip.phase,
+      startTime: trip.startTime,
+      outboundEndTime: trip.outboundEndTime,
+      returnStartTime: trip.returnStartTime,
+      endTime: trip.endTime,
+      bookings: trip.bookings.map((booking) => ({
+        id: booking.id,
+        guest: {
+          id: booking.guest.id,
+          name: `${booking.guest.firstName} ${booking.guest.lastName}`,
+          email: booking.guest.email,
+          phoneNumber: booking.guest.phoneNumber,
+          isNonResident: booking.guest.isNonResident,
+        },
+        numberOfPersons: booking.numberOfPersons,
+        numberOfBags: booking.numberOfBags,
+        pickupLocation: booking.pickupLocation,
+        dropoffLocation: booking.dropoffLocation,
+        preferredTime: booking.preferredTime,
+        isCompleted: booking.isCompleted,
+        isVerified: booking.isVerified,
+        eta: booking.eta,
+        createdAt: booking.createdAt,
+      })),
+      totalBookings: trip.bookings.length,
+    }));
+
+    res.json({
+      liveShuttles,
+      totalLiveShuttles: liveShuttles.length,
+      totalActiveBookings: liveShuttles.reduce((sum, shuttle) => sum + shuttle.totalBookings, 0),
+    });
+  } catch (error) {
+    console.error("Get live shuttle data error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get pending bookings from the last hour
+const getPendingBookingsLastHour = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+
+    // Calculate time 1 hour ago
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    const pendingBookings = await prisma.booking.findMany({
+      where: {
+        guest: {
+          hotelId: hotelId,
+        },
+        isCancelled: false,
+        isCompleted: false,
+        tripId: null, // Not assigned to any trip yet
+        createdAt: {
+          gte: oneHourAgo,
+        },
+      },
+      include: {
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+          },
+        },
+        pickupLocation: {
+          select: {
+            id: true,
+            name: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        dropoffLocation: {
+          select: {
+            id: true,
+            name: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        shuttle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // Format the response
+    const formattedBookings = pendingBookings.map((booking) => ({
+      id: booking.id,
+      guest: {
+        id: booking.guest.id,
+        name: `${booking.guest.firstName} ${booking.guest.lastName}`,
+        email: booking.guest.email,
+        phoneNumber: booking.guest.phoneNumber,
+        isNonResident: booking.guest.isNonResident,
+      },
+      numberOfPersons: booking.numberOfPersons,
+      numberOfBags: booking.numberOfBags,
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
+      preferredTime: booking.preferredTime,
+      paymentMethod: booking.paymentMethod,
+      bookingType: booking.bookingType,
+      isPaid: booking.isPaid,
+      isVerified: booking.isVerified,
+      needsFrontdeskVerification: booking.needsFrontdeskVerification,
+      eta: booking.eta,
+      notes: booking.notes,
+      createdAt: booking.createdAt,
+      timeSinceCreated: Math.floor((Date.now() - booking.createdAt.getTime()) / (1000 * 60)), // minutes
+    }));
+
+    res.json({
+      pendingBookings: formattedBookings,
+      totalPendingBookings: formattedBookings.length,
+      timeRange: {
+        from: oneHourAgo.toISOString(),
+        to: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Get pending bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -2135,4 +2360,6 @@ export default {
   debugShuttleBookings,
   debugSchedule,
   debugShuttleSchedules,
+  getLiveShuttleData,
+  getPendingBookingsLastHour,
 };

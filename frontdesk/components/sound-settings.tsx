@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,38 +20,6 @@ export function SoundSettings() {
   const toggleSound = (enabled: boolean) => {
     setSoundEnabled(enabled);
     localStorage.setItem("frontdesk-sound-enabled", enabled.toString());
-  };
-
-  const testSound = () => {
-    if (soundEnabled) {
-      try {
-        // Try to play the tone.mp3 file for testing
-        const audio = new Audio('/tone.mp3');
-        audio.volume = 0.5;
-        audio.play().catch((error) => {
-          console.warn('Failed to play tone.mp3 for testing, falling back to beep:', error);
-          // Fallback to beep sound
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-
-          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-          oscillator.type = 'sine';
-
-          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.3);
-        });
-      } catch (error) {
-        console.warn('Failed to play test sound:', error);
-      }
-    }
   };
 
   return (
@@ -77,15 +44,6 @@ export function SoundSettings() {
             onCheckedChange={toggleSound}
           />
         </div>
-        
-        <Button
-          variant="outline"
-          onClick={testSound}
-          disabled={!soundEnabled}
-          className="w-full"
-        >
-          Test Sound
-        </Button>
         
         <p className="text-xs text-gray-500">
           {soundEnabled 

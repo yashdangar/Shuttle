@@ -13,6 +13,7 @@ interface WebSocketContextType {
   notifications: any[];
   refreshNotifications: () => void;
   stopNotificationSound: () => void;
+  markUserInteraction: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -43,7 +44,7 @@ export const WebSocketProvider = ({
     title: "",
     message: "",
   });
-  const { playContinuousNotificationSound, stopNotificationSound } = useNotificationSound();
+  const { playContinuousNotificationSound, stopNotificationSound, markUserInteraction: markInteraction } = useNotificationSound();
 
   useEffect(() => {
     setHasMounted(true);
@@ -68,7 +69,9 @@ export const WebSocketProvider = ({
     setNotificationModal(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-
+  const markUserInteraction = useCallback(() => {
+    markInteraction();
+  }, [markInteraction]);
 
   useEffect(() => {
     if (!hasMounted) return;
@@ -268,7 +271,8 @@ export const WebSocketProvider = ({
       isConnected, 
       notifications, 
       refreshNotifications,
-      stopNotificationSound
+      stopNotificationSound,
+      markUserInteraction
     }}>
       {children}
       

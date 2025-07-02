@@ -223,6 +223,39 @@ const startTrip = async (req: Request, res: Response) => {
 
     const message = `Round trip started successfully with ${totalBookings} bookings for ${totalPeople} passengers`;
 
+    // Send WebSocket notification to frontdesk about trip started
+    try {
+      const { sendToRoleInHotel } = await import("../ws/index");
+      const { WsEvents } = await import("../ws/events");
+      
+      // Get hotel ID from the driver
+      const driverWithHotel = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { hotelId: true }
+      });
+
+      if (driverWithHotel) {
+        // Send to all frontdesk users of this hotel
+        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.TRIP_STARTED, {
+          title: "Trip Started",
+          message: `Driver ${newTrip.driver.name} started a trip with ${totalBookings} bookings`,
+          trip: {
+            id: newTrip.id,
+            driver: newTrip.driver,
+            shuttle: newTrip.shuttle,
+            direction: newTrip.direction,
+            phase: newTrip.phase,
+            startTime: newTrip.startTime,
+            totalBookings,
+            totalPeople,
+          }
+        });
+      }
+    } catch (wsError) {
+      console.error("WebSocket notification error:", wsError);
+      // Don't fail the request if WebSocket fails
+    }
+
     res.json({
       trip: {
         ...newTrip,
@@ -296,6 +329,35 @@ const transitionTripPhase = async (req: Request, res: Response) => {
       return res.status(400).json({
         message: `Invalid phase transition from ${trip.phase} to ${phase}`,
       });
+    }
+
+    // Send WebSocket notification to frontdesk about trip update
+    try {
+      const { sendToRoleInHotel } = await import("../ws/index");
+      const { WsEvents } = await import("../ws/events");
+      
+      // Get hotel ID from the driver
+      const driverWithHotel = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { hotelId: true }
+      });
+
+      if (driverWithHotel) {
+        // Send to all frontdesk users of this hotel
+        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.TRIP_UPDATED, {
+          title: "Trip Updated",
+          message: `Trip ${tripId} transitioned to ${phase} phase`,
+          trip: {
+            id: tripId,
+            phase: phase,
+            direction: trip.direction,
+            totalBookings: trip.bookings.length,
+          }
+        });
+      }
+    } catch (wsError) {
+      console.error("WebSocket notification error:", wsError);
+      // Don't fail the request if WebSocket fails
     }
 
     res.json({
@@ -1032,6 +1094,7 @@ const addBookingToActiveTrip = async (req: Request, res: Response) => {
     });
 
     // Send WebSocket notification to guest
+    const { sendToUser } = await import("../ws/index");
     sendToUser(
       booking.guestId,
       "guest",
@@ -1043,6 +1106,37 @@ const addBookingToActiveTrip = async (req: Request, res: Response) => {
         trip: updatedTrip,
       }
     );
+
+    // Send WebSocket notification to frontdesk about booking assignment
+    try {
+      const { sendToRoleInHotel } = await import("../ws/index");
+      const { WsEvents } = await import("../ws/events");
+      
+      // Get hotel ID from the driver
+      const driverWithHotel = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { hotelId: true }
+      });
+
+      if (driverWithHotel) {
+        // Send to all frontdesk users of this hotel
+        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.BOOKING_ASSIGNED, {
+          title: "Booking Assigned",
+          message: `Booking ${bookingId} assigned to active trip ${activeTrip.id}`,
+          booking: {
+            id: booking.id,
+            guest: booking.guest,
+            numberOfPersons: booking.numberOfPersons,
+            pickupLocation: booking.pickupLocation,
+            dropoffLocation: booking.dropoffLocation,
+          },
+          tripId: activeTrip.id,
+        });
+      }
+    } catch (wsError) {
+      console.error("WebSocket notification error:", wsError);
+      // Don't fail the request if WebSocket fails
+    }
 
     res.json({
       trip: {

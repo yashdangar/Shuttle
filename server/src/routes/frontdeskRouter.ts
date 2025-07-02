@@ -202,6 +202,19 @@ router.post(
   frontdeskController.addWeeklySchedule as RequestHandler
 );
 
+// Dashboard specific routes
+router.get(
+  "/dashboard/live-shuttles",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getLiveShuttleData as RequestHandler
+);
+
+router.get(
+  "/dashboard/pending-bookings",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getPendingBookingsLastHour as RequestHandler
+);
+
 // TODO: Remove this in production
 router.get("/debug/guests", frontdeskController.debugGuests);
 
