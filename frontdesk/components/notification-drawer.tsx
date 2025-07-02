@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Check, Trash2, AlertCircle, Info, X, ExternalLink } from "lucide-react";
+import { Bell, Check, Trash2, AlertCircle, Info, X, ExternalLink, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,9 +27,24 @@ interface NotificationDrawerProps {
 
 export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps) {
   const [loading, setLoading] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const { toast } = useToast();
   const { notifications, refreshNotifications } = useWebSocket();
   const router = useRouter();
+
+  // Load sound preference
+  useEffect(() => {
+    const savedPreference = localStorage.getItem("frontdesk-sound-enabled");
+    if (savedPreference !== null) {
+      setSoundEnabled(savedPreference === "true");
+    }
+  }, []);
+
+  const toggleSound = () => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    localStorage.setItem("frontdesk-sound-enabled", newState.toString());
+  };
 
   // Use notifications from WebSocket context instead of local state
   const displayNotifications = notifications as Notification[];
@@ -125,9 +140,23 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
               </Badge>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSound}
+              title={soundEnabled ? "Disable sound" : "Enable sound"}
+            >
+              {soundEnabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <ScrollArea className="h-[calc(100vh-8rem)]">

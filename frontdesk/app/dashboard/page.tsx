@@ -5,23 +5,41 @@ import { Badge } from "@/components/ui/badge";
 import { Car, Users, MapPin, Bell, Inbox } from "lucide-react";
 import { useWebSocket } from "@/context/WebSocketContext";
 
-const stats = [
-  { name: "Total Shuttles", value: "12", icon: Car, color: "text-blue-600" },
-  { name: "Total Drivers", value: "8", icon: Users, color: "text-green-600" },
-  { name: "Active Trips", value: "5", icon: MapPin, color: "text-orange-600" },
-  { name: "Notifications", value: "3", icon: Bell, color: "text-red-600" },
-];
+interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  type: "booking" | "alert" | "info";
+  isRead: boolean;
+  createdAt: string;
+}
 
 export default function DashboardPage() {
-  const { notifications } = useWebSocket();
+  const { notifications, isConnected } = useWebSocket();
+
+  const stats = [
+    { name: "Total Shuttles", value: "12", icon: Car, color: "text-blue-600" },
+    { name: "Total Drivers", value: "8", icon: Users, color: "text-green-600" },
+    { name: "Active Trips", value: "5", icon: MapPin, color: "text-orange-600" },
+    { name: "Notifications", value: (notifications as Notification[]).length.toString(), icon: Bell, color: "text-red-600" },
+  ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">
-          Welcome back! Here's what's happening today.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">
+            Welcome back! Here's what's happening today.
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-sm text-gray-600">
+              WebSocket: {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
+        
       </div>
 
       {/* Stats Cards */}
@@ -41,36 +59,40 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Active Trips */}
+      {/* Recent Notifications */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Booking Notifications</CardTitle>
+          <CardTitle>Recent Notifications</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {notifications.length > 0 ? (
-              notifications.map((notification) => (
+            {(notifications as Notification[]).length > 0 ? (
+              (notifications as Notification[]).slice(0, 5).map((notification) => (
                 <div
-                  key={notification.booking.id}
+                  key={notification.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-medium">{notification.title}</h3>
-                      <Badge variant="default">New</Badge>
+                      {!notification.isRead && (
+                        <Badge variant="default">New</Badge>
+                      )}
                     </div>
                     <div className="text-sm text-gray-600">
                       <p>{notification.message}</p>
-                      <p>Booking ID: {notification.booking.id}</p>
-                      <p>Guests: {notification.booking.numberOfPersons}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(notification.createdAt).toLocaleString()}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">
-                      {new Date(
-                        notification.booking.preferredTime
-                      ).toLocaleTimeString()}
-                    </p>
+                    <Badge 
+                      variant={notification.type === "booking" ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {notification.type}
+                    </Badge>
                   </div>
                 </div>
               ))
@@ -81,7 +103,7 @@ export default function DashboardPage() {
                   No new notifications
                 </h3>
                 <p className="mt-1 text-sm">
-                  New bookings will appear here in real-time.
+                  New notifications will appear here in real-time.
                 </p>
               </div>
             )}

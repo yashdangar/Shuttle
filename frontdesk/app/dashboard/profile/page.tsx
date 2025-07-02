@@ -11,6 +11,7 @@ import { useToast } from "@/components/hooks/use-toast";
 import { Edit, Save, X, MapPin, Phone, Mail, Building } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
+import { SoundSettings } from "@/components/sound-settings";
 
 interface FrontdeskProfile {
   id: number;
@@ -351,6 +352,16 @@ function ProfilePage() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Sound Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Notification Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SoundSettings />
         </CardContent>
       </Card>
     </div>
