@@ -15,6 +15,18 @@ router.get(
   controller.getAdmin as RequestHandler
 );
 
+// Profile routes
+router.get(
+  "/profile",
+  adminAuthMiddleware as RequestHandler,
+  controller.getAdminProfile as RequestHandler
+);
+router.put(
+  "/profile",
+  adminAuthMiddleware as RequestHandler,
+  controller.updateAdminProfile as RequestHandler
+);
+
 //hotel routes
 router.post(
   "/add/hotel",
@@ -167,6 +179,13 @@ router.get(
   "/bookings",
   adminAuthMiddleware as RequestHandler,
   controller.getBookings as RequestHandler
+);
+
+//dashboard routes
+router.get(
+  "/dashboard/stats",
+  adminAuthMiddleware as RequestHandler,
+  controller.getDashboardStats as RequestHandler
 );
 
 export default router;

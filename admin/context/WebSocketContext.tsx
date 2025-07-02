@@ -59,27 +59,21 @@ export const WebSocketProvider = ({
     socketInstance.on("connect", () => {
       console.log("Admin WebSocket connected!");
       console.log("Transport used:", socketInstance.io.engine.transport.name);
-      toast.success("Real-time connection established!");
       setIsConnected(true);
     });
 
     socketInstance.on("disconnect", () => {
       console.log("Admin WebSocket disconnected.");
-      toast.error("Real-time connection lost.");
       setIsConnected(false);
     });
 
     socketInstance.on("connect_error", (error) => {
       console.error("WebSocket connection error:", error);
-      toast.error("Failed to establish real-time connection.");
       setIsConnected(false);
     });
 
     socketInstance.on("welcome", (data: any) => {
       console.log("Received welcome message:", data);
-      toast.success("WebSocket connection confirmed!", {
-        description: data.message,
-      });
     });
 
     socketInstance.on("heartbeat", (data: any) => {

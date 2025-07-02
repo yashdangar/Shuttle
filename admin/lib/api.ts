@@ -26,10 +26,7 @@ export const api = {
     },
 
     async get(endpoint: string) {
-        const res = await this.fetch(endpoint);
-        console.log(res);
-        console.log(res.data);
-        return res;
+        return this.fetch(endpoint);
     },
 
     async post(endpoint: string, data: any) {

@@ -1,162 +1,371 @@
 "use client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { withAuth } from "@/components/withAuth"
-import { Building2, Users, Car, Truck, UserCheck, CheckCircle, Clock, AlertTriangle } from "lucide-react"
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { withAuth } from "@/components/withAuth";
+import { api } from "@/lib/api";
+import { DateRangePicker } from "@/components/date-range-picker";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { 
+  Building2, 
+  Users, 
+  Car, 
+  Truck, 
+  UserCheck, 
+  TrendingUp,
+  Plane,
+  Home,
+  BarChart3
+} from "lucide-react";
+import { format, differenceInDays } from "date-fns";
+
+interface DashboardStats {
+  stats: {
+    totalHotels: number;
+    totalFrontdeskStaff: number;
+    totalDrivers: number;
+    totalShuttles: number;
+    totalGuests: number;
+  };
+  bookings: {
+    liveBookings: number;
+    totalBookings: number;
+    completedBookings: number;
+    revenue: number;
+    hotelToAirport: number;
+    airportToHotel: number;
+  };
+  hotelBookings: Record<string, number>;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+}
 
 function DashboardPage() {
-  const stats = [
-    {
-      title: "Total Hotels",
-      value: "12",
-      icon: Building2,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      title: "Front Desk Staff",
-      value: "24",
-      icon: Users,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      title: "Active Drivers",
-      value: "18",
-      icon: Car,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-    },
-    {
-      title: "Total Shuttles",
-      value: "15",
-      icon: Truck,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
-    },
-    {
-      title: "Total Guests",
-      value: "1,247",
-      icon: UserCheck,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50",
-    },
-  ]
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // 1st of current month
+    to: new Date(), // today
+  });
 
-  const quickStats = [
-    {
-      title: "Active Shuttles",
-      value: "8",
-      subtitle: "Currently running",
-      color: "text-green-600",
-    },
-    {
-      title: "Completed Trips",
-      value: "156",
-      subtitle: "Today",
-      color: "text-blue-600",
-    },
-    {
-      title: "Pending Payments",
-      value: "$2,340",
-      subtitle: "Awaiting processing",
-      color: "text-orange-600",
-    },
-  ]
+  const fetchDashboardStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams();
+      if (dateRange.from) {
+        params.append('startDate', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        params.append('endDate', dateRange.to.toISOString());
+      }
+      
+      const response = await api.get(`/admin/dashboard/stats?${params.toString()}`);
+      setStats(response);
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      setError('Failed to load dashboard data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const notifications = [
-    {
-      type: "warning",
-      message: "Shuttle #SH-001 requires maintenance check",
-      time: "2 hours ago",
-    },
-    {
-      type: "info",
-      message: "New driver John Smith has been registered",
-      time: "4 hours ago",
-    },
-    {
-      type: "success",
-      message: "Payment of $450 received from Grand Hotel",
-      time: "6 hours ago",
-    },
-    {
-      type: "warning",
-      message: "Driver Mike Johnson is running late for pickup",
-      time: "8 hours ago",
-    },
-  ]
+  useEffect(() => {
+    fetchDashboardStats();
+  }, [dateRange]);
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-600">Welcome back! Here's what's happening with your shuttle operations.</p>
-      </div>
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="border-slate-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Stats */}
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-slate-900">Quick Stats</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {quickStats.map((stat) => (
-              <div key={stat.title} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-slate-900">{stat.title}</p>
-                  <p className="text-sm text-slate-600">{stat.subtitle}</p>
-                </div>
-                <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
 
-        {/* Notifications */}
-        <Card className="lg:col-span-2 border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-slate-900">Recent Notifications</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {notifications.map((notification, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex-shrink-0 mt-1">
-                    {notification.type === "warning" && <AlertTriangle className="w-4 h-4 text-orange-500" />}
-                    {notification.type === "info" && <Clock className="w-4 h-4 text-blue-500" />}
-                    {notification.type === "success" && <CheckCircle className="w-4 h-4 text-green-500" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-900">{notification.message}</p>
-                    <p className="text-xs text-slate-500 mt-1">{notification.time}</p>
-                  </div>
-                </div>
-              ))}
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+            <p className="text-slate-600">Welcome back! Here's what's happening with your shuttle operations.</p>
+          </div>
+        </div>
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <p className="text-red-600 font-medium">{error}</p>
+              <button 
+                onClick={fetchDashboardStats}
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Try Again
+              </button>
             </div>
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-600">Welcome back! Here's what's happening with your shuttle operations.</p>
+        </div>
+        
+        {/* Date Range Picker */}
+        <DateRangePicker 
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Total Hotels</p>
+                <p className="text-2xl font-bold text-slate-900">{stats?.stats.totalHotels || 0}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-blue-50">
+                <Building2 className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Front Desk Staff</p>
+                <p className="text-2xl font-bold text-slate-900">{stats?.stats.totalFrontdeskStaff || 0}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-green-50">
+                <Users className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Active Drivers</p>
+                <p className="text-2xl font-bold text-slate-900">{stats?.stats.totalDrivers || 0}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-purple-50">
+                <Car className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Total Shuttles</p>
+                <p className="text-2xl font-bold text-slate-900">{stats?.stats.totalShuttles || 0}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-orange-50">
+                <Truck className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Total Guests</p>
+                <p className="text-2xl font-bold text-slate-900">{stats?.stats.totalGuests || 0}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-indigo-50">
+                <UserCheck className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Booking Statistics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Live Bookings & Revenue */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Live Operations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">Live Bookings</p>
+                <p className="text-sm text-slate-600">Currently active</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-green-600">{stats?.bookings.liveBookings || 0}</p>
+                <Badge variant="secondary" className="text-xs">Active</Badge>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">Total Revenue</p>
+                <p className="text-sm text-slate-600">From completed bookings</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-blue-600">{formatCurrency(stats?.bookings.revenue || 0)}</p>
+                <Badge variant="secondary" className="text-xs">Completed</Badge>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">Total Bookings</p>
+                <p className="text-sm text-slate-600">In selected period</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-orange-600">{stats?.bookings.totalBookings || 0}</p>
+                <Badge variant="secondary" className="text-xs">All</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Booking Types */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Booking Types
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Home className="w-4 h-4 text-indigo-600" />
+                <div>
+                  <p className="font-medium text-slate-900">Hotel to Airport</p>
+                  <p className="text-sm text-slate-600">Outbound trips</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-indigo-600">{stats?.bookings.hotelToAirport || 0}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Plane className="w-4 h-4 text-purple-600" />
+                <div>
+                  <p className="font-medium text-slate-900">Airport to Hotel</p>
+                  <p className="text-sm text-slate-600">Inbound trips</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-purple-600">{stats?.bookings.airportToHotel || 0}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">Completion Rate</p>
+                <p className="text-sm text-slate-600">Completed vs Total</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-slate-600">
+                  {stats?.bookings.totalBookings ? 
+                    Math.round((stats.bookings.completedBookings / stats.bookings.totalBookings) * 100) : 0}%
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Hotel Performance */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              Hotel Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats?.hotelBookings ? 
+                Object.entries(stats.hotelBookings)
+                  .sort(([,a], [,b]) => b - a)
+                  .slice(0, 5)
+                  .map(([hotelName, bookingCount]) => (
+                    <div key={hotelName} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                      <p className="text-sm font-medium text-slate-900 truncate">{hotelName}</p>
+                      <Badge variant="outline">{bookingCount} bookings</Badge>
+                    </div>
+                  ))
+                : 
+                <div className="text-center py-4">
+                  <p className="text-sm text-slate-500">No booking data available</p>
+                </div>
+              }
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+             {/* Date Range Info */}
+       <Card className="border-slate-200">
+         <CardHeader>
+           <CardTitle className="text-lg font-semibold text-slate-900">Date Range Information</CardTitle>
+         </CardHeader>
+         <CardContent>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div className="text-center p-4 bg-slate-50 rounded-lg">
+               <p className="text-sm text-slate-600">Start Date</p>
+               <p className="font-semibold text-slate-900">
+                 {stats?.dateRange.startDate ? format(new Date(stats.dateRange.startDate), 'MMM dd, yyyy') : 'N/A'}
+               </p>
+             </div>
+             <div className="text-center p-4 bg-slate-50 rounded-lg">
+               <p className="text-sm text-slate-600">End Date</p>
+               <p className="font-semibold text-slate-900">
+                 {stats?.dateRange.endDate ? format(new Date(stats.dateRange.endDate), 'MMM dd, yyyy') : 'N/A'}
+               </p>
+             </div>
+             <div className="text-center p-4 bg-slate-50 rounded-lg">
+               <p className="text-sm text-slate-600">Period</p>
+               <p className="font-semibold text-slate-900">
+                 {stats?.dateRange.startDate && stats?.dateRange.endDate ? 
+                   differenceInDays(new Date(stats.dateRange.endDate), new Date(stats.dateRange.startDate)) + 1 : 0} days
+               </p>
+             </div>
+           </div>
+         </CardContent>
+       </Card>
+
+
     </div>
-  )
+  );
 }
 
 export default withAuth(DashboardPage);

@@ -198,6 +198,82 @@ const getAdmin = async (req: Request, res: Response) => {
   }
 };
 
+const getAdminProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        hotelId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Get hotel information if admin has a hotel
+    let hotelData = null;
+    if (admin.hotelId) {
+      hotelData = await prisma.hotel.findUnique({
+        where: { id: admin.hotelId },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          phoneNumber: true,
+          email: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
+    }
+
+    res.json({ admin, hotel: hotelData });
+  } catch (error) {
+    console.error("Get admin profile error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const updateAdminProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+
+    const admin = await prisma.admin.update({
+      where: { id: parseInt(userId) },
+      data: {
+        name,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        hotelId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({ admin });
+  } catch (error) {
+    console.error("Update admin profile error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const createHotel = async (req: Request, res: Response) => {
   try {
     const { name, latitude, longitude, address, phoneNumber, email } = req.body;
@@ -939,19 +1015,35 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
 const getBookings = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
+    const { startDate, endDate } = req.query;
+    
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        createdAt: {
+          gte: new Date(startDate as string),
+          lte: new Date(endDate as string),
+        },
+      };
+    }
     
     // Get all bookings for hotels that this admin manages
     const bookings = await prisma.booking.findMany({
       where: {
-        guest: {
-          hotel: {
-            admins: {
-              some: {
-                id: parseInt(userId)
+        AND: [
+          {
+            guest: {
+              hotel: {
+                admins: {
+                  some: {
+                    id: parseInt(userId)
+                  }
+                }
               }
             }
-          }
-        }
+          },
+          dateFilter
+        ]
       },
       include: {
         guest: {
@@ -990,8 +1082,172 @@ const getBookings = async (req: Request, res: Response) => {
   }
 };
 
+const getDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { startDate, endDate } = req.query;
+    
+    // Set default date range (1st of current month to today)
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    const startDateFilter = startDate ? new Date(startDate as string) : firstDayOfMonth;
+    const endDateFilter = endDate ? new Date(endDate as string) : today;
+    
+    // Get the admin's hotel ID
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true }
+    });
+    
+    if (!admin?.hotelId) {
+      return res.json({
+        stats: {
+          totalHotels: 0,
+          totalFrontdeskStaff: 0,
+          totalDrivers: 0,
+          totalShuttles: 0,
+          totalGuests: 0,
+        },
+        bookings: {
+          liveBookings: 0,
+          totalBookings: 0,
+          completedBookings: 0,
+          revenue: 0,
+          hotelToAirport: 0,
+          airportToHotel: 0,
+        },
+        hotelBookings: {},
+        dateRange: {
+          startDate: startDateFilter.toISOString(),
+          endDate: endDateFilter.toISOString(),
+        }
+      });
+    }
+    
+    // Get bookings filtered by admin's hotel with date range
+    const bookings = await prisma.booking.findMany({
+      where: {
+        AND: [
+          {
+            guest: {
+              hotelId: admin.hotelId
+            }
+          },
+          {
+            createdAt: {
+              gte: startDateFilter,
+              lte: endDateFilter,
+            },
+          }
+        ]
+      },
+      include: {
+        guest: {
+          select: {
+            hotel: {
+              select: {
+                name: true,
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate live bookings (not completed, not cancelled)
+    const liveBookings = bookings.filter(booking => 
+      !booking.isCompleted && !booking.isCancelled
+    );
+
+    // Calculate revenue (assuming $50 per booking for now - you can adjust this based on your pricing)
+    const completedBookings = bookings.filter(booking => booking.isCompleted);
+    const revenue = completedBookings.length * 50; // $50 per booking
+
+    // Calculate booking types
+    const hotelToAirport = bookings.filter(booking => 
+      booking.bookingType === 'HOTEL_TO_AIRPORT'
+    ).length;
+    
+    const airportToHotel = bookings.filter(booking => 
+      booking.bookingType === 'AIRPORT_TO_HOTEL'
+    ).length;
+
+    // Get hotel-wise booking counts
+    const hotelBookings = bookings.reduce((acc, booking) => {
+      const hotelName = booking.guest.hotel?.name || 'Unknown Hotel';
+      acc[hotelName] = (acc[hotelName] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Get total hotels managed by this admin (should be 1 since admin is assigned to one hotel)
+    const hotels = await prisma.hotel.findMany({
+      where: {
+        id: admin.hotelId
+      }
+    });
+
+    // Get total drivers for this hotel
+    const drivers = await prisma.driver.findMany({
+      where: {
+        hotelId: admin.hotelId
+      }
+    });
+
+    // Get total shuttles for this hotel
+    const shuttles = await prisma.shuttle.findMany({
+      where: {
+        hotelId: admin.hotelId
+      }
+    });
+
+    // Get total frontdesk staff for this hotel
+    const frontdeskStaff = await prisma.frontDesk.findMany({
+      where: {
+        hotelId: admin.hotelId
+      }
+    });
+
+    // Get total guests for this hotel
+    const guests = await prisma.guest.findMany({
+      where: {
+        hotelId: admin.hotelId
+      }
+    });
+
+    res.json({
+      stats: {
+        totalHotels: hotels.length,
+        totalFrontdeskStaff: frontdeskStaff.length,
+        totalDrivers: drivers.length,
+        totalShuttles: shuttles.length,
+        totalGuests: guests.length,
+      },
+      bookings: {
+        liveBookings: liveBookings.length,
+        totalBookings: bookings.length,
+        completedBookings: completedBookings.length,
+        revenue: revenue,
+        hotelToAirport: hotelToAirport,
+        airportToHotel: airportToHotel,
+      },
+      hotelBookings,
+      dateRange: {
+        startDate: startDateFilter.toISOString(),
+        endDate: endDateFilter.toISOString(),
+      },
+
+    });
+  } catch (error) {
+    console.error("Get dashboard stats error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
+  getAdminProfile,
+  updateAdminProfile,
   login,
   signup,
   createHotel,
@@ -1022,4 +1278,5 @@ export default {
   deleteLocation,
   getLocation,
   getBookings,
+  getDashboardStats,
 };

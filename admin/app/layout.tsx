@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { WebSocketProvider } from "@/context/WebSocketContext";
 import { Toaster } from "@/components/ui/sonner";
+import { ConnectionStatus } from "@/components/connection-status";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,6 +30,7 @@ export default function RootLayout({
         >
           <WebSocketProvider>
             {children}
+            <ConnectionStatus />
             <Toaster />
           </WebSocketProvider>
         </ThemeProvider>

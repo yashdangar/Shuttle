@@ -14,7 +14,7 @@ export function ConditionalTopbar() {
   ];
   
   // Check if current path should show topbar
-  const shouldShowTopbar = !excludedPaths.some(path => pathname.startsWith(path));
+  const shouldShowTopbar = !excludedPaths.some(path => pathname.startsWith(path)) && pathname !== "/";
   
   if (!shouldShowTopbar) {
     return null;
