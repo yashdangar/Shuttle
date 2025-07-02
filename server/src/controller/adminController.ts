@@ -1069,6 +1069,38 @@ const getBookings = async (req: Request, res: Response) => {
             name: true,
           }
         },
+        shuttle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+            seats: true,
+            createdAt: true,
+            schedules: {
+              include: {
+                driver: {
+                  select: {
+                    id: true,
+                    name: true,
+                    phoneNumber: true,
+                    email: true,
+                  }
+                }
+              }
+            }
+          }
+        },
+        trip: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                phoneNumber: true,
+                email: true,
+              }
+            }
+          }
+        }
       },
       orderBy: {
         createdAt: "desc",
@@ -1116,6 +1148,8 @@ const getDashboardStats = async (req: Request, res: Response) => {
           revenue: 0,
           hotelToAirport: 0,
           airportToHotel: 0,
+          hotelToAirportRevenue: 0,
+          airportToHotelRevenue: 0,
         },
         hotelBookings: {},
         dateRange: {
@@ -1160,11 +1194,22 @@ const getDashboardStats = async (req: Request, res: Response) => {
       !booking.isCompleted && !booking.isCancelled
     );
 
-    // Calculate revenue (assuming $50 per booking for now - you can adjust this based on your pricing)
+    // Calculate revenue breakdown by trip type
     const completedBookings = bookings.filter(booking => booking.isCompleted);
-    const revenue = completedBookings.length * 50; // $50 per booking
+    const totalRevenue = completedBookings.length * 50; // $50 per booking
 
-    // Calculate booking types
+    // Calculate revenue by trip type
+    const hotelToAirportBookings = completedBookings.filter(booking => 
+      booking.bookingType === 'HOTEL_TO_AIRPORT'
+    );
+    const airportToHotelBookings = completedBookings.filter(booking => 
+      booking.bookingType === 'AIRPORT_TO_HOTEL'
+    );
+
+    const hotelToAirportRevenue = hotelToAirportBookings.length * 50;
+    const airportToHotelRevenue = airportToHotelBookings.length * 50;
+
+    // Calculate booking types (all bookings, not just completed)
     const hotelToAirport = bookings.filter(booking => 
       booking.bookingType === 'HOTEL_TO_AIRPORT'
     ).length;
@@ -1227,9 +1272,11 @@ const getDashboardStats = async (req: Request, res: Response) => {
         liveBookings: liveBookings.length,
         totalBookings: bookings.length,
         completedBookings: completedBookings.length,
-        revenue: revenue,
+        revenue: totalRevenue,
         hotelToAirport: hotelToAirport,
         airportToHotel: airportToHotel,
+        hotelToAirportRevenue: hotelToAirportRevenue,
+        airportToHotelRevenue: airportToHotelRevenue,
       },
       hotelBookings,
       dateRange: {

@@ -34,6 +34,8 @@ interface DashboardStats {
     revenue: number;
     hotelToAirport: number;
     airportToHotel: number;
+    hotelToAirportRevenue: number;
+    airportToHotelRevenue: number;
   };
   hotelBookings: Record<string, number>;
   dateRange: {
@@ -135,7 +137,7 @@ function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         <Card className="border-slate-200">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -205,6 +207,20 @@ function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-600">Total Revenue</p>
+                <p className="text-2xl font-bold text-slate-900 truncate">{formatCurrency(stats?.bookings.revenue || 0)}</p>
+              </div>
+              <div className="flex-shrink-0 p-3 rounded-lg bg-emerald-50 ml-3">
+                <TrendingUp className="w-6 h-6 text-emerald-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Booking Statistics */}
@@ -231,11 +247,11 @@ function DashboardPage() {
             
             <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
               <div>
-                <p className="font-medium text-slate-900">Total Revenue</p>
-                <p className="text-sm text-slate-600">From completed bookings</p>
+                <p className="font-medium text-slate-900">Completed Bookings</p>
+                <p className="text-sm text-slate-600">Successfully completed</p>
               </div>
               <div className="text-right">
-                <p className="text-xl font-bold text-blue-600">{formatCurrency(stats?.bookings.revenue || 0)}</p>
+                <p className="text-xl font-bold text-blue-600">{stats?.bookings.completedBookings || 0}</p>
                 <Badge variant="secondary" className="text-xs">Completed</Badge>
               </div>
             </div>
@@ -253,12 +269,12 @@ function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Booking Types */}
+        {/* Booking Types & Revenue */}
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              Booking Types
+              Booking Types & Revenue
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -272,6 +288,9 @@ function DashboardPage() {
               </div>
               <div className="text-right">
                 <p className="text-xl font-bold text-indigo-600">{stats?.bookings.hotelToAirport || 0}</p>
+                <p className="text-sm text-indigo-600 font-medium">
+                  {formatCurrency(stats?.bookings.hotelToAirportRevenue || 0)}
+                </p>
               </div>
             </div>
             
@@ -285,6 +304,21 @@ function DashboardPage() {
               </div>
               <div className="text-right">
                 <p className="text-xl font-bold text-purple-600">{stats?.bookings.airportToHotel || 0}</p>
+                <p className="text-sm text-purple-600 font-medium">
+                  {formatCurrency(stats?.bookings.airportToHotelRevenue || 0)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">Total Revenue</p>
+                <p className="text-sm text-slate-600">All completed bookings</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(stats?.bookings.revenue || 0)}
+                </p>
               </div>
             </div>
 

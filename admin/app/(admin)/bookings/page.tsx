@@ -16,6 +16,8 @@ import {
 import { withAuth } from "@/components/withAuth";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { BookingsSkeleton } from "@/components/booking-skeleton";
+import { BookingDetailsModal } from "@/components/booking-details-modal";
 import { 
   Search, 
   Filter, 
@@ -28,6 +30,13 @@ import {
   XCircle,
   Clock
 } from "lucide-react";
+
+interface Driver {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  email: string;
+}
 
 interface Booking {
   id: string;
@@ -62,6 +71,14 @@ interface Booking {
   updatedAt: string;
   notes?: string;
   isPaySleepFly?: boolean;
+  shuttle?: {
+    schedules: {
+      driver: Driver;
+    }[];
+  };
+  trip?: {
+    driver: Driver;
+  };
 }
 
 function BookingsPage() {
@@ -180,11 +197,7 @@ function BookingsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading bookings...</div>
-      </div>
-    );
+    return <BookingsSkeleton />;
   }
 
   return (
@@ -320,6 +333,7 @@ function BookingsPage() {
                         <div className="flex items-center gap-2">
                           {getStatusBadge(booking)}
                           {getPaymentBadge(booking)}
+                          <BookingDetailsModal booking={booking} />
                         </div>
                       </div>
 
