@@ -1437,34 +1437,26 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
       "sunday",
     ];
 
+    // Expect weekSchedule[dayKey] to have startUtc and endUtc (UTC ISO strings)
     for (let i = 0; i < 7; i++) {
       const dayKey = dayKeys[i];
       const dayData = weekSchedule[dayKey];
 
       if (dayData && dayData.enabled) {
+        // Use startUtc and endUtc directly from frontend
+        const startTime = dayData.startUtc || dayData.startTime; // fallback for legacy
+        const endTime = dayData.endUtc || dayData.endTime;
+        if (!startTime || !endTime) continue;
         const scheduleDate = new Date(weekStart);
         scheduleDate.setUTCDate(scheduleDate.getUTCDate() + i);
-
-        const [startHour, startMinute] = dayData.startTime.split(":");
-        const startDateTime = new Date(scheduleDate);
-        startDateTime.setUTCHours(
-          parseInt(startHour),
-          parseInt(startMinute),
-          0,
-          0
-        );
-
-        const [endHour, endMinute] = dayData.endTime.split(":");
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setUTCHours(parseInt(endHour), parseInt(endMinute), 0, 0);
-
+        scheduleDate.setUTCHours(0, 0, 0, 0);
         const schedule = await prisma.schedule.create({
           data: {
             driverId: parseInt(driverId),
             shuttleId: parseInt(shuttleId),
             scheduleDate: scheduleDate,
-            startTime: startDateTime,
-            endTime: endDateTime,
+            startTime: new Date(startTime), // UTC
+            endTime: new Date(endTime), // UTC
           },
           include: { driver: true, shuttle: true },
         });
@@ -2180,7 +2172,9 @@ const getLiveShuttleData = async (req: Request, res: Response) => {
         vehicleNumber: trip.shuttle.vehicleNumber,
         totalSeats: trip.shuttle.seats,
         availableSeats: trip.shuttle.seats - trip.bookings.length,
-        utilization: Math.round((trip.bookings.length / trip.shuttle.seats) * 100),
+        utilization: Math.round(
+          (trip.bookings.length / trip.shuttle.seats) * 100
+        ),
       },
       driver: {
         id: trip.driver.id,
@@ -2219,7 +2213,10 @@ const getLiveShuttleData = async (req: Request, res: Response) => {
     res.json({
       liveShuttles,
       totalLiveShuttles: liveShuttles.length,
-      totalActiveBookings: liveShuttles.reduce((sum, shuttle) => sum + shuttle.totalBookings, 0),
+      totalActiveBookings: liveShuttles.reduce(
+        (sum, shuttle) => sum + shuttle.totalBookings,
+        0
+      ),
     });
   } catch (error) {
     console.error("Get live shuttle data error:", error);
@@ -2309,7 +2306,9 @@ const getPendingBookingsLastHour = async (req: Request, res: Response) => {
       eta: booking.eta,
       notes: booking.notes,
       createdAt: booking.createdAt,
-      timeSinceCreated: Math.floor((Date.now() - booking.createdAt.getTime()) / (1000 * 60)), // minutes
+      timeSinceCreated: Math.floor(
+        (Date.now() - booking.createdAt.getTime()) / (1000 * 60)
+      ), // minutes
     }));
 
     res.json({
