@@ -2325,6 +2325,44 @@ const getPendingBookingsLastHour = async (req: Request, res: Response) => {
   }
 };
 
+// GET /frontdesk/get/schedule?start=...&end=...
+const getSchedule21DayWindow = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+    const { start, end } = req.query;
+    let dateFilter = {};
+    if (start && end) {
+      dateFilter = {
+        scheduleDate: {
+          gte: new Date(start as string),
+          lte: new Date(end as string),
+        },
+      };
+    }
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        AND: [
+          {
+            OR: [{ driver: { hotelId } }, { shuttle: { hotelId } }],
+          },
+          dateFilter,
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+      orderBy: {
+        scheduleDate: "asc",
+      },
+    });
+    res.json({ schedules });
+  } catch (error) {
+    console.error("Get schedule 21-day window error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -2335,7 +2373,7 @@ export default {
   getNotifications,
   markNotificationAsRead,
   deleteNotification,
-  getSchedule,
+  getSchedule: getSchedule21DayWindow,
   createBooking,
   getLocations,
   verifyBookingQR,

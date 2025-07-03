@@ -784,18 +784,42 @@ const deleteSchedule = async (req: Request, res: Response) => {
 const getSchedule = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
+    const { start, end } = req.query;
+    let dateFilter = {};
+    if (start && end) {
+      dateFilter = {
+        scheduleDate: {
+          gte: new Date(start as string),
+          lte: new Date(end as string),
+        },
+      };
+    }
     const schedules = await prisma.schedule.findMany({
       where: {
-        OR: [
-          { driver: { hotel: { admins: { some: { id: parseInt(userId) } } } } },
+        AND: [
           {
-            shuttle: { hotel: { admins: { some: { id: parseInt(userId) } } } },
+            OR: [
+              {
+                driver: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+              {
+                shuttle: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+            ],
           },
+          dateFilter,
         ],
       },
       include: {
         driver: true,
         shuttle: true,
+      },
+      orderBy: {
+        scheduleDate: "asc",
       },
     });
     res.json({ schedules });
@@ -950,6 +974,66 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Get schedule by week error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getScheduleBy21Days = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { centerDate } = req.query; // ISO string, optional
+    let center = centerDate ? new Date(centerDate as string) : new Date();
+    center.setHours(0, 0, 0, 0);
+    // 7 days before, 13 days after (21 days total, inclusive)
+    const start = new Date(center);
+    start.setDate(center.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(center);
+    end.setDate(center.getDate() + 13);
+    end.setHours(23, 59, 59, 999);
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              {
+                driver: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+              {
+                shuttle: {
+                  hotel: { admins: { some: { id: parseInt(userId) } } },
+                },
+              },
+            ],
+          },
+          {
+            scheduleDate: {
+              gte: start,
+              lte: end,
+            },
+          },
+        ],
+      },
+      include: {
+        driver: true,
+        shuttle: true,
+      },
+      orderBy: {
+        scheduleDate: "asc",
+      },
+    });
+    res.json({
+      schedules,
+      rangeInfo: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        center: center.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Get schedule by 21 days error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1269,4 +1353,5 @@ export default {
   getLocation,
   getBookings,
   getDashboardStats,
+  getScheduleBy21Days,
 };

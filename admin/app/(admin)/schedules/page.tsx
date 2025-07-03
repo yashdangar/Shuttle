@@ -91,13 +91,13 @@ interface WeeklySchedule {
   shuttleId: string;
   driverId: string;
   startDate: string;
+  sunday: { startTime: string; endTime: string; enabled: boolean };
   monday: { startTime: string; endTime: string; enabled: boolean };
   tuesday: { startTime: string; endTime: string; enabled: boolean };
   wednesday: { startTime: string; endTime: string; enabled: boolean };
   thursday: { startTime: string; endTime: string; enabled: boolean };
   friday: { startTime: string; endTime: string; enabled: boolean };
   saturday: { startTime: string; endTime: string; enabled: boolean };
-  sunday: { startTime: string; endTime: string; enabled: boolean };
 }
 
 function SchedulesPage() {
@@ -127,23 +127,27 @@ function SchedulesPage() {
     shuttleId: "",
     driverId: "",
     startDate: "",
+    sunday: { startTime: "10:00", endTime: "16:00", enabled: false },
     monday: { startTime: "09:00", endTime: "17:00", enabled: true },
     tuesday: { startTime: "09:00", endTime: "17:00", enabled: true },
     wednesday: { startTime: "09:00", endTime: "17:00", enabled: true },
     thursday: { startTime: "09:00", endTime: "17:00", enabled: true },
     friday: { startTime: "09:00", endTime: "17:00", enabled: true },
     saturday: { startTime: "10:00", endTime: "16:00", enabled: true },
-    sunday: { startTime: "10:00", endTime: "16:00", enabled: false },
   });
 
+  // --- Add state for 21-day window ---
+  const [scheduleWindow, setScheduleWindow] = useState<Schedule[]>([]);
+  const [windowCenterDate, setWindowCenterDate] = useState<Date>(new Date());
+
   const daysOfWeek = [
+    { key: "sunday", label: "Sunday", short: "Sun" },
     { key: "monday", label: "Monday", short: "Mon" },
     { key: "tuesday", label: "Tuesday", short: "Tue" },
     { key: "wednesday", label: "Wednesday", short: "Wed" },
     { key: "thursday", label: "Thursday", short: "Thu" },
     { key: "friday", label: "Friday", short: "Fri" },
     { key: "saturday", label: "Saturday", short: "Sat" },
-    { key: "sunday", label: "Sunday", short: "Sun" },
   ];
 
   // Converts local date+time to UTC ISO string
@@ -226,45 +230,57 @@ function SchedulesPage() {
     return new Date(today.setDate(diff));
   };
 
+  // Get Monday of a specific week with offset using UTC to match schedule logic
+  const getWeekMondayWithOffset = (offset: number) => {
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+
+    // Use UTC methods to be consistent with schedule mapping
+    const day = currentWeekStart.getUTCDay();
+    const diff = currentWeekStart.getUTCDate() - day + (day === 0 ? -6 : 1);
+    currentWeekStart.setUTCDate(diff);
+    currentWeekStart.setUTCHours(0, 0, 0, 0);
+
+    // Apply offset
+    const targetWeek = new Date(currentWeekStart);
+    targetWeek.setUTCDate(targetWeek.getUTCDate() + offset * 7);
+
+    console.log("🗓️ Week Monday calculation:", {
+      offset,
+      todayUTC: today.toISOString().split("T")[0],
+      mondayUTC: targetWeek.toISOString().split("T")[0],
+      weekDayUTC: day,
+    });
+
+    return targetWeek;
+  };
+
+  // Get Sunday of a specific week with offset using UTC to match schedule logic
+  const getWeekSundayWithOffset = (offset: number) => {
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+    // Sunday = 0
+    const day = currentWeekStart.getUTCDay();
+    const diff = currentWeekStart.getUTCDate() - day;
+    currentWeekStart.setUTCDate(diff);
+    currentWeekStart.setUTCHours(0, 0, 0, 0);
+    // Apply offset
+    const targetWeek = new Date(currentWeekStart);
+    targetWeek.setUTCDate(targetWeek.getUTCDate() + offset * 7);
+    return targetWeek;
+  };
+
   // Generate week days for timeline based on current week offset
   const generateWeekDays = () => {
-    const monday = getWeekMondayWithOffset(currentWeekOffset);
+    const sunday = getWeekSundayWithOffset(currentWeekOffset);
     const weekDays = [];
-
-    console.log("🗓️ Generating week days for offset:", currentWeekOffset);
-    console.log("🗓️ Monday of this week:", monday.toISOString().split("T")[0]);
-
     for (let i = 0; i < 7; i++) {
-      // Use UTC methods to match the schedule mapping logic
-      const day = new Date(monday);
-      day.setUTCDate(monday.getUTCDate() + i);
-
-      // Create display date using UTC components to avoid timezone issues
+      const day = new Date(sunday);
+      day.setUTCDate(sunday.getUTCDate() + i);
       const year = day.getUTCFullYear();
       const month = day.getUTCMonth();
       const date = day.getUTCDate();
-      const displayDay = new Date(Date.UTC(year, month, date)); // UTC date for display only
-
-      console.log(
-        `🗓️ Timeline position ${i} (${
-          i === 0
-            ? "Mon"
-            : i === 1
-            ? "Tue"
-            : i === 2
-            ? "Wed"
-            : i === 3
-            ? "Thu"
-            : i === 4
-            ? "Fri"
-            : i === 5
-            ? "Sat"
-            : "Sun"
-        }): ${
-          day.toISOString().split("T")[0]
-        } - UTC Day of week: ${day.getUTCDay()}`
-      );
-
+      const displayDay = new Date(Date.UTC(year, month, date));
       weekDays.push({
         date: day,
         dayName: displayDay.toLocaleDateString("en-US", { weekday: "short" }),
@@ -273,10 +289,9 @@ function SchedulesPage() {
         isToday:
           day.toISOString().split("T")[0] ===
           new Date().toISOString().split("T")[0],
-        position: (i / 7) * 100, // percentage position
+        position: (i / 7) * 100,
       });
     }
-    console.log("Generated week days:", weekDays);
     return weekDays;
   };
 
@@ -351,53 +366,51 @@ function SchedulesPage() {
     return schedulesByShuttleAndDay;
   };
 
-  // Get Monday of a specific week with offset using UTC to match schedule logic
-  const getWeekMondayWithOffset = (offset: number) => {
-    const today = new Date();
-    const currentWeekStart = new Date(today);
-
-    // Use UTC methods to be consistent with schedule mapping
-    const day = currentWeekStart.getUTCDay();
-    const diff = currentWeekStart.getUTCDate() - day + (day === 0 ? -6 : 1);
-    currentWeekStart.setUTCDate(diff);
-    currentWeekStart.setUTCHours(0, 0, 0, 0);
-
-    // Apply offset
-    const targetWeek = new Date(currentWeekStart);
-    targetWeek.setUTCDate(targetWeek.getUTCDate() + offset * 7);
-
-    console.log("🗓️ Week Monday calculation:", {
-      offset,
-      todayUTC: today.toISOString().split("T")[0],
-      mondayUTC: targetWeek.toISOString().split("T")[0],
-      weekDayUTC: day,
-    });
-
-    return targetWeek;
+  // --- Helper: get 21-day window start/end for a given center date ---
+  const get21DayWindow = (center: Date) => {
+    const start = new Date(center);
+    start.setDate(center.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(center);
+    end.setDate(center.getDate() + 13);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   };
 
-  // Fetch schedules for a specific week
-  const fetchSchedulesForWeek = async (weekOffset: number) => {
+  // --- Fetch 21-day window of schedules ---
+  const fetchSchedulesWindow = async (center: Date) => {
     try {
       setLoading(true);
-      console.log(`🔄 Fetching schedules for week offset: ${weekOffset}`);
-
-      // Only fetch schedules - drivers and shuttles are static data
+      const { start, end } = get21DayWindow(center);
       const schedulesRes = await api.get(
-        `/admin/get/schedule/week?weekOffset=${weekOffset}`
+        `/admin/get/schedule?start=${start.toISOString()}&end=${end.toISOString()}`
       );
-
-      console.log("📅 API Response - schedules:", schedulesRes.schedules);
-      console.log("📊 Week offset being set:", weekOffset);
-
-      setSchedules(schedulesRes.schedules);
-      setCurrentWeekOffset(weekOffset);
+      setScheduleWindow(schedulesRes.schedules);
+      setWindowCenterDate(center);
     } catch (error) {
-      console.error("❌ Error fetching week data:", error);
+      console.error("❌ Error fetching 21-day window:", error);
       toast.error("Failed to fetch schedules data");
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- Filter schedules for the current week view ---
+  const getSchedulesForCurrentWeek = (weekStart: Date, weekEnd: Date) => {
+    return scheduleWindow.filter((sch) => {
+      const schDate = new Date(sch.scheduleDate);
+      return schDate >= weekStart && schDate <= weekEnd;
+    });
+  };
+
+  // --- Replace fetchSchedulesForWeek with 21-day window logic ---
+  const fetchSchedulesForWeek = async (weekOffset: number) => {
+    // Calculate the new center date (middle of the week)
+    const weekStart = getWeekSundayWithOffset(weekOffset);
+    const center = new Date(weekStart);
+    center.setDate(weekStart.getDate() + 3); // Center is Thursday for visual balance
+    await fetchSchedulesWindow(center);
+    setCurrentWeekOffset(weekOffset);
   };
 
   // Fetch static data only once (drivers and shuttles don't change often)
@@ -407,7 +420,7 @@ function SchedulesPage() {
 
       const [driversRes, shuttlesRes] = await Promise.all([
         api.get("/admin/get/driver"),
-        api.get("/admin/get/shuttle"),
+        api.get("ye/admin/get/shuttle"),
       ]);
 
       setDrivers(driversRes.drivers);
@@ -439,18 +452,18 @@ function SchedulesPage() {
 
   // Weekly schedule form functions
   const resetWeeklyForm = () => {
-    const weekStart = getWeekMondayWithOffset(currentWeekOffset);
+    const weekStart = getWeekSundayWithOffset(currentWeekOffset);
     setWeeklySchedule({
       shuttleId: "",
       driverId: "",
       startDate: weekStart.toISOString().split("T")[0],
+      sunday: { startTime: "10:00", endTime: "16:00", enabled: false },
       monday: { startTime: "09:00", endTime: "17:00", enabled: true },
       tuesday: { startTime: "09:00", endTime: "17:00", enabled: true },
       wednesday: { startTime: "09:00", endTime: "17:00", enabled: true },
       thursday: { startTime: "09:00", endTime: "17:00", enabled: true },
       friday: { startTime: "09:00", endTime: "17:00", enabled: true },
       saturday: { startTime: "10:00", endTime: "16:00", enabled: true },
-      sunday: { startTime: "10:00", endTime: "16:00", enabled: false },
     });
   };
 
@@ -510,13 +523,13 @@ function SchedulesPage() {
         shuttleId: weeklySchedule.shuttleId,
         startDate: weeklySchedule.startDate,
         weekSchedule: {
+          sunday: weeklySchedule.sunday,
           monday: weeklySchedule.monday,
           tuesday: weeklySchedule.tuesday,
           wednesday: weeklySchedule.wednesday,
           thursday: weeklySchedule.thursday,
           friday: weeklySchedule.friday,
           saturday: weeklySchedule.saturday,
-          sunday: weeklySchedule.sunday,
         },
       });
 
@@ -667,23 +680,21 @@ function SchedulesPage() {
     const day = String(scheduleDate.getUTCDate()).padStart(2, "0");
     const scheduleDateOnly = `${year}-${month}-${day}`;
 
-    console.log("🔧 Editing schedule:", {
-      originalDate: schedule.scheduleDate,
-      parsedDate: scheduleDate,
-      finalDateString: scheduleDateOnly,
-      originalStartTime: schedule.startTime,
-      originalEndTime: schedule.endTime,
-    });
+    // Parse start/end as 'HH:mm' for <input type='time'>
+    const start = new Date(schedule.startTime);
+    const end = new Date(schedule.endTime);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const startTime = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+    const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
 
     setFormData({
       driverId: String(schedule.driver.id),
       shuttleId: String(schedule.shuttle.id),
       scheduleDate: scheduleDateOnly,
-      startTime: formatTimeForDisplay(schedule.startTime),
-      endTime: formatTimeForDisplay(schedule.endTime),
+      startTime,
+      endTime,
     });
 
-    // Set the selected date for the calendar component using the same logic
     setSelectedDate(
       new Date(
         Date.UTC(year, scheduleDate.getUTCMonth(), scheduleDate.getUTCDate())
@@ -778,6 +789,63 @@ function SchedulesPage() {
 
   const weeklyScheduleData = getWeeklyTimelineSchedules();
   const weekDays = generateWeekDays();
+
+  // --- For rendering, use only the current week from the 21-day window ---
+  const weekStartDate = new Date(weekDays[0].date);
+  weekStartDate.setHours(0, 0, 0, 0);
+  const weekEndDate = new Date(weekDays[6].date);
+  weekEndDate.setHours(23, 59, 59, 999);
+  const currentWeekSchedules = getSchedulesForCurrentWeek(
+    weekStartDate,
+    weekEndDate
+  );
+
+  // --- Helper: get all schedules that overlap the current week, and slice their visible part to the current week ---
+  const getSchedulesForDay = (colIdx: number) => {
+    const dayDate = new Date(weekDays[colIdx].date);
+    dayDate.setHours(0, 0, 0, 0);
+    const dayStart = new Date(dayDate);
+    const dayEnd = new Date(dayDate);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    dayEnd.setHours(0, 0, 0, 0);
+    const blocks: any[] = [];
+    (currentWeekSchedules || []).forEach((sch: Schedule) => {
+      const scheduleStart = new Date(sch.startTime);
+      const scheduleEnd = new Date(sch.endTime);
+      // Only consider schedules that overlap this day
+      const blockStart = scheduleStart > dayStart ? scheduleStart : dayStart;
+      const blockEnd = scheduleEnd < dayEnd ? scheduleEnd : dayEnd;
+      if (blockStart < blockEnd) {
+        blocks.push({
+          ...sch,
+          _visibleStart: blockStart,
+          _visibleEnd: blockEnd,
+        });
+      }
+    });
+    // Overlap detection and stacking (side-by-side)
+    blocks.sort((a, b) => a._visibleStart - b._visibleStart);
+    let overlapIdx = 0;
+    let lastEnd = null;
+    for (let i = 0; i < blocks.length; i++) {
+      if (lastEnd && blocks[i]._visibleStart < lastEnd) {
+        overlapIdx++;
+      } else {
+        overlapIdx = 0;
+      }
+      blocks[i]._overlapIdx = overlapIdx;
+      blocks[i]._overlapTotal = Math.max(
+        1,
+        blocks.filter(
+          (b) =>
+            b._visibleStart < blocks[i]._visibleEnd &&
+            b._visibleEnd > blocks[i]._visibleStart
+        ).length
+      );
+      lastEnd = blocks[i]._visibleEnd;
+    }
+    return blocks;
+  };
 
   return (
     <>
@@ -1084,7 +1152,7 @@ function SchedulesPage() {
 
                   {/* Week start date */}
                   <div>
-                    <Label htmlFor="startDate">Week Start Date (Monday)</Label>
+                    <Label htmlFor="startDate">Week Start Date (Sunday)</Label>
                     <Input
                       id="startDate"
                       type="date"
@@ -1128,6 +1196,10 @@ function SchedulesPage() {
                     <h3 className="text-lg font-semibold text-slate-900">
                       Weekly Schedule
                     </h3>
+                    <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                      All times below are in your local timezone:{" "}
+                      <b>{userTimeZone}</b> ({getTimeZoneAbbr(new Date())})
+                    </div>
                     <div className="grid gap-4">
                       {daysOfWeek.map((day) => {
                         const dayData =
@@ -1351,212 +1423,168 @@ function SchedulesPage() {
                       </div>
                     ))}
                   </div>
-
-                  {/* Mobile/Tablet scroll hint */}
                   <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
-                    👈 Scroll horizontally to view the full weekly timeline
+                    👈 Scroll horizontally to view the full weekly calendar
                   </div>
-
-                  {/* Weekly Timeline Container */}
-                  <div className="relative bg-white border border-slate-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[1200px] p-3 lg:p-6">
-                        {/* Week header with days */}
-                        <div className="relative h-12 lg:h-16 border-b border-slate-200 mb-3 lg:mb-4">
-                          <div className="grid grid-cols-7 h-full">
-                            {weekDays.map((day, index) => (
-                              <div
-                                key={index}
-                                className={`flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 ${
-                                  day.isToday
-                                    ? "bg-blue-50 text-blue-700"
-                                    : "text-slate-600"
-                                }`}
-                              >
-                                <div className="text-xs lg:text-sm font-semibold">
-                                  {day.dayName}
-                                </div>
-                                <div className="text-xs lg:text-sm">
-                                  {day.month} {day.dayNumber}
-                                </div>
-                                {day.isToday && (
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-1"></div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Weekly Timeline tracks for each shuttle */}
-                        <div className="space-y-4 lg:space-y-6">
-                          {!schedules || schedules.length === 0 ? (
-                            /* Empty week display - show empty calendar structure */
-                            <div className="text-center py-12">
-                              <div className="mb-6">
-                                <CalendarIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                                <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                                  No schedules for this week
-                                </h3>
-                                <p className="text-slate-500 mb-4">
-                                  This week doesn't have any schedules assigned
-                                  yet.
-                                </p>
-                                <p className="text-sm text-slate-400">
-                                  Use the navigation below to check other weeks
-                                  or create a new schedule.
-                                </p>
-                              </div>
-
-                              {/* Show empty calendar grid for reference */}
-                              <div className="max-w-4xl mx-auto">
-                                <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-lg overflow-hidden">
-                                  {weekDays.map((day, dayIndex) => (
-                                    <div
-                                      key={dayIndex}
-                                      className={`min-h-[80px] bg-white p-2 flex flex-col items-center justify-center ${
-                                        day.isToday ? "bg-blue-50/50" : ""
-                                      }`}
-                                    >
-                                      <div className="text-xs font-semibold text-slate-600">
-                                        {day.dayName}
-                                      </div>
-                                      <div className="text-xs text-slate-500">
-                                        {day.month} {day.dayNumber}
-                                      </div>
-                                      <div className="mt-2 text-xs text-slate-400">
-                                        No schedules
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
+                  <div className="relative bg-white border border-slate-200 rounded-lg overflow-x-auto">
+                    <div className="min-w-[1050px]">
+                      {/* Header: Days of week, perfectly aligned with columns */}
+                      <div className="grid grid-cols-7 border-b border-slate-200 h-12">
+                        {weekDays.map((day, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 text-slate-600"
+                          >
+                            <div className="text-xs lg:text-sm font-semibold w-full text-center">
+                              {day.dayName}
                             </div>
-                          ) : (
-                            /* Normal shuttle timeline display */
-                            shuttles.map((shuttle) => {
-                              const shuttleDaySchedules =
-                                weeklyScheduleData[shuttle.id] || {};
-
-                              return (
-                                <div key={shuttle.id} className="relative">
-                                  {/* Shuttle header */}
-                                  <div className="flex items-center mb-3">
-                                    <div
-                                      className={`w-3 h-3 lg:w-4 lg:h-4 rounded border-2 mr-3 flex-shrink-0 ${getShuttleColor(
-                                        shuttle.id
-                                      )}`}
-                                    ></div>
-                                    <span className="font-semibold text-slate-900 text-sm lg:text-base">
-                                      {shuttle.vehicleNumber}
-                                    </span>
-                                    <span className="text-xs lg:text-sm text-slate-500 ml-2">
-                                      ({shuttle.seats} seats)
-                                    </span>
-                                  </div>
-
-                                  {/* Weekly timeline grid */}
-                                  <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-lg overflow-hidden">
-                                    {weekDays.map((day, dayIndex) => {
-                                      const daySchedules =
-                                        shuttleDaySchedules[dayIndex] || [];
-
-                                      return (
-                                        <div
-                                          key={dayIndex}
-                                          className={`min-h-[80px] lg:min-h-[100px] bg-white p-2 ${
-                                            day.isToday ? "bg-blue-50/50" : ""
-                                          }`}
-                                        >
-                                          {daySchedules.length > 0 ? (
-                                            <div className="space-y-1">
-                                              {daySchedules.map(
-                                                (
-                                                  schedule: any,
-                                                  scheduleIndex: number
-                                                ) => (
-                                                  <div
-                                                    key={scheduleIndex}
-                                                    className={`p-2 rounded text-xs cursor-pointer hover:opacity-80 transition-opacity ${schedule.color}`}
-                                                    onClick={() =>
-                                                      handleEdit(schedule)
-                                                    }
-                                                    title={`${schedule.driver.name} - ${schedule.displayStartTime} to ${schedule.displayEndTime}`}
-                                                  >
-                                                    <div className="font-semibold truncate">
-                                                      {schedule.driver.name}
-                                                    </div>
-                                                    <div className="text-[10px] opacity-75">
-                                                      {
-                                                        schedule.displayStartTime
-                                                      }{" "}
-                                                      -{" "}
-                                                      {schedule.displayEndTime}
-                                                    </div>
-                                                  </div>
-                                                )
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-                                              No schedule
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-
-                        {/* Week navigation */}
-                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
-                          <div className="text-sm text-slate-600">
-                            Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
-                            {weekDays[6]?.date.toLocaleDateString()}
-                            {currentWeekOffset === 0 && " (Current Week)"}
-                            {currentWeekOffset < 0 &&
-                              ` (${Math.abs(currentWeekOffset)} week${
-                                Math.abs(currentWeekOffset) > 1 ? "s" : ""
-                              } ago)`}
-                            {currentWeekOffset > 0 &&
-                              ` (${currentWeekOffset} week${
-                                currentWeekOffset > 1 ? "s" : ""
-                              } from now)`}
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={goToPreviousWeek}
-                              disabled={loading}
-                            >
-                              ← Previous Week
-                            </Button>
-                            {currentWeekOffset !== 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToCurrentWeek}
-                                disabled={loading}
-                              >
-                                Current Week
-                              </Button>
+                            <div className="text-xs lg:text-sm w-full text-center">
+                              {day.month} {day.dayNumber}
+                            </div>
+                            {day.isToday && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 mx-auto"></div>
                             )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={goToNextWeek}
-                              disabled={loading}
-                            >
-                              Next Week →
-                            </Button>
                           </div>
+                        ))}
+                      </div>
+                      {/* Body: 24-hour grid, columns perfectly aligned */}
+                      <div
+                        className="relative grid grid-cols-7"
+                        style={{ height: 24 * 48 + 1 }}
+                      >
+                        {weekDays.map((day, colIdx) => {
+                          const daySchedules = getSchedulesForDay(
+                            colIdx
+                          ).filter((sch) => sch !== null) as Array<any>;
+                          return (
+                            <div
+                              key={colIdx}
+                              className="relative border-r border-slate-100 last:border-r-0 h-full"
+                              style={{ overflow: "visible" }}
+                            >
+                              {[...Array(24)].map((_, hour) => (
+                                <div
+                                  key={hour}
+                                  className="border-b border-slate-100 h-12"
+                                ></div>
+                              ))}
+                              {daySchedules.map((sch, i) => {
+                                const start = sch._visibleStart;
+                                const end = sch._visibleEnd;
+                                const dayStart = new Date(day.date);
+                                dayStart.setHours(0, 0, 0, 0);
+                                const blockStartOffset =
+                                  (start.getTime() - dayStart.getTime()) /
+                                  (1000 * 60 * 60);
+                                const blockEndOffset =
+                                  (end.getTime() - dayStart.getTime()) /
+                                  (1000 * 60 * 60);
+                                const top = blockStartOffset * 48;
+                                const height = Math.max(
+                                  (blockEndOffset - blockStartOffset) * 48,
+                                  24
+                                );
+                                // Overlap stacking
+                                const overlapIdx = sch._overlapIdx || 0;
+                                const overlapTotal = sch._overlapTotal || 1;
+                                const leftPercent =
+                                  (overlapIdx / overlapTotal) * 100;
+                                const widthPercent = 100 / overlapTotal;
+                                return (
+                                  <div
+                                    key={sch.id + "-" + i}
+                                    className={`absolute rounded-md shadow-md cursor-pointer ${getShuttleColor(
+                                      sch.shuttle.id
+                                    )} flex flex-col justify-center items-center p-1.5 transition-all`}
+                                    style={{
+                                      top,
+                                      height,
+                                      left: `${leftPercent}%`,
+                                      width: `${widthPercent}%`,
+                                      minWidth: 60,
+                                      zIndex: 20 + i,
+                                    }}
+                                    onClick={() => handleEdit(sch)}
+                                    title={`${sch.driver.name} - ${sch.shuttle.vehicleNumber}`}
+                                  >
+                                    <div className="font-semibold text-xs truncate w-full text-center">
+                                      {sch.driver.name}
+                                    </div>
+                                    <div className="text-xs text-slate-700 truncate w-full text-center">
+                                      {sch.shuttle.vehicleNumber}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                      {formatTimeForDisplay(sch.startTime)} -{" "}
+                                      {formatTimeForDisplay(sch.endTime)}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                        {/* Hour labels (left gutter) */}
+                        <div className="absolute left-0 top-0 z-10 w-12 h-full flex flex-col pointer-events-none">
+                          {[...Array(24)].map((_, hour) => (
+                            <div
+                              key={hour}
+                              className="h-12 flex items-start justify-end pr-2 text-xs text-slate-400 select-none"
+                            >
+                              {hour === 0
+                                ? "12 AM"
+                                : hour < 12
+                                ? `${hour} AM`
+                                : hour === 12
+                                ? "12 PM"
+                                : `${hour - 12} PM`}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+                  <div className="text-sm text-slate-600">
+                    Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
+                    {weekDays[6]?.date.toLocaleDateString()}
+                    {currentWeekOffset === 0 && " (Current Week)"}
+                    {currentWeekOffset < 0 &&
+                      ` (${Math.abs(currentWeekOffset)} week${
+                        Math.abs(currentWeekOffset) > 1 ? "s" : ""
+                      } ago)`}
+                    {currentWeekOffset > 0 &&
+                      ` (${currentWeekOffset} week${
+                        currentWeekOffset > 1 ? "s" : ""
+                      } from now)`}
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToPreviousWeek}
+                      disabled={loading}
+                    >
+                      ← Previous Week
+                    </Button>
+                    {currentWeekOffset !== 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToCurrentWeek}
+                        disabled={loading}
+                      >
+                        Current Week
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextWeek}
+                      disabled={loading}
+                    >
+                      Next Week →
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
@@ -1576,8 +1604,9 @@ function SchedulesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {schedules && schedules.length > 0 ? (
-                        schedules
+                      {currentWeekSchedules &&
+                      currentWeekSchedules.length > 0 ? (
+                        currentWeekSchedules
                           .sort(
                             (a, b) =>
                               new Date(a.scheduleDate).getTime() -
@@ -1608,6 +1637,9 @@ function SchedulesPage() {
                               Math.round(
                                 ((endUTC - startUTC) / (1000 * 60 * 60)) * 10
                               ) / 10;
+
+                            const displayDuration =
+                              duration < 0 ? duration + 24 : duration;
 
                             return (
                               <TableRow key={schedule.id}>
@@ -1662,7 +1694,9 @@ function SchedulesPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline">{duration}h</Badge>
+                                  <Badge variant="outline">
+                                    {displayDuration}h
+                                  </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end space-x-2">
@@ -1715,7 +1749,6 @@ function SchedulesPage() {
                     </TableBody>
                   </Table>
 
-                  {/* Bottom navigation for table view */}
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-4">
                     <div className="text-sm text-slate-600">
                       <div className="font-semibold">
