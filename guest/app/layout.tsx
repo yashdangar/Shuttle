@@ -18,18 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
           <WebSocketProvider>
             <ConditionalTopbar />
             {children}
             <Toaster />
           </WebSocketProvider>
-        </ThemeProvider>
       </body>
     </html>
   );
