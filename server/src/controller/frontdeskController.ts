@@ -1623,11 +1623,20 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       hotelId
     );
 
-    // Update booking: verify it and mark as verified
+    // Generate QR code for the verified booking
+    const qrCodeData = await generateQRCode({
+      bookingId: booking.id,
+      guestId: booking.guestId,
+      preferredTime: booking.preferredTime?.toISOString() || "",
+      encryptionKey: booking.encryptionKey!,
+    });
+
+    // Update booking: verify it, mark as verified, and add QR code
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         needsFrontdeskVerification: false,
+        qrCodePath: qrCodeData,
       },
       include: {
         guest: true,
@@ -1644,7 +1653,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     });
 
     // Create notification message based on assignment result
-    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`;
+    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}. Your QR code is now available for driver check-in.`;
     if (assignmentResult.assigned) {
       notificationMessage += ` It has been added to the current active trip.`;
     } else if (assignmentResult.shuttleAssigned) {

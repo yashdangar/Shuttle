@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { QRCodeDisplay } from "@/components/qr-code-display";
+
 import { toast } from "sonner";
 import { toUtcIso, getUserTimeZone } from "@/lib/utils";
 
@@ -100,9 +100,6 @@ export default function NewBooking({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [bookingQRCode, setBookingQRCode] = useState<string>("");
-  const [bookingId, setBookingId] = useState<string | null>(null);
 
   // Validation state
   const hasName = formData.firstName.trim() && formData.lastName.trim();
@@ -225,12 +222,8 @@ export default function NewBooking({
         if (response.trip) {
           onBookingCreated(response.trip);
 
-          // Show QR code if available
-          if (response.trip.qrCodePath) {
-            setBookingQRCode(response.trip.qrCodePath);
-            setBookingId(response.trip.id);
-            setShowQRCode(true);
-          }
+          // QR code will be generated after frontdesk verification
+          // No QR code display here - it will be shown after verification
         }
 
         setIsSubmitting(false);
@@ -1243,15 +1236,7 @@ export default function NewBooking({
         </CardContent>
       </Card>
 
-      {/* Add QR Code Display */}
-      {bookingId && (
-        <QRCodeDisplay
-          qrCodePath={bookingQRCode}
-          bookingId={bookingId}
-          isOpen={showQRCode}
-          onClose={() => setShowQRCode(false)}
-        />
-      )}
+      {/* QR Code will be displayed after frontdesk verification */}
     </div>
   );
 }

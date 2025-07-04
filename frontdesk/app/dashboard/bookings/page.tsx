@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
+import { CancelBookingModal } from "@/components/cancel-booking-modal";
 import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Booking {
@@ -143,6 +144,8 @@ export default function BookingsPage() {
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
     null
   );
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const [newBookingIds, setNewBookingIds] = useState<Set<string>>(new Set());
 
   // Function to fetch bookings
@@ -315,11 +318,10 @@ export default function BookingsPage() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancelBooking = async (bookingId: string, reason: string) => {
     try {
-      // Use POST and provide a default reason
       await api.post(`/frontdesk/bookings/${bookingId}/cancel`, {
-        reason: "Cancelled by Frontdesk from bookings list",
+        reason: reason,
       });
 
       toast({
@@ -337,7 +339,13 @@ export default function BookingsPage() {
         description: error.message || "Failed to cancel booking",
         variant: "destructive",
       });
+      throw error; // Re-throw to let the modal handle the error state
     }
+  };
+
+  const handleOpenCancelModal = (bookingId: string) => {
+    setCancelBookingId(bookingId);
+    setShowCancelModal(true);
   };
 
   const handleVerifyBooking = async (bookingId: string) => {
@@ -606,7 +614,7 @@ export default function BookingsPage() {
                                 Reschedule
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleCancelBooking(booking.id)}
+                                onClick={() => handleOpenCancelModal(booking.id)}
                                 className="cursor-pointer text-red-600"
                               >
                                 <X className="w-4 h-4 mr-2" />
@@ -648,6 +656,19 @@ export default function BookingsPage() {
           bookingId={rescheduleBooking.id}
           currentTime={rescheduleBooking.preferredTime}
           onSuccess={handleRescheduleSuccess}
+        />
+      )}
+
+      {/* Cancel Booking Modal */}
+      {cancelBookingId && (
+        <CancelBookingModal
+          isOpen={showCancelModal}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancelBookingId(null);
+          }}
+          onConfirm={(reason) => handleCancelBooking(cancelBookingId, reason)}
+          bookingId={cancelBookingId}
         />
       )}
     </div>
