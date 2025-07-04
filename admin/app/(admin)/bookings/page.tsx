@@ -71,7 +71,7 @@ interface Booking {
   createdAt: string;
   updatedAt: string;
   notes?: string;
-  isPaySleepFly?: boolean;
+  isParkSleepFly?: boolean;
   shuttle?: {
     schedules: {
       driver: Driver;
@@ -300,7 +300,7 @@ function BookingsPage() {
                 key={booking.id} 
                 className={`${
                   booking.isWaived ? 'border-orange-200 bg-orange-50/30' : 
-                  booking.isPaySleepFly ? 'border-blue-200 bg-blue-50/30' : ''
+                  booking.isParkSleepFly ? 'border-blue-200 bg-blue-50/30' : ''
                 }`}
               >
                 <CardContent className="p-6">
@@ -314,7 +314,7 @@ function BookingsPage() {
                               {booking.guest.firstName && booking.guest.lastName
                                 ? `${booking.guest.firstName} ${booking.guest.lastName}`
                                 : booking.guest.email}
-                              {booking.isPaySleepFly && (
+                              {booking.isParkSleepFly && (
                                 <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                   Pay, Sleep & Fly
                                 </span>
@@ -388,7 +388,7 @@ function BookingsPage() {
                       )}
 
                       {/* Pay Sleep Fly Information */}
-                      {booking.isPaySleepFly && (
+                      {booking.isParkSleepFly && (
                         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <p className="text-sm font-medium text-blue-800 mb-1">Pay, Sleep & Fly Package</p>
                           <p className="text-sm text-blue-700">

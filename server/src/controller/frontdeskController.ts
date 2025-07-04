@@ -311,6 +311,13 @@ const createBooking = async (req: Request, res: Response) => {
       waiverReason,
       notes,
       isParkSleepFly,
+      // Guest information
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      isNonResident,
+      guestType,
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
@@ -367,6 +374,78 @@ const createBooking = async (req: Request, res: Response) => {
       });
     }
 
+    // Handle guest creation or assignment
+    let guestId: number;
+    
+    if (guestType === "resident" && email) {
+      // For residents, find existing guest by email
+      console.log(`Looking for existing resident with email: ${email}`);
+      const existingGuest = await prisma.guest.findFirst({
+        where: {
+          email: email,
+          hotelId: hotelId,
+        },
+      });
+
+      if (existingGuest) {
+        console.log(`Found existing guest: ${existingGuest.id}`);
+        guestId = existingGuest.id;
+      } else {
+        console.log(`No existing guest found for email: ${email}`);
+        return res.status(404).json({
+          message: "Resident not found. Please check the email address.",
+        });
+      }
+    } else if ((guestType === "non-resident" || guestType === "park-sleep-fly") && email) {
+      // For non-residents and park-sleep-fly, find or create guest
+      console.log(`Looking for existing guest with email: ${email}`);
+      let guest = await prisma.guest.findFirst({
+        where: {
+          email: email,
+          hotelId: hotelId,
+        },
+      });
+
+      if (guest) {
+        console.log(`Found existing guest: ${guest.id}`);
+        // Update guest information if provided
+        if (firstName || lastName || phoneNumber) {
+          guest = await prisma.guest.update({
+            where: { id: guest.id },
+            data: {
+              firstName: firstName || guest.firstName,
+              lastName: lastName || guest.lastName,
+              phoneNumber: phoneNumber || guest.phoneNumber,
+              isNonResident: isNonResident || guest.isNonResident,
+              updatedAt: new Date(),
+            },
+          });
+          console.log(`Updated guest information: ${guest.id}`);
+        }
+        guestId = guest.id;
+      } else {
+        console.log(`Creating new guest for email: ${email}`);
+        // Create new guest
+        guest = await prisma.guest.create({
+          data: {
+            email: email,
+            firstName: firstName || null,
+            lastName: lastName || null,
+            phoneNumber: phoneNumber || null,
+            hotelId: hotelId,
+            isNonResident: isNonResident || false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+        console.log(`Created new guest: ${guest.id}`);
+        guestId = guest.id;
+      }
+    } else {
+      console.log("No email provided, using default guest ID");
+      guestId = 1; // Fallback to default guest
+    }
+
     // Generate encryption key for QR code
     const encryptionKey = generateEncryptionKey();
 
@@ -383,17 +462,17 @@ const createBooking = async (req: Request, res: Response) => {
         : "AIRPORT_TO_HOTEL") as BookingType,
       pickupLocationId: pickupLocationId ? parseInt(pickupLocationId) : null,
       dropoffLocationId: dropoffLocationId ? parseInt(dropoffLocationId) : null,
-      guestId: 1, // Default guest ID for frontdesk bookings
+      guestId: guestId, // Use the determined guest ID
       confirmationNum: confirmationNum || null,
       encryptionKey,
       needsFrontdeskVerification: false, // Frontdesk bookings don't need verification
       isVerified: true, // Mark as verified since frontdesk created it
-      verifiedBy: frontdeskUserId,
+      verifiedBy: null, // Frontdesk verification doesn't reference a driver
       verifiedAt: new Date(),
       isPaid: paymentMethod === "FRONTDESK" ? true : false, // Mark as paid if frontdesk payment
       notes: notes || null, // Add notes field
       // TEMP: Use old field until schema migration is done
-      isPaySleepFly: isParkSleepFly || false,
+      isParkSleepFly: isParkSleepFly || false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -1544,11 +1623,20 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       hotelId
     );
 
-    // Update booking: verify it and mark as verified
+    // Generate QR code for the verified booking
+    const qrCodeData = await generateQRCode({
+      bookingId: booking.id,
+      guestId: booking.guestId,
+      preferredTime: booking.preferredTime?.toISOString() || "",
+      encryptionKey: booking.encryptionKey!,
+    });
+
+    // Update booking: verify it, mark as verified, and add QR code
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         needsFrontdeskVerification: false,
+        qrCodePath: qrCodeData,
       },
       include: {
         guest: true,
@@ -1565,7 +1653,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     });
 
     // Create notification message based on assignment result
-    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}.`;
+    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}. Your QR code is now available for driver check-in.`;
     if (assignmentResult.assigned) {
       notificationMessage += ` It has been added to the current active trip.`;
     } else if (assignmentResult.shuttleAssigned) {
@@ -2308,6 +2396,7 @@ const getPendingBookingsLastHour = async (req: Request, res: Response) => {
       needsFrontdeskVerification: booking.needsFrontdeskVerification,
       eta: booking.eta,
       notes: booking.notes,
+      isParkSleepFly: booking.isParkSleepFly,
       createdAt: booking.createdAt,
       timeSinceCreated: Math.floor(
         (Date.now() - booking.createdAt.getTime()) / (1000 * 60)

@@ -18,6 +18,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { useState } from "react";
+import { formatTimeForDisplay } from "@/lib/utils";
 
 interface Guest {
   id: number;
@@ -86,11 +87,7 @@ export default function LiveShuttleCard({ shuttle }: LiveShuttleCardProps) {
 
   const formatTime = (timeString: string) => {
     if (!timeString) return "N/A";
-    return new Date(timeString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    return formatTimeForDisplay(timeString);
   };
 
   const getStatusColor = (utilization: number) => {

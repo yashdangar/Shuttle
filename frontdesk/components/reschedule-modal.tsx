@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/hooks/use-toast"
 import { fetchWithAuth } from "@/lib/api"
+import { toUtcIso, getUserTimeZone } from "@/lib/utils"
 
 interface RescheduleModalProps {
   isOpen: boolean
@@ -34,10 +35,16 @@ export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuc
     try {
       setIsLoading(true)
       
-      // Create new datetime by combining today's date with selected time
+      // Get today's date in local timezone
       const today = new Date()
-      const [hours, minutes] = newTime.split(':')
-      today.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+      const dateStr = today.toISOString().split('T')[0] // YYYY-MM-DD format
+      
+      // Convert local time to UTC using the utility function
+      const preferredTimeUtc = toUtcIso(dateStr, newTime)
+      
+      if (!preferredTimeUtc) {
+        throw new Error("Invalid time format")
+      }
       
       const response = await fetchWithAuth(`/frontdesk/bookings/${bookingId}/reschedule`, {
         method: "PUT",
@@ -45,7 +52,7 @@ export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuc
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          preferredTime: today.toISOString()
+          preferredTime: preferredTimeUtc
         })
       })
 
@@ -123,6 +130,9 @@ export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuc
               className="col-span-3"
               min={getCurrentTimeString()}
             />
+          </div>
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+            Time shown in your local timezone: <b>{getUserTimeZone()}</b>
           </div>
         </div>
         <DialogFooter>

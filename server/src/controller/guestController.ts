@@ -176,19 +176,9 @@ const createTrip = async (req: Request, res: Response) => {
     // For guest bookings, we don't assign shuttle immediately - wait for frontdesk verification
     // The shuttle assignment will happen after frontdesk verifies the booking
 
-    // Generate QR code
-    const qrCodeData = await generateQRCode({
-      bookingId: trip.id,
-      guestId: trip.guestId,
-      preferredTime: trip.preferredTime?.toISOString() || "",
-      encryptionKey: trip.encryptionKey!,
-    });
-
-    // Update booking with QR code data
-    const updatedTrip = await prisma.booking.update({
-      where: { id: trip.id },
-      data: { qrCodePath: qrCodeData },
-    });
+    // For guest bookings, QR code will be generated after frontdesk verification
+    // No QR code generation here - it will happen in verifyGuestBooking
+    const updatedTrip = trip;
 
     // Send notification to all frontdesks in the hotel
     const guestData = await prisma.guest.findUnique({ where: { id: userId } });

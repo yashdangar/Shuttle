@@ -38,7 +38,7 @@ interface BookingDetails {
   qrCodeUrl: string | null;
   confirmationNum: string | null;
   notes: string | null;
-  isPaySleepFly: boolean;
+  isParkSleepFly: boolean;
   guest: {
     firstName: string;
     lastName: string;
@@ -241,10 +241,17 @@ export default function BookingDetailsPage() {
               <p className="font-medium">{booking.guest.phoneNumber}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Type</p>
-              <p className="font-medium">
-                {booking.guest.isNonResident ? "Non-Resident" : "Hotel Resident"}
-              </p>
+              <p className="text-sm font-medium text-gray-600">Guest Type</p>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={booking.guest.isNonResident ? "outline" : "default"}>
+                  {booking.guest.isNonResident ? "Non-Resident" : "Resident"}
+                </Badge>
+                {booking.isParkSleepFly && (
+                  <Badge className="bg-blue-100 text-blue-800 border border-blue-200">
+                    🏨✈️ Pay, Sleep & Fly
+                  </Badge>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -260,18 +267,18 @@ export default function BookingDetailsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Trip Type</p>
-              <p className="font-medium">
-                {booking.bookingType === "HOTEL_TO_AIRPORT"
-                  ? "Hotel to Airport"
-                  : "Airport to Hotel"}
-                {booking.isPaySleepFly && (
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                      Pay, Sleep & Fly
-                    </Badge>
-                  </div>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="font-medium">
+                  {booking.bookingType === "HOTEL_TO_AIRPORT"
+                    ? "Hotel to Airport"
+                    : "Airport to Hotel"}
+                </p>
+                {booking.isParkSleepFly && (
+                  <Badge className="bg-blue-100 text-blue-800 text-xs">
+                    PSF Package
+                  </Badge>
                 )}
-              </p>
+              </div>
             </div>
             <div>
               <p className="text-sm text-gray-500">Preferred Time</p>
@@ -337,12 +344,16 @@ export default function BookingDetailsPage() {
                 <p className="font-medium whitespace-pre-wrap">{booking.notes}</p>
               </div>
             )}
-            {booking.isPaySleepFly && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm font-medium text-blue-800 mb-1">Pay, Sleep & Fly Package</p>
+            {booking.isParkSleepFly && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🏨✈️</span>
+                  <p className="text-sm font-medium text-blue-800">Pay, Sleep & Fly Package</p>
+                </div>
                 <p className="text-sm text-blue-700">
                   This booking is part of our Pay, Sleep & Fly package. 
                   The guest has pre-paid for their accommodation and shuttle service.
+                  This is a premium service that includes both hotel stay and airport shuttle.
                 </p>
               </div>
             )}

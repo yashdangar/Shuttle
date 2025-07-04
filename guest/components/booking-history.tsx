@@ -322,34 +322,51 @@ export default function BookingHistory() {
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <MapPin className="w-4 h-4 text-gray-400" />
+              <div className="flex items-center space-x-3">
+                <MapPin className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="font-medium">Trip Type</p>
-                  <p className="text-gray-600">
-                    {getBookingTypeText(booking.bookingType)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-600">
+                      {getBookingTypeText(booking.bookingType)}
+                    </p>
+                    {booking.isParkSleepFly && (
+                      <Badge className="bg-blue-100 text-blue-800 text-xs">
+                        🏨✈️ PSF
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <div>
                   <p className="font-medium">Preferred Time</p>
-                  <p className="text-gray-600">
-                    {formatDateTime(booking.preferredTime)}
-                  </p>
+                  <p className="text-gray-600">{formatDateTime(booking.preferredTime)}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Users className="w-4 h-4 text-gray-400" />
                 <div>
                   <p className="font-medium">Passengers & Bags</p>
-                  <p className="text-gray-600">
-                    {booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)
-                  </p>
+                  <p className="text-gray-600">{booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)</p>
                 </div>
               </div>
             </div>
+            
+            {booking.isParkSleepFly && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">🏨✈️</span>
+                  <p className="text-sm text-blue-800 font-medium">
+                    Park, Sleep & Fly Package
+                  </p>
+                </div>
+                <p className="text-xs text-blue-700 mt-1">
+                  This booking was part of your Park, Sleep & Fly package with pre-paid accommodation and shuttle service.
+                </p>
+              </div>
+            )}
             
             <div className="grid md:grid-cols-2 gap-4 text-sm mt-4">
               <div className="flex items-center space-x-2">
@@ -408,3 +425,4 @@ export default function BookingHistory() {
     </div>
   )
 }
+

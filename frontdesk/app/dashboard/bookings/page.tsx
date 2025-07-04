@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
+import { CancelBookingModal } from "@/components/cancel-booking-modal";
 import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Booking {
@@ -52,7 +53,7 @@ interface Booking {
   isVerified: boolean;
   confirmationNum: string | null;
   notes: string | null;
-  isPaySleepFly: boolean;
+  isParkSleepFly: boolean;
   guest?: {
     firstName: string;
     lastName: string;
@@ -143,6 +144,8 @@ export default function BookingsPage() {
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
     null
   );
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const [newBookingIds, setNewBookingIds] = useState<Set<string>>(new Set());
 
   // Function to fetch bookings
@@ -315,11 +318,10 @@ export default function BookingsPage() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancelBooking = async (bookingId: string, reason: string) => {
     try {
-      // Use POST and provide a default reason
       await api.post(`/frontdesk/bookings/${bookingId}/cancel`, {
-        reason: "Cancelled by Frontdesk from bookings list",
+        reason: reason,
       });
 
       toast({
@@ -337,7 +339,13 @@ export default function BookingsPage() {
         description: error.message || "Failed to cancel booking",
         variant: "destructive",
       });
+      throw error; // Re-throw to let the modal handle the error state
     }
+  };
+
+  const handleOpenCancelModal = (bookingId: string) => {
+    setCancelBookingId(bookingId);
+    setShowCancelModal(true);
   };
 
   const handleVerifyBooking = async (bookingId: string) => {
@@ -466,7 +474,27 @@ export default function BookingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Bookings</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>All Bookings</CardTitle>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Total:</span>
+                <Badge variant="outline">{bookings.length}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Park, Sleep & Fly:</span>
+                <Badge className="bg-blue-100 text-blue-800">
+                  {bookings.filter(b => b.isParkSleepFly).length}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Regular:</span>
+                <Badge variant="outline">
+                  {bookings.filter(b => !b.isParkSleepFly).length}
+                </Badge>
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -487,7 +515,7 @@ export default function BookingsPage() {
                   className={`${
                     newBookingIds.has(booking.id) 
                       ? 'animate-pulse bg-green-50 border-l-4 border-l-green-500' 
-                      : booking.isPaySleepFly
+                      : booking.isParkSleepFly
                       ? 'bg-blue-50 border-l-4 border-l-blue-500'
                       : ''
                   } transition-all duration-300`}
@@ -503,9 +531,9 @@ export default function BookingsPage() {
                             <div>
                               <p className="font-medium">
                                 {guestInfo.display}
-                                {booking.isPaySleepFly && (
-                                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    Pay, Sleep & Fly
+                                {booking.isParkSleepFly && (
+                                  <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                    🏨✈️ Pay, Sleep & Fly
                                   </span>
                                 )}
                               </p>
@@ -528,6 +556,9 @@ export default function BookingsPage() {
                           ? "Hotel to Airport"
                           : "Airport to Hotel"}
                       </span>
+                      {booking.isParkSleepFly && (
+                        <span className="text-blue-600 text-xs">(PSF)</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -583,7 +614,7 @@ export default function BookingsPage() {
                                 Reschedule
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleCancelBooking(booking.id)}
+                                onClick={() => handleOpenCancelModal(booking.id)}
                                 className="cursor-pointer text-red-600"
                               >
                                 <X className="w-4 h-4 mr-2" />
@@ -625,6 +656,19 @@ export default function BookingsPage() {
           bookingId={rescheduleBooking.id}
           currentTime={rescheduleBooking.preferredTime}
           onSuccess={handleRescheduleSuccess}
+        />
+      )}
+
+      {/* Cancel Booking Modal */}
+      {cancelBookingId && (
+        <CancelBookingModal
+          isOpen={showCancelModal}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancelBookingId(null);
+          }}
+          onConfirm={(reason) => handleCancelBooking(cancelBookingId, reason)}
+          bookingId={cancelBookingId}
         />
       )}
     </div>

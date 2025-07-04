@@ -56,6 +56,7 @@ interface PendingBooking {
   needsFrontdeskVerification: boolean;
   eta: string;
   notes: string;
+  isParkSleepFly: boolean;
   createdAt: string;
   timeSinceCreated: number;
 }
@@ -179,7 +180,14 @@ export default function PendingBookingsCard({
             {expandedBookings && (
               <div className="space-y-3">
                 {bookings.map((booking) => (
-                  <div key={booking.id} className="border rounded-lg p-4 bg-white">
+                  <div 
+                    key={booking.id} 
+                    className={`border rounded-lg p-4 ${
+                      booking.isParkSleepFly 
+                        ? 'bg-blue-50 border-blue-200 border-l-4 border-l-blue-500' 
+                        : 'bg-white'
+                    }`}
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
@@ -188,6 +196,11 @@ export default function PendingBookingsCard({
                         {booking.guest?.isNonResident && (
                           <Badge variant="outline" className="text-xs">
                             Non-Resident
+                          </Badge>
+                        )}
+                        {booking.isParkSleepFly && (
+                          <Badge className="bg-blue-100 text-blue-800 text-xs font-medium">
+                            Pay, Sleep & Fly
                           </Badge>
                         )}
                       </div>

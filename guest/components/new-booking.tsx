@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { QRCodeDisplay } from "@/components/qr-code-display";
+
 import { toast } from "sonner";
 import { toUtcIso, getUserTimeZone } from "@/lib/utils";
 
@@ -100,9 +100,6 @@ export default function NewBooking({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [bookingQRCode, setBookingQRCode] = useState<string>("");
-  const [bookingId, setBookingId] = useState<string | null>(null);
 
   // Validation state
   const hasName = formData.firstName.trim() && formData.lastName.trim();
@@ -150,6 +147,24 @@ export default function NewBooking({
       return;
     }
 
+    // Validation: For Park Sleep Fly, trip type must be selected
+    if (tripDirection === "park-sleep-fly" && !formData.tripType) {
+      toast.error("Please select a trip direction for your Park, Sleep & Fly package");
+      return;
+    }
+
+    // Validation: For Park Sleep Fly, ensure pickup and destination are set based on trip type
+    if (tripDirection === "park-sleep-fly") {
+      if (formData.tripType === "HOTEL_TO_AIRPORT" && !formData.destination) {
+        toast.error("Please select your airport destination");
+        return;
+      }
+      if (formData.tripType === "AIRPORT_TO_HOTEL" && !formData.pickup) {
+        toast.error("Please select your airport pickup location");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -159,24 +174,37 @@ export default function NewBooking({
         numberOfBags: formData.numberOfBags,
         preferredTime: toUtcIso(formData.createdAt, formData.preferredTime),
         paymentMethod: formData.paymentMethod.toUpperCase(),
-        tripType:
-          tripDirection === "hotel-to-airport"
-            ? "HOTEL_TO_AIRPORT"
-            : "AIRPORT_TO_HOTEL",
+        tripType: tripDirection === "park-sleep-fly" 
+          ? formData.tripType 
+          : (tripDirection === "hotel-to-airport" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL"),
         // Set pickup and dropoff based on trip direction
-        ...(tripDirection === "hotel-to-airport"
-          ? {
-              pickupLocationId: null, // Hotel pickup doesn't need location ID
-              dropoffLocationId: locations.find(
-                (loc) => loc.name === formData.destination
-              )?.id,
-            }
-          : {
-              pickupLocationId: locations.find(
-                (loc) => loc.name === formData.pickup
-              )?.id,
-              dropoffLocationId: null, // Hotel dropoff doesn't need location ID
-            }),
+        ...(tripDirection === "park-sleep-fly" 
+          ? (formData.tripType === "HOTEL_TO_AIRPORT"
+            ? {
+                pickupLocationId: null, // Hotel pickup doesn't need location ID
+                dropoffLocationId: locations.find(
+                  (loc) => loc.name === formData.destination
+                )?.id,
+              }
+            : {
+                pickupLocationId: locations.find(
+                  (loc) => loc.name === formData.pickup
+                )?.id,
+                dropoffLocationId: null, // Hotel dropoff doesn't need location ID
+              })
+          : (tripDirection === "hotel-to-airport"
+            ? {
+                pickupLocationId: null, // Hotel pickup doesn't need location ID
+                dropoffLocationId: locations.find(
+                  (loc) => loc.name === formData.destination
+                )?.id,
+              }
+            : {
+                pickupLocationId: locations.find(
+                  (loc) => loc.name === formData.pickup
+                )?.id,
+                dropoffLocationId: null, // Hotel dropoff doesn't need location ID
+              })),
         // Add guest information
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -194,12 +222,8 @@ export default function NewBooking({
         if (response.trip) {
           onBookingCreated(response.trip);
 
-          // Show QR code if available
-          if (response.trip.qrCodePath) {
-            setBookingQRCode(response.trip.qrCodePath);
-            setBookingId(response.trip.id);
-            setShowQRCode(true);
-          }
+          // QR code will be generated after frontdesk verification
+          // No QR code display here - it will be shown after verification
         }
 
         setIsSubmitting(false);
@@ -219,12 +243,13 @@ export default function NewBooking({
       value as "hotel-to-airport" | "airport-to-hotel" | "park-sleep-fly"
     );
 
-    // Auto-set trip type for Park Sleep Fly
+    // For Park Sleep Fly, don't auto-set trip type - let user choose
     if (value === "park-sleep-fly") {
       setFormData({
         ...formData,
-        tripType: "AIRPORT_TO_HOTEL",
         isParkSleepFly: true,
+        // Don't auto-set trip type - let user choose
+        tripType: "",
       });
     } else {
       setFormData({
@@ -842,7 +867,7 @@ export default function NewBooking({
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   <strong>Park, Sleep & Fly Package:</strong> This booking is
                   for guests who have purchased our Park, Sleep & Fly package.
-                  Trip direction is automatically set to Airport to Hotel.
+                  You can choose either Hotel to Airport or Airport to Hotel direction.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -963,48 +988,122 @@ export default function NewBooking({
                   </div>
                 </div>
 
-                {/* Pickup Location for Park Sleep Fly */}
+                {/* Trip Type Selection for Park Sleep Fly */}
                 <div className="space-y-2">
-                  <Label htmlFor="pickup">Pickup Location *</Label>
+                  <Label htmlFor="tripType">Trip Direction *</Label>
                   <Select
-                    value={formData.pickup}
+                    value={formData.tripType}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, pickup: value })
+                      setFormData({ ...formData, tripType: value })
                     }
                     required
                   >
                     <SelectTrigger>
                       <div className="flex items-center">
                         <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                        <SelectValue placeholder="Select pickup location" />
+                        <SelectValue placeholder="Select trip direction" />
                       </div>
                     </SelectTrigger>
                     <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.name}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="HOTEL_TO_AIRPORT">
+                        Hotel to Airport (Outbound)
+                      </SelectItem>
+                      <SelectItem value="AIRPORT_TO_HOTEL">
+                        Airport to Hotel (Return)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-blue-600">
-                    Please select your airport terminal or pickup location for
-                    the Park, Sleep & Fly package.
+                    Choose the direction for your Park, Sleep & Fly package trip.
+                  </p>
+                </div>
+
+                {/* Pickup Location for Park Sleep Fly */}
+                <div className="space-y-2">
+                  <Label htmlFor="pickup">Pickup Location *</Label>
+                  {formData.tripType === "HOTEL_TO_AIRPORT" ? (
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="pickup"
+                        value={hotel.name}
+                        className="pl-10 bg-gray-100"
+                        disabled
+                      />
+                    </div>
+                  ) : (
+                    <Select
+                      value={formData.pickup}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, pickup: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <div className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                          <SelectValue placeholder="Select pickup location" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((location) => (
+                          <SelectItem key={location.id} value={location.name}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-sm text-blue-600">
+                    {formData.tripType === "HOTEL_TO_AIRPORT" 
+                      ? "Pickup will be from the hotel lobby."
+                      : "Please select your airport terminal or pickup location for the Park, Sleep & Fly package."
+                    }
                   </p>
                 </div>
 
                 {/* Destination */}
                 <div className="space-y-2">
                   <Label htmlFor="destination">Destination</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <Input
-                      id="destination"
-                      value={hotel.name}
-                      className="pl-10 bg-gray-100"
-                      disabled
-                    />
-                  </div>
+                  {formData.tripType === "AIRPORT_TO_HOTEL" ? (
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="destination"
+                        value={hotel.name}
+                        className="pl-10 bg-gray-100"
+                        disabled
+                      />
+                    </div>
+                  ) : (
+                    <Select
+                      value={formData.destination}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, destination: value })
+                      }
+                      required
+                    >
+                      <SelectTrigger>
+                        <div className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                          <SelectValue placeholder="Select destination" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((location) => (
+                          <SelectItem key={location.id} value={location.name}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-sm text-blue-600">
+                    {formData.tripType === "AIRPORT_TO_HOTEL" 
+                      ? "Destination will be the hotel lobby."
+                      : "Please select your airport terminal destination."
+                    }
+                  </p>
                 </div>
 
                 {/* Date and Time */}
@@ -1137,15 +1236,7 @@ export default function NewBooking({
         </CardContent>
       </Card>
 
-      {/* Add QR Code Display */}
-      {bookingId && (
-        <QRCodeDisplay
-          qrCodePath={bookingQRCode}
-          bookingId={bookingId}
-          isOpen={showQRCode}
-          onClose={() => setShowQRCode(false)}
-        />
-      )}
+      {/* QR Code will be displayed after frontdesk verification */}
     </div>
   );
 }
