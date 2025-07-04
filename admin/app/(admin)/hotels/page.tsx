@@ -222,6 +222,12 @@ function HotelsPage() {
     location: Location | null;
   }>({ open: false, location: null });
 
+  // Add state for delete confirmation modal
+  const [pendingDeleteLocation, setPendingDeleteLocation] = useState<null | {
+    id: number;
+    name: string;
+  }>(null);
+
   const fetchHotelData = async () => {
     try {
       const response = await api.get(`/admin/get/hotel`);
@@ -453,6 +459,7 @@ function HotelsPage() {
   };
 
   const handleDeleteClick = (id: string) => {
+    console.log("handleDeleteClick", id);
     setIsDeleteDialogOpen(true);
   };
 
@@ -1002,52 +1009,95 @@ function HotelsPage() {
               description="Add your first hotel to start managing your partners."
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hotel Name</TableHead>
-                  <TableHead>Latitude</TableHead>
-                  <TableHead>Longitude</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead>Updated At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">{hotel.name}</TableCell>
-                  <TableCell>{hotel.latitude}</TableCell>
-                  <TableCell>{hotel.longitude}</TableCell>
-                  <TableCell>
-                    {new Date(hotel.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(hotel.updatedAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(hotel)}
-                        disabled={deleting}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteClick(hotel.id)}
-                        className="text-red-600 hover:text-red-700"
-                        disabled={deleting}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Hotel Name</TableHead>
+                    <TableHead>Latitude</TableHead>
+                    <TableHead>Longitude</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead>Updated At</TableHead>
+                    <TableHead>View on Map</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-medium">{hotel.name}</TableCell>
+                    <TableCell>{hotel.latitude}</TableCell>
+                    <TableCell>{hotel.longitude}</TableCell>
+                    <TableCell>
+                      {new Date(hotel.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(hotel.updatedAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                setMapModal({
+                                  open: true,
+                                  location: {
+                                    id: 0,
+                                    name: hotel.name,
+                                    latitude: hotel.latitude,
+                                    longitude: hotel.longitude,
+                                    address: hotel.address,
+                                  },
+                                })
+                              }
+                            >
+                              <MapPin className="w-5 h-5 text-blue-600" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View on Map</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(hotel)}
+                                disabled={deleting}
+                              >
+                                <Edit className="w-5 h-5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick(hotel.id)}
+                                disabled={deleting}
+                              >
+                                <Trash2 className="w-5 h-5 text-red-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1145,40 +1195,34 @@ function HotelsPage() {
                   <TableHead>Longitude</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>View on Map</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {locationLoading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={6}>
-                        <Skeleton className="h-6 w-full" />
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center p-4">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
                 ) : hotelLocations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
-                      className="text-center text-slate-500"
+                      colSpan={7}
+                      className="text-center p-4 text-slate-500"
                     >
                       No locations added to this hotel yet.
                     </TableCell>
                   </TableRow>
                 ) : (
                   hotelLocations.map((hotelLoc) => (
-                    <TableRow
-                      key={hotelLoc.id}
-                      className="hover:bg-slate-50 transition"
-                    >
+                    <TableRow key={hotelLoc.id} className="hover:bg-slate-50">
                       <TableCell>{hotelLoc.location.name}</TableCell>
                       <TableCell>{hotelLoc.location.latitude}</TableCell>
                       <TableCell>{hotelLoc.location.longitude}</TableCell>
                       <TableCell>
-                        {hotelLoc.location.address
-                          ? hotelLoc.location.address
-                          : "No address"}
+                        {hotelLoc.location.address || "No address"}
                       </TableCell>
                       <TableCell>
                         {editingLocationId === hotelLoc.id ? (
@@ -1190,33 +1234,47 @@ function HotelsPage() {
                               value={editingPrice}
                               onChange={(e) => setEditingPrice(e.target.value)}
                               className="w-24"
-                              aria-label="Edit price"
                               autoFocus
                             />
-                            <Button
-                              size="sm"
-                              onClick={() => handleEditPrice(hotelLoc.id)}
-                              disabled={
-                                !editingPrice || rowEditLoading === hotelLoc.id
-                              }
-                              aria-label="Save price"
-                            >
-                              {rowEditLoading === hotelLoc.id ? (
-                                <Loader className="w-4 h-4 mr-2" />
-                              ) : null}
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEditingLocationId(null);
-                                setEditingPrice("");
-                              }}
-                              aria-label="Cancel edit"
-                            >
-                              Cancel
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditPrice(hotelLoc.id)}
+                                    disabled={
+                                      !editingPrice ||
+                                      rowEditLoading === hotelLoc.id
+                                    }
+                                  >
+                                    {rowEditLoading === hotelLoc.id ? (
+                                      <Loader className="w-4 h-4" />
+                                    ) : (
+                                      <span className="font-semibold">✓</span>
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Save</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setEditingLocationId(null);
+                                      setEditingPrice("");
+                                    }}
+                                  >
+                                    <span className="font-semibold">✕</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cancel</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         ) : (
                           <div className="flex items-center space-x-2">
@@ -1227,130 +1285,66 @@ function HotelsPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    size="sm"
-                                    variant="outline"
+                                    variant="ghost"
+                                    size="icon"
                                     onClick={() => {
                                       setEditingLocationId(hotelLoc.id);
                                       setEditingPrice(
                                         hotelLoc.price.toString()
                                       );
                                     }}
-                                    aria-label="Edit price"
                                   >
-                                    <Edit className="w-4 h-4" />
+                                    <Edit className="w-5 h-5" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Edit price</TooltipContent>
+                                <TooltipContent>Edit</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    aria-label="Remove location"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Remove location</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Remove Location
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to remove{" "}
-                                <b>{hotelLoc.location.name}</b> from your hotel?
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
+                      <TableCell className="text-center">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() =>
-                                  handleRemoveLocation(hotelLoc.id)
+                                  setMapModal({
+                                    open: true,
+                                    location: hotelLoc.location,
+                                  })
+                                }
+                              >
+                                <MapPin className="w-5 h-5 text-blue-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View on Map</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  setPendingDeleteLocation({
+                                    id: hotelLoc.id,
+                                    name: hotelLoc.location.name,
+                                  })
                                 }
                                 disabled={rowDeleteLoading === hotelLoc.id}
                               >
-                                {rowDeleteLoading === hotelLoc.id ? (
-                                  <Loader className="w-4 h-4 mr-2" />
-                                ) : null}
-                                Remove
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Dialog
-                          open={
-                            mapModal.open &&
-                            mapModal.location?.id === hotelLoc.location.id
-                          }
-                          onOpenChange={(open) =>
-                            setMapModal({
-                              open,
-                              location: open ? hotelLoc.location : null,
-                            })
-                          }
-                        >
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="mr-2"
-                                    aria-label="View on Map"
-                                    onClick={() =>
-                                      setMapModal({
-                                        open: true,
-                                        location: hotelLoc.location,
-                                      })
-                                    }
-                                  >
-                                    <MapPin className="w-4 h-4" />
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>View on Map</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>
-                                Location: {hotelLoc.location.name}
-                              </DialogTitle>
-                            </DialogHeader>
-                            <div className="w-full h-96 rounded-lg overflow-hidden bg-gray-100">
-                              {mapModal.open && mapModal.location && (
-                                <GoogleMapView
-                                  latitude={mapModal.location.latitude}
-                                  longitude={mapModal.location.longitude}
-                                  name={mapModal.location.name}
-                                  apiKey={GOOGLE_MAPS_API_KEY}
-                                />
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-2">
-                              Latitude: <b>{hotelLoc.location.latitude}</b>{" "}
-                              &nbsp;|&nbsp; Longitude:{" "}
-                              <b>{hotelLoc.location.longitude}</b>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                                <Trash2 className="w-5 h-5 text-red-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1358,6 +1352,74 @@ function HotelsPage() {
               </TableBody>
             </Table>
           </div>
+          {/* Delete Confirmation Modal */}
+          <AlertDialog
+            open={!!pendingDeleteLocation}
+            onOpenChange={(open) => {
+              if (!open) setPendingDeleteLocation(null);
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Location</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to remove{" "}
+                  <b>{pendingDeleteLocation?.name}</b> from your hotel? This
+                  action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  onClick={() => setPendingDeleteLocation(null)}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (pendingDeleteLocation) {
+                      handleRemoveLocation(pendingDeleteLocation.id);
+                      setPendingDeleteLocation(null);
+                    }
+                  }}
+                  disabled={rowDeleteLoading === pendingDeleteLocation?.id}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {rowDeleteLoading === pendingDeleteLocation?.id
+                    ? "Removing..."
+                    : "Remove"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {/* Map Modal */}
+          {mapModal.open && mapModal.location && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full relative">
+                <button
+                  className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl"
+                  onClick={() => setMapModal({ open: false, location: null })}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+                <h2 className="text-lg font-semibold mb-2">
+                  {mapModal.location.name}
+                </h2>
+                <div className="mb-2 text-xs text-gray-500">
+                  Latitude: <b>{mapModal.location.latitude}</b> | Longitude:{" "}
+                  <b>{mapModal.location.longitude}</b>
+                </div>
+                <div className="w-full h-64 rounded overflow-hidden bg-gray-100">
+                  <GoogleMapView
+                    latitude={mapModal.location.latitude}
+                    longitude={mapModal.location.longitude}
+                    name={mapModal.location.name}
+                    apiKey={GOOGLE_MAPS_API_KEY}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -84,7 +84,23 @@ const getHotel = async (req: Request, res: Response) => {
 
 const getLocations = async (req: Request, res: Response) => {
   try {
-    const locations = await prisma.location.findMany();
+    const userId = (req as any).user.userId;
+    const guest = await prisma.guest.findUnique({
+      where: { id: userId },
+      select: { hotelId: true },
+    });
+    if (!guest?.hotelId) {
+      return res.json({ locations: [] });
+    }
+    const hotelLocations = await prisma.hotelLocation.findMany({
+      where: { hotelId: guest.hotelId },
+      include: { location: true },
+      orderBy: { id: "asc" },
+    });
+    const locations = hotelLocations.map((hl) => ({
+      id: hl.location.id,
+      name: hl.location.name,
+    }));
     res.json({ locations });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch locations" });
@@ -104,7 +120,7 @@ const createTrip = async (req: Request, res: Response) => {
     lastName,
     confirmationNum,
     notes,
-    isPaySleepFly,
+    isParkSleepFly,
   } = req.body;
   const userId = (req as any).user.userId;
 
@@ -112,10 +128,11 @@ const createTrip = async (req: Request, res: Response) => {
     // Validation: Either both firstName and lastName OR confirmationNum must be provided
     const hasName = firstName?.trim() && lastName?.trim();
     const hasConfirmation = confirmationNum?.trim();
-    
+
     if (!hasName && !hasConfirmation) {
-      return res.status(400).json({ 
-        error: "Please provide either your first name and last name, or your confirmation number" 
+      return res.status(400).json({
+        error:
+          "Please provide either your first name and last name, or your confirmation number",
       });
     }
 
@@ -149,7 +166,8 @@ const createTrip = async (req: Request, res: Response) => {
         encryptionKey,
         needsFrontdeskVerification: true, // Guest bookings need frontdesk verification
         notes: notes || null,
-        isPaySleepFly: isPaySleepFly || false,
+        // TEMP: Use old field until schema migration is done
+        isParkSleepFly: isParkSleepFly || false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -176,7 +194,10 @@ const createTrip = async (req: Request, res: Response) => {
     const guestData = await prisma.guest.findUnique({ where: { id: userId } });
     if (guestData?.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(updatedTrip.id, updatedTrip);
+      const completeBooking = await getBookingDataForWebSocket(
+        updatedTrip.id,
+        updatedTrip
+      );
 
       const notificationPayload = {
         title: "New Booking Created",
@@ -185,7 +206,7 @@ const createTrip = async (req: Request, res: Response) => {
         }.`,
         booking: completeBooking,
       };
-      
+
       // Send WebSocket notification
       sendToRoleInHotel(
         guestData.hotelId,
@@ -668,7 +689,7 @@ const getBookingETA = async (req: Request, res: Response) => {
 
     // Find the first schedule with a driver who has a currentLocation
     const scheduleWithLocation = booking.shuttle?.schedules.find(
-      s => s.driver?.currentLocation
+      (s) => s.driver?.currentLocation
     );
     const driverLocation = scheduleWithLocation?.driver?.currentLocation;
 
@@ -676,7 +697,7 @@ const getBookingETA = async (req: Request, res: Response) => {
       // Try to get driver location directly from DriverLocation table as fallback
       if (booking.shuttle?.schedules?.[0]?.driverId) {
         const directLocation = await prisma.driverLocation.findUnique({
-          where: { driverId: booking.shuttle.schedules[0].driverId }
+          where: { driverId: booking.shuttle.schedules[0].driverId },
         });
       }
       return res.json({
@@ -696,7 +717,10 @@ const getBookingETA = async (req: Request, res: Response) => {
         latitude: booking.pickupLocation.latitude,
         longitude: booking.pickupLocation.longitude,
       };
-    } else if (booking.guest?.hotel?.latitude && booking.guest?.hotel?.longitude) {
+    } else if (
+      booking.guest?.hotel?.latitude &&
+      booking.guest?.hotel?.longitude
+    ) {
       // Fallback: use guest's hotel location
       destination = {
         latitude: booking.guest.hotel.latitude,
@@ -979,7 +1003,7 @@ const getNotifications = async (req: Request, res: Response) => {
     });
 
     const unreadCount = await prisma.notification.count({
-      where: { 
+      where: {
         guestId,
         isRead: false,
       },

@@ -13,76 +13,13 @@ import {
 import { MapPin, Star, Wifi, Car, Coffee } from "lucide-react";
 import { api } from "@/lib/api";
 
-// address
-// :
-// "Taj Mahal Palace, Prem J. Ramchandani Road, Apollo Bandar, A Ward, Zone 1, Mumbai City, Maharashtra, 400001, India"
-// createdAt
-// :
-// "2025-06-11T10:07:57.540Z"
-// id
-// :
-// 6
-// latitude
-// :
-// 18.92202
-// longitude
-// :
-// 72.83335
-// name
-// :
-// "Hotel"
-// updatedAt
-// :
-// "2025-06-13T12:21:22.445Z"
 interface Hotel {
   id: number;
   name: string;
   address: string;
   latitude: number;
   longitude: number;
-  // rating: number
-  // image: string
-  // amenities: string[]
-  // distance: string
 }
-// const hotels = [
-//   {
-//     id: 1,
-//     name: "Grand Plaza Hotel",
-//     address: "123 Downtown Ave, City Center",
-//     rating: 4.8,
-//     image: "/placeholder.svg?height=200&width=300",
-//     amenities: ["Free WiFi", "Parking", "Restaurant"],
-//     distance: "2.5 km from airport",
-//   },
-//   {
-//     id: 2,
-//     name: "Ocean View Resort",
-//     address: "456 Beachfront Blvd, Coastal Area",
-//     rating: 4.6,
-//     image: "/placeholder.svg?height=200&width=300",
-//     amenities: ["Free WiFi", "Spa", "Pool"],
-//     distance: "15 km from airport",
-//   },
-//   {
-//     id: 3,
-//     name: "Business Center Inn",
-//     address: "789 Corporate St, Business District",
-//     rating: 4.4,
-//     image: "/placeholder.svg?height=200&width=300",
-//     amenities: ["Free WiFi", "Gym", "Conference Rooms"],
-//     distance: "8 km from airport",
-//   },
-//   {
-//     id: 4,
-//     name: "Mountain Lodge",
-//     address: "321 Highland Rd, Mountain View",
-//     rating: 4.7,
-//     image: "/placeholder.svg?height=200&width=300",
-//     amenities: ["Free WiFi", "Hiking Trails", "Restaurant"],
-//     distance: "25 km from airport",
-//   },
-// ]
 
 export default function SelectHotelPage() {
   const [selectedHotel, setSelectedHotel] = useState<number | null>(null);
@@ -105,7 +42,6 @@ export default function SelectHotelPage() {
     if (selectedHotel) {
       const hotel = hotels.find((h) => h.id === selectedHotel);
       if (hotel) {
-        // localStorage.setItem("hotelId", hotel.id.toString())
         try {
           const response = await api.post("/guest/set-hotel", {
             hotelId: hotel.id,
@@ -116,19 +52,6 @@ export default function SelectHotelPage() {
           console.error("Error setting hotel:", error);
         }
       }
-    }
-  };
-
-  const getAmenityIcon = (amenity: string) => {
-    switch (amenity) {
-      case "Free WiFi":
-        return <Wifi className="w-4 h-4" />;
-      case "Parking":
-        return <Car className="w-4 h-4" />;
-      case "Restaurant":
-        return <Coffee className="w-4 h-4" />;
-      default:
-        return <Star className="w-4 h-4" />;
     }
   };
 

@@ -310,7 +310,7 @@ const createBooking = async (req: Request, res: Response) => {
       isWaived,
       waiverReason,
       notes,
-      isPaySleepFly,
+      isParkSleepFly,
     } = req.body;
 
     const hotelId = (req as any).user.hotelId;
@@ -392,7 +392,8 @@ const createBooking = async (req: Request, res: Response) => {
       verifiedAt: new Date(),
       isPaid: paymentMethod === "FRONTDESK" ? true : false, // Mark as paid if frontdesk payment
       notes: notes || null, // Add notes field
-      isPaySleepFly: isPaySleepFly || false, // Add Pay Sleep Fly field
+      // TEMP: Use old field until schema migration is done
+      isPaySleepFly: isParkSleepFly || false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -505,12 +506,20 @@ const createBooking = async (req: Request, res: Response) => {
 
 const getLocations = async (req: Request, res: Response) => {
   try {
-    const locations = await prisma.location.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
+    const hotelId = (req as any).user.hotelId;
+    if (!hotelId) {
+      return res.json({ locations: [] });
+    }
+    const hotelLocations = await prisma.hotelLocation.findMany({
+      where: { hotelId },
+      include: { location: true },
+      orderBy: { id: "asc" },
     });
+    // Map to only id and name from the joined location
+    const locations = hotelLocations.map((hl) => ({
+      id: hl.location.id,
+      name: hl.location.name,
+    }));
     res.json({ locations });
   } catch (error) {
     console.error("Get locations error:", error);

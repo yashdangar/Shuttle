@@ -22,7 +22,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { MapPin, Clock, Users, CreditCard, Briefcase, User, Hash } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Users,
+  CreditCard,
+  Briefcase,
+  User,
+  Hash,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/qr-code-display";
@@ -62,7 +70,7 @@ export default function NewBooking({
   onBookingCreated,
 }: NewBookingProps) {
   const [tripDirection, setTripDirection] = useState<
-    "hotel-to-airport" | "airport-to-hotel" | "pay-sleep-fly"
+    "hotel-to-airport" | "airport-to-hotel" | "park-sleep-fly"
   >("hotel-to-airport");
 
   // Get current date and time
@@ -83,7 +91,7 @@ export default function NewBooking({
     dropoffLocation: "",
     tripType: "",
     isCompleted: false,
-    isPaySleepFly: false,
+    isParkSleepFly: false,
     // New fields for guest information
     firstName: "",
     lastName: "",
@@ -132,13 +140,15 @@ export default function NewBooking({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation: Either both firstName and lastName OR confirmationNum must be provided
     if (!isValid) {
-      toast.error("Please provide either your first name and last name, or your confirmation number");
+      toast.error(
+        "Please provide either your first name and last name, or your confirmation number"
+      );
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
@@ -173,7 +183,7 @@ export default function NewBooking({
         lastName: formData.lastName,
         confirmationNum: formData.confirmationNum,
         notes: formData.notes,
-        isPaySleepFly: tripDirection === "pay-sleep-fly", // Add Pay Sleep Fly flag
+        isParkSleepFly: tripDirection === "park-sleep-fly", // Add Park Sleep Fly flag
       };
 
       // Send request to backend
@@ -181,10 +191,10 @@ export default function NewBooking({
         const response = await api.post("/guest/create-trip", tripData);
         console.log("API Response:", response);
         console.log("Trip data:", response.trip);
-        
+
         if (response.trip) {
           onBookingCreated(response.trip);
-          
+
           // Show QR code if available
           if (response.trip.qrCodePath) {
             setBookingQRCode(response.trip.qrCodePath);
@@ -206,19 +216,21 @@ export default function NewBooking({
 
   // Function to handle trip direction change
   const handleTripDirectionChange = (value: string) => {
-    setTripDirection(value as "hotel-to-airport" | "airport-to-hotel" | "pay-sleep-fly");
-    
-    // Auto-set trip type for Pay Sleep Fly
-    if (value === "pay-sleep-fly") {
+    setTripDirection(
+      value as "hotel-to-airport" | "airport-to-hotel" | "park-sleep-fly"
+    );
+
+    // Auto-set trip type for Park Sleep Fly
+    if (value === "park-sleep-fly") {
       setFormData({
         ...formData,
         tripType: "AIRPORT_TO_HOTEL",
-        isPaySleepFly: true,
+        isParkSleepFly: true,
       });
     } else {
       setFormData({
         ...formData,
-        isPaySleepFly: false,
+        isParkSleepFly: false,
       });
     }
   };
@@ -245,14 +257,15 @@ export default function NewBooking({
               <TabsTrigger value="airport-to-hotel">
                 Airport to Hotel (Return)
               </TabsTrigger>
-              <TabsTrigger value="pay-sleep-fly">
-                Pay, Sleep & Fly
+              <TabsTrigger value="park-sleep-fly">
+                Park, Sleep & Fly
               </TabsTrigger>
             </TabsList>
             <TabsContent value="hotel-to-airport">
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Round Trip:</strong> This booking will be part of a round trip that includes both outbound and return journeys.
+                  <strong>Round Trip:</strong> This booking will be part of a
+                  round trip that includes both outbound and return journeys.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -261,17 +274,28 @@ export default function NewBooking({
                   <h3 className="text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                      <strong>Required:</strong> Please provide either your
+                      first name and last name, or your confirmation number
                     </p>
                   </div>
-                  
+
                   {/* First Name and Last Name */}
-                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
-                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
+                  <div
+                    className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                      hasName
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="firstName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        First Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -279,7 +303,10 @@ export default function NewBooking({
                           id="firstName"
                           value={formData.firstName}
                           onChange={(e) =>
-                            setFormData({ ...formData, firstName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              firstName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your first name"
@@ -287,8 +314,14 @@ export default function NewBooking({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="lastName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        Last Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -296,7 +329,10 @@ export default function NewBooking({
                           id="lastName"
                           value={formData.lastName}
                           onChange={(e) =>
-                            setFormData({ ...formData, lastName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              lastName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your last name"
@@ -306,15 +342,31 @@ export default function NewBooking({
                   </div>
 
                   <div className="text-center">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      OR
+                    </span>
                   </div>
 
                   {/* Confirmation Number */}
-                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
-                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
-                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
-                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                  <div
+                    className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                      hasConfirmation
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
+                    <Label
+                      htmlFor="confirmationNum"
+                      className={
+                        hasConfirmation
+                          ? "text-green-700 dark:text-green-300"
+                          : ""
+                      }
+                    >
+                      Confirmation Number{" "}
+                      {hasConfirmation && (
+                        <span className="text-green-600">✓</span>
+                      )}
                     </Label>
                     <div className="relative">
                       <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -322,7 +374,10 @@ export default function NewBooking({
                         id="confirmationNum"
                         value={formData.confirmationNum}
                         onChange={(e) =>
-                          setFormData({ ...formData, confirmationNum: e.target.value })
+                          setFormData({
+                            ...formData,
+                            confirmationNum: e.target.value,
+                          })
                         }
                         className="pl-10"
                         placeholder="Enter your hotel confirmation number"
@@ -448,7 +503,8 @@ export default function NewBooking({
                     className="min-h-[100px]"
                   />
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Add any special requirements, accessibility needs, or other important information for the driver.
+                    Add any special requirements, accessibility needs, or other
+                    important information for the driver.
                   </p>
                 </div>
 
@@ -495,7 +551,8 @@ export default function NewBooking({
             <TabsContent value="airport-to-hotel">
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Round Trip:</strong> This booking will be part of a round trip that includes both outbound and return journeys.
+                  <strong>Round Trip:</strong> This booking will be part of a
+                  round trip that includes both outbound and return journeys.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -504,17 +561,28 @@ export default function NewBooking({
                   <h3 className="text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                      <strong>Required:</strong> Please provide either your
+                      first name and last name, or your confirmation number
                     </p>
                   </div>
-                  
+
                   {/* First Name and Last Name */}
-                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
-                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
+                  <div
+                    className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                      hasName
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="firstName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        First Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -522,7 +590,10 @@ export default function NewBooking({
                           id="firstName"
                           value={formData.firstName}
                           onChange={(e) =>
-                            setFormData({ ...formData, firstName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              firstName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your first name"
@@ -530,8 +601,14 @@ export default function NewBooking({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="lastName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        Last Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -539,7 +616,10 @@ export default function NewBooking({
                           id="lastName"
                           value={formData.lastName}
                           onChange={(e) =>
-                            setFormData({ ...formData, lastName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              lastName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your last name"
@@ -549,15 +629,31 @@ export default function NewBooking({
                   </div>
 
                   <div className="text-center">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      OR
+                    </span>
                   </div>
 
                   {/* Confirmation Number */}
-                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
-                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
-                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
-                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                  <div
+                    className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                      hasConfirmation
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
+                    <Label
+                      htmlFor="confirmationNum"
+                      className={
+                        hasConfirmation
+                          ? "text-green-700 dark:text-green-300"
+                          : ""
+                      }
+                    >
+                      Confirmation Number{" "}
+                      {hasConfirmation && (
+                        <span className="text-green-600">✓</span>
+                      )}
                     </Label>
                     <div className="relative">
                       <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -565,7 +661,10 @@ export default function NewBooking({
                         id="confirmationNum"
                         value={formData.confirmationNum}
                         onChange={(e) =>
-                          setFormData({ ...formData, confirmationNum: e.target.value })
+                          setFormData({
+                            ...formData,
+                            confirmationNum: e.target.value,
+                          })
                         }
                         className="pl-10"
                         placeholder="Enter your hotel confirmation number"
@@ -691,7 +790,8 @@ export default function NewBooking({
                     className="min-h-[100px]"
                   />
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Add any special requirements, accessibility needs, or other important information for the driver.
+                    Add any special requirements, accessibility needs, or other
+                    important information for the driver.
                   </p>
                 </div>
 
@@ -735,10 +835,11 @@ export default function NewBooking({
                 </Button>
               </form>
             </TabsContent>
-            <TabsContent value="pay-sleep-fly">
+            <TabsContent value="park-sleep-fly">
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Pay, Sleep & Fly Package:</strong> This booking is for guests who have purchased our Pay, Sleep & Fly package. 
+                  <strong>Park, Sleep & Fly Package:</strong> This booking is
+                  for guests who have purchased our Park, Sleep & Fly package.
                   Trip direction is automatically set to Airport to Hotel.
                 </p>
               </div>
@@ -748,17 +849,28 @@ export default function NewBooking({
                   <h3 className="text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <strong>Required:</strong> Please provide either your first name and last name, or your confirmation number
+                      <strong>Required:</strong> Please provide either your
+                      first name and last name, or your confirmation number
                     </p>
                   </div>
-                  
+
                   {/* First Name and Last Name */}
-                  <div className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
-                    hasName ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
+                  <div
+                    className={`grid md:grid-cols-2 gap-4 p-4 rounded-lg border-2 transition-colors ${
+                      hasName
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        First Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="firstName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        First Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -766,7 +878,10 @@ export default function NewBooking({
                           id="firstName"
                           value={formData.firstName}
                           onChange={(e) =>
-                            setFormData({ ...formData, firstName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              firstName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your first name"
@@ -774,8 +889,14 @@ export default function NewBooking({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className={hasName ? 'text-green-700 dark:text-green-300' : ''}>
-                        Last Name {hasName && <span className="text-green-600">✓</span>}
+                      <Label
+                        htmlFor="lastName"
+                        className={
+                          hasName ? "text-green-700 dark:text-green-300" : ""
+                        }
+                      >
+                        Last Name{" "}
+                        {hasName && <span className="text-green-600">✓</span>}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -783,7 +904,10 @@ export default function NewBooking({
                           id="lastName"
                           value={formData.lastName}
                           onChange={(e) =>
-                            setFormData({ ...formData, lastName: e.target.value })
+                            setFormData({
+                              ...formData,
+                              lastName: e.target.value,
+                            })
                           }
                           className="pl-10"
                           placeholder="Enter your last name"
@@ -793,15 +917,31 @@ export default function NewBooking({
                   </div>
 
                   <div className="text-center">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">OR</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      OR
+                    </span>
                   </div>
 
                   {/* Confirmation Number */}
-                  <div className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
-                    hasConfirmation ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-gray-200 dark:border-gray-700'
-                  }`}>
-                    <Label htmlFor="confirmationNum" className={hasConfirmation ? 'text-green-700 dark:text-green-300' : ''}>
-                      Confirmation Number {hasConfirmation && <span className="text-green-600">✓</span>}
+                  <div
+                    className={`space-y-2 p-4 rounded-lg border-2 transition-colors ${
+                      hasConfirmation
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
+                        : "border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
+                    <Label
+                      htmlFor="confirmationNum"
+                      className={
+                        hasConfirmation
+                          ? "text-green-700 dark:text-green-300"
+                          : ""
+                      }
+                    >
+                      Confirmation Number{" "}
+                      {hasConfirmation && (
+                        <span className="text-green-600">✓</span>
+                      )}
                     </Label>
                     <div className="relative">
                       <Hash className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -809,7 +949,10 @@ export default function NewBooking({
                         id="confirmationNum"
                         value={formData.confirmationNum}
                         onChange={(e) =>
-                          setFormData({ ...formData, confirmationNum: e.target.value })
+                          setFormData({
+                            ...formData,
+                            confirmationNum: e.target.value,
+                          })
                         }
                         className="pl-10"
                         placeholder="Enter your hotel confirmation number"
@@ -818,7 +961,7 @@ export default function NewBooking({
                   </div>
                 </div>
 
-                {/* Pickup Location for Pay Sleep Fly */}
+                {/* Pickup Location for Park Sleep Fly */}
                 <div className="space-y-2">
                   <Label htmlFor="pickup">Pickup Location *</Label>
                   <Select
@@ -843,7 +986,8 @@ export default function NewBooking({
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-blue-600">
-                    Please select your airport terminal or pickup location for the Pay, Sleep & Fly package.
+                    Please select your airport terminal or pickup location for
+                    the Park, Sleep & Fly package.
                   </p>
                 </div>
 
@@ -939,11 +1083,12 @@ export default function NewBooking({
                     className="min-h-[100px]"
                   />
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Add any special requirements, accessibility needs, or other important information for the driver.
+                    Add any special requirements, accessibility needs, or other
+                    important information for the driver.
                   </p>
                 </div>
 
-                {/* Payment Method for Pay Sleep Fly */}
+                {/* Payment Method for Park Sleep Fly */}
                 <div className="space-y-3">
                   <Label>Payment Method</Label>
                   <RadioGroup
@@ -953,9 +1098,12 @@ export default function NewBooking({
                     }
                   >
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="frontdesk" id="frontdesk-pay-sleep-fly" />
+                      <RadioGroupItem
+                        value="frontdesk"
+                        id="frontdesk-park-sleep-fly"
+                      />
                       <Label
-                        htmlFor="frontdesk-pay-sleep-fly"
+                        htmlFor="frontdesk-park-sleep-fly"
                         className="flex items-center space-x-2"
                       >
                         <CreditCard className="w-4 h-4" />
@@ -978,7 +1126,7 @@ export default function NewBooking({
                       <span>Creating Booking...</span>
                     </div>
                   ) : (
-                    "Confirm Pay, Sleep & Fly Booking"
+                    "Confirm Park, Sleep & Fly Booking"
                   )}
                 </Button>
               </form>

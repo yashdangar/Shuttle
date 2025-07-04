@@ -40,7 +40,9 @@ interface DecodedToken {
 }
 
 export default function NewBookingPage() {
-  const [guestType, setGuestType] = useState<"resident" | "non-resident" | "pay-sleep-fly">("resident");
+  const [guestType, setGuestType] = useState<
+    "resident" | "non-resident" | "park-sleep-fly"
+  >("resident");
   const [locations, setLocations] = useState<Location[]>([]);
   const [formData, setFormData] = useState({
     numberOfPersons: "",
@@ -57,7 +59,7 @@ export default function NewBookingPage() {
     isWaived: false,
     waiverReason: "",
     notes: "",
-    isPaySleepFly: false,
+    isParkSleepFly: false,
   });
   const { toast } = useToast();
   const [showQRCode, setShowQRCode] = useState(false);
@@ -108,28 +110,28 @@ export default function NewBookingPage() {
 
   // Function to handle guest type change
   const handleGuestTypeChange = (value: string) => {
-    setGuestType(value as "resident" | "non-resident" | "pay-sleep-fly");
-    
-    // Auto-set trip type for Pay Sleep Fly
-    if (value === "pay-sleep-fly") {
+    setGuestType(value as "resident" | "non-resident" | "park-sleep-fly");
+
+    // Auto-set trip type for Park Sleep Fly
+    if (value === "park-sleep-fly") {
       setFormData({
         ...formData,
         tripType: "AIRPORT_TO_HOTEL",
         pickupLocation: "", // Will be set from locations
         dropoffLocation: "Hotel Lobby", // Fixed dropoff location
-        isPaySleepFly: true,
+        isParkSleepFly: true,
       });
     } else {
       setFormData({
         ...formData,
-        isPaySleepFly: false,
+        isParkSleepFly: false,
       });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate waiver reason if booking is waived
     if (formData.isWaived && !formData.waiverReason.trim()) {
       toast({
@@ -139,7 +141,7 @@ export default function NewBookingPage() {
       });
       return;
     }
-    
+
     try {
       const token = localStorage.getItem("frontdeskToken");
       if (!token) {
@@ -150,10 +152,16 @@ export default function NewBookingPage() {
       const bookingData = {
         ...formData,
         isNonResident: guestType === "non-resident",
-        isPaySleepFly: guestType === "pay-sleep-fly",
+        isParkSleepFly: guestType === "park-sleep-fly",
         hotelId: decoded.hotelId,
-        pickupLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? null : parseInt(formData.pickupLocation),
-        dropoffLocationId: formData.tripType === "HOTEL_TO_AIRPORT" ? parseInt(formData.dropoffLocation) : null,
+        pickupLocationId:
+          formData.tripType === "HOTEL_TO_AIRPORT"
+            ? null
+            : parseInt(formData.pickupLocation),
+        dropoffLocationId:
+          formData.tripType === "HOTEL_TO_AIRPORT"
+            ? parseInt(formData.dropoffLocation)
+            : null,
       };
 
       const response = await fetchWithAuth("/frontdesk/bookings", {
@@ -165,8 +173,8 @@ export default function NewBookingPage() {
 
       toast({
         title: "Booking Created",
-        description: formData.isWaived 
-          ? "New trip booking has been successfully created with waived fee." 
+        description: formData.isWaived
+          ? "New trip booking has been successfully created with waived fee."
           : "New trip booking has been successfully created.",
       });
 
@@ -193,7 +201,7 @@ export default function NewBookingPage() {
         isWaived: false,
         waiverReason: "",
         notes: "",
-        isPaySleepFly: false,
+        isParkSleepFly: false,
       });
     } catch (error) {
       toast({
@@ -217,18 +225,25 @@ export default function NewBookingPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Tabs value={guestType} onValueChange={(value) => handleGuestTypeChange(value as "resident" | "non-resident" | "pay-sleep-fly")}>
+            <Tabs
+              value={guestType}
+              onValueChange={(value) =>
+                handleGuestTypeChange(
+                  value as "resident" | "non-resident" | "park-sleep-fly"
+                )
+              }
+            >
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="resident">Hotel Resident</TabsTrigger>
                 <TabsTrigger value="non-resident">Non-Resident</TabsTrigger>
-                <TabsTrigger value="pay-sleep-fly">Pay, Sleep & Fly</TabsTrigger>
+                <TabsTrigger value="park-sleep-fly">
+                  Park, Sleep & Fly
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="resident" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">
-                    Resident Email
-                  </Label>
+                  <Label htmlFor="email">Resident Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -290,7 +305,10 @@ export default function NewBookingPage() {
                       type="tel"
                       value={formData.phoneNumber}
                       onChange={(e) =>
-                        setFormData({ ...formData, phoneNumber: e.target.value })
+                        setFormData({
+                          ...formData,
+                          phoneNumber: e.target.value,
+                        })
                       }
                       required
                     />
@@ -298,17 +316,18 @@ export default function NewBookingPage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="pay-sleep-fly" className="space-y-4">
+              <TabsContent value="park-sleep-fly" className="space-y-4">
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-700 font-medium mb-2">
-                    Pay, Sleep & Fly Package
+                    Park, Sleep & Fly Package
                   </p>
                   <p className="text-sm text-blue-600">
-                    This booking is for guests who have purchased our Pay, Sleep & Fly package. 
-                    Trip direction is automatically set to Airport to Hotel.
+                    This booking is for guests who have purchased our Park,
+                    Sleep & Fly package. Trip direction is automatically set to
+                    Airport to Hotel.
                   </p>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
@@ -353,7 +372,10 @@ export default function NewBookingPage() {
                       type="tel"
                       value={formData.phoneNumber}
                       onChange={(e) =>
-                        setFormData({ ...formData, phoneNumber: e.target.value })
+                        setFormData({
+                          ...formData,
+                          phoneNumber: e.target.value,
+                        })
                       }
                       required
                     />
@@ -411,7 +433,7 @@ export default function NewBookingPage() {
                   value={formData.tripType}
                   onValueChange={handleTripTypeChange}
                   required
-                  disabled={guestType === "pay-sleep-fly"}
+                  disabled={guestType === "park-sleep-fly"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select trip type" />
@@ -425,13 +447,15 @@ export default function NewBookingPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                {guestType === "pay-sleep-fly" ? (
+                {guestType === "park-sleep-fly" ? (
                   <p className="text-sm text-blue-600">
-                    Trip type is automatically set to Airport to Hotel for Pay, Sleep & Fly packages.
+                    Trip type is automatically set to Airport to Hotel for Park,
+                    Sleep & Fly packages.
                   </p>
                 ) : (
                   <p className="text-sm text-gray-500">
-                    Note: Both outbound and return bookings will be part of the same round trip
+                    Note: Both outbound and return bookings will be part of the
+                    same round trip
                   </p>
                 )}
               </div>
@@ -446,22 +470,29 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, pickupLocation: value })
                   }
                   required
-                  disabled={formData.tripType === "HOTEL_TO_AIRPORT" || guestType === "pay-sleep-fly"}
+                  disabled={
+                    formData.tripType === "HOTEL_TO_AIRPORT" ||
+                    guestType === "park-sleep-fly"
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pickup location" />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id.toString()}>
+                      <SelectItem
+                        key={location.id}
+                        value={location.id.toString()}
+                      >
                         {location.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {guestType === "pay-sleep-fly" && (
+                {guestType === "park-sleep-fly" && (
                   <p className="text-sm text-blue-600">
-                    Pickup location will be set based on the guest's flight details.
+                    Pickup location will be set based on the guest's flight
+                    details.
                   </p>
                 )}
               </div>
@@ -480,7 +511,10 @@ export default function NewBookingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id.toString()}>
+                      <SelectItem
+                        key={location.id}
+                        value={location.id.toString()}
+                      >
                         {location.name}
                       </SelectItem>
                     ))}
@@ -525,7 +559,8 @@ export default function NewBookingPage() {
                 className="min-h-[100px]"
               />
               <p className="text-sm text-gray-500">
-                Add any special requirements, accessibility needs, or other important information for the driver.
+                Add any special requirements, accessibility needs, or other
+                important information for the driver.
               </p>
             </div>
 
@@ -539,7 +574,10 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, isWaived: checked as boolean })
                   }
                 />
-                <Label htmlFor="isWaived" className="text-orange-800 font-medium">
+                <Label
+                  htmlFor="isWaived"
+                  className="text-orange-800 font-medium"
+                >
                   Waive Booking Fee
                 </Label>
               </div>
@@ -559,7 +597,8 @@ export default function NewBookingPage() {
                     required
                   />
                   <p className="text-sm text-orange-700">
-                    Note: This waiver will be visible to admin for review and approval.
+                    Note: This waiver will be visible to admin for review and
+                    approval.
                   </p>
                 </div>
               )}
