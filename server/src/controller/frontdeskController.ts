@@ -2366,6 +2366,49 @@ const getSchedule21DayWindow = async (req: Request, res: Response) => {
   }
 };
 
+// Change password for frontdesk
+const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Old password and new password are required" });
+    }
+
+    const frontdesk = await prisma.frontDesk.findUnique({
+      where: { id: parseInt(userId) },
+    });
+    if (!frontdesk) {
+      return res.status(404).json({ message: "Frontdesk user not found" });
+    }
+
+    const isValidPassword = await bcrypt.compare(
+      oldPassword,
+      frontdesk.password
+    );
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Old password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in DB
+    await prisma.frontDesk.update({
+      where: { id: parseInt(userId) },
+      data: { password: hashedPassword, updatedAt: new Date() },
+    });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -2402,4 +2445,5 @@ export default {
   debugShuttleSchedules,
   getLiveShuttleData,
   getPendingBookingsLastHour,
+  changePassword,
 };

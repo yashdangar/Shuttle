@@ -8,9 +8,27 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Save, X, MapPin, Phone, Mail, Building, Shield } from "lucide-react";
+import {
+  Edit,
+  Save,
+  X,
+  MapPin,
+  Phone,
+  Mail,
+  Building,
+  Shield,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface AdminProfile {
   id: number;
@@ -37,6 +55,14 @@ function ProfilePage() {
   const [profileData, setProfileData] = useState<AdminProfile | null>(null);
   const [hotelData, setHotelData] = useState<HotelData | null>(null);
   const { toast } = useToast();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [changing, setChanging] = useState(false);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -87,6 +113,58 @@ function ProfilePage() {
     setIsEditing(false);
   };
 
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast({
+        title: "All fields are required",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+    setChanging(true);
+    try {
+      const token = localStorage.getItem("adminToken");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin/change-password`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ oldPassword, newPassword }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to change password.");
+      }
+      toast({
+        title: "Password changed successfully",
+        description: "Your password has been updated.",
+      });
+      setShowChangePassword(false);
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to change password.",
+        variant: "destructive",
+      });
+    } finally {
+      setChanging(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -133,39 +211,49 @@ function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-        <p className="text-gray-600">
+    <div className="space-y-8 max-w-3xl mx-auto py-8">
+      <div className="mb-4">
+        <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
+        <p className="text-gray-600 text-lg">
           Manage your personal information and hotel details
         </p>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Personal Information</CardTitle>
-          {!isEditing ? (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Profile
+      <Card className="shadow-lg border-0">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="text-xl">Personal Information</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowChangePassword(true)}
+            >
+              Change Password
             </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
+            {!isEditing ? (
+              <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Profile
               </Button>
-              <Button onClick={handleSave}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
-            </div>
-          )}
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleCancel}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button onClick={handleSave}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-6">
+          <div className="flex flex-col md:flex-row gap-8">
             <div className="flex flex-col items-center md:items-start">
-              <Avatar className="h-24 w-24 mb-4">
+              <Avatar className="h-24 w-24 mb-4 shadow">
                 <AvatarImage src="/placeholder-user.jpg" alt="Profile" />
                 <AvatarFallback className="text-2xl">
                   {profileData.name
@@ -182,8 +270,8 @@ function ProfilePage() {
                 Hotel Administrator
               </p>
             </div>
-            <div className="flex-1 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex-1 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   {isEditing ? (
@@ -208,7 +296,7 @@ function ProfilePage() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <div className="flex items-center gap-2">
@@ -230,8 +318,103 @@ function ProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Change Password Modal */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent className="max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="oldPassword">Old Password</Label>
+              <div className="relative">
+                <Input
+                  id="oldPassword"
+                  type={showOld ? "text" : "password"}
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-gray-500"
+                  onClick={() => setShowOld((v) => !v)}
+                  tabIndex={-1}
+                >
+                  {showOld ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNew ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-gray-500"
+                  onClick={() => setShowNew((v) => !v)}
+                  tabIndex={-1}
+                >
+                  {showNew ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-gray-500"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  tabIndex={-1}
+                >
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowChangePassword(false)}
+              disabled={changing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={changing}>
+              Change Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {hotelData && (
-        <Card>
+        <Card className="shadow-lg border-0">
           <CardHeader>
             <CardTitle>Hotel Information</CardTitle>
           </CardHeader>
@@ -283,7 +466,7 @@ function ProfilePage() {
       )}
 
       {!hotelData && (
-        <Card>
+        <Card className="shadow-lg border-0">
           <CardHeader>
             <CardTitle>Hotel Information</CardTitle>
           </CardHeader>
@@ -294,7 +477,8 @@ function ProfilePage() {
                 No Hotel Assigned
               </h3>
               <p className="text-gray-600">
-                You are not currently assigned to any hotel. Please contact the super administrator.
+                You are not currently assigned to any hotel. Please contact the
+                super administrator.
               </p>
             </div>
           </CardContent>
@@ -304,4 +488,4 @@ function ProfilePage() {
   );
 }
 
-export default withAuth(ProfilePage); 
+export default withAuth(ProfilePage);

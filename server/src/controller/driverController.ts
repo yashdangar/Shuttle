@@ -15,7 +15,12 @@ import { getSignedUrlFromPath } from "../utils/s3Utils";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { PaymentMethod, BookingType } from "@prisma/client";
-import { assignBookingToTrip, findAvailableShuttleWithCapacity, checkShuttleCapacity, getISTDateRange } from "../utils/bookingUtils";
+import {
+  assignBookingToTrip,
+  findAvailableShuttleWithCapacity,
+  checkShuttleCapacity,
+  getISTDateRange,
+} from "../utils/bookingUtils";
 
 const login = async (req: Request, res: Response) => {
   try {
@@ -294,14 +299,18 @@ const confirmCheckIn = async (req: Request, res: Response) => {
       data: {
         guestId: updatedBooking!.guestId,
         title: "Check-in Confirmed",
-        message: `You have been successfully checked in by driver ${updatedBooking!.trip?.driver?.name || 'the driver'}. Your shuttle is ready to depart.`,
+        message: `You have been successfully checked in by driver ${
+          updatedBooking!.trip?.driver?.name || "the driver"
+        }. Your shuttle is ready to depart.`,
       },
     });
 
     // Send WebSocket notification to the guest
     const guestNotificationPayload = {
       title: "✅ Check-in Confirmed!",
-      message: `You have been successfully checked in by driver ${updatedBooking!.trip?.driver?.name || 'the driver'}. Your shuttle is ready to depart.`,
+      message: `You have been successfully checked in by driver ${
+        updatedBooking!.trip?.driver?.name || "the driver"
+      }. Your shuttle is ready to depart.`,
       booking: updatedBooking,
     };
 
@@ -315,7 +324,9 @@ const confirmCheckIn = async (req: Request, res: Response) => {
     // Return updated passenger information
     const passenger = {
       id: updatedBooking!.id,
-      name: `${updatedBooking!.guest.firstName} ${updatedBooking!.guest.lastName}`,
+      name: `${updatedBooking!.guest.firstName} ${
+        updatedBooking!.guest.lastName
+      }`,
       persons: updatedBooking!.numberOfPersons,
       bags: updatedBooking!.numberOfBags,
       pickup: updatedBooking!.pickupLocation?.name || "Hotel",
@@ -902,7 +913,11 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     // Get current date in Indian Standard Time (IST)
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
 
-    console.log(`Driver assignment - Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+    console.log(
+      `Driver assignment - Current IST time: ${istTime.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+      })}`
+    );
 
     const schedules = await prisma.schedule.findMany({
       where: {
@@ -927,17 +942,22 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
       const scheduleStartTime = new Date(schedule.startTime);
       const scheduleEndTime = new Date(schedule.endTime);
       const currentTime = new Date(); // Current time in server timezone (IST)
-      
+
       // Convert current time to UTC for comparison
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
-      
+      const currentTimeUTC = new Date(
+        currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
+      );
+
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
       console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
       console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
-      
-      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+
+      if (
+        currentTimeUTC >= scheduleStartTime &&
+        currentTimeUTC <= scheduleEndTime
+      ) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         currentSchedule = schedule;
         break;
@@ -978,13 +998,19 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
 
     for (const booking of unassignedBookings) {
       // Check if current shuttle has capacity, otherwise find another available shuttle
-      const currentShuttleHasCapacity = await checkShuttleCapacity(currentSchedule.shuttleId, booking.numberOfPersons);
-      
+      const currentShuttleHasCapacity = await checkShuttleCapacity(
+        currentSchedule.shuttleId,
+        booking.numberOfPersons
+      );
+
       let targetShuttleId = currentSchedule.shuttleId;
-      
+
       if (!currentShuttleHasCapacity) {
         // Current shuttle is full, find another available shuttle
-        const alternativeShuttle = await findAvailableShuttleWithCapacity(hotelId, booking.numberOfPersons);
+        const alternativeShuttle = await findAvailableShuttleWithCapacity(
+          hotelId,
+          booking.numberOfPersons
+        );
         if (alternativeShuttle) {
           targetShuttleId = alternativeShuttle.id;
         } else {
@@ -995,15 +1021,17 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
             assignedTo: null,
             status: "no_available_shuttle_with_capacity",
           });
-          console.log(`No available shuttle with capacity for booking ${booking.id}`);
+          console.log(
+            `No available shuttle with capacity for booking ${booking.id}`
+          );
           continue;
         }
       }
 
       // Use intelligent booking assignment logic
       const assignmentResult = await assignBookingToTrip(
-        booking.id, 
-        targetShuttleId, 
+        booking.id,
+        targetShuttleId,
         hotelId
       );
 
@@ -1012,17 +1040,20 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
         guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
         assignedTo: {
           shuttleId: targetShuttleId,
-          vehicleNumber: targetShuttleId === currentSchedule.shuttleId ? currentSchedule.shuttle.vehicleNumber : "Alternative Shuttle",
+          vehicleNumber:
+            targetShuttleId === currentSchedule.shuttleId
+              ? currentSchedule.shuttle.vehicleNumber
+              : "Alternative Shuttle",
           driverName: currentSchedule.driver?.name || "Unknown",
         },
-        status: assignmentResult.assigned ? "assigned_to_trip" : "assigned_to_shuttle",
+        status: assignmentResult.assigned
+          ? "assigned_to_trip"
+          : "assigned_to_shuttle",
         assignmentResult,
       };
 
       assignmentResults.push(result);
-      console.log(
-        `Booking ${booking.id} assignment result:`, assignmentResult
-      );
+      console.log(`Booking ${booking.id} assignment result:`, assignmentResult);
     }
 
     res.json({
@@ -1031,6 +1062,98 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Assign unassigned bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Change password for driver
+const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Old password and new password are required" });
+    }
+
+    // Get driver from DB
+    const driver = await prisma.driver.findUnique({
+      where: { id: parseInt(userId) },
+    });
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    // Verify old password
+    const isValidPassword = await bcrypt.compare(oldPassword, driver.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Old password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in DB
+    await prisma.driver.update({
+      where: { id: parseInt(userId) },
+      data: { password: hashedPassword, updatedAt: new Date() },
+    });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Update driver profile
+const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { name, phoneNumber } = req.body;
+
+    if (!name || !phoneNumber) {
+      return res
+        .status(400)
+        .json({ message: "Name and phone number are required" });
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+?[\d\s\-\(\)]+$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      return res.status(400).json({ message: "Invalid phone number format" });
+    }
+
+    // Update driver profile in DB
+    const updatedDriver = await prisma.driver.update({
+      where: { id: parseInt(userId) },
+      data: {
+        name: name.trim(),
+        phoneNumber: phoneNumber.trim(),
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        hotelId: true,
+        createdAt: true,
+        hotel: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+      },
+    });
+
+    res.json({ driver: updatedDriver });
+  } catch (error) {
+    console.error("Update profile error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1052,4 +1175,6 @@ export default {
   assignUnassignedBookings,
   getCurrentDriverLocation,
   getHotelLocation,
+  changePassword,
+  updateProfile,
 };

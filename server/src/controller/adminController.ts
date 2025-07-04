@@ -1394,6 +1394,48 @@ const deleteHotelLocation = async (req: Request, res: Response) => {
   }
 };
 
+// Change admin password
+const changeAdminPassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Old password and new password are required" });
+    }
+
+    // Get admin from DB
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+    });
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Verify old password
+    const isValidPassword = await bcrypt.compare(oldPassword, admin.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Old password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in DB
+    await prisma.admin.update({
+      where: { id: parseInt(userId) },
+      data: { password: hashedPassword, updatedAt: new Date() },
+    });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Change admin password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   getAdminProfile,
@@ -1431,4 +1473,5 @@ export default {
   getBookings,
   getDashboardStats,
   getScheduleBy21Days,
+  changeAdminPassword,
 };

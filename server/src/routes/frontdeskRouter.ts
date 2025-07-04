@@ -2,8 +2,6 @@ import express, { RequestHandler } from "express";
 import { frontdeskAuthMiddleware } from "../middleware/authMiddleware";
 import frontdeskController from "../controller/frontdeskController";
 
-console.log("<<<<< LOADING FRONTDESK ROUTER - V2 >>>>>");
-
 const router = express.Router();
 
 // Public routes
@@ -217,5 +215,12 @@ router.get(
 
 // TODO: Remove this in production
 router.get("/debug/guests", frontdeskController.debugGuests);
+
+// Change password route
+router.put(
+  "/change-password",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.changePassword as RequestHandler
+);
 
 export default router;

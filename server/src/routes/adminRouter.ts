@@ -194,4 +194,11 @@ router.get(
   controller.getDashboardStats as RequestHandler
 );
 
+// Change password route
+router.put(
+  "/change-password",
+  adminAuthMiddleware as RequestHandler,
+  controller.changeAdminPassword as RequestHandler
+);
+
 export default router;

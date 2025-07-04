@@ -4,15 +4,18 @@ import { driverAuthMiddleware } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-router.post(
-  "/login",
-  controller.login as RequestHandler
-);
+router.post("/login", controller.login as RequestHandler);
 
 router.get(
   "/profile",
   driverAuthMiddleware as RequestHandler,
   controller.getProfile as RequestHandler
+);
+
+router.put(
+  "/profile",
+  driverAuthMiddleware as RequestHandler,
+  controller.updateProfile as RequestHandler
 );
 
 router.get(
@@ -101,6 +104,13 @@ router.post(
   "/assign-bookings",
   driverAuthMiddleware as RequestHandler,
   controller.assignUnassignedBookings as RequestHandler
+);
+
+// Change password route
+router.put(
+  "/change-password",
+  driverAuthMiddleware as RequestHandler,
+  controller.changePassword as RequestHandler
 );
 
 export default router;
