@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useDriverProfile } from "@/hooks/use-driver-profile";
+import { useNotifications } from "@/hooks/use-notifications";
 
 export function DriverTopbar({
   onToggleSidebar,
@@ -23,11 +25,14 @@ export function DriverTopbar({
 }) {
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const { profile, loading } = useDriverProfile();
+  const { getUnreadCount } = useNotifications();
+  const notificationCount = getUnreadCount();
 
   const handleSignOut = () => {
     localStorage.removeItem("driverToken");
     localStorage.removeItem("driverLoggedIn");
+    localStorage.removeItem("driverName");
     router.push("/login");
   };
 
@@ -103,8 +108,22 @@ export function DriverTopbar({
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-foreground">Admin User</p>
-                    <p className="text-xs text-foreground/70">admin@shuttle.com</p>
+                    {loading ? (
+                      <>
+                        <p className="text-sm font-medium text-foreground">Loading...</p>
+                        <p className="text-xs text-foreground/70">Please wait</p>
+                      </>
+                    ) : profile ? (
+                      <>
+                        <p className="text-sm font-medium text-foreground">{profile.name}</p>
+                        <p className="text-xs text-foreground/70">{profile.email}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-foreground">Driver</p>
+                        <p className="text-xs text-foreground/70">Not available</p>
+                      </>
+                    )}
                   </div>
                 </Button>
               </DropdownMenuTrigger>

@@ -29,8 +29,9 @@ export function AdminSidebar({
     >
       <div
         className={cn(
-          "p-6 border-b border-slate-200 flex items-center relative",
-          collapsed ? "justify-center" : "space-x-3"
+          "p-3 border-b border-slate-200 flex items-center relative",
+          collapsed ? "justify-center p-5" : "space-x-3"
+          
         )}
       >
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">

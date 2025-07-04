@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import { fetchWithAuth } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
@@ -74,10 +74,11 @@ export default function NewBookingPage() {
     notes: "",
     isParkSleepFly: false,
   });
-  const { toast } = useToast();
+
   const [showQRCode, setShowQRCode] = useState(false);
   const [bookingQRCode, setBookingQRCode] = useState<string>("");
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -86,16 +87,12 @@ export default function NewBookingPage() {
         const data = await response.json();
         setLocations(data.locations);
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch locations. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to fetch locations. Please try again.");
       }
     };
 
     fetchLocations();
-  }, [toast]);
+  }, []);
 
   // Function to handle trip type change
   const handleTripTypeChange = (value: string) => {
@@ -146,42 +143,33 @@ export default function NewBookingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Set loading state
+    setIsSubmitting(true);
+
     // Validate waiver reason if booking is waived
     if (formData.isWaived && !formData.waiverReason.trim()) {
-      toast({
-        title: "Error",
-        description: "Please provide a reason for waiving the booking fee.",
-        variant: "destructive",
-      });
+      toast.error("Please provide a reason for waiving the booking fee.");
+      setIsSubmitting(false);
       return;
     }
 
     // Validate trip type for Park Sleep Fly
     if (guestType === "park-sleep-fly" && !formData.tripType) {
-      toast({
-        title: "Error",
-        description: "Please select a trip direction for your Park, Sleep & Fly package.",
-        variant: "destructive",
-      });
+      toast.error("Please select a trip direction for your Park, Sleep & Fly package.");
+      setIsSubmitting(false);
       return;
     }
 
     // Validate pickup and dropoff locations for Park Sleep Fly
     if (guestType === "park-sleep-fly") {
       if (formData.tripType === "HOTEL_TO_AIRPORT" && !formData.dropoffLocation) {
-        toast({
-          title: "Error",
-          description: "Please select your airport destination.",
-          variant: "destructive",
-        });
+        toast.error("Please select your airport destination.");
+        setIsSubmitting(false);
         return;
       }
       if (formData.tripType === "AIRPORT_TO_HOTEL" && !formData.pickupLocation) {
-        toast({
-          title: "Error",
-          description: "Please select your airport pickup location.",
-          variant: "destructive",
-        });
+        toast.error("Please select your airport pickup location.");
+        setIsSubmitting(false);
         return;
       }
     }
@@ -222,12 +210,9 @@ export default function NewBookingPage() {
 
       const data = await response.json();
 
-      toast({
-        title: "Booking Created",
-        description: formData.isWaived
-          ? "New trip booking has been successfully created with waived fee."
-          : "New trip booking has been successfully created.",
-      });
+      toast.success(formData.isWaived
+        ? "New trip booking has been successfully created with waived fee."
+        : "New trip booking has been successfully created.");
 
       // Show QR code
       if (data.booking.qrCodePath) {
@@ -255,11 +240,9 @@ export default function NewBookingPage() {
         isParkSleepFly: false,
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create booking. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to create booking. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -654,8 +637,15 @@ export default function NewBookingPage() {
               )}
             </div>
 
-            <Button type="submit" className="w-full">
-              Create Booking
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Processing Booking...
+                </>
+              ) : (
+                "Create Booking"
+              )}
             </Button>
           </form>
         </CardContent>

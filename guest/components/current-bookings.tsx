@@ -10,13 +10,15 @@ import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
 import { useWebSocket } from "@/context/WebSocketContext"
 import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
+import { CurrentBookingsSkeleton } from "@/components/ui/skeleton"
 
 interface CurrentBookingsProps {
   bookings: any[]
   onNewBooking: () => void
+  isLoading?: boolean
 }
 
-export default function CurrentBookings({ bookings, onNewBooking }: CurrentBookingsProps) {
+export default function CurrentBookings({ bookings, onNewBooking, isLoading = false }: CurrentBookingsProps) {
   const [showQR, setShowQR] = useState<number | null>(null)
   const [currentBookings, setCurrentBookings] = useState(bookings)
   const { onBookingUpdate } = useWebSocket()
@@ -41,6 +43,11 @@ export default function CurrentBookings({ bookings, onNewBooking }: CurrentBooki
 
     return cleanup
   }, [onBookingUpdate])
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return <CurrentBookingsSkeleton />
+  }
 
   if (!currentBookings || currentBookings.length === 0) {
     return (

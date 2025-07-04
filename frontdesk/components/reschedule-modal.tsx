@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/hooks/use-toast"
+import { toast } from "sonner"
 import { fetchWithAuth } from "@/lib/api"
 import { toUtcIso, getUserTimeZone } from "@/lib/utils"
 
@@ -18,17 +18,13 @@ interface RescheduleModalProps {
 }
 
 export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuccess }: RescheduleModalProps) {
-  const { toast } = useToast()
+
   const [newTime, setNewTime] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   const handleReschedule = async () => {
     if (!newTime) {
-      toast({
-        title: "Error",
-        description: "Please select a new time",
-        variant: "destructive",
-      })
+      toast.error("Please select a new time")
       return
     }
 
@@ -61,20 +57,13 @@ export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuc
         throw new Error(error.error || "Failed to reschedule booking")
       }
       
-      toast({
-        title: "Success",
-        description: "Booking rescheduled successfully",
-      })
+      toast.success("Booking rescheduled successfully")
       onSuccess()
       onClose()
       setNewTime("")
     } catch (error: any) {
       console.error("Error rescheduling booking:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to reschedule booking",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to reschedule booking")
     } finally {
       setIsLoading(false)
     }

@@ -76,10 +76,12 @@ export default function HotelPage() {
   const [activeTab, setActiveTab] = useState("current");
   const [currentBookings, setCurrentBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
 
   // Fetch current bookings from API
   const fetchCurrentBookings = useCallback(async () => {
     try {
+      setIsLoadingBookings(true);
       const response = await api.get('/guest/current-booking');
       if (response.currentBookings && response.currentBookings.length > 0) {
         console.log("Found current bookings from API:", response.currentBookings);
@@ -90,6 +92,8 @@ export default function HotelPage() {
     } catch (error) {
       console.error("Error fetching current bookings:", error);
       setCurrentBookings([]);
+    } finally {
+      setIsLoadingBookings(false);
     }
   }, []);
 
@@ -179,7 +183,13 @@ export default function HotelPage() {
         <div className="max-w-6xl mx-auto px-4">
           <nav className="flex space-x-8">
             <button
-              onClick={() => setActiveTab("current")}
+              onClick={() => {
+                setActiveTab("current");
+                // If no bookings are loaded yet, fetch them
+                if (currentBookings.length === 0 && !isLoadingBookings) {
+                  fetchCurrentBookings();
+                }
+              }}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === "current"
                   ? "border-blue-500 text-blue-600"
@@ -232,6 +242,7 @@ export default function HotelPage() {
           <CurrentBookings
             bookings={currentBookings}
             onNewBooking={() => setActiveTab("new")}
+            isLoading={isLoadingBookings}
           />
         )}
         {activeTab === "new" && (

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 import { fetchWithAuth } from "@/lib/api";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, User, Hash } from "lucide-react";
@@ -62,7 +62,7 @@ interface BookingDetails {
 
 export default function BookingDetailsPage() {
   const params = useParams();
-  const { toast } = useToast();
+
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -76,26 +76,18 @@ export default function BookingDetailsPage() {
         const data = await response.json();
         setBooking(data.booking);
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch booking details. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to fetch booking details. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchBookingDetails();
-  }, [params.id, toast]);
+  }, [params.id]);
 
   const handleCancelBooking = async () => {
     if (!cancellationReason) {
-      toast({
-        title: "Reason required",
-        description: "Please provide a reason for the cancellation.",
-        variant: "destructive",
-      });
+      toast.error("Please provide a reason for the cancellation.");
       return;
     }
 
@@ -108,21 +100,14 @@ export default function BookingDetailsPage() {
         body: JSON.stringify({ reason: cancellationReason }),
       });
 
-      toast({
-        title: "Success",
-        description: "Booking has been cancelled.",
-      });
+      toast.success("Booking has been cancelled.");
       
       setBooking(prev => prev ? { ...prev, isCancelled: true, cancelledBy: 'FRONTDESK', cancellationReason } : null);
       setShowCancelDialog(false);
       setCancellationReason("");
 
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to cancel the booking. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to cancel the booking. Please try again.");
     }
   };
 
@@ -248,7 +233,7 @@ export default function BookingDetailsPage() {
                 </Badge>
                 {booking.isParkSleepFly && (
                   <Badge className="bg-blue-100 text-blue-800 border border-blue-200">
-                    🏨✈️ Pay, Sleep & Fly
+                    🏨✈️ Park, Sleep & Fly
                   </Badge>
                 )}
               </div>
@@ -348,10 +333,10 @@ export default function BookingDetailsPage() {
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">🏨✈️</span>
-                  <p className="text-sm font-medium text-blue-800">Pay, Sleep & Fly Package</p>
+                  <p className="text-sm font-medium text-blue-800">Park, Sleep & Fly Package</p>
                 </div>
                 <p className="text-sm text-blue-700">
-                  This booking is part of our Pay, Sleep & Fly package. 
+                  This booking is part of our Park, Sleep & Fly package. 
                   The guest has pre-paid for their accommodation and shuttle service.
                   This is a premium service that includes both hotel stay and airport shuttle.
                 </p>
