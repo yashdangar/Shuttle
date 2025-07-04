@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/qr-code-display";
 import { toast } from "sonner";
+import { toUtcIso, getUserTimeZone } from "@/lib/utils";
 
 interface NewBookingProps {
   hotel: any;
@@ -156,9 +157,7 @@ export default function NewBooking({
       const tripData = {
         numberOfPersons: formData.numberOfPersons,
         numberOfBags: formData.numberOfBags,
-        preferredTime: new Date(
-          `${formData.createdAt} ${formData.preferredTime}`
-        ),
+        preferredTime: toUtcIso(formData.createdAt, formData.preferredTime),
         paymentMethod: formData.paymentMethod.toUpperCase(),
         tripType:
           tripDirection === "hotel-to-airport"
@@ -243,6 +242,9 @@ export default function NewBooking({
           <CardDescription>
             Fill in the details below to book your shuttle ride
           </CardDescription>
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+            All times will be in your local timezone: <b>{getUserTimeZone()}</b>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs

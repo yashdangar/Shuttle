@@ -9,6 +9,7 @@ import { QRCodeDisplay } from "./qr-code-display"
 import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
 import { useWebSocket } from "@/context/WebSocketContext"
+import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
 
 interface CurrentBookingsProps {
   bookings: any[]
@@ -69,6 +70,11 @@ export default function CurrentBookings({ bookings, onNewBooking }: CurrentBooki
           <Plus className="w-4 h-4 mr-2" />
           New Booking
         </Button>
+      </div>
+
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
 
       {/* Multiple Booking Cards */}
@@ -167,7 +173,7 @@ export default function CurrentBookings({ bookings, onNewBooking }: CurrentBooki
                   <div>
                     <p className="font-medium">Preferred Time</p>
                     <p className="text-sm text-gray-600">
-                      {new Date(booking.preferredTime).toLocaleString()}
+                      {formatDateTimeForDisplay(booking.preferredTime)}
                     </p>
                   </div>
                 </div>

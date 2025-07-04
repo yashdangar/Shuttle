@@ -146,8 +146,8 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
       const scheduleEndTime = new Date(schedule.endTime);
       const currentTime = new Date(); // Current time in server timezone (IST)
       
-      // Convert current time to UTC for comparison
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      // Current time is already UTC-based in Node.js
+      const currentTimeUTC = new Date();
       
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
@@ -403,8 +403,8 @@ export const findAvailableShuttleWithCapacity = async (hotelId: number, numberOf
         const scheduleEndTime = new Date(schedule.endTime);
         const currentTime = new Date(); // Current time in server timezone (IST)
         
-        // Convert current time to UTC for comparison
-        const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+        // Current time is already UTC-based in Node.js
+        const currentTimeUTC = new Date();
         
         console.log(`Schedule ${schedule.id}:`);
         console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
@@ -448,7 +448,7 @@ export const findAvailableShuttleWithCapacity = async (hotelId: number, numberOf
           const scheduleStartTime = new Date(s.startTime);
           const scheduleEndTime = new Date(s.endTime);
           const currentTime = new Date();
-          const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+          const currentTimeUTC = new Date();
           return currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime;
         }).length}`);
         console.log(`=== END SHUTTLE SEARCH - FOUND ===`);

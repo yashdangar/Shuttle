@@ -136,7 +136,7 @@ function BookingsSkeleton() {
 
 export default function BookingsPage() {
   const { toast } = useToast();
-  const { socket, isConnected } = useWebSocket();
+  const { socket, isConnected, markUserInteraction } = useWebSocket();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReschedule, setShowReschedule] = useState(false);
@@ -165,6 +165,11 @@ export default function BookingsPage() {
   useEffect(() => {
     fetchBookings();
   }, [toast]);
+
+  // Mark user interaction on component mount to enable audio
+  useEffect(() => {
+    markUserInteraction();
+  }, [markUserInteraction]);
 
   // WebSocket event listeners for live updates
   useEffect(() => {

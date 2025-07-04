@@ -13,6 +13,7 @@ import LocationTracker from "@/components/location-tracker";
 import DriverRouteMap from "@/components/driver-route-map";
 import { useWebSocket } from "@/context/WebSocketContext";
 import Link from "next/link";
+import { getUserTimeZone } from "@/lib/utils";
 
 export default function CurrentTripPage() {
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -193,6 +194,11 @@ export default function CurrentTripPage() {
 
   return (
     <div className="space-y-6">
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

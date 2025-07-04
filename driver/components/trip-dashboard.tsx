@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { WsEvents } from "@/context/WebSocketContext";
+import { formatTimeForDisplay, getUserTimeZone } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -712,11 +713,11 @@ export default function TripDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium">
-                      {new Date(booking.preferredTime).toLocaleTimeString()}
+                      {formatTimeForDisplay(booking.preferredTime)}
                     </p>
                     <p className="text-xs text-gray-500">
                       Assigned{" "}
-                      {new Date(booking.assignedAt).toLocaleTimeString()}
+                      {formatTimeForDisplay(booking.assignedAt)}
                     </p>
                   </div>
                 </div>
@@ -725,6 +726,11 @@ export default function TripDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+      </div>
 
       {/* Available Trips */}
       {availableTrips.length > 0 && (
@@ -755,8 +761,8 @@ export default function TripDashboard() {
                         passengers • {trip.totalBags} bags
                       </p>
                       <p className="text-xs text-gray-500">
-                        {new Date(trip.earliestTime).toLocaleTimeString()} -{" "}
-                        {new Date(trip.latestTime).toLocaleTimeString()}
+                        {formatTimeForDisplay(trip.earliestTime)} -{" "}
+                        {formatTimeForDisplay(trip.latestTime)}
                       </p>
                     </div>
                   </div>
@@ -809,8 +815,8 @@ export default function TripDashboard() {
                       </p>
                       <p className="text-xs text-gray-500">
                         {new Date(trip.startTime).toLocaleDateString()}{" "}
-                        {new Date(trip.startTime).toLocaleTimeString()} -{" "}
-                        {new Date(trip.endTime).toLocaleTimeString()}
+                        {formatTimeForDisplay(trip.startTime)} -{" "}
+                        {formatTimeForDisplay(trip.endTime)}
                       </p>
                     </div>
                   </div>

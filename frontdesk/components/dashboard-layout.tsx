@@ -47,7 +47,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { notifications, isConnected } = useWebSocket();
+  const { notifications, isConnected, markUserInteraction } = useWebSocket();
 
   const handleSignOut = () => {
     localStorage.removeItem("frontdeskToken");
@@ -55,6 +55,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // Mark user interaction on component mount to enable audio
+  useEffect(() => {
+    markUserInteraction();
+  }, [markUserInteraction]);
 
   return (
     <div className="min-h-screen bg-gray-50">

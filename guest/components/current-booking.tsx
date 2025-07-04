@@ -9,6 +9,7 @@ import { QRCodeDisplay } from "./qr-code-display"
 import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
 import { useWebSocket } from "@/context/WebSocketContext"
+import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
 
 interface CurrentBookingProps {
   booking: any
@@ -109,6 +110,11 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
 
   return (
     <div className="space-y-6">
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+      </div>
+
       {/* Main Booking Card */}
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
@@ -203,9 +209,9 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
                 <Clock className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="font-medium">Preferred Time</p>
-                  <p className="text-sm text-gray-600">
-                    {new Date(currentBooking.preferredTime).toLocaleString()}
-                  </p>
+                                      <p className="text-sm text-gray-600">
+                      {formatDateTimeForDisplay(currentBooking.preferredTime)}
+                    </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
@@ -254,7 +260,7 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
           <CardTitle className="text-lg">Live Tracking</CardTitle>
           {lastUpdate && (
             <CardDescription>
-              Last updated: {lastUpdate.toLocaleTimeString()}
+              Last updated: {lastUpdate.toLocaleTimeString()} ({getUserTimeZone()})
             </CardDescription>
           )}
         </CardHeader>

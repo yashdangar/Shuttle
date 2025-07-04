@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { BookingsSkeleton } from "@/components/booking-skeleton";
 import { BookingDetailsModal } from "@/components/booking-details-modal";
+import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils";
 import { 
   Search, 
   Filter, 
@@ -187,13 +188,7 @@ function BookingsPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatDateTimeForDisplay(dateString);
   };
 
   if (loading) {
@@ -202,6 +197,11 @@ function BookingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
         <p className="text-gray-600">Manage and view all shuttle bookings</p>

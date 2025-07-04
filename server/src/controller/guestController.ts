@@ -151,7 +151,7 @@ const createTrip = async (req: Request, res: Response) => {
       data: {
         numberOfPersons,
         numberOfBags,
-        preferredTime: new Date(preferredTime),
+        preferredTime: preferredTime ? new Date(preferredTime) : null,
         paymentMethod: paymentMethod as PaymentMethod,
         bookingType:
           tripType === "HOTEL_TO_AIRPORT"

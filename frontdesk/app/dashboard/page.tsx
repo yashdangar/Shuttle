@@ -82,26 +82,9 @@ export default function DashboardPage() {
     totalPendingBookings: 0,
   });
 
-  // Track user interaction to enable audio playback
+  // Mark user interaction on component mount to enable audio
   useEffect(() => {
-    const handleUserInteraction = () => {
-      markUserInteraction();
-      // Remove event listeners after first interaction
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-    };
-
-    // Add event listeners for user interaction
-    document.addEventListener('click', handleUserInteraction);
-    document.addEventListener('keydown', handleUserInteraction);
-    document.addEventListener('touchstart', handleUserInteraction);
-
-    return () => {
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-    };
+    markUserInteraction();
   }, [markUserInteraction]);
 
   const fetchDashboardData = useCallback(async () => {

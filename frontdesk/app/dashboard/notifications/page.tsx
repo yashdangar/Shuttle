@@ -23,11 +23,16 @@ interface Notification {
 function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { notifications, refreshNotifications } = useWebSocket();
+  const { notifications, refreshNotifications, markUserInteraction } = useWebSocket();
 
   useEffect(() => {
     refreshNotifications().finally(() => setLoading(false));
   }, [refreshNotifications]);
+
+  // Mark user interaction on component mount to enable audio
+  useEffect(() => {
+    markUserInteraction();
+  }, [markUserInteraction]);
 
   const markAsRead = async (id: number) => {
     try {

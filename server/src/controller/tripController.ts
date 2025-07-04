@@ -37,21 +37,16 @@ const startTrip = async (req: Request, res: Response) => {
     // Find the currently active schedule using UTC time comparison
     let currentSchedule = null;
     for (const schedule of schedules) {
-      // The schedule times are stored as UTC, so we need to compare with current UTC time
-      const scheduleStartTime = new Date(schedule.startTime);
-      const scheduleEndTime = new Date(schedule.endTime);
-      const currentTime = new Date(); // Current time in server timezone (IST)
-      
-      // Convert current time to UTC for comparison
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      // Current time is already UTC-based in Node.js
+      const currentTimeUTC = new Date();
       
       console.log(`Schedule ${schedule.id}:`);
-      console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
-      console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
+      console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
+      console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
-      console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
+      console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
       
-      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         currentSchedule = schedule;
         break;
@@ -740,21 +735,16 @@ const getAvailableTrips = async (req: Request, res: Response) => {
     // Find the currently active schedule using UTC time comparison
     let currentSchedule = null;
     for (const schedule of schedules) {
-      // The schedule times are stored as UTC, so we need to compare with current UTC time
-      const scheduleStartTime = new Date(schedule.startTime);
-      const scheduleEndTime = new Date(schedule.endTime);
-      const currentTime = new Date(); // Current time in server timezone (IST)
-      
-      // Convert current time to UTC for comparison
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      // Current time is already UTC-based in Node.js
+      const currentTimeUTC = new Date();
       
       console.log(`Schedule ${schedule.id}:`);
-      console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
-      console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
+      console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
+      console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
-      console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
+      console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
       
-      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         currentSchedule = schedule;
         break;
@@ -1328,21 +1318,16 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
     // Find active schedule using UTC time comparison
     let activeSchedule = null;
     for (const schedule of allSchedules) {
-      // The schedule times are stored as UTC, so we need to compare with current UTC time
-      const scheduleStartTime = new Date(schedule.startTime);
-      const scheduleEndTime = new Date(schedule.endTime);
-      const currentTime = new Date(); // Current time in server timezone (IST)
-      
-      // Convert current time to UTC for comparison
-      const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
+      // Current time is already UTC-based in Node.js
+      const currentTimeUTC = new Date();
       
       console.log(`Schedule ${schedule.id}:`);
-      console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
-      console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
+      console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
+      console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
-      console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
+      console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
       
-      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         activeSchedule = schedule;
         break;

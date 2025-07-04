@@ -376,7 +376,7 @@ const createBooking = async (req: Request, res: Response) => {
     const bookingData: any = {
       numberOfPersons: numberOfPersons ? parseInt(numberOfPersons) : 1,
       numberOfBags: numberOfBags ? parseInt(numberOfBags) : 0,
-      preferredTime: new Date(preferredTime),
+      preferredTime: preferredTime ? new Date(preferredTime) : null,
       paymentMethod: paymentMethod as PaymentMethod,
       bookingType: (tripType === "HOTEL_TO_AIRPORT"
         ? "HOTEL_TO_AIRPORT"
@@ -1849,10 +1849,8 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
         const scheduleEndTime = new Date(schedule.endTime);
         const currentTime = new Date(); // Current time in server timezone (IST)
 
-        // Convert current time to UTC for comparison
-        const currentTimeUTC = new Date(
-          currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
-        );
+        // Current time is already UTC-based in Node.js
+        const currentTimeUTC = new Date();
 
         if (
           currentTimeUTC >= scheduleStartTime &&
@@ -2052,9 +2050,7 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
       const scheduleStartTime = new Date(schedule.startTime);
       const scheduleEndTime = new Date(schedule.endTime);
       const currentTime = new Date();
-      const currentTimeUTC = new Date(
-        currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
-      );
+      const currentTimeUTC = new Date();
 
       const isActive =
         currentTimeUTC >= scheduleStartTime &&
@@ -2074,9 +2070,7 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
     });
 
     const currentTime = new Date();
-    const currentTimeUTC = new Date(
-      currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
-    );
+    const currentTimeUTC = new Date();
 
     res.json({
       shuttle: {

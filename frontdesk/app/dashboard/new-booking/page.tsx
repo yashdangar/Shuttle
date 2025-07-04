@@ -21,6 +21,7 @@ import { useToast } from "@/components/hooks/use-toast";
 import { jwtDecode } from "jwt-decode";
 import { fetchWithAuth } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
+import { getUserTimeZone } from "@/lib/utils";
 
 interface Location {
   id: number;
@@ -217,6 +218,9 @@ export default function NewBookingPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">New Trip Booking</h1>
         <p className="text-gray-600">Create a new shuttle booking for guests</p>
+        <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 mt-2">
+          All times will be in your local timezone: <b>{getUserTimeZone()}</b>
+        </div>
       </div>
 
       <Card>

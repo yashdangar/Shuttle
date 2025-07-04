@@ -19,6 +19,7 @@ import {
   XCircle
 } from "lucide-react";
 import { useState } from "react";
+import { formatTimeForDisplay, getUserTimeZone } from "@/lib/utils";
 
 interface Guest {
   id: number;
@@ -77,11 +78,7 @@ export default function PendingBookingsCard({
 
   const formatTime = (timeString: string) => {
     if (!timeString) return "N/A";
-    return new Date(timeString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    return formatTimeForDisplay(timeString);
   };
 
   const formatDate = (dateString: string) => {
@@ -172,6 +169,9 @@ export default function PendingBookingsCard({
               <div className="text-sm text-gray-600">
                 <div>From: {formatDate(timeRange.from)} {formatTime(timeRange.from)}</div>
                 <div>To: {formatDate(timeRange.to)} {formatTime(timeRange.to)}</div>
+                <div className="text-xs text-blue-700 mt-1">
+                  All times in local timezone: <b>{getUserTimeZone()}</b>
+                </div>
               </div>
             </div>
 

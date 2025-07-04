@@ -17,6 +17,7 @@ import { QRCodeDisplay } from "./qr-code-display"
 import { RescheduleModal } from "./reschedule-modal"
 import { toast } from "sonner"
 import { useWebSocket } from "@/context/WebSocketContext"
+import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
 
 export default function BookingHistory() {
   const [bookings, setBookings] = useState<any[]>([])
@@ -92,7 +93,7 @@ export default function BookingHistory() {
   }
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+    return formatDateTimeForDisplay(dateString)
   }
 
   const handleShowQR = (booking: any) => {
@@ -231,6 +232,11 @@ export default function BookingHistory() {
 
   return (
     <div className="space-y-4">
+      {/* Timezone Info */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+      </div>
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Booking History</h2>
         <p className="text-gray-600">{bookings.length} total bookings</p>

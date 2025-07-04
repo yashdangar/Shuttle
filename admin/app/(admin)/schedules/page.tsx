@@ -57,6 +57,7 @@ import { withAuth } from "@/components/withAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { getUserTimeZone } from "@/lib/utils";
 
 interface Schedule {
   id: string;
@@ -178,7 +179,7 @@ function SchedulesPage() {
   };
 
   // Get user's timezone info
-  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const userTimeZone = getUserTimeZone();
   const getTimeZoneAbbr = (date: Date) => {
     // Try to get abbreviation (e.g., 'EDT')
     return date
@@ -420,7 +421,7 @@ function SchedulesPage() {
 
       const [driversRes, shuttlesRes] = await Promise.all([
         api.get("/admin/get/driver"),
-        api.get("ye/admin/get/shuttle"),
+        api.get("/admin/get/shuttle"),
       ]);
 
       setDrivers(driversRes.drivers);
@@ -850,8 +851,7 @@ function SchedulesPage() {
   return (
     <>
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
-        All times shown in your local timezone: <b>{userTimeZone}</b> (
-        {getTimeZoneAbbr(new Date())})
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
