@@ -15,16 +15,18 @@ export const api = {
         headers,
       }
     );
+
     const data = await response.json();
-    // console.log(data);
+
     if (data.message === "Invalid token") {
       localStorage.removeItem("adminToken");
       window.location.href = "/login";
     }
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "API request failed");
+      throw new Error(data.message || "API request failed");
     }
+
     return data;
   },
 

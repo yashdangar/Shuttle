@@ -223,4 +223,15 @@ router.put(
   frontdeskController.changePassword as RequestHandler
 );
 
+// Forgot password routes
+router.post(
+  "/forgot-password",
+  frontdeskController.forgotPassword as RequestHandler
+);
+router.post("/verify-otp", frontdeskController.verifyOtp as RequestHandler);
+router.post(
+  "/reset-password",
+  frontdeskController.resetPassword as RequestHandler
+);
+
 export default router;

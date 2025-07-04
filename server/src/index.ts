@@ -57,12 +57,12 @@ app.use("/driver", driverRouter);
 app.use("/super-admin", superAdminRouter);
 app.use("/trips", tripRouter);
 
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Error handling middleware
 app.use(
   (
     err: any,

@@ -5,6 +5,7 @@ import prisma from "../db/prisma";
 import { env } from "../config/env";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
+import { randomInt } from "crypto";
 
 const signup = async (req: Request, res: Response) => {
   try {
@@ -1192,11 +1193,14 @@ const getDashboardStats = async (req: Request, res: Response) => {
     ).length;
 
     // Get hotel-wise booking counts
-    const hotelBookings = bookings.reduce((acc, booking) => {
-      const hotelName = booking.guest.hotel?.name || "Unknown Hotel";
-      acc[hotelName] = (acc[hotelName] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const hotelBookings = bookings.reduce(
+      (acc, booking) => {
+        const hotelName = booking.guest.hotel?.name || "Unknown Hotel";
+        acc[hotelName] = (acc[hotelName] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     // Get total hotels managed by this admin (should be 1 since admin is assigned to one hotel)
     const hotels = await prisma.hotel.findMany({
@@ -1436,6 +1440,101 @@ const changeAdminPassword = async (req: Request, res: Response) => {
   }
 };
 
+const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+    // Generate OTP
+    const otpCode = randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+    // Always set attempts to 0 for a new OTP
+    await prisma.otp.create({
+      data: { email, code: otpCode, expiresAt, attempts: 0 },
+    });
+    // TODO: Implement sendEmail function to actually send the OTP
+    // await sendEmail(email, `Your OTP is: ${otpCode}`);
+    res.json({ message: "OTP sent to email (if registered)." });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const verifyOtp = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
+    // Get latest OTP for this email
+    const latestOtp = await prisma.otp.findFirst({
+      where: { email },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!latestOtp) {
+      return res
+        .status(400)
+        .json({ message: "No OTP found. Please request a new one." });
+    }
+    if (latestOtp.isUsed) {
+      return res.status(400).json({ message: "OTP already used" });
+    }
+    if (latestOtp.expiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+    if (latestOtp.code !== otp) {
+      await prisma.otp.update({
+        where: { id: latestOtp.id },
+        data: { attempts: latestOtp.attempts + 1 },
+      });
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+    // Mark as used and successful
+    await prisma.otp.update({
+      where: { id: latestOtp.id },
+      data: { isUsed: true, attempts: latestOtp.attempts + 1 },
+    });
+    res.json({ message: "OTP verified" });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Email and new password are required" });
+    }
+    // Get latest OTP for this email
+    const latestOtp = await prisma.otp.findFirst({
+      where: { email },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!latestOtp || !latestOtp.isUsed || latestOtp.expiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP not verified or expired" });
+    }
+    // Update password for admin (if exists)
+    const admin = await prisma.admin.findUnique({ where: { email } });
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.admin.update({
+      where: { email },
+      data: { password: hashedPassword, updatedAt: new Date() },
+    });
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 export default {
   getAdmin,
   getAdminProfile,
@@ -1474,4 +1573,7 @@ export default {
   getDashboardStats,
   getScheduleBy21Days,
   changeAdminPassword,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 };

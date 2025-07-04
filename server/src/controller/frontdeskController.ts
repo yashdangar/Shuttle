@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../db/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomInt } from "crypto";
 import { env } from "../config/env";
 import { PaymentMethod, BookingType } from "@prisma/client";
 import {
@@ -376,7 +377,7 @@ const createBooking = async (req: Request, res: Response) => {
 
     // Handle guest creation or assignment
     let guestId: number;
-    
+
     if (guestType === "resident" && email) {
       // For residents, find existing guest by email
       console.log(`Looking for existing resident with email: ${email}`);
@@ -396,7 +397,10 @@ const createBooking = async (req: Request, res: Response) => {
           message: "Resident not found. Please check the email address.",
         });
       }
-    } else if ((guestType === "non-resident" || guestType === "park-sleep-fly") && email) {
+    } else if (
+      (guestType === "non-resident" || guestType === "park-sleep-fly") &&
+      email
+    ) {
       // For non-residents and park-sleep-fly, find or create guest
       console.log(`Looking for existing guest with email: ${email}`);
       let guest = await prisma.guest.findFirst({
@@ -2498,6 +2502,130 @@ const changePassword = async (req: Request, res: Response) => {
   }
 };
 
+// Forgot password for frontdesk
+const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Check if frontdesk exists
+    const frontdesk = await prisma.frontDesk.findUnique({
+      where: { email },
+    });
+
+    if (!frontdesk) {
+      return res.status(404).json({ message: "Frontdesk user not found" });
+    }
+
+    // Generate OTP
+    const otpCode = randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+
+    // Always set attempts to 0 for a new OTP
+    await prisma.otp.create({
+      data: { email, code: otpCode, expiresAt, attempts: 0 },
+    });
+
+    // TODO: Implement sendEmail function to actually send the OTP
+    // await sendEmail(email, `Your OTP is: ${otpCode}`);
+
+    res.json({ message: "OTP sent to email (if registered)." });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Verify OTP for frontdesk
+const verifyOtp = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
+
+    // Get latest OTP for this email
+    const latestOtp = await prisma.otp.findFirst({
+      where: { email },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!latestOtp) {
+      return res
+        .status(400)
+        .json({ message: "No OTP found. Please request a new one." });
+    }
+
+    if (latestOtp.isUsed) {
+      return res.status(400).json({ message: "OTP already used" });
+    }
+
+    if (latestOtp.expiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    if (latestOtp.code !== otp) {
+      await prisma.otp.update({
+        where: { id: latestOtp.id },
+        data: { attempts: latestOtp.attempts + 1 },
+      });
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Mark as used and successful
+    await prisma.otp.update({
+      where: { id: latestOtp.id },
+      data: { isUsed: true, attempts: latestOtp.attempts + 1 },
+    });
+
+    res.json({ message: "OTP verified" });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Reset password for frontdesk
+const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Email and new password are required" });
+    }
+
+    // Get latest OTP for this email
+    const latestOtp = await prisma.otp.findFirst({
+      where: { email },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!latestOtp || !latestOtp.isUsed || latestOtp.expiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP not verified or expired" });
+    }
+
+    // Update password for frontdesk (if exists)
+    const frontdesk = await prisma.frontDesk.findUnique({ where: { email } });
+    if (!frontdesk) {
+      return res.status(404).json({ message: "Frontdesk user not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.frontDesk.update({
+      where: { email },
+      data: { password: hashedPassword, updatedAt: new Date() },
+    });
+
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -2535,4 +2663,7 @@ export default {
   getLiveShuttleData,
   getPendingBookingsLastHour,
   changePassword,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 };

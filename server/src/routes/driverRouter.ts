@@ -113,4 +113,9 @@ router.put(
   controller.changePassword as RequestHandler
 );
 
+// Forgot password routes
+router.post("/forgot-password", controller.forgotPassword as RequestHandler);
+router.post("/verify-otp", controller.verifyOtp as RequestHandler);
+router.post("/reset-password", controller.resetPassword as RequestHandler);
+
 export default router;
