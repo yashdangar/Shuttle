@@ -21,7 +21,7 @@ import { useToast } from "@/components/hooks/use-toast";
 import { jwtDecode } from "jwt-decode";
 import { fetchWithAuth } from "@/lib/api";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
-import { getUserTimeZone } from "@/lib/utils";
+import { getUserTimeZone, toUtcIso } from "@/lib/utils";
 
 interface Location {
   id: number;
@@ -45,12 +45,24 @@ export default function NewBookingPage() {
     "resident" | "non-resident" | "park-sleep-fly"
   >("resident");
   const [locations, setLocations] = useState<Location[]>([]);
+  
+  // Get current local date and time for the datetime-local input
+  const getCurrentLocalDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const [formData, setFormData] = useState({
     numberOfPersons: "",
     numberOfBags: "",
     pickupLocation: "",
     dropoffLocation: "",
-    preferredTime: new Date().toISOString().slice(0, 16),
+    preferredTime: getCurrentLocalDateTime(),
     tripType: "",
     paymentMethod: "",
     email: "",
@@ -113,14 +125,15 @@ export default function NewBookingPage() {
   const handleGuestTypeChange = (value: string) => {
     setGuestType(value as "resident" | "non-resident" | "park-sleep-fly");
 
-    // Auto-set trip type for Park Sleep Fly
+    // For Park Sleep Fly, don't auto-set trip type - let user choose
     if (value === "park-sleep-fly") {
       setFormData({
         ...formData,
-        tripType: "AIRPORT_TO_HOTEL",
-        pickupLocation: "", // Will be set from locations
-        dropoffLocation: "Hotel Lobby", // Fixed dropoff location
         isParkSleepFly: true,
+        // Don't auto-set trip type - let user choose
+        tripType: "",
+        pickupLocation: "",
+        dropoffLocation: "",
       });
     } else {
       setFormData({
@@ -143,6 +156,36 @@ export default function NewBookingPage() {
       return;
     }
 
+    // Validate trip type for Park Sleep Fly
+    if (guestType === "park-sleep-fly" && !formData.tripType) {
+      toast({
+        title: "Error",
+        description: "Please select a trip direction for your Park, Sleep & Fly package.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate pickup and dropoff locations for Park Sleep Fly
+    if (guestType === "park-sleep-fly") {
+      if (formData.tripType === "HOTEL_TO_AIRPORT" && !formData.dropoffLocation) {
+        toast({
+          title: "Error",
+          description: "Please select your airport destination.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (formData.tripType === "AIRPORT_TO_HOTEL" && !formData.pickupLocation) {
+        toast({
+          title: "Error",
+          description: "Please select your airport pickup location.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem("frontdeskToken");
       if (!token) {
@@ -150,10 +193,17 @@ export default function NewBookingPage() {
       }
 
       const decoded = jwtDecode<DecodedToken>(token);
+      
+      // Convert local datetime to UTC for server
+      const [dateStr, timeStr] = formData.preferredTime.split('T');
+      const preferredTimeUtc = toUtcIso(dateStr, timeStr);
+      
       const bookingData = {
         ...formData,
+        preferredTime: preferredTimeUtc, // Send UTC time to server
         isNonResident: guestType === "non-resident",
         isParkSleepFly: guestType === "park-sleep-fly",
+        guestType: guestType, // Send guest type to backend
         hotelId: decoded.hotelId,
         pickupLocationId:
           formData.tripType === "HOTEL_TO_AIRPORT"
@@ -192,7 +242,7 @@ export default function NewBookingPage() {
         numberOfBags: "",
         pickupLocation: "",
         dropoffLocation: "",
-        preferredTime: new Date().toISOString().slice(0, 16),
+        preferredTime: getCurrentLocalDateTime(),
         tripType: "",
         paymentMethod: "",
         email: "",
@@ -327,8 +377,7 @@ export default function NewBookingPage() {
                   </p>
                   <p className="text-sm text-blue-600">
                     This booking is for guests who have purchased our Park,
-                    Sleep & Fly package. Trip direction is automatically set to
-                    Airport to Hotel.
+                    Sleep & Fly package. You can choose either Hotel to Airport or Airport to Hotel direction.
                   </p>
                 </div>
 
@@ -430,6 +479,9 @@ export default function NewBookingPage() {
                   disabled
                   className="bg-gray-100"
                 />
+                <p className="text-sm text-gray-500">
+                  Time shown in your local timezone: {getUserTimeZone()}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Trip Type *</Label>
@@ -437,7 +489,6 @@ export default function NewBookingPage() {
                   value={formData.tripType}
                   onValueChange={handleTripTypeChange}
                   required
-                  disabled={guestType === "park-sleep-fly"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select trip type" />
@@ -453,8 +504,7 @@ export default function NewBookingPage() {
                 </Select>
                 {guestType === "park-sleep-fly" ? (
                   <p className="text-sm text-blue-600">
-                    Trip type is automatically set to Airport to Hotel for Park,
-                    Sleep & Fly packages.
+                    Choose the direction for your Park, Sleep & Fly package trip.
                   </p>
                 ) : (
                   <p className="text-sm text-gray-500">
@@ -474,10 +524,7 @@ export default function NewBookingPage() {
                     setFormData({ ...formData, pickupLocation: value })
                   }
                   required
-                  disabled={
-                    formData.tripType === "HOTEL_TO_AIRPORT" ||
-                    guestType === "park-sleep-fly"
-                  }
+                  disabled={formData.tripType === "HOTEL_TO_AIRPORT"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pickup location" />
@@ -495,8 +542,7 @@ export default function NewBookingPage() {
                 </Select>
                 {guestType === "park-sleep-fly" && (
                   <p className="text-sm text-blue-600">
-                    Pickup location will be set based on the guest's flight
-                    details.
+                    Select the pickup location for your Park, Sleep & Fly trip.
                   </p>
                 )}
               </div>

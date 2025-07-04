@@ -65,7 +65,7 @@ interface Booking {
   createdAt: string;
   updatedAt: string;
   notes?: string;
-  isPaySleepFly?: boolean;
+  isParkSleepFly?: boolean;
   shuttle?: {
     id: string;
     vehicleNumber: string;
@@ -196,7 +196,7 @@ export function BookingDetailsModal({ booking }: BookingDetailsModalProps) {
                     {booking.guest.isNonResident ? "Non-Resident" : "Resident"}
                   </Badge>
                 </div>
-                {booking.isPaySleepFly && (
+                {booking.isParkSleepFly && (
                   <div>
                     <p className="text-sm font-medium text-gray-600">Package</p>
                     <Badge variant="default" className="bg-blue-100 text-blue-800">
@@ -399,7 +399,7 @@ export function BookingDetailsModal({ booking }: BookingDetailsModalProps) {
           )}
 
           {/* Pay Sleep Fly Information */}
-          {booking.isPaySleepFly && (
+          {booking.isParkSleepFly && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
