@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Edit,
   Save,
@@ -51,7 +51,7 @@ function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<FrontdeskProfile | null>(null);
   const [hotelData, setHotelData] = useState<HotelData | null>(null);
-  const { toast } = useToast();
+
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -70,18 +70,14 @@ function ProfilePage() {
         setHotelData(data.hotel);
       } catch (error) {
         console.error("Error fetching profile data:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load profile data. Please try again.",
-          variant: "destructive",
-        });
+        toast.error("Failed to load profile data. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfileData();
-  }, [toast]);
+  }, []);
 
   const handleSave = async () => {
     if (!profileData) return;
@@ -103,17 +99,10 @@ function ProfilePage() {
       }
 
       setIsEditing(false);
-      toast({
-        title: "Profile Updated",
-        description: "Your profile information has been successfully updated.",
-      });
+      toast.success("Your profile information has been successfully updated.");
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to update profile. Please try again.");
     }
   };
 
@@ -124,17 +113,11 @@ function ProfilePage() {
 
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      toast({
-        title: "All fields are required",
-        variant: "destructive",
-      });
+      toast.error("All fields are required");
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({
-        title: "Passwords do not match",
-        variant: "destructive",
-      });
+      toast.error("Passwords do not match");
       return;
     }
     setChanging(true);
@@ -152,20 +135,13 @@ function ProfilePage() {
         throw new Error(errorData.message || "Failed to change password");
       }
 
-      toast({
-        title: "Password changed successfully",
-        description: "Your password has been updated.",
-      });
+      toast.success("Your password has been updated.");
       setShowChangePassword(false);
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to change password.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to change password.");
     } finally {
       setChanging(false);
     }

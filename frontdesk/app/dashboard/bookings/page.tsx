@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import {
@@ -136,7 +136,6 @@ function BookingsSkeleton() {
 }
 
 export default function BookingsPage() {
-  const { toast } = useToast();
   const { socket, isConnected, markUserInteraction } = useWebSocket();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,11 +153,7 @@ export default function BookingsPage() {
       const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch bookings. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to fetch bookings. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -167,7 +162,7 @@ export default function BookingsPage() {
   // Initial fetch
   useEffect(() => {
     fetchBookings();
-  }, [toast]);
+  }, []);
 
   // Mark user interaction on component mount to enable audio
   useEffect(() => {
@@ -219,9 +214,7 @@ export default function BookingsPage() {
             ? `Confirmation: ${completeBooking.confirmationNum}`
             : 'Guest';
         
-        toast({
-          title: "New Booking Received",
-          description: `${guestName} has made a new booking`,
+        toast.success(`${guestName} has made a new booking`, {
           duration: 4000,
         });
         
@@ -324,21 +317,14 @@ export default function BookingsPage() {
         reason: reason,
       });
 
-      toast({
-        title: "Success",
-        description: "Booking cancelled successfully",
-      });
+      toast.success("Booking cancelled successfully");
 
       // Refresh the bookings list
       const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error: any) {
       console.error("Error cancelling booking:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to cancel booking",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to cancel booking");
       throw error; // Re-throw to let the modal handle the error state
     }
   };
@@ -354,21 +340,14 @@ export default function BookingsPage() {
         reason: "Verified by frontdesk from bookings list",
       });
 
-      toast({
-        title: "Success",
-        description: "Booking verified and assigned to shuttle successfully",
-      });
+      toast.success("Booking verified and assigned to shuttle successfully");
 
       // Refresh the bookings list
       const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error: any) {
       console.error("Error verifying booking:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to verify booking",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to verify booking");
     }
   };
 
@@ -378,21 +357,14 @@ export default function BookingsPage() {
         reason: "Rejected by frontdesk",
       });
 
-      toast({
-        title: "Success",
-        description: "Booking rejected successfully",
-      });
+      toast.success("Booking rejected successfully");
 
       // Refresh the bookings list
       const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
     } catch (error: any) {
       console.error("Error rejecting booking:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to reject booking",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to reject booking");
     }
   };
 
@@ -533,7 +505,7 @@ export default function BookingsPage() {
                                 {guestInfo.display}
                                 {booking.isParkSleepFly && (
                                   <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                    🏨✈️ Pay, Sleep & Fly
+                                    🏨✈️ Park, Sleep & Fly
                                   </span>
                                 )}
                               </p>

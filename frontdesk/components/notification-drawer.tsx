@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,7 @@ interface NotificationDrawerProps {
 export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const { toast } = useToast();
+
   const { notifications, refreshNotifications } = useWebSocket();
   const router = useRouter();
 
@@ -67,20 +67,13 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
         throw new Error("Failed to mark notification as read");
       }
 
-      toast({
-        title: "Marked as read",
-        description: "Notification has been marked as read.",
-      });
+      toast.success("Notification has been marked as read.");
       
       // Refresh notifications to update the list
       await refreshNotifications();
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      toast({
-        title: "Error",
-        description: "Failed to mark notification as read. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to mark notification as read. Please try again.");
     }
   };
 
@@ -94,20 +87,13 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
         throw new Error("Failed to delete notification");
       }
 
-      toast({
-        title: "Notification deleted",
-        description: "Notification has been removed.",
-      });
+      toast.success("Notification has been removed.");
       
       // Refresh notifications to update the list
       await refreshNotifications();
     } catch (error) {
       console.error("Error deleting notification:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete notification. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to delete notification. Please try again.");
     }
   };
 

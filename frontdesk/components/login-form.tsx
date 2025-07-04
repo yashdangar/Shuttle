@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { useEffect } from "react";
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -17,7 +17,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
+
 
   useEffect(() => {
     const token = localStorage.getItem("frontdeskToken");
@@ -47,26 +47,15 @@ export function LoginForm() {
         // Store token in localStorage
         localStorage.setItem("frontdeskToken", data.token);
 
-        toast({
-          title: "Login successful",
-          description: "Welcome to FrontDesk Dashboard",
-        });
+        toast.success("Welcome to FrontDesk Dashboard");
 
         router.push("/dashboard");
       } else {
-        toast({
-          title: "Login failed",
-          description: data.message || "Please enter valid credentials",
-          variant: "destructive",
-        });
+        toast.error(data.message || "Please enter valid credentials");
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }

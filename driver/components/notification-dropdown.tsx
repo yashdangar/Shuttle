@@ -2,42 +2,34 @@
 
 import { Bell, CheckCircle, AlertTriangle, Info, Clock } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCallback } from "react";
+import { useNotifications } from "@/hooks/use-notifications";
 
-const recentNotifications = [
-  {
-    id: 1,
-    title: "New Trip Assigned",
-    message: "You have been assigned to Trip #1234",
-    time: "5 minutes ago",
-    type: "info",
-    read: false,
-  },
-  {
-    id: 2,
-    title: "Trip Reminder",
-    message: "Your next trip starts in 30 minutes",
-    time: "1 hour ago",
-    type: "warning",
-    read: false,
-  },
-  {
-    id: 3,
-    title: "System Update",
-    message: "New features have been added to the dashboard",
-    time: "2 hours ago",
-    type: "success",
-    read: true,
-  },
-];
+// Helper function to determine notification type based on title/message
+const getNotificationType = (title: string, message: string) => {
+  const lowerTitle = title.toLowerCase();
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerTitle.includes("success") || lowerTitle.includes("confirmed") || lowerMessage.includes("successfully")) {
+    return "success";
+  } else if (lowerTitle.includes("warning") || lowerTitle.includes("alert") || lowerTitle.includes("traffic") || lowerTitle.includes("delay")) {
+    return "warning";
+  } else {
+    return "info";
+  }
+};
 
 interface NotificationDropdownProps {
   onClose: () => void;
 }
 
 export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
+  const { notifications, markAsRead, markAllAsRead, formatTimeAgo } = useNotifications();
+  
+  // Get only recent notifications (first 5)
+  const recentNotifications = notifications.slice(0, 5);
+
   const getIcon = (type: string) => {
     switch (type) {
       case "success":
@@ -54,26 +46,18 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
   const handleClearAll = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setTimeout(() => {
-      toast.error("Failed to clear notifications");
-    }, 0);
-  }, []);
+    markAllAsRead();
+  }, [markAllAsRead]);
 
-  const handleMarkAsRead = useCallback((e: React.MouseEvent) => {
+  const handleMarkAsRead = useCallback((e: React.MouseEvent, notificationId: number) => {
     e.preventDefault();
     e.stopPropagation();
-    setTimeout(() => {
-      toast.error("Failed to mark notification as read");
-    }, 0);
-  }, []);
+    markAsRead(notificationId);
+  }, [markAsRead]);
 
-  const handleViewAll = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setTimeout(() => {
-      toast.error("Failed to clear notifications");
-    }, 0);
-  }, []);
+  const handleViewAll = useCallback(() => {
+    onClose();
+  }, [onClose]);
 
   return (
     <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
@@ -89,32 +73,42 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
         </div>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
-        {recentNotifications.map((notification) => (
-          <div
-            key={notification.id}
-            className={cn(
-              "flex items-start gap-3 p-3 hover:bg-slate-50 transition-colors cursor-pointer",
-              !notification.read && "bg-blue-50"
-            )}
-            onClick={handleMarkAsRead}
-          >
-            <div className="mt-1">{getIcon(notification.type)}</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900">
-                {notification.title}
-              </p>
-              <p className="text-sm text-slate-500 truncate">
-                {notification.message}
-              </p>
-              <div className="flex items-center gap-2 mt-1">
-                <Clock className="h-3 w-3 text-slate-400" />
-                <span className="text-xs text-slate-400">
-                  {notification.time}
-                </span>
+        {recentNotifications.length > 0 ? (
+          recentNotifications.map((notification) => {
+            const notificationType = getNotificationType(notification.title, notification.message);
+            return (
+              <div
+                key={notification.id}
+                className={cn(
+                  "flex items-start gap-3 p-3 hover:bg-slate-50 transition-colors cursor-pointer",
+                  !notification.isRead && "bg-blue-50"
+                )}
+                onClick={(e) => !notification.isRead && handleMarkAsRead(e, notification.id)}
+              >
+                <div className="mt-1">{getIcon(notificationType)}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    {notification.title}
+                  </p>
+                  <p className="text-sm text-slate-500 truncate">
+                    {notification.message}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Clock className="h-3 w-3 text-slate-400" />
+                    <span className="text-xs text-slate-400">
+                      {formatTimeAgo(notification.createdAt)}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            );
+          })
+        ) : (
+          <div className="p-4 text-center text-slate-500">
+            <Bell className="h-8 w-8 mx-auto mb-2 text-slate-400" />
+            <p className="text-sm">No notifications</p>
           </div>
-        ))}
+        )}
       </div>
       <div className="p-3 border-t bg-slate-50">
         <Link

@@ -15,6 +15,7 @@ import { getSignedUrlFromPath } from "../utils/s3Utils";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { PaymentMethod, BookingType } from "@prisma/client";
+
 import {
   assignBookingToTrip,
   findAvailableShuttleWithCapacity,
@@ -394,6 +395,31 @@ const markNotificationAsRead = async (req: Request, res: Response) => {
     res.json({ message: "Notification marked as read" });
   } catch (error) {
     console.error("Mark notification as read error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const markAllNotificationsAsRead = async (req: Request, res: Response) => {
+  try {
+    const driverId = (req as any).user.userId;
+
+    // Update all unread notifications for this driver
+    const result = await prisma.notification.updateMany({
+      where: {
+        driverId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    res.json({ 
+      message: "All notifications marked as read",
+      updatedCount: result.count 
+    });
+  } catch (error) {
+    console.error("Mark all notifications as read error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1158,6 +1184,8 @@ const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+
+
 export default {
   login,
   getProfile,
@@ -1166,6 +1194,7 @@ export default {
   confirmCheckIn,
   getNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   updateLocation,
   getLocation,
   getLocationHistory,

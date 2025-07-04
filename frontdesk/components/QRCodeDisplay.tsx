@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Share2, Download, RefreshCw, Loader2, AlertCircle } from "lucide-react";
-import { useToast } from "@/components/hooks/use-toast";
+import { toast } from "sonner";
 import { getQRCodeUrl } from "@/lib/s3Utils";
 
 interface QRCodeDisplayProps {
@@ -18,7 +18,7 @@ interface QRCodeDisplayProps {
 }
 
 export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCodeDisplayProps) {
-  const { toast } = useToast();
+
   const [isSharing, setIsSharing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -42,11 +42,7 @@ export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCode
       setRetryCount(0);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load QR code');
-      toast({
-        title: "Error",
-        description: "Failed to refresh QR code. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to refresh QR code. Please try again.");
     } finally {
       setIsRefreshing(false);
       setIsLoading(false);
@@ -69,16 +65,9 @@ export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCode
       link.click();
       document.body.removeChild(link);
 
-      toast({
-        title: "QR Code Downloaded",
-        description: "The QR code has been downloaded successfully.",
-      });
+      toast.success("The QR code has been downloaded successfully.");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download QR code. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to download QR code. Please try again.");
     } finally {
       setIsSharing(false);
     }
@@ -89,11 +78,7 @@ export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCode
       setRetryCount(prev => prev + 1);
       refreshSignedUrl();
     } else {
-      toast({
-        title: "Error",
-        description: "Maximum retry attempts reached. Please try again later.",
-        variant: "destructive",
-      });
+      toast.error("Maximum retry attempts reached. Please try again later.");
     }
   };
 
@@ -158,10 +143,7 @@ export function QRCodeDisplay({ qrCodePath, bookingId, isOpen, onClose }: QRCode
               onClick={() => {
                 if (signedUrl) {
                   navigator.clipboard.writeText(signedUrl);
-                  toast({
-                    title: "Copied",
-                    description: "QR code image URL copied to clipboard.",
-                  });
+                  toast.success("QR code image URL copied to clipboard.");
                 }
               }}
               disabled={!signedUrl}

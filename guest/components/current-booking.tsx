@@ -10,13 +10,119 @@ import { api } from "@/lib/api"
 import GuestRouteMap from "./guest-route-map"
 import { useWebSocket } from "@/context/WebSocketContext"
 import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface CurrentBookingProps {
   booking: any
   onNewBooking: () => void
+  isLoading?: boolean
 }
 
-export default function CurrentBooking({ booking, onNewBooking }: CurrentBookingProps) {
+function CurrentBookingSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Timezone Info Skeleton */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+        <Skeleton className="h-4 w-64" />
+      </div>
+
+      {/* Main Booking Card Skeleton */}
+      <div className="border rounded-lg border-l-4 border-l-blue-500">
+        <div className="p-6 border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton className="h-6 w-32 mb-2" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-6 w-20" />
+          </div>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          {/* Status Alert Skeleton */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2 mb-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <Skeleton className="h-3 w-48" />
+          </div>
+
+          {/* Booking Details Grid Skeleton */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <Skeleton className="h-5 w-5" />
+                <div>
+                  <Skeleton className="h-4 w-16 mb-1" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Skeleton className="h-5 w-5" />
+                <div>
+                  <Skeleton className="h-4 w-20 mb-1" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <Skeleton className="h-5 w-5" />
+                <div>
+                  <Skeleton className="h-4 w-20 mb-1" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Skeleton className="h-5 w-5" />
+                <div>
+                  <Skeleton className="h-4 w-8 mb-1" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons Skeleton */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+          </div>
+        </div>
+      </div>
+
+      {/* Live Tracking Skeleton */}
+      <div className="border rounded-lg">
+        <div className="p-6 border-b">
+          <Skeleton className="h-6 w-24 mb-2" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="p-6">
+          <div className="bg-gray-100 rounded-lg p-6 text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Skeleton className="w-8 h-8 rounded-full" />
+            </div>
+            <Skeleton className="h-5 w-32 mx-auto mb-2" />
+            <Skeleton className="h-4 w-40 mx-auto" />
+            <div className="mt-4 bg-white rounded-lg p-3">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-8" />
+              </div>
+              <Skeleton className="w-full h-2 rounded-full" />
+            </div>
+          </div>
+          <div className="mt-6">
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function CurrentBooking({ booking, onNewBooking, isLoading = false }: CurrentBookingProps) {
   const [eta, setEta] = useState(booking?.eta || "Calculating...")
   const [distance, setDistance] = useState(booking?.distance || "Unknown")
   const [showQR, setShowQR] = useState(false)
@@ -94,6 +200,11 @@ export default function CurrentBooking({ booking, onNewBooking }: CurrentBooking
       return () => clearInterval(interval);
     }
   }, [currentBooking])
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return <CurrentBookingSkeleton />
+  }
 
   if (!currentBooking) {
     return (

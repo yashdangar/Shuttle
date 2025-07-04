@@ -60,6 +60,11 @@ router.put(
   frontdeskAuthMiddleware as RequestHandler,
   frontdeskController.markNotificationAsRead as RequestHandler
 );
+router.put(
+  "/notifications/mark-all-read",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.markAllNotificationsAsRead as RequestHandler
+);
 router.delete(
   "/notifications/:id",
   frontdeskAuthMiddleware as RequestHandler,

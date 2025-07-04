@@ -36,6 +36,12 @@ router.put(
   controller.markNotificationAsRead as RequestHandler
 );
 
+router.put(
+  "/notifications/mark-all-read",
+  driverAuthMiddleware as RequestHandler,
+  controller.markAllNotificationsAsRead as RequestHandler
+);
+
 router.post(
   "/check-qr",
   driverAuthMiddleware as RequestHandler,
@@ -112,5 +118,7 @@ router.put(
   driverAuthMiddleware as RequestHandler,
   controller.changePassword as RequestHandler
 );
+
+
 
 export default router;

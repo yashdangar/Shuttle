@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/hooks/use-toast";
-import { Check, Trash2, Bell, AlertCircle, Info } from "lucide-react";
+import { toast } from "sonner";
+import { Check, Trash2, Bell, AlertCircle, Info, CheckCheck } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,7 +22,7 @@ interface Notification {
 
 function NotificationsPage() {
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+
   const { notifications, refreshNotifications, markUserInteraction } = useWebSocket();
 
   useEffect(() => {
@@ -47,20 +47,13 @@ function NotificationsPage() {
         throw new Error("Failed to mark notification as read");
       }
 
-      toast({
-        title: "Marked as read",
-        description: "Notification has been marked as read.",
-      });
+      toast.success("Notification has been marked as read.");
       
       // Refresh notifications
       await refreshNotifications();
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      toast({
-        title: "Error",
-        description: "Failed to mark notification as read. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to mark notification as read. Please try again.");
     }
   };
 
@@ -74,20 +67,36 @@ function NotificationsPage() {
         throw new Error("Failed to delete notification");
       }
 
-      toast({
-        title: "Notification deleted",
-        description: "Notification has been removed.",
-      });
+      toast.success("Notification has been removed.");
       
       // Refresh notifications
       await refreshNotifications();
     } catch (error) {
       console.error("Error deleting notification:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete notification. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to delete notification. Please try again.");
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const response = await fetchWithAuth(
+        `/frontdesk/notifications/mark-all-read`,
+        {
+          method: "PUT",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to mark all notifications as read");
+      }
+
+      toast.success("All notifications have been marked as read.");
+      
+      // Refresh notifications
+      await refreshNotifications();
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      toast.error("Failed to mark all notifications as read. Please try again.");
     }
   };
 
@@ -142,15 +151,28 @@ function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          <p className="text-gray-600">
-            Stay updated with your shuttle operations
+          <div className="flex items-center gap-2">
+            <p className="text-gray-600">
+              Stay updated with your shuttle operations
+            </p>
             {unreadCount > 0 && (
-              <Badge className="ml-2" variant="secondary">
+              <Badge variant="secondary">
                 {unreadCount} unread
               </Badge>
             )}
-          </p>
+          </div>
         </div>
+        {unreadCount > 0 && (
+          <Button
+            onClick={markAllAsRead}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <CheckCheck className="h-4 w-4" />
+            Mark all as read
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">

@@ -354,19 +354,7 @@ function FrontDesksPage() {
                   </Button>
                 </div>
               </div>
-              <div>
-                <Label htmlFor="hotel">Hotel</Label>
-                <Select value={hotels[0]?.id.toString() || "default"} disabled>
-                  <SelectTrigger>
-                    <SelectValue>{hotels[0]?.name || "Loading..."}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={hotels[0]?.id.toString() || "default"}>
-                      {hotels[0]?.name || "Loading..."}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"

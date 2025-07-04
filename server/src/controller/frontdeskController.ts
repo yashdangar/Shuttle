@@ -270,6 +270,31 @@ const deleteNotification = async (req: Request, res: Response) => {
   }
 };
 
+const markAllNotificationsAsRead = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+
+    // Update all unread notifications for this frontdesk user
+    const result = await prisma.notification.updateMany({
+      where: {
+        frontDeskId: userId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    res.json({ 
+      message: "All notifications marked as read",
+      updatedCount: result.count 
+    });
+  } catch (error) {
+    console.error("Mark all notifications as read error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const getSchedule = async (req: Request, res: Response) => {
   try {
     const hotelId = (req as any).user.hotelId;
@@ -2507,6 +2532,7 @@ export default {
   updateProfile,
   getNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   deleteNotification,
   getSchedule: getSchedule21DayWindow,
   createBooking,
