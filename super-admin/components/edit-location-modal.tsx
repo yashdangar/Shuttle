@@ -15,17 +15,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MapPin } from "lucide-react";
 import { locationsApi } from "@/lib/api";
 
-interface AddLocationModalProps {
+interface EditLocationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onLocationCreated: () => void;
-  location?: {
-    id: string;
+  onLocationUpdated: () => void;
+  location: {
+    id: number;
     name: string;
-    latitude: string;
-    longitude: string;
-    address: string;
-  };
+    latitude: number;
+    longitude: number;
+    address?: string;
+  } | null;
 }
 
 declare global {
@@ -35,20 +35,19 @@ declare global {
   }
 }
 
-// Global variable to track if Google Maps script is loaded
 let googleMapsLoaded = false;
 let googleMapsLoading = false;
 
-export function AddLocationModal({
+export function EditLocationModal({
   open,
   onOpenChange,
-  onLocationCreated,
+  onLocationUpdated,
   location,
-}: AddLocationModalProps) {
+}: EditLocationModalProps) {
   const [formData, setFormData] = useState({
     name: location?.name || "",
-    latitude: location?.latitude || "",
-    longitude: location?.longitude || "",
+    latitude: location?.latitude?.toString() || "",
+    longitude: location?.longitude?.toString() || "",
     address: location?.address || "",
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -64,7 +63,17 @@ export function AddLocationModal({
     }
   }, [open]);
 
-  // Cleanup on unmount
+  useEffect(() => {
+    if (open && location) {
+      setFormData({
+        name: location.name || "",
+        latitude: location.latitude?.toString() || "",
+        longitude: location.longitude?.toString() || "",
+        address: location.address || "",
+      });
+    }
+  }, [open, location]);
+
   useEffect(() => {
     return () => {
       if (markerRef.current) {
@@ -75,14 +84,11 @@ export function AddLocationModal({
   }, []);
 
   const loadGoogleMaps = async () => {
-    // If Google Maps is already loaded
     if (window.google && googleMapsLoaded) {
       setMapLoaded(true);
       setTimeout(() => initializeMap(), 100);
       return;
     }
-
-    // If Google Maps is currently loading, wait for it
     if (googleMapsLoading) {
       const checkLoaded = setInterval(() => {
         if (googleMapsLoaded && window.google) {
@@ -93,36 +99,28 @@ export function AddLocationModal({
       }, 100);
       return;
     }
-
-    // Start loading Google Maps
     googleMapsLoading = true;
-
     try {
-      // Check if script already exists
       const existingScript = document.querySelector(
         'script[src*="maps.googleapis.com"]'
       );
       if (existingScript) {
         existingScript.remove();
       }
-
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
       script.async = true;
       script.defer = true;
-
       script.onload = () => {
         googleMapsLoaded = true;
         googleMapsLoading = false;
         setMapLoaded(true);
         setTimeout(() => initializeMap(), 100);
       };
-
       script.onerror = () => {
         googleMapsLoading = false;
         setError("Failed to load Google Maps. Please check your API key.");
       };
-
       document.head.appendChild(script);
     } catch (error) {
       googleMapsLoading = false;
@@ -132,33 +130,33 @@ export function AddLocationModal({
 
   const initializeMap = () => {
     if (!mapRef.current || !window.google) return;
-
     try {
+      const lat = parseFloat(formData.latitude) || 40.7128;
+      const lng = parseFloat(formData.longitude) || -74.006;
       const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 40.7128, lng: -74.006 }, // Default to NYC
+        center: { lat, lng },
         zoom: 10,
       });
-
       mapInstanceRef.current = map;
-
-      // Add click listener to place marker and get coordinates
+      // Place marker if coordinates exist
+      if (!isNaN(lat) && !isNaN(lng)) {
+        markerRef.current = new window.google.maps.Marker({
+          position: { lat, lng },
+          map: map,
+          title: "Selected Location",
+        });
+      }
       map.addListener("click", (event: any) => {
         const lat = event.latLng.lat();
         const lng = event.latLng.lng();
-
-        // Update form data
         setFormData((prev) => ({
           ...prev,
           latitude: lat.toFixed(6),
           longitude: lng.toFixed(6),
         }));
-
-        // Clear existing marker
         if (markerRef.current) {
           markerRef.current.setMap(null);
         }
-
-        // Place new marker
         markerRef.current = new window.google.maps.Marker({
           position: { lat, lng },
           map: map,
@@ -166,7 +164,6 @@ export function AddLocationModal({
         });
       });
     } catch (error) {
-      console.error("Error initializing map:", error);
       setError("Failed to initialize map");
     }
   };
@@ -177,18 +174,13 @@ export function AddLocationModal({
       ...prev,
       [name]: value,
     }));
-
-    // Clear error when user starts typing
     if (error) setError("");
-
-    // Update marker if coordinates are manually entered
     if (
       (name === "latitude" || name === "longitude") &&
       mapInstanceRef.current
     ) {
       const lat = parseFloat(name === "latitude" ? value : formData.latitude);
       const lng = parseFloat(name === "longitude" ? value : formData.longitude);
-
       if (
         !isNaN(lat) &&
         !isNaN(lng) &&
@@ -197,19 +189,14 @@ export function AddLocationModal({
         lng >= -180 &&
         lng <= 180
       ) {
-        // Clear existing marker
         if (markerRef.current) {
           markerRef.current.setMap(null);
         }
-
-        // Place new marker
         markerRef.current = new window.google.maps.Marker({
           position: { lat, lng },
           map: mapInstanceRef.current,
           title: "Selected Location",
         });
-
-        // Center map on the marker
         mapInstanceRef.current.setCenter({ lat, lng });
       }
     }
@@ -219,56 +206,31 @@ export function AddLocationModal({
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
     try {
+      if (!location) return;
       const latitude = parseFloat(formData.latitude);
       const longitude = parseFloat(formData.longitude);
-
       if (isNaN(latitude) || isNaN(longitude)) {
         setError("Please provide valid latitude and longitude");
+        setIsLoading(false);
         return;
       }
-
-      if (location) {
-        const response = await locationsApi.update(Number(location.id), {
-          name: formData.name,
-          latitude,
-          longitude,
-          address: formData.address,
-        });
-
-        if (response.success) {
-          // Reset form
-          setFormData({ name: "", latitude: "", longitude: "", address: "" });
-          if (markerRef.current) {
-            markerRef.current.setMap(null);
-            markerRef.current = null;
-          }
-          onLocationCreated();
-          onOpenChange(false);
-        } else {
-          setError(response.error || "Failed to update location");
+      const response = await locationsApi.update(location.id, {
+        name: formData.name,
+        latitude,
+        longitude,
+        address: formData.address,
+      });
+      if (response.success) {
+        setFormData({ name: "", latitude: "", longitude: "", address: "" });
+        if (markerRef.current) {
+          markerRef.current.setMap(null);
+          markerRef.current = null;
         }
+        onLocationUpdated();
+        onOpenChange(false);
       } else {
-        const response = await locationsApi.create({
-          name: formData.name,
-          latitude,
-          longitude,
-          address: formData.address,
-        });
-
-        if (response.success) {
-          // Reset form
-          setFormData({ name: "", latitude: "", longitude: "", address: "" });
-          if (markerRef.current) {
-            markerRef.current.setMap(null);
-            markerRef.current = null;
-          }
-          onLocationCreated();
-          onOpenChange(false);
-        } else {
-          setError(response.error || "Failed to create location");
-        }
+        setError(response.error || "Failed to update location");
       }
     } catch (error) {
       setError("Network error. Please try again.");
@@ -278,7 +240,6 @@ export function AddLocationModal({
   };
 
   const handleClose = () => {
-    setFormData({ name: "", latitude: "", longitude: "", address: "" });
     setError("");
     if (markerRef.current) {
       markerRef.current.setMap(null);
@@ -291,18 +252,13 @@ export function AddLocationModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>
-            {location ? "Update Location" : "Add New Location"}
-          </DialogTitle>
+          <DialogTitle>Edit Location</DialogTitle>
           <DialogDescription>
-            Create a new location by entering details and selecting coordinates
-            on the map.
+            Update the location details and coordinates on the map.
           </DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Form Fields */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Location Name</Label>
@@ -317,7 +273,6 @@ export function AddLocationModal({
                   disabled={isLoading}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
                 <Input
@@ -330,7 +285,6 @@ export function AddLocationModal({
                   disabled={isLoading}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="latitude">Latitude</Label>
                 <Input
@@ -345,7 +299,6 @@ export function AddLocationModal({
                   disabled={isLoading}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="longitude">Longitude</Label>
                 <Input
@@ -360,7 +313,6 @@ export function AddLocationModal({
                   disabled={isLoading}
                 />
               </div>
-
               <div className="p-3 bg-blue-50 rounded-lg">
                 <div className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 text-blue-600 mt-0.5" />
@@ -375,8 +327,6 @@ export function AddLocationModal({
                 </div>
               </div>
             </div>
-
-            {/* Google Map */}
             <div className="space-y-2">
               <Label>Select Location on Map</Label>
               <div
@@ -395,13 +345,11 @@ export function AddLocationModal({
               </div>
             </div>
           </div>
-
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
           <div className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
@@ -415,10 +363,10 @@ export function AddLocationModal({
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {location ? "Updating..." : "Adding..."}
+                  Updating...
                 </>
               ) : (
-                "Add Location"
+                "Update Location"
               )}
             </Button>
           </div>

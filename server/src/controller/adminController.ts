@@ -620,61 +620,6 @@ const getShuttle = async (req: Request, res: Response) => {
   }
 };
 
-const getLocation = async (req: Request, res: Response) => {
-  try {
-    const location = await prisma.location.findMany();
-    res.json({ location });
-  } catch (error) {
-    console.error("Get location error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-const addLocation = async (req: Request, res: Response) => {
-  try {
-    const { name, latitude, longitude } = req.body;
-    const location = await prisma.location.create({
-      data: {
-        name,
-        latitude,
-        longitude,
-      },
-    });
-    res.json({ location });
-  } catch (error) {
-    console.error("Add location error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-const editLocation = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id;
-    const { name, latitude, longitude } = req.body;
-    const location = await prisma.location.update({
-      where: { id: parseInt(id) },
-      data: { name, latitude, longitude },
-    });
-    res.json({ location });
-  } catch (error) {
-    console.error("Edit location error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-const deleteLocation = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id;
-    const location = await prisma.location.delete({
-      where: { id: parseInt(id) },
-    });
-    res.json({ location });
-  } catch (error) {
-    console.error("Delete location error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
 const addSchedule = async (req: Request, res: Response) => {
   try {
     const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
@@ -1318,6 +1263,137 @@ const getDashboardStats = async (req: Request, res: Response) => {
   }
 };
 
+// Get all global locations (for dropdown)
+const getGlobalLocations = async (req: Request, res: Response) => {
+  try {
+    const locations = await prisma.location.findMany({
+      orderBy: { name: "asc" },
+    });
+    res.json({ locations });
+  } catch (error) {
+    console.error("Get global locations error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get all locations for the admin's hotel (with price)
+const getHotelLocations = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+    if (!admin?.hotelId) {
+      return res.json({ locations: [] });
+    }
+    const hotelLocations = await prisma.hotelLocation.findMany({
+      where: { hotelId: admin.hotelId },
+      include: { location: true },
+      orderBy: { id: "asc" },
+    });
+    res.json({ locations: hotelLocations });
+  } catch (error) {
+    console.error("Get hotel locations error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Add a location to the admin's hotel (with price)
+const addHotelLocation = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { locationId, price } = req.body;
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+    if (!admin?.hotelId) {
+      return res.status(400).json({ message: "Admin does not have a hotel" });
+    }
+    // Prevent duplicate
+    const exists = await prisma.hotelLocation.findUnique({
+      where: { hotelId_locationId: { hotelId: admin.hotelId, locationId } },
+    });
+    if (exists) {
+      return res
+        .status(400)
+        .json({ message: "Location already added to hotel" });
+    }
+    const hotelLocation = await prisma.hotelLocation.create({
+      data: {
+        hotelId: admin.hotelId,
+        locationId,
+        price,
+      },
+      include: { location: true },
+    });
+    res.json({ hotelLocation });
+  } catch (error) {
+    console.error("Add hotel location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Edit price for a hotel-location
+const editHotelLocation = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const id = parseInt(req.params.id);
+    const { price } = req.body;
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+    if (!admin?.hotelId) {
+      return res.status(400).json({ message: "Admin does not have a hotel" });
+    }
+    // Only allow editing if this hotel owns the hotelLocation
+    const hotelLocation = await prisma.hotelLocation.findUnique({
+      where: { id },
+    });
+    if (!hotelLocation || hotelLocation.hotelId !== admin.hotelId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    const updated = await prisma.hotelLocation.update({
+      where: { id },
+      data: { price },
+      include: { location: true },
+    });
+    res.json({ hotelLocation: updated });
+  } catch (error) {
+    console.error("Edit hotel location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Remove a location from the admin's hotel
+const deleteHotelLocation = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const id = parseInt(req.params.id);
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+    if (!admin?.hotelId) {
+      return res.status(400).json({ message: "Admin does not have a hotel" });
+    }
+    // Only allow deleting if this hotel owns the hotelLocation
+    const hotelLocation = await prisma.hotelLocation.findUnique({
+      where: { id },
+    });
+    if (!hotelLocation || hotelLocation.hotelId !== admin.hotelId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    await prisma.hotelLocation.delete({ where: { id } });
+    res.json({ message: "Location removed from hotel" });
+  } catch (error) {
+    console.error("Delete hotel location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getAdmin,
   getAdminProfile,
@@ -1347,10 +1423,11 @@ export default {
   getSchedule,
   addWeeklySchedule,
   getScheduleByWeek,
-  addLocation,
-  editLocation,
-  deleteLocation,
-  getLocation,
+  addHotelLocation,
+  editHotelLocation,
+  deleteHotelLocation,
+  getGlobalLocations,
+  getHotelLocations,
   getBookings,
   getDashboardStats,
   getScheduleBy21Days,

@@ -209,13 +209,19 @@ export const locationsApi = {
     name: string;
     latitude: number;
     longitude: number;
+    address?: string;
   }) => {
     return api.post("/super-admin/locations", locationData);
   },
 
   update: (
     id: number,
-    locationData: { name?: string; latitude?: number; longitude?: number }
+    locationData: {
+      name?: string;
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    }
   ) => {
     return api.put(`/super-admin/locations/${id}`, locationData);
   },

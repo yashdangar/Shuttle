@@ -29,12 +29,14 @@ model Guest {
 model Location {
   id              Int       @id @default(autoincrement())
   name            String
+  address         String?
   latitude        Float
   longitude       Float
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   bookingsDropoff Booking[] @relation("dropoff")
   bookingsPickup  Booking[] @relation("pickup")
+  hotelLocations  HotelLocation[]
 }
 
 model Booking {
@@ -188,6 +190,7 @@ model Hotel {
   frontDesks  FrontDesk[]
   guests      Guest[]
   shuttles    Shuttle[]
+  hotelLocations HotelLocation[]
 }
 
 enum PaymentMethod {
@@ -294,4 +297,16 @@ model Trip {
   driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
   shuttle     Shuttle     @relation(fields: [shuttleId], references: [id], onDelete: Cascade)
   bookings    Booking[]
+}
+
+model HotelLocation {
+  id         Int      @id @default(autoincrement())
+  hotelId    Int
+  locationId Int
+  price      Float
+
+  hotel      Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([hotelId, locationId])
 }

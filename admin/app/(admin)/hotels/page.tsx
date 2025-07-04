@@ -25,13 +25,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
+  AlertDialogTrigger,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -42,6 +43,7 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  MapPin,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Loader } from "@/components/ui/loader";
@@ -50,6 +52,20 @@ import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { withAuth } from "@/components/withAuth";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Hotel {
   id: string;
@@ -63,11 +79,75 @@ interface Hotel {
   longitude: number;
 }
 
+// Add after Hotel interface
+type Location = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+};
+
+type HotelLocation = {
+  id: number;
+  location: Location;
+  price: number;
+};
+
 declare global {
   interface Window {
     google: any;
     initMap?: () => void;
   }
+}
+
+function GoogleMapView({
+  latitude,
+  longitude,
+  name,
+  apiKey,
+}: {
+  latitude: number;
+  longitude: number;
+  name: string;
+  apiKey?: string;
+}) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!apiKey || !mapRef.current) return;
+    // Load Google Maps script if not already loaded
+    if (!window.google || !window.google.maps) {
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+      script.async = true;
+      script.onload = () => {
+        renderMap();
+      };
+      document.body.appendChild(script);
+      return () => {
+        document.body.removeChild(script);
+      };
+    } else {
+      renderMap();
+    }
+    function renderMap() {
+      if (!mapRef.current || !window.google || !window.google.maps) return;
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: { lat: latitude, lng: longitude },
+        zoom: 15,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+      });
+      new window.google.maps.Marker({
+        position: { lat: latitude, lng: longitude },
+        map,
+        title: name,
+      });
+    }
+    // eslint-disable-next-line
+  }, [latitude, longitude, apiKey]);
+  return <div ref={mapRef} className="w-full h-full" />;
 }
 
 function HotelsPage() {
@@ -117,6 +197,30 @@ function HotelsPage() {
     lng: number;
   } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Add inside HotelsPage function, after hotel state ...
+  const [globalLocations, setGlobalLocations] = useState<Location[]>([]);
+  const [hotelLocations, setHotelLocations] = useState<HotelLocation[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(
+    null
+  );
+  const [locationPrice, setLocationPrice] = useState<string>("");
+  const [addingLocation, setAddingLocation] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(
+    null
+  );
+  const [editingPrice, setEditingPrice] = useState<string>("");
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // Per-row loading state for edit and delete
+  const [rowEditLoading, setRowEditLoading] = useState<number | null>(null);
+  const [rowDeleteLoading, setRowDeleteLoading] = useState<number | null>(null);
+
+  // Add state for map modal
+  const [mapModal, setMapModal] = useState<{
+    open: boolean;
+    location: Location | null;
+  }>({ open: false, location: null });
 
   const fetchHotelData = async () => {
     try {
@@ -421,6 +525,84 @@ function HotelsPage() {
     });
     setShowDeletePassword(false);
   };
+
+  // Fetch global locations and hotel locations
+  const fetchLocations = async () => {
+    setLocationLoading(true);
+    try {
+      const [globalRes, hotelRes] = await Promise.all([
+        api.get("/admin/get/global-locations"),
+        api.get("/admin/get/locations"),
+      ]);
+      setGlobalLocations(globalRes.locations || []);
+      setHotelLocations(hotelRes.locations || []);
+    } catch (error) {
+      toast.error("Failed to fetch locations");
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  // Add location to hotel
+  const handleAddLocation = async () => {
+    if (!selectedLocationId || !locationPrice) return;
+    setAddingLocation(true);
+    try {
+      await api.post("/admin/add/location", {
+        locationId: selectedLocationId,
+        price: parseFloat(locationPrice),
+      });
+      toast.success("Location added to hotel");
+      setSelectedLocationId(null);
+      setLocationPrice("");
+      fetchLocations();
+    } catch (error) {
+      toast.error("Failed to add location");
+    } finally {
+      setAddingLocation(false);
+    }
+  };
+
+  // Edit price for hotel location
+  const handleEditPrice = async (hotelLocationId: number) => {
+    if (!editingPrice) return;
+    setRowEditLoading(hotelLocationId);
+    try {
+      await api.put(`/admin/edit/location/${hotelLocationId}`, {
+        price: parseFloat(editingPrice),
+      });
+      toast.success("Price updated");
+      setEditingLocationId(null);
+      setEditingPrice("");
+      fetchLocations();
+    } catch (error) {
+      toast.error("Failed to update price");
+    } finally {
+      setRowEditLoading(null);
+    }
+  };
+
+  // Remove location from hotel
+  const handleRemoveLocation = async (hotelLocationId: number) => {
+    setRowDeleteLoading(hotelLocationId);
+    try {
+      await api.delete(`/admin/delete/location/${hotelLocationId}`);
+      toast.success("Location removed from hotel");
+      fetchLocations();
+    } catch (error) {
+      toast.error("Failed to remove location");
+    } finally {
+      setRowDeleteLoading(null);
+    }
+  };
+
+  // Add a currency formatter
+  const formatCurrency = (value: number) =>
+    value.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
   if (loading) {
     return (
@@ -867,6 +1049,315 @@ function HotelsPage() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <span className="text-lg font-semibold">
+              Hotel Shuttle Locations
+            </span>
+          </CardTitle>
+          <p className="text-slate-500 text-sm mt-1">
+            Add, price, and manage the locations your hotel offers shuttle
+            service to.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-slate-50 rounded-lg p-4 mb-6 border flex flex-col md:flex-row md:items-end md:space-x-4 space-y-4 md:space-y-0">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="location-select">Location</Label>
+              <Select
+                value={selectedLocationId ? String(selectedLocationId) : ""}
+                onValueChange={(val) =>
+                  setSelectedLocationId(val ? Number(val) : null)
+                }
+                disabled={addingLocation || locationLoading}
+              >
+                <SelectTrigger
+                  id="location-select"
+                  className="w-full"
+                  aria-label="Select location"
+                >
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {globalLocations
+                    .filter(
+                      (loc) =>
+                        !hotelLocations.some((hl) => hl.location.id === loc.id)
+                    )
+                    .map((loc) => (
+                      <SelectItem key={loc.id} value={String(loc.id)}>
+                        {loc.name} ({loc.latitude}, {loc.longitude})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[120px]">
+              <Label htmlFor="location-price">Price</Label>
+              <Input
+                id="location-price"
+                type="number"
+                min="0"
+                step="any"
+                value={locationPrice}
+                onChange={(e) => setLocationPrice(e.target.value)}
+                disabled={addingLocation || !selectedLocationId}
+                placeholder="Enter price"
+              />
+            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      className="ml-0 md:ml-2 mt-2 md:mt-0"
+                      onClick={handleAddLocation}
+                      disabled={
+                        addingLocation || !selectedLocationId || !locationPrice
+                      }
+                      aria-label="Add location"
+                    >
+                      {addingLocation ? (
+                        <Loader className="w-4 h-4 mr-2" />
+                      ) : null}
+                      Add
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selectedLocationId && locationPrice
+                    ? "Add this location to your hotel"
+                    : "Select a location and enter a price to enable"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Location Name</TableHead>
+                  <TableHead>Latitude</TableHead>
+                  <TableHead>Longitude</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {locationLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={6}>
+                        <Skeleton className="h-6 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : hotelLocations.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-slate-500"
+                    >
+                      No locations added to this hotel yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  hotelLocations.map((hotelLoc) => (
+                    <TableRow
+                      key={hotelLoc.id}
+                      className="hover:bg-slate-50 transition"
+                    >
+                      <TableCell>{hotelLoc.location.name}</TableCell>
+                      <TableCell>{hotelLoc.location.latitude}</TableCell>
+                      <TableCell>{hotelLoc.location.longitude}</TableCell>
+                      <TableCell>
+                        {hotelLoc.location.address
+                          ? hotelLoc.location.address
+                          : "No address"}
+                      </TableCell>
+                      <TableCell>
+                        {editingLocationId === hotelLoc.id ? (
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={editingPrice}
+                              onChange={(e) => setEditingPrice(e.target.value)}
+                              className="w-24"
+                              aria-label="Edit price"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleEditPrice(hotelLoc.id)}
+                              disabled={
+                                !editingPrice || rowEditLoading === hotelLoc.id
+                              }
+                              aria-label="Save price"
+                            >
+                              {rowEditLoading === hotelLoc.id ? (
+                                <Loader className="w-4 h-4 mr-2" />
+                              ) : null}
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingLocationId(null);
+                                setEditingPrice("");
+                              }}
+                              aria-label="Cancel edit"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-slate-800">
+                              {formatCurrency(hotelLoc.price)}
+                            </span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingLocationId(hotelLoc.id);
+                                      setEditingPrice(
+                                        hotelLoc.price.toString()
+                                      );
+                                    }}
+                                    aria-label="Edit price"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit price</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    aria-label="Remove location"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Remove location</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Remove Location
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to remove{" "}
+                                <b>{hotelLoc.location.name}</b> from your hotel?
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  handleRemoveLocation(hotelLoc.id)
+                                }
+                                disabled={rowDeleteLoading === hotelLoc.id}
+                              >
+                                {rowDeleteLoading === hotelLoc.id ? (
+                                  <Loader className="w-4 h-4 mr-2" />
+                                ) : null}
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Dialog
+                          open={
+                            mapModal.open &&
+                            mapModal.location?.id === hotelLoc.location.id
+                          }
+                          onOpenChange={(open) =>
+                            setMapModal({
+                              open,
+                              location: open ? hotelLoc.location : null,
+                            })
+                          }
+                        >
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="mr-2"
+                                    aria-label="View on Map"
+                                    onClick={() =>
+                                      setMapModal({
+                                        open: true,
+                                        location: hotelLoc.location,
+                                      })
+                                    }
+                                  >
+                                    <MapPin className="w-4 h-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>View on Map</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>
+                                Location: {hotelLoc.location.name}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="w-full h-96 rounded-lg overflow-hidden bg-gray-100">
+                              {mapModal.open && mapModal.location && (
+                                <GoogleMapView
+                                  latitude={mapModal.location.latitude}
+                                  longitude={mapModal.location.longitude}
+                                  name={mapModal.location.name}
+                                  apiKey={GOOGLE_MAPS_API_KEY}
+                                />
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-2">
+                              Latitude: <b>{hotelLoc.location.latitude}</b>{" "}
+                              &nbsp;|&nbsp; Longitude:{" "}
+                              <b>{hotelLoc.location.longitude}</b>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

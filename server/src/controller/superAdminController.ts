@@ -444,7 +444,7 @@ export const superAdminController = {
   // Create new location
   createLocation: async (req: Request, res: Response) => {
     try {
-      const { name, latitude, longitude } = req.body;
+      const { name, latitude, longitude, address } = req.body;
 
       if (!name || latitude === undefined || longitude === undefined) {
         res.status(400).json({
@@ -474,6 +474,7 @@ export const superAdminController = {
           name,
           latitude: parseFloat(latitude),
           longitude: parseFloat(longitude),
+          address,
         },
       });
 
@@ -495,7 +496,7 @@ export const superAdminController = {
   updateLocation: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, latitude, longitude } = req.body;
+      const { name, latitude, longitude, address } = req.body;
       const locationId = parseInt(id);
 
       if (isNaN(locationId)) {
@@ -538,6 +539,7 @@ export const superAdminController = {
         }
         updateData.longitude = parseFloat(longitude);
       }
+      if (address !== undefined) updateData.address = address;
 
       // Update location
       const updatedLocation = await prisma.location.update({

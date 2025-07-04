@@ -26,6 +26,7 @@ import withAuth from "@/components/withAuth";
 import { HotelDetailsModal } from "@/components/hotel-details-modal";
 import { AddAdminModal } from "@/components/add-admin-modal";
 import { AddLocationModal } from "@/components/add-location-modal";
+import { EditLocationModal } from "@/components/edit-location-modal";
 import {
   Building2,
   Users,
@@ -101,6 +102,7 @@ interface Location {
   name: string;
   latitude: number;
   longitude: number;
+  address?: string;
   createdAt: string;
 }
 
@@ -115,6 +117,10 @@ function HomePage() {
   const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
   const [addLocationModalOpen, setAddLocationModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("hotels");
+  const [editLocationModalOpen, setEditLocationModalOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
+    null
+  );
 
   useEffect(() => {
     fetchAllData();
@@ -185,6 +191,11 @@ function HomePage() {
     } catch (error) {
       console.error("Error deleting location:", error);
     }
+  };
+
+  const handleEditLocation = (location: Location) => {
+    setSelectedLocation(location);
+    setEditLocationModalOpen(true);
   };
 
   const HotelTableSkeleton = () => (
@@ -588,6 +599,7 @@ function HomePage() {
                         <TableHead>Name</TableHead>
                         <TableHead>Latitude</TableHead>
                         <TableHead>Longitude</TableHead>
+                        <TableHead>Address</TableHead>
                         <TableHead>Created Date</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -595,7 +607,7 @@ function HomePage() {
                     <TableBody>
                       {locations.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8">
+                          <TableCell colSpan={6} className="text-center py-8">
                             <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                             <p className="text-gray-600">No locations found</p>
                             <p className="text-sm text-gray-500 mt-1">
@@ -623,6 +635,23 @@ function HomePage() {
                               </code>
                             </TableCell>
                             <TableCell>
+                              <div className="space-y-1">
+                                {location.address && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    <MapPin className="h-3 w-3 text-gray-400" />
+                                    <span className="truncate max-w-[150px]">
+                                      {location.address}
+                                    </span>
+                                  </div>
+                                )}
+                                {!location.address && (
+                                  <span className="text-gray-400 text-sm">
+                                    No address
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               <div className="flex items-center gap-1 text-sm text-gray-500">
                                 <Calendar className="h-3 w-3" />
                                 {new Date(
@@ -631,6 +660,14 @@ function HomePage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditLocation(location)}
+                                className="text-blue-600 hover:text-blue-800 mr-2"
+                              >
+                                Edit
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -671,6 +708,13 @@ function HomePage() {
         open={addLocationModalOpen}
         onOpenChange={setAddLocationModalOpen}
         onLocationCreated={fetchAllData}
+      />
+
+      <EditLocationModal
+        open={editLocationModalOpen}
+        onOpenChange={setEditLocationModalOpen}
+        location={selectedLocation}
+        onLocationUpdated={fetchAllData}
       />
     </div>
   );

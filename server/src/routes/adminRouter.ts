@@ -153,25 +153,31 @@ router.get(
 );
 
 //location routes
+router.get(
+  "/get/global-locations",
+  adminAuthMiddleware as RequestHandler,
+  controller.getGlobalLocations as RequestHandler
+);
+// /admin/get/global-locations returns address for each location (address is included in response)
+router.get(
+  "/get/locations",
+  adminAuthMiddleware as RequestHandler,
+  controller.getHotelLocations as RequestHandler
+);
 router.post(
   "/add/location",
   adminAuthMiddleware as RequestHandler,
-  controller.addLocation as RequestHandler
+  controller.addHotelLocation as RequestHandler
 );
 router.put(
   "/edit/location/:id",
   adminAuthMiddleware as RequestHandler,
-  controller.editLocation as RequestHandler
+  controller.editHotelLocation as RequestHandler
 );
 router.delete(
   "/delete/location/:id",
   adminAuthMiddleware as RequestHandler,
-  controller.deleteLocation as RequestHandler
-);
-router.get(
-  "/get/locations",
-  adminAuthMiddleware as RequestHandler,
-  controller.getLocation as RequestHandler
+  controller.deleteHotelLocation as RequestHandler
 );
 
 //booking routes
