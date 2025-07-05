@@ -221,13 +221,12 @@ function ShuttlesPage() {
                   <TableHead>Vehicle Number</TableHead>
                   <TableHead>Hotel</TableHead>
                   <TableHead>Seats</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableLoader columns={6} />
+                <TableLoader columns={5} />
               </TableBody>
             </Table>
           </CardContent>
@@ -373,7 +372,6 @@ function ShuttlesPage() {
                   <TableHead>Vehicle Number</TableHead>
                   <TableHead>Hotel</TableHead>
                   <TableHead>Seats</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -390,23 +388,6 @@ function ShuttlesPage() {
                           "Unknown Hotel"}
                       </TableCell>
                       <TableCell>{shuttle.seats} seats</TableCell>
-                      <TableCell>
-                        {shuttle.schedules && shuttle.schedules.length > 0 ? (
-                          <div className="space-y-1">
-                            {shuttle.schedules.map((schedule) => (
-                              <Badge
-                                key={schedule.id}
-                                variant="secondary"
-                                className="mr-1"
-                              >
-                                {schedule.driver.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">No schedules</span>
-                        )}
-                      </TableCell>
                       <TableCell>
                         {new Date(shuttle.createdAt).toLocaleDateString()}
                       </TableCell>

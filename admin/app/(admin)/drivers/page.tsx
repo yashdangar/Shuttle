@@ -235,13 +235,12 @@ function DriversPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableLoader columns={6} />
+                <TableLoader columns={5} />
               </TableBody>
             </Table>
           </CardContent>
@@ -415,7 +414,6 @@ function DriversPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
                   <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -426,23 +424,6 @@ function DriversPage() {
                     <TableCell className="font-medium">{driver.name}</TableCell>
                     <TableCell>{driver.email}</TableCell>
                     <TableCell>{driver.phoneNumber}</TableCell>
-                    <TableCell>
-                      {driver.schedules && driver.schedules.length > 0 ? (
-                        <div className="space-y-1">
-                          {driver.schedules.map((schedule) => (
-                            <Badge
-                              key={schedule.id}
-                              variant="secondary"
-                              className="mr-1"
-                            >
-                              {schedule.shuttle.vehicleNumber}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">No schedules</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       {new Date(driver.createdAt).toLocaleDateString()}
                     </TableCell>
