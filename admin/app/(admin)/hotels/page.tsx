@@ -228,6 +228,10 @@ function HotelsPage() {
     name: string;
   }>(null);
 
+  // Add state for Google Maps search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+
   const fetchHotelData = async () => {
     try {
       const response = await api.get(`/admin/get/hotel`);
@@ -305,6 +309,87 @@ function HotelsPage() {
     };
     document.head.appendChild(script);
   }, [GOOGLE_MAPS_API_KEY]);
+
+  // Perform search using Google Maps Geocoding API
+  const performSearch = async (query: string) => {
+    if (!isGoogleMapsLoaded || !mapInstanceRef.current) {
+      console.log("Google Maps not ready");
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+
+      geocoder.geocode({ address: query }, (results: any, status: any) => {
+        console.log("Geocoding status:", status);
+        console.log("Geocoding results:", results);
+
+        if (
+          status === window.google.maps.GeocoderStatus.OK &&
+          results &&
+          results.length > 0
+        ) {
+          const result = results[0];
+          const location = result.geometry.location;
+          const lat = location.lat();
+          const lng = location.lng();
+
+          console.log("Found location:", lat, lng);
+
+          // Update form data with new coordinates
+          setFormData((prev) => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+          }));
+
+          // Update map marker
+          if (markerRef.current) {
+            markerRef.current.setMap(null);
+          }
+
+          markerRef.current = new window.google.maps.Marker({
+            position: { lat, lng },
+            map: mapInstanceRef.current,
+            draggable: true,
+          });
+
+          // Center map on searched location
+          mapInstanceRef.current.setCenter({ lat, lng });
+          mapInstanceRef.current.setZoom(15);
+
+          // Add drag listener to update form when marker is dragged
+          markerRef.current.addListener("dragend", (e: any) => {
+            const newLat = e.latLng.lat();
+            const newLng = e.latLng.lng();
+            setFormData((prev) => ({
+              ...prev,
+              latitude: newLat,
+              longitude: newLng,
+            }));
+          });
+
+          toast.success(`Found location: ${result.formatted_address}`);
+        } else {
+          console.error("Geocoding failed:", status);
+          toast.error(`No location found: ${status}`);
+        }
+        setSearching(false);
+      });
+    } catch (error) {
+      console.error("Search error:", error);
+      toast.error("Failed to search for location");
+      setSearching(false);
+    }
+  };
+
+  // Handle search button click
+  const handleSearchClick = () => {
+    if (searchQuery.trim()) {
+      performSearch(searchQuery.trim());
+    }
+  };
 
   useEffect(() => {
     if (!isAddDialogOpen || !isGoogleMapsLoaded || !userLocation) {
@@ -517,6 +602,8 @@ function HotelsPage() {
       latitude: 0.0,
       longitude: 0.0,
     });
+    setSearchQuery("");
+    setSearching(false);
     setEditingHotel(null);
     // Clean up map references
     if (markerRef.current) {
@@ -746,6 +833,47 @@ function HotelsPage() {
                 required
                 disabled={submitting}
               />
+            </div>
+            <div>
+              <Label
+                htmlFor="address-search"
+                className="flex items-center gap-2 mb-2"
+              >
+                <MapPin className="w-4 h-4" />
+                Search Location
+                {!isGoogleMapsLoaded && (
+                  <span className="text-xs text-amber-600">
+                    (Loading Google Maps...)
+                  </span>
+                )}
+              </Label>
+              <div className="flex gap-2 mb-4">
+                <Input
+                  id="address-search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for a location, address, or place..."
+                  disabled={submitting || !isGoogleMapsLoaded || searching}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleSearchClick}
+                  disabled={
+                    submitting ||
+                    !isGoogleMapsLoaded ||
+                    searching ||
+                    !searchQuery.trim()
+                  }
+                  className="px-4"
+                >
+                  {searching ? <Loader className="w-4 h-4" /> : "Search"}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">
+                Search for a location to center the map and update coordinates.
+                The address field below will remain unchanged.
+              </p>
             </div>
             <div>
               <Label>Location (Click on map to select)</Label>
