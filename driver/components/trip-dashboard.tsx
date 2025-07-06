@@ -64,24 +64,7 @@ interface CurrentTrip {
   totalBags: number;
 }
 
-interface TripHistory {
-  id: string;
-  direction: "HOTEL_TO_AIRPORT" | "AIRPORT_TO_HOTEL";
-  status: "COMPLETED";
-  phase: "COMPLETED";
-  startTime: string;
-  outboundEndTime?: string;
-  returnStartTime?: string;
-  endTime: string;
-  passengerCount: number;
-  totalPersons: number;
-  totalBags: number;
-  duration: number;
-  shuttle: {
-    vehicleNumber: string;
-  };
-  bookings: any[];
-}
+
 
 interface LiveBooking {
   id: string;
@@ -107,53 +90,17 @@ interface LiveBooking {
 export default function TripDashboard() {
   const [availableTrips, setAvailableTrips] = useState<AvailableTrip[]>([]);
   const [currentTrip, setCurrentTrip] = useState<CurrentTrip | null>(null);
-  const [tripHistory, setTripHistory] = useState<TripHistory[]>([]);
   const [liveBookings, setLiveBookings] = useState<LiveBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [startingTrip, setStartingTrip] = useState(false);
   const [endingTrip, setEndingTrip] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [showEndTripDialog, setShowEndTripDialog] = useState(false);
   const [newBookingNotification, setNewBookingNotification] =
     useState<LiveBooking | null>(null);
   const { toast } = useToast();
   const { socket, isConnected, onBookingUpdate } = useWebSocket();
 
-  const fetchTripHistory = useCallback(
-    async (page: number = 1, append: boolean = false) => {
-      try {
-        setHistoryLoading(true);
-        const historyResponse = await api.get(
-          `/trips/history?page=${page}&limit=5`
-        );
-        console.log("Trip history response:", historyResponse);
 
-        const newTrips = historyResponse.trips || [];
-        const pagination = historyResponse.pagination;
-
-        if (append) {
-          setTripHistory((prev) => [...prev, ...newTrips]);
-        } else {
-          setTripHistory(newTrips);
-        }
-
-        setHistoryPage(page);
-        setHasMoreHistory(pagination && page < pagination.pages);
-      } catch (error) {
-        console.error("Error fetching trip history:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load trip history",
-          variant: "destructive",
-        });
-      } finally {
-        setHistoryLoading(false);
-      }
-    },
-    [toast]
-  );
 
   const fetchTripData = useCallback(async () => {
     try {
@@ -196,8 +143,7 @@ export default function TripDashboard() {
         }
       }
 
-      // Fetch initial trip history
-      await fetchTripHistory(1);
+
     } catch (error) {
       console.error("Error fetching trip data:", error);
       // Only show toast if component is mounted and not during initial render
@@ -211,7 +157,7 @@ export default function TripDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [toast, fetchTripHistory]);
+  }, [toast]);
 
   // WebSocket event listeners for real-time updates
   useEffect(() => {
@@ -780,63 +726,6 @@ export default function TripDashboard() {
           </CardContent>
         </Card>
       )}
-
-      {/* Trip History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Recent Round Trips
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {tripHistory.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No recent trips found
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {tripHistory.map((trip) => (
-                <div
-                  key={trip.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">
-                      🏨↔️✈️
-                    </div>
-                    <div>
-                      <h4 className="font-medium">
-                        Round Trip (Hotel ↔ Airport)
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {trip.totalPersons} passengers • {trip.totalBags} bags •{" "}
-                        {trip.duration} min
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(trip.startTime).toLocaleDateString()}{" "}
-                        {formatTimeForDisplay(trip.startTime)} -{" "}
-                        {formatTimeForDisplay(trip.endTime)}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline">Completed</Badge>
-                </div>
-              ))}
-              {hasMoreHistory && (
-                <Button
-                  onClick={() => fetchTripHistory(historyPage + 1, true)}
-                  disabled={historyLoading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {historyLoading ? "Loading..." : "Load More"}
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* End Trip Confirmation Dialog */}
       <AlertDialog open={showEndTripDialog} onOpenChange={setShowEndTripDialog}>

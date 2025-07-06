@@ -1531,6 +1531,15 @@ const editSchedule = async (req: Request, res: Response) => {
     res.json({ schedule });
   } catch (error) {
     console.error("Edit schedule error:", error);
+
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === "P2002") {
+      return res.status(400).json({
+        message:
+          "A schedule already exists for this driver on the selected date.",
+      });
+    }
+
     res.status(500).json({ message: "Internal server error" });
   }
 };

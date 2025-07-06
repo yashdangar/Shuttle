@@ -60,8 +60,10 @@ export const api = {
     }
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || error.message || "API request failed");
+      const errorData = await response.json();
+      const error = new Error(errorData.error || errorData.message || "API request failed");
+      (error as any).response = { data: errorData, status: response.status };
+      throw error;
     }
 
     return response.json();

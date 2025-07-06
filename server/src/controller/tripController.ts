@@ -618,88 +618,7 @@ const getCurrentTrip = async (req: Request, res: Response) => {
   }
 };
 
-// Get trip history
-const getTripHistory = async (req: Request, res: Response) => {
-  try {
-    const driverId = (req as any).user.userId;
-    const { page = 1, limit = 10 } = req.query;
 
-    console.log("Getting trip history for driver:", driverId);
-    console.log("Query params:", { page, limit });
-
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const trips = await prisma.trip.findMany({
-      where: {
-        driverId,
-        status: TripStatus.COMPLETED,
-      },
-      include: {
-        shuttle: true,
-        bookings: {
-          include: {
-            guest: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      skip,
-      take: Number(limit),
-    });
-
-    console.log("Found trips:", trips.length);
-
-    const totalTrips = await prisma.trip.count({
-      where: {
-        driverId,
-        status: TripStatus.COMPLETED,
-      },
-    });
-
-    console.log("Total completed trips:", totalTrips);
-
-    const tripHistory = trips.map((trip) => ({
-      ...trip,
-      passengerCount: trip.bookings.length,
-      totalPersons: trip.bookings.reduce(
-        (sum, booking) => sum + booking.numberOfPersons,
-        0
-      ),
-      totalBags: trip.bookings.reduce(
-        (sum, booking) => sum + booking.numberOfBags,
-        0
-      ),
-      duration:
-        trip.startTime && trip.endTime
-          ? Math.round(
-              (trip.endTime.getTime() - trip.startTime.getTime()) / (1000 * 60)
-            ) // minutes
-          : null,
-    }));
-
-    console.log("Processed trip history:", tripHistory.length);
-
-    res.json({
-      trips: tripHistory,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total: totalTrips,
-        pages: Math.ceil(totalTrips / Number(limit)),
-      },
-    });
-  } catch (error) {
-    console.error("Get trip history error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
 
 // Get available trips (bookings that can be started)
 const getAvailableTrips = async (req: Request, res: Response) => {
@@ -1457,7 +1376,6 @@ export {
   transitionTripPhase,
   endTrip,
   getCurrentTrip,
-  getTripHistory,
   getAvailableTrips,
   getCurrentTripBookings,
   addBookingToActiveTrip,

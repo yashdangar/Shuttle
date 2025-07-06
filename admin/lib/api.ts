@@ -24,7 +24,9 @@ export const api = {
     }
 
     if (!response.ok) {
-      throw new Error(data.message || "API request failed");
+      const error = new Error(data.message || "API request failed");
+      (error as any).response = { data, status: response.status };
+      throw error;
     }
 
     return data;
