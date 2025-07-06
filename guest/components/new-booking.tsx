@@ -149,7 +149,9 @@ export default function NewBooking({
 
     // Validation: For Park Sleep Fly, trip type must be selected
     if (tripDirection === "park-sleep-fly" && !formData.tripType) {
-      toast.error("Please select a trip direction for your Park, Sleep & Fly package");
+      toast.error(
+        "Please select a trip direction for your Park, Sleep & Fly package"
+      );
       return;
     }
 
@@ -174,12 +176,15 @@ export default function NewBooking({
         numberOfBags: formData.numberOfBags,
         preferredTime: toUtcIso(formData.createdAt, formData.preferredTime),
         paymentMethod: formData.paymentMethod.toUpperCase(),
-        tripType: tripDirection === "park-sleep-fly" 
-          ? formData.tripType 
-          : (tripDirection === "hotel-to-airport" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL"),
+        tripType:
+          tripDirection === "park-sleep-fly"
+            ? formData.tripType
+            : tripDirection === "hotel-to-airport"
+            ? "HOTEL_TO_AIRPORT"
+            : "AIRPORT_TO_HOTEL",
         // Set pickup and dropoff based on trip direction
-        ...(tripDirection === "park-sleep-fly" 
-          ? (formData.tripType === "HOTEL_TO_AIRPORT"
+        ...(tripDirection === "park-sleep-fly"
+          ? formData.tripType === "HOTEL_TO_AIRPORT"
             ? {
                 pickupLocationId: null, // Hotel pickup doesn't need location ID
                 dropoffLocationId: locations.find(
@@ -191,20 +196,20 @@ export default function NewBooking({
                   (loc) => loc.name === formData.pickup
                 )?.id,
                 dropoffLocationId: null, // Hotel dropoff doesn't need location ID
-              })
-          : (tripDirection === "hotel-to-airport"
-            ? {
-                pickupLocationId: null, // Hotel pickup doesn't need location ID
-                dropoffLocationId: locations.find(
-                  (loc) => loc.name === formData.destination
-                )?.id,
               }
-            : {
-                pickupLocationId: locations.find(
-                  (loc) => loc.name === formData.pickup
-                )?.id,
-                dropoffLocationId: null, // Hotel dropoff doesn't need location ID
-              })),
+          : tripDirection === "hotel-to-airport"
+          ? {
+              pickupLocationId: null, // Hotel pickup doesn't need location ID
+              dropoffLocationId: locations.find(
+                (loc) => loc.name === formData.destination
+              )?.id,
+            }
+          : {
+              pickupLocationId: locations.find(
+                (loc) => loc.name === formData.pickup
+              )?.id,
+              dropoffLocationId: null, // Hotel dropoff doesn't need location ID
+            }),
         // Add guest information
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -487,13 +492,22 @@ export default function NewBooking({
                     <Input
                       id="passengers"
                       type="number"
+                      min="1"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 1) {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: 1,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -506,13 +520,22 @@ export default function NewBooking({
                     <Input
                       id="bags"
                       type="number"
+                      min="0"
                       value={formData.numberOfBags.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfBags: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0) {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: 0,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -774,13 +797,22 @@ export default function NewBooking({
                     <Input
                       id="passengers"
                       type="number"
+                      min="1"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 1) {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: 1,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -793,13 +825,22 @@ export default function NewBooking({
                     <Input
                       id="bags"
                       type="number"
+                      min="0"
                       value={formData.numberOfBags.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfBags: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0) {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: 0,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -867,7 +908,8 @@ export default function NewBooking({
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   <strong>Park, Sleep & Fly Package:</strong> This booking is
                   for guests who have purchased our Park, Sleep & Fly package.
-                  You can choose either Hotel to Airport or Airport to Hotel direction.
+                  You can choose either Hotel to Airport or Airport to Hotel
+                  direction.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -1014,7 +1056,8 @@ export default function NewBooking({
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-blue-600">
-                    Choose the direction for your Park, Sleep & Fly package trip.
+                    Choose the direction for your Park, Sleep & Fly package
+                    trip.
                   </p>
                 </div>
 
@@ -1055,10 +1098,9 @@ export default function NewBooking({
                     </Select>
                   )}
                   <p className="text-sm text-blue-600">
-                    {formData.tripType === "HOTEL_TO_AIRPORT" 
+                    {formData.tripType === "HOTEL_TO_AIRPORT"
                       ? "Pickup will be from the hotel lobby."
-                      : "Please select your airport terminal or pickup location for the Park, Sleep & Fly package."
-                    }
+                      : "Please select your airport terminal or pickup location for the Park, Sleep & Fly package."}
                   </p>
                 </div>
 
@@ -1099,10 +1141,9 @@ export default function NewBooking({
                     </Select>
                   )}
                   <p className="text-sm text-blue-600">
-                    {formData.tripType === "AIRPORT_TO_HOTEL" 
+                    {formData.tripType === "AIRPORT_TO_HOTEL"
                       ? "Destination will be the hotel lobby."
-                      : "Please select your airport terminal destination."
-                    }
+                      : "Please select your airport terminal destination."}
                   </p>
                 </div>
 
@@ -1141,13 +1182,22 @@ export default function NewBooking({
                     <Input
                       id="passengers"
                       type="number"
+                      min="1"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 1) {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfPersons: 1,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -1160,13 +1210,22 @@ export default function NewBooking({
                     <Input
                       id="bags"
                       type="number"
+                      min="0"
                       value={formData.numberOfBags.toString()}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          numberOfBags: parseInt(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0) {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: value,
+                          });
+                        } else if (e.target.value === "") {
+                          setFormData({
+                            ...formData,
+                            numberOfBags: 0,
+                          });
+                        }
+                      }}
                     />
                   </div>
                 </div>
