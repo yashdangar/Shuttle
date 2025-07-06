@@ -12,6 +12,7 @@ import driverRouter from "./routes/driverRouter";
 import authRoutes from "./utils/auth";
 import superAdminRouter from "./routes/superAdminRouter";
 import tripRouter from "./routes/tripRouter";
+import publicRouter from "./routes/publicRouter";
 import { CORS_ORIGINS } from "./config/env";
 import { startBookingCancellationJob } from "./utils/cronService";
 
@@ -57,7 +58,7 @@ app.use("/frontdesk", frontdeskRouter);
 app.use("/driver", driverRouter);
 app.use("/super-admin", superAdminRouter);
 app.use("/trips", tripRouter);
-
+app.use("/public", publicRouter);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -78,7 +79,7 @@ app.use(
 
 httpServer.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-  
+
   // Start the automatic booking cancellation cron job
   startBookingCancellationJob();
 });

@@ -189,6 +189,7 @@ model Notification {
 model Hotel {
   id             Int             @id @default(autoincrement())
   name           String
+  imagePath          String?
   address        String?
   phoneNumber    String?
   email          String?

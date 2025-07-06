@@ -5,20 +5,18 @@ import { GuestTopbar } from "./guest-topbar";
 
 export function ConditionalTopbar() {
   const pathname = usePathname();
-  
+
   // Pages where we don't want to show the topbar
-  const excludedPaths = [
-    "/login",
-    "/auth",
-    "/auth/callback", 
-  ];
-  
+  const excludedPaths = ["/login", "/auth", "/auth/callback", "/hotel"];
+
   // Check if current path should show topbar
-  const shouldShowTopbar = !excludedPaths.some(path => pathname.startsWith(path)) && pathname !== "/";
-  
+  const shouldShowTopbar =
+    !excludedPaths.some((path) => pathname.startsWith(path)) &&
+    pathname !== "/";
+
   if (!shouldShowTopbar) {
     return null;
   }
-  
+
   return <GuestTopbar />;
-} 
+}

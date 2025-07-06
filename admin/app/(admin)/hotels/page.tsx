@@ -65,7 +65,6 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface Hotel {
   id: string;
@@ -77,6 +76,7 @@ interface Hotel {
   updatedAt: string;
   latitude: number;
   longitude: number;
+  imagePath?: string;
 }
 
 // Add after Hotel interface
@@ -165,6 +165,7 @@ function HotelsPage() {
     email: string;
     latitude: number;
     longitude: number;
+    imagePath?: string;
   }>({
     name: "",
     address: "",
@@ -172,7 +173,17 @@ function HotelsPage() {
     email: "",
     latitude: 0.0,
     longitude: 0.0,
+    imagePath: "",
   });
+
+  // Image upload states
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Hotel image display states
+  const [hotelImageUrl, setHotelImageUrl] = useState<string | null>(null);
+  const [loadingHotelImage, setLoadingHotelImage] = useState(false);
 
   // Delete confirmation dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -236,11 +247,31 @@ function HotelsPage() {
     try {
       const response = await api.get(`/admin/get/hotel`);
       setHotel(response.hotel);
+
+      // Fetch hotel image if it exists
+      if (response.hotel?.imagePath) {
+        await fetchHotelImage(response.hotel.imagePath);
+      }
     } catch (error) {
       console.error("Error fetching hotel data:", error);
       toast.error("Failed to fetch hotel data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHotelImage = async (imagePath: string) => {
+    try {
+      setLoadingHotelImage(true);
+      const response = await api.get(
+        `/public/file?path=${encodeURIComponent(imagePath)}`
+      );
+      setHotelImageUrl(response.signedUrl);
+    } catch (error) {
+      console.error("Error fetching hotel image:", error);
+      setHotelImageUrl(null);
+    } finally {
+      setLoadingHotelImage(false);
     }
   };
 
@@ -497,7 +528,21 @@ function HotelsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      let imagePath = formData.imagePath;
+
       if (editingHotel) {
+        // For editing existing hotel, upload image first if selected
+        if (selectedImage) {
+          const uploadedImagePath = await uploadImageToS3(selectedImage);
+          if (uploadedImagePath) {
+            imagePath = uploadedImagePath;
+          } else {
+            // Image upload failed, don't proceed
+            setSubmitting(false);
+            return;
+          }
+        }
+
         await api.put(`/admin/edit/hotel/${editingHotel.id}`, {
           name: formData.name,
           address: formData.address,
@@ -505,10 +550,12 @@ function HotelsPage() {
           email: formData.email,
           latitude: formData.latitude,
           longitude: formData.longitude,
+          imagePath: imagePath,
         });
         toast.success("Hotel updated successfully");
       } else {
-        await api.post("/admin/add/hotel", {
+        // For new hotel, create hotel first, then upload image
+        const hotelResponse = await api.post("/admin/add/hotel", {
           name: formData.name,
           address: formData.address,
           phoneNumber: formData.phoneNumber,
@@ -516,8 +563,57 @@ function HotelsPage() {
           latitude: formData.latitude,
           longitude: formData.longitude,
         });
+
+        // If image is selected, upload it and update hotel
+        if (selectedImage && hotelResponse.hotel?.id) {
+          try {
+            // Temporarily set hotel ID for image upload
+            const tempHotel = { id: hotelResponse.hotel.id };
+
+            // Get presigned URL with hotel ID
+            const presignedResponse = await api.post(
+              "/admin/upload/presigned-url",
+              {
+                fileName: selectedImage.name,
+                contentType: selectedImage.type,
+                folder: "public/hotel-images",
+                hotelId: hotelResponse.hotel.id,
+              }
+            );
+
+            const { presignedUrl, imagePath: uploadedImagePath } =
+              presignedResponse;
+
+            // Upload to S3
+            const uploadResponse = await fetch(presignedUrl, {
+              method: "PUT",
+              body: selectedImage,
+              headers: {
+                "Content-Type": selectedImage.type,
+              },
+            });
+
+            if (uploadResponse.ok) {
+              // Update hotel with image path
+              await api.put(`/admin/edit/hotel/${hotelResponse.hotel.id}`, {
+                name: formData.name,
+                address: formData.address,
+                phoneNumber: formData.phoneNumber,
+                email: formData.email,
+                latitude: formData.latitude,
+                longitude: formData.longitude,
+                imagePath: uploadedImagePath,
+              });
+            }
+          } catch (imageError) {
+            console.error("Image upload error:", imageError);
+            toast.error("Hotel created but image upload failed");
+          }
+        }
+
         toast.success("Hotel added successfully");
       }
+
       // Fetch updated data after successful submission
       await fetchHotelData();
       resetForm();
@@ -539,7 +635,24 @@ function HotelsPage() {
       email: hotel.email,
       latitude: hotel.latitude,
       longitude: hotel.longitude,
+      imagePath: hotel.imagePath || "",
     });
+
+    // Set image preview if hotel has image
+    if (hotel.imagePath) {
+      // Fetch and display existing image
+      fetchHotelImage(hotel.imagePath).then(() => {
+        // Set the hotel image as preview for editing
+        if (hotelImageUrl) {
+          setImagePreview(hotelImageUrl);
+        }
+      });
+      setSelectedImage(null);
+    } else {
+      setImagePreview(null);
+      setSelectedImage(null);
+    }
+
     setIsAddDialogOpen(true);
   };
 
@@ -601,10 +714,16 @@ function HotelsPage() {
       email: "",
       latitude: 0.0,
       longitude: 0.0,
+      imagePath: "",
     });
     setSearchQuery("");
     setSearching(false);
     setEditingHotel(null);
+
+    // Reset image states
+    setSelectedImage(null);
+    setImagePreview(null);
+
     // Clean up map references
     if (markerRef.current) {
       markerRef.current.setMap(null);
@@ -697,6 +816,85 @@ function HotelsPage() {
   // Add a currency formatter
   const formatCurrency = (value: number) =>
     value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+  // Image upload handlers
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please select an image file");
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size must be less than 5MB");
+        return;
+      }
+
+      setSelectedImage(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImagePreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImageToS3 = async (file: File): Promise<string | null> => {
+    try {
+      setUploadingImage(true);
+
+      // Get hotel ID - for new hotels, we'll need to create the hotel first
+      // For editing existing hotels, we can use the hotel ID
+      let hotelIdToUse = hotel?.id;
+
+      if (!hotelIdToUse) {
+        toast.error("Hotel ID is required for image upload");
+        return null;
+      }
+
+      // Get presigned URL
+      const presignedResponse = await api.post("/admin/upload/presigned-url", {
+        fileName: file.name,
+        contentType: file.type,
+        folder: "public/hotel-images",
+        hotelId: hotelIdToUse,
+      });
+
+      const { presignedUrl, imagePath } = presignedResponse;
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload image to S3");
+      }
+
+      return imagePath;
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast.error("Failed to upload image");
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setFormData({ ...formData, imagePath: "" });
+  };
 
   if (loading) {
     return (
@@ -833,6 +1031,61 @@ function HotelsPage() {
                 required
                 disabled={submitting}
               />
+            </div>
+            <div>
+              <Label htmlFor="hotelImage">Hotel Image (Optional)</Label>
+              <div className="space-y-4">
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Hotel preview"
+                      className="w-full h-40 object-cover rounded-md border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={removeImage}
+                      disabled={submitting || uploadingImage}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
+
+                {/* File Input */}
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="hotelImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    disabled={submitting || uploadingImage}
+                    className="file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {uploadingImage && (
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Loader className="w-4 h-4 mr-1" />
+                      Uploading...
+                    </div>
+                  )}
+                </div>
+
+                {/* Help Text */}
+                <p className="text-sm text-gray-500">
+                  Maximum file size: 5MB. Supported formats: JPG, PNG, GIF, WebP
+                </p>
+
+                {/* Current Image Info */}
+                {formData.imagePath && !imagePreview && (
+                  <div className="text-sm text-green-600">
+                    ✓ Current image: {formData.imagePath.split("/").pop()}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <Label
@@ -981,12 +1234,16 @@ function HotelsPage() {
               <Button
                 type="submit"
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={submitting}
+                disabled={submitting || uploadingImage}
               >
-                {submitting ? (
+                {submitting || uploadingImage ? (
                   <>
                     <Loader className="w-4 h-4 mr-2" />
-                    {editingHotel ? "Updating..." : "Adding..."}
+                    {uploadingImage
+                      ? "Uploading image..."
+                      : editingHotel
+                      ? "Updating..."
+                      : "Adding..."}
                   </>
                 ) : editingHotel ? (
                   "Update Hotel"
@@ -1121,6 +1378,146 @@ function HotelsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hotel Image Display Section */}
+      {hotel && (
+        <Card className="border-slate-200 mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <span>Hotel Profile</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Hotel Image */}
+              <div className="md:col-span-1">
+                <Label className="text-sm font-medium text-slate-700 mb-3 block">
+                  Hotel Image
+                </Label>
+                <div className="relative">
+                  {loadingHotelImage ? (
+                    <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Loader className="w-6 h-6" />
+                      <span className="ml-2 text-sm text-gray-500">
+                        Loading image...
+                      </span>
+                    </div>
+                  ) : hotelImageUrl ? (
+                    <div className="relative group">
+                      <img
+                        src={hotelImageUrl}
+                        alt={hotel.name}
+                        className="w-full h-48 object-cover rounded-lg border shadow-sm"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleEdit(hotel)}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Update Image
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full h-48 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center">
+                      <Building2 className="w-8 h-8 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500 mb-2">
+                        No image uploaded
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(hotel)}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Hotel Information */}
+              <div className="md:col-span-2">
+                <Label className="text-sm font-medium text-slate-700 mb-3 block">
+                  Hotel Information
+                </Label>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-gray-500">
+                        Hotel Name
+                      </Label>
+                      <p className="text-sm font-medium">{hotel.name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Email</Label>
+                      <p className="text-sm">{hotel.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">
+                        Phone Number
+                      </Label>
+                      <p className="text-sm">{hotel.phoneNumber}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Address</Label>
+                      <p className="text-sm">{hotel.address}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-xs text-gray-500">Latitude</Label>
+                      <p className="text-sm font-mono">{hotel.latitude}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Longitude</Label>
+                      <p className="text-sm font-mono">{hotel.longitude}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Hotel ID</Label>
+                      <p className="text-sm font-mono">{hotel.id}</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(hotel)}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Hotel
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setMapModal({
+                          open: true,
+                          location: {
+                            id: 0,
+                            name: hotel.name,
+                            latitude: hotel.latitude,
+                            longitude: hotel.longitude,
+                            address: hotel.address,
+                          },
+                        })
+                      }
+                    >
+                      <MapPin className="w-4 h-4 mr-2" />
+                      View on Map
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-slate-200">
         <CardHeader>

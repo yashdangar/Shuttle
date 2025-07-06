@@ -29,22 +29,36 @@ const getHotels = async (req: Request, res: Response) => {
   try {
     const hotels = await prisma.hotel.findMany();
 
-    // Convert coordinates to addresses for each hotel
-    const hotelsWithAddresses = await Promise.all(
+    const hotelsWithAddressesAndImages = await Promise.all(
       hotels.map(async (hotel) => {
         const address =
           hotel.latitude && hotel.longitude
             ? await getAddressFromCoordinates(hotel.latitude, hotel.longitude)
             : null;
+
+        let imageUrl = null;
+        if (hotel.imagePath) {
+          try {
+            imageUrl = await getSignedUrlFromPath(hotel.imagePath);
+          } catch (imageError) {
+            console.error(
+              `Error getting image URL for hotel ${hotel.id}:`,
+              imageError
+            );
+          }
+        }
+
         return {
           ...hotel,
           address: address || "Address not available",
+          imageUrl,
         };
       })
     );
 
-    res.json({ hotels: hotelsWithAddresses });
+    res.json({ hotels: hotelsWithAddressesAndImages });
   } catch (error) {
+    console.error("Error fetching hotels:", error);
     res.status(500).json({ error: "Failed to fetch hotels" });
   }
 };
@@ -113,7 +127,9 @@ const getPricing = async (req: Request, res: Response) => {
     const { locationId, numberOfPersons } = req.query;
 
     if (!locationId || !numberOfPersons) {
-      return res.status(400).json({ error: "Location ID and number of persons are required" });
+      return res
+        .status(400)
+        .json({ error: "Location ID and number of persons are required" });
     }
 
     const guest = await prisma.guest.findUnique({
@@ -122,7 +138,9 @@ const getPricing = async (req: Request, res: Response) => {
     });
 
     if (!guest?.hotelId) {
-      return res.status(400).json({ error: "Guest must be associated with a hotel" });
+      return res
+        .status(400)
+        .json({ error: "Guest must be associated with a hotel" });
     }
 
     const hotelLocation = await prisma.hotelLocation.findUnique({
@@ -135,18 +153,21 @@ const getPricing = async (req: Request, res: Response) => {
     });
 
     if (!hotelLocation) {
-      return res.status(404).json({ error: "Pricing not found for this location" });
+      return res
+        .status(404)
+        .json({ error: "Pricing not found for this location" });
     }
 
     const pricePerPerson = hotelLocation.price;
-    const totalPrice = hotelLocation.price * parseInt(numberOfPersons as string);
+    const totalPrice =
+      hotelLocation.price * parseInt(numberOfPersons as string);
 
     res.json({
       pricing: {
         pricePerPerson,
         totalPrice,
-        numberOfPersons: parseInt(numberOfPersons as string)
-      }
+        numberOfPersons: parseInt(numberOfPersons as string),
+      },
     });
   } catch (error) {
     console.error("Get pricing error:", error);
@@ -186,7 +207,7 @@ const createTrip = async (req: Request, res: Response) => {
     // Validation: numberOfPersons must be > 0
     if (!numberOfPersons || numberOfPersons < 1) {
       return res.status(400).json({
-        error: "Number of persons must be at least 1"
+        error: "Number of persons must be at least 1",
       });
     }
 
@@ -210,7 +231,9 @@ const createTrip = async (req: Request, res: Response) => {
     // Determine which location to use for pricing based on booking type
     if (tripType === "HOTEL_TO_AIRPORT") {
       // For hotel to airport, use dropoff location (airport) for pricing
-      pricingLocationId = dropoffLocationId ? parseInt(dropoffLocationId) : null;
+      pricingLocationId = dropoffLocationId
+        ? parseInt(dropoffLocationId)
+        : null;
     } else if (tripType === "AIRPORT_TO_HOTEL") {
       // For airport to hotel, use pickup location (airport) for pricing
       pricingLocationId = pickupLocationId ? parseInt(pickupLocationId) : null;
@@ -321,13 +344,13 @@ const createTrip = async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ 
+    res.json({
       trip: updatedTrip,
       pricing: {
         pricePerPerson,
         totalPrice,
-        numberOfPersons
-      }
+        numberOfPersons,
+      },
     });
   } catch (error) {
     console.error("Error creating trip:", error);
@@ -470,8 +493,8 @@ const getTrips = async (req: Request, res: Response) => {
           pricing: {
             pricePerPerson,
             totalPrice,
-            numberOfPersons: trip.numberOfPersons
-          }
+            numberOfPersons: trip.numberOfPersons,
+          },
         };
       })
     );
@@ -1150,8 +1173,8 @@ const getCurrentBookings = async (req: Request, res: Response) => {
           pricing: {
             pricePerPerson,
             totalPrice,
-            numberOfPersons: currentBooking.numberOfPersons
-          }
+            numberOfPersons: currentBooking.numberOfPersons,
+          },
         };
       })
     );
@@ -1159,6 +1182,177 @@ const getCurrentBookings = async (req: Request, res: Response) => {
     res.json({ currentBookings: bookingsWithETA });
   } catch (error) {
     console.error("Get current bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getCurrentBookingsByHotel = async (req: Request, res: Response) => {
+  try {
+    const guestId = (req as any).user.userId;
+    const hotelId = parseInt(req.params.hotelId);
+
+    if (!hotelId || isNaN(hotelId)) {
+      return res.status(400).json({ error: "Valid hotel ID is required" });
+    }
+
+    // Get all location IDs associated with this hotel
+    const hotelLocations = await prisma.hotelLocation.findMany({
+      where: { hotelId },
+      select: { locationId: true },
+    });
+
+    const locationIds = hotelLocations.map((hl) => hl.locationId);
+
+    if (locationIds.length === 0) {
+      return res.json({ currentBookings: [] });
+    }
+
+    // Get all active bookings for the guest that are associated with this hotel's locations
+    const currentBookings = await prisma.booking.findMany({
+      where: {
+        guestId: guestId,
+        isCompleted: false, // Only get active bookings
+        isCancelled: false, // Exclude cancelled bookings
+        OR: [
+          { pickupLocationId: { in: locationIds } },
+          { dropoffLocationId: { in: locationIds } },
+        ],
+      },
+      include: {
+        pickupLocation: true,
+        dropoffLocation: true,
+        shuttle: {
+          include: {
+            schedules: {
+              include: {
+                driver: {
+                  include: {
+                    currentLocation: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (!currentBookings || currentBookings.length === 0) {
+      return res.json({ currentBookings: [] });
+    }
+
+    // Add ETA and pricing information for each booking if driver location is available
+    const bookingsWithETA = await Promise.all(
+      currentBookings.map(async (currentBooking) => {
+        let eta = currentBooking.eta;
+        let distance = "Unknown";
+        let pricePerPerson = 0;
+        let totalPrice = 0;
+
+        // Calculate pricing for this specific hotel
+        let pricingLocationId = null;
+
+        if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
+          // For hotel to airport, use dropoff location (airport) for pricing
+          pricingLocationId = currentBooking.dropoffLocationId;
+        } else if (currentBooking.bookingType === "AIRPORT_TO_HOTEL") {
+          // For airport to hotel, use pickup location (airport) for pricing
+          pricingLocationId = currentBooking.pickupLocationId;
+        }
+
+        if (pricingLocationId) {
+          // Get the hotel location price for this location
+          const hotelLocation = await prisma.hotelLocation.findUnique({
+            where: {
+              hotelId_locationId: {
+                hotelId: hotelId,
+                locationId: pricingLocationId,
+              },
+            },
+          });
+
+          if (hotelLocation) {
+            pricePerPerson = hotelLocation.price;
+            totalPrice = hotelLocation.price * currentBooking.numberOfPersons;
+          }
+        }
+
+        const driverLocation =
+          currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
+        if (driverLocation) {
+          let destination: Location | null = null;
+
+          // Calculate ETA to pickup location (where driver will pick up the guest)
+          if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
+            destination = currentBooking.pickupLocation
+              ? {
+                  latitude: currentBooking.pickupLocation.latitude,
+                  longitude: currentBooking.pickupLocation.longitude,
+                }
+              : null;
+          } else {
+            destination = currentBooking.pickupLocation
+              ? {
+                  latitude: currentBooking.pickupLocation.latitude,
+                  longitude: currentBooking.pickupLocation.longitude,
+                }
+              : null;
+          }
+
+          if (destination) {
+            const origin: Location = {
+              latitude: driverLocation.latitude,
+              longitude: driverLocation.longitude,
+            };
+
+            try {
+              const etaResult = await googleMapsService.calculateETA(
+                origin,
+                destination
+              );
+              eta = etaResult.duration;
+              distance = etaResult.distance;
+
+              // Update the booking with new ETA if it's different
+              if (eta !== currentBooking.eta) {
+                await prisma.booking.update({
+                  where: { id: currentBooking.id },
+                  data: {
+                    eta: eta,
+                    lastEtaUpdate: new Date(),
+                  },
+                });
+              }
+            } catch (error) {
+              console.error(
+                "Error calculating ETA for current booking:",
+                currentBooking.id,
+                error
+              );
+            }
+          }
+        }
+
+        return {
+          ...currentBooking,
+          eta,
+          distance,
+          driverLocation: driverLocation || null,
+          pricing: {
+            pricePerPerson,
+            totalPrice,
+            numberOfPersons: currentBooking.numberOfPersons,
+          },
+        };
+      })
+    );
+
+    res.json({ currentBookings: bookingsWithETA });
+  } catch (error) {
+    console.error("Get current bookings by hotel error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1300,6 +1494,7 @@ export default {
   getBookingETA,
   getBookingTracking,
   getCurrentBookings,
+  getCurrentBookingsByHotel,
   getNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,

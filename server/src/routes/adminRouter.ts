@@ -54,6 +54,13 @@ router.get(
   controller.getHotel as RequestHandler
 );
 
+// S3 upload routes
+router.post(
+  "/upload/presigned-url",
+  adminAuthMiddleware as RequestHandler,
+  controller.generatePresignedUrl as RequestHandler
+);
+
 //frontdesk routes
 router.post(
   "/add/frontdesk",

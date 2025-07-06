@@ -3,10 +3,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, QrCode, History, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MapPin, QrCode, History, Plus, User, ArrowLeft } from "lucide-react";
 import CurrentBookings from "@/components/current-bookings";
 import BookingHistory from "@/components/booking-history";
 import NewBooking from "@/components/new-booking";
+import { NotificationDrawer } from "@/components/notification-drawer";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
@@ -77,14 +87,84 @@ export default function HotelPage() {
   const [currentBookings, setCurrentBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  const [guestEmail, setGuestEmail] = useState("guest@example.com");
+  const [guestName, setGuestName] = useState("Guest User");
+
+  // Function to create guest name from email
+  const createGuestName = (email: string) => {
+    if (!email || email === "guest@example.com") return "Guest User";
+
+    // Extract the part before @ symbol
+    const emailPart = email.split("@")[0];
+
+    // Handle different email formats
+    if (emailPart.includes(".")) {
+      // Format: john.doe@example.com -> John Doe
+      return emailPart
+        .split(".")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    } else if (emailPart.includes("_")) {
+      // Format: john_doe@example.com -> John Doe
+      return emailPart
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    } else {
+      // Format: johndoe@example.com -> Johndoe
+      return emailPart.charAt(0).toUpperCase() + emailPart.slice(1);
+    }
+  };
+
+  // Fetch guest profile data
+  const fetchGuestData = useCallback(async () => {
+    try {
+      const profileResponse = await api.get("/guest/profile");
+      if (profileResponse.guest) {
+        const email = profileResponse.guest.email || "guest@example.com";
+        setGuestEmail(email);
+
+        // Use actual firstName and lastName if available, otherwise fallback to email-based name
+        if (profileResponse.guest.firstName && profileResponse.guest.lastName) {
+          setGuestName(
+            `${profileResponse.guest.firstName} ${profileResponse.guest.lastName}`
+          );
+        } else if (profileResponse.guest.firstName) {
+          setGuestName(profileResponse.guest.firstName);
+        } else if (profileResponse.guest.lastName) {
+          setGuestName(profileResponse.guest.lastName);
+        } else {
+          setGuestName(createGuestName(email));
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching guest data:", error);
+      // Fallback to localStorage for guest info if API fails
+      const token = localStorage.getItem("guestToken");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          const email = payload.email || "guest@example.com";
+          setGuestEmail(email);
+          setGuestName(createGuestName(email));
+        } catch (error) {
+          console.error("Error decoding token:", error);
+        }
+      }
+    }
+  }, []);
 
   // Fetch current bookings from API
   const fetchCurrentBookings = useCallback(async () => {
     try {
       setIsLoadingBookings(true);
-      const response = await api.get('/guest/current-booking');
+      const hotelId = params.id as string;
+      const response = await api.get(`/guest/current-booking/${hotelId}`);
       if (response.currentBookings && response.currentBookings.length > 0) {
-        console.log("Found current bookings from API:", response.currentBookings);
+        console.log(
+          "Found current bookings from API:",
+          response.currentBookings
+        );
         setCurrentBookings(response.currentBookings);
       } else {
         setCurrentBookings([]);
@@ -95,32 +175,49 @@ export default function HotelPage() {
     } finally {
       setIsLoadingBookings(false);
     }
-  }, []);
+  }, [params.id]);
 
   // Memoize the booking update handler to prevent infinite loops
-  const handleBookingUpdate = useCallback((updatedBooking: any) => {
-    console.log("Received booking update via WebSocket:", updatedBooking);
-    
-    // Update the current bookings with the new data
-    setCurrentBookings(prev => 
-      prev.map(booking => 
-        booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
-      )
-    );
-    
-    // If we're not on the current booking tab, switch to it
-    if (activeTab !== "current") {
-      setActiveTab("current");
-    }
-  }, [activeTab]);
+  const handleBookingUpdate = useCallback(
+    (updatedBooking: any) => {
+      console.log("Received booking update via WebSocket:", updatedBooking);
+
+      // Update the current bookings with the new data
+      setCurrentBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === updatedBooking.id
+            ? { ...booking, ...updatedBooking }
+            : booking
+        )
+      );
+
+      // If we're not on the current booking tab, switch to it
+      if (activeTab !== "current") {
+        setActiveTab("current");
+      }
+    },
+    [activeTab]
+  );
 
   // Memoize the onBookingCreated callback to prevent unnecessary re-renders
-  const handleBookingCreated = useCallback(async (booking: any) => {
-    console.log("New booking created:", booking);
-    // Refresh current bookings from API
-    await fetchCurrentBookings();
-    setActiveTab("current");
-  }, [fetchCurrentBookings]);
+  const handleBookingCreated = useCallback(
+    async (booking: any) => {
+      console.log("New booking created:", booking);
+      // Refresh current bookings from API
+      await fetchCurrentBookings();
+      setActiveTab("current");
+    },
+    [fetchCurrentBookings]
+  );
+
+  const handleSignOut = () => {
+    localStorage.removeItem("guestToken");
+    router.push("/login");
+  };
+
+  const handleGoBack = () => {
+    router.push("/select-hotel");
+  };
 
   useEffect(() => {
     const hotelId = params.id as string;
@@ -131,7 +228,7 @@ export default function HotelPage() {
           setIsLoading(true);
           const response = await api.get(`/guest/get-hotel/${hotelId}`);
           console.log(response);
-          setSelectedHotel(response.hotel.hotel)
+          setSelectedHotel(response.hotel.hotel);
         } catch (error) {
           console.error("Error fetching hotel:", error);
         } finally {
@@ -143,9 +240,10 @@ export default function HotelPage() {
       router.push("/select-hotel");
     }
 
-    // Fetch current bookings from API
+    // Fetch current bookings and guest data
     fetchCurrentBookings();
-  }, [params.id, router, fetchCurrentBookings]);
+    fetchGuestData();
+  }, [params.id, router, fetchCurrentBookings, fetchGuestData]);
 
   // Listen for booking updates via WebSocket
   useEffect(() => {
@@ -161,80 +259,145 @@ export default function HotelPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      {/* Unified Header with Hotel Name, Tabs, Notifications, and Profile */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between py-4">
+            {/* Left: Hotel Info with Go Back Button */}
             <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleGoBack}
+                className="hover:bg-gray-100"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{selectedHotel.name}</h1>
+                <h1 className="text-xl font-bold text-gray-900">
+                  {selectedHotel.name}
+                </h1>
                 <p className="text-sm text-gray-600">{selectedHotel.address}</p>
               </div>
             </div>
+
+            {/* Center: Navigation Tabs */}
+            <nav className="flex space-x-8">
+              <button
+                onClick={() => {
+                  setActiveTab("current");
+                  // If no bookings are loaded yet, fetch them
+                  if (currentBookings.length === 0 && !isLoadingBookings) {
+                    fetchCurrentBookings();
+                  }
+                }}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "current"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <QrCode className="w-4 h-4" />
+                  <span>Current Bookings</span>
+                  {currentBookings.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {currentBookings.length}
+                    </Badge>
+                  )}
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab("new")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "new"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Plus className="w-4 h-4" />
+                  <span>New Booking</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab("history")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "history"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <History className="w-4 h-4" />
+                  <span>History</span>
+                </div>
+              </button>
+            </nav>
+
+            {/* Right: Notifications and Profile */}
+            <div className="flex items-center space-x-4">
+              <NotificationDrawer />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="flex items-center space-x-2 hover:bg-blue-50 dark:hover:bg-blue-950"
+                  >
+                    <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-foreground">
+                        {guestName}
+                      </p>
+                      <p className="text-xs text-foreground/70">{guestEmail}</p>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-56 bg-background border-border"
+                >
+                  <DropdownMenuLabel className="text-foreground">
+                    My Account
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-border" />
+                  <DropdownMenuItem
+                    onClick={() => router.push("/profile")}
+                    className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
+                  >
+                    Profile Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => router.push("/notifications")}
+                    className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
+                  >
+                    Notifications
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleGoBack}
+                    className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
+                  >
+                    Change Hotel
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-border" />
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
+                  >
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => {
-                setActiveTab("current");
-                // If no bookings are loaded yet, fetch them
-                if (currentBookings.length === 0 && !isLoadingBookings) {
-                  fetchCurrentBookings();
-                }
-              }}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "current"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <QrCode className="w-4 h-4" />
-                <span>Current Bookings</span>
-                {currentBookings.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {currentBookings.length}
-                  </Badge>
-                )}
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab("new")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "new"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>New Booking</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab("history")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "history"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <History className="w-4 h-4" />
-                <span>History</span>
-              </div>
-            </button>
-          </nav>
-        </div>
-      </div>
+      </header>
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">

@@ -6,6 +6,10 @@ import { env } from "../config/env";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { randomInt } from "crypto";
+import {
+  generatePresignedPutUrl,
+  getSignedUrlFromPath,
+} from "../utils/s3Utils";
 
 const signup = async (req: Request, res: Response) => {
   try {
@@ -277,7 +281,15 @@ const updateAdminProfile = async (req: Request, res: Response) => {
 
 const createHotel = async (req: Request, res: Response) => {
   try {
-    const { name, latitude, longitude, address, phoneNumber, email } = req.body;
+    const {
+      name,
+      latitude,
+      longitude,
+      address,
+      phoneNumber,
+      email,
+      imagePath,
+    } = req.body;
     const adminId = (req as any).user.userId;
 
     if (!name || !address || !phoneNumber || !email) {
@@ -308,6 +320,7 @@ const createHotel = async (req: Request, res: Response) => {
         address,
         phoneNumber,
         email,
+        imagePath,
         admins: { connect: { id: parseInt(adminId) } },
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -322,7 +335,15 @@ const createHotel = async (req: Request, res: Response) => {
 const editHotel = async (req: Request, res: Response) => {
   try {
     const hotelId = req.params.id;
-    const { name, latitude, longitude, address, phoneNumber, email } = req.body;
+    const {
+      name,
+      latitude,
+      longitude,
+      address,
+      phoneNumber,
+      email,
+      imagePath,
+    } = req.body;
     const adminId = (req as any).user.userId;
 
     if (!name || !address || !phoneNumber || !email) {
@@ -358,6 +379,7 @@ const editHotel = async (req: Request, res: Response) => {
         address,
         phoneNumber,
         email,
+        imagePath,
         updatedAt: new Date(),
       },
     });
@@ -1581,6 +1603,60 @@ const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
+const generatePresignedUrl = async (req: Request, res: Response) => {
+  try {
+    const { fileName, contentType, folder, hotelId } = req.body;
+    const adminId = (req as any).user.userId;
+
+    if (!fileName) {
+      return res.status(400).json({ message: "fileName is required" });
+    }
+
+    if (!hotelId) {
+      return res.status(400).json({ message: "hotelId is required" });
+    }
+
+    // Get admin's hotel to verify ownership
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(adminId) },
+      include: { hotel: true },
+    });
+
+    if (!admin || !admin.hotel || admin.hotel.id !== parseInt(hotelId)) {
+      return res
+        .status(403)
+        .json({ message: "You can only upload images for your own hotel" });
+    }
+
+    // Validate folder - only allow public for hotel images
+    const allowedFolders = ["public/hotel-images"];
+    const targetFolder = folder || "public/hotel-images";
+
+    if (!allowedFolders.includes(targetFolder)) {
+      return res.status(400).json({ message: "Invalid folder specified" });
+    }
+
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const fileExtension = fileName.split(".").pop();
+    const uniqueFileName = `${timestamp}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const fullPath = `${targetFolder}/${hotelId}/${uniqueFileName}`;
+
+    const presignedUrl = await generatePresignedPutUrl(
+      fullPath,
+      contentType || "image/jpeg"
+    );
+
+    res.json({
+      presignedUrl,
+      imagePath: fullPath,
+      fileName: uniqueFileName,
+    });
+  } catch (error) {
+    console.error("Generate presigned URL error:", error);
+    res.status(500).json({ message: "Failed to generate presigned URL" });
+  }
+};
 
 export default {
   getAdmin,
@@ -1623,4 +1699,5 @@ export default {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  generatePresignedUrl,
 };
