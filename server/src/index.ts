@@ -13,6 +13,7 @@ import authRoutes from "./utils/auth";
 import superAdminRouter from "./routes/superAdminRouter";
 import tripRouter from "./routes/tripRouter";
 import { CORS_ORIGINS } from "./config/env";
+import { startBookingCancellationJob } from "./utils/cronService";
 
 // Load environment variables
 dotenv.config();
@@ -77,4 +78,7 @@ app.use(
 
 httpServer.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+  
+  // Start the automatic booking cancellation cron job
+  startBookingCancellationJob();
 });

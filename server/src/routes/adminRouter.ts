@@ -205,4 +205,5 @@ router.put(
 router.post("/forgot-password", controller.forgotPassword as RequestHandler);
 router.post("/verify-otp", controller.verifyOtp as RequestHandler);
 router.post("/reset-password", controller.resetPassword as RequestHandler);
+
 export default router;

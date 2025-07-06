@@ -28,7 +28,7 @@ model Guest {
 
 model Otp {
   id        String   @id @default(uuid())
-  email     String   
+  email     String
   code      String
   expiresAt DateTime
   isUsed    Boolean  @default(false)
@@ -38,77 +38,77 @@ model Otp {
 }
 
 model Location {
-  id              Int       @id @default(autoincrement())
+  id              Int             @id @default(autoincrement())
   name            String
-  address         String?
   latitude        Float
   longitude       Float
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  bookingsDropoff Booking[] @relation("dropoff")
-  bookingsPickup  Booking[] @relation("pickup")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  address         String?
+  bookingsDropoff Booking[]       @relation("dropoff")
+  bookingsPickup  Booking[]       @relation("pickup")
   hotelLocations  HotelLocation[]
 }
 
 model Booking {
-  id                String        @id @default(uuid())
-  guestId           Int
-  confirmationNum   String?
-  numberOfPersons   Int
-  numberOfBags      Int
-  pickupLocationId  Int?
-  dropoffLocationId Int?
-  preferredTime     DateTime?
-  paymentMethod     PaymentMethod
-  bookingType       BookingType
-  isCompleted       Boolean       @default(false)
-  isPaid            Boolean       @default(false)
-  isCancelled       Boolean       @default(false)
-  isRefunded        Boolean       @default(false)
-  cancelledBy       CancellationActor?
-  cancellationReason String?
-  shuttleId         Int?
-  tripId            String?
-  encryptionKey     String?
-  qrCodePath        String?
-  isVerified        Boolean       @default(false)
-  verifiedAt        DateTime?
-  verifiedBy        Int?
-  needsFrontdeskVerification Boolean @default(false)
-  eta               String?
-  trackingEnabled   Boolean       @default(true)
-  lastEtaUpdate     DateTime?
-  isWaived          Boolean       @default(false)
-  waiverReason      String?
-  waivedBy          Int?
-  waivedAt          DateTime?
-  notes             String?
-  isParkSleepFly     Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  dropoffLocation   Location?     @relation("dropoff", fields: [dropoffLocationId], references: [id])
-  guest             Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
-  pickupLocation    Location?     @relation("pickup", fields: [pickupLocationId], references: [id])
-  shuttle           Shuttle?      @relation(fields: [shuttleId], references: [id])
-  trip              Trip?         @relation(fields: [tripId], references: [id])
-  verificationToken QRVerificationToken?
-  verificationLogs  QRVerificationLog[]
-  verifier          Driver?       @relation("BookingVerifier", fields: [verifiedBy], references: [id])
-  waiverUser        FrontDesk?    @relation("BookingWaiver", fields: [waivedBy], references: [id])
+  id                         String               @id @default(uuid())
+  guestId                    Int
+  numberOfPersons            Int
+  numberOfBags               Int
+  pickupLocationId           Int?
+  dropoffLocationId          Int?
+  preferredTime              DateTime?
+  paymentMethod              PaymentMethod
+  bookingType                BookingType
+  isCompleted                Boolean              @default(false)
+  isPaid                     Boolean              @default(false)
+  isCancelled                Boolean              @default(false)
+  isRefunded                 Boolean              @default(false)
+  shuttleId                  Int?
+  encryptionKey              String?
+  qrCodePath                 String?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  isVerified                 Boolean              @default(false)
+  verifiedAt                 DateTime?
+  verifiedBy                 Int?
+  eta                        String?
+  lastEtaUpdate              DateTime?
+  trackingEnabled            Boolean              @default(true)
+  tripId                     String?
+  cancellationReason         String?
+  cancelledBy                CancellationActor?
+  needsFrontdeskVerification Boolean              @default(false)
+  confirmationNum            String?
+  isWaived                   Boolean              @default(false)
+  waivedAt                   DateTime?
+  waivedBy                   Int?
+  waiverReason               String?
+  notes                      String?
+  isParkSleepFly             Boolean              @default(false)
+  dropoffLocation            Location?            @relation("dropoff", fields: [dropoffLocationId], references: [id])
+  guest                      Guest                @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  pickupLocation             Location?            @relation("pickup", fields: [pickupLocationId], references: [id])
+  shuttle                    Shuttle?             @relation(fields: [shuttleId], references: [id])
+  trip                       Trip?                @relation(fields: [tripId], references: [id])
+  verifier                   Driver?              @relation("BookingVerifier", fields: [verifiedBy], references: [id])
+  waiverUser                 FrontDesk?           @relation("BookingWaiver", fields: [waivedBy], references: [id])
+  verificationLogs           QRVerificationLog[]
+  verificationToken          QRVerificationToken?
 }
 
 model FrontDesk {
-  id            Int            @id @default(autoincrement())
-  name          String
-  phoneNumber   String
-  email         String         @unique
-  password      String
-  hotelId       Int
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  hotel         Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  notifications Notification[]
-  waivedBookings Booking[]     @relation("BookingWaiver")
+  id             Int            @id @default(autoincrement())
+  name           String
+  phoneNumber    String
+  email          String         @unique
+  password       String
+  hotelId        Int
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  waivedBookings Booking[]      @relation("BookingWaiver")
+  hotel          Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  notifications  Notification[]
 }
 
 model Admin {
@@ -124,23 +124,23 @@ model Admin {
 }
 
 model Driver {
-  id            Int            @id @default(autoincrement())
-  name          String
-  phoneNumber   String
-  email         String         @unique
-  password      String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  hotelId       Int?
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  phoneNumber        String
+  email              String              @unique
+  password           String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  hotelId            Int?
   lastLocationUpdate DateTime?
-  hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  notifications Notification[]
-  schedules     Schedule[]     @relation("DriverSchedules")
-  trips         Trip[]
-  verifiedBookings Booking[]   @relation("BookingVerifier")
-  verificationLogs QRVerificationLog[]
-  currentLocation DriverLocation?
-  locationHistory LocationHistory[]
+  verifiedBookings   Booking[]           @relation("BookingVerifier")
+  hotel              Hotel?              @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  currentLocation    DriverLocation?
+  locationHistory    LocationHistory[]
+  notifications      Notification[]
+  verificationLogs   QRVerificationLog[]
+  schedules          Schedule[]          @relation("DriverSchedules")
+  trips              Trip[]
 }
 
 model Shuttle {
@@ -151,20 +151,20 @@ model Shuttle {
   createdAt     DateTime   @default(now())
   bookings      Booking[]
   schedules     Schedule[] @relation("ShuttleSchedules")
-  trips         Trip[]
   hotel         Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  trips         Trip[]
 }
 
 model Schedule {
-  id        Int      @id @default(autoincrement())
-  driverId  Int
-  shuttleId Int
+  id           Int      @id @default(autoincrement())
+  driverId     Int
+  shuttleId    Int
+  startTime    DateTime
+  endTime      DateTime
   scheduleDate DateTime @default(now())
-  startTime DateTime
-  endTime   DateTime
-  driver    Driver   @relation("DriverSchedules", fields: [driverId], references: [id], onDelete: Cascade)
-  shuttle   Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
-  trips     Trip[]
+  driver       Driver   @relation("DriverSchedules", fields: [driverId], references: [id], onDelete: Cascade)
+  shuttle      Shuttle  @relation("ShuttleSchedules", fields: [shuttleId], references: [id], onDelete: Cascade)
+  trips        Trip[]
 
   @@unique([driverId, scheduleDate])
 }
@@ -187,58 +187,21 @@ model Notification {
 }
 
 model Hotel {
-  id          Int         @id @default(autoincrement())
-  name        String
-  address     String?
-  phoneNumber String?
-  email       String?
-  latitude    Float?
-  longitude   Float?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime
-  admins      Admin[]
-  drivers     Driver[]
-  frontDesks  FrontDesk[]
-  guests      Guest[]
-  shuttles    Shuttle[]
+  id             Int             @id @default(autoincrement())
+  name           String
+  address        String?
+  phoneNumber    String?
+  email          String?
+  latitude       Float?
+  longitude      Float?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  admins         Admin[]
+  drivers        Driver[]
+  frontDesks     FrontDesk[]
+  guests         Guest[]
   hotelLocations HotelLocation[]
-}
-
-enum PaymentMethod {
-  APP
-  FRONTDESK
-  DEPOSIT
-}
-
-enum BookingType {
-  HOTEL_TO_AIRPORT
-  AIRPORT_TO_HOTEL
-}
-
-enum CancellationActor {
-  GUEST
-  DRIVER
-  FRONTDESK
-  ADMIN
-  SYSTEM
-}
-
-enum TripDirection {
-  HOTEL_TO_AIRPORT
-  AIRPORT_TO_HOTEL
-}
-
-enum TripStatus {
-  PENDING
-  ACTIVE
-  COMPLETED
-  CANCELLED
-}
-
-enum TripPhase {
-  OUTBOUND
-  RETURN
-  COMPLETED
+  shuttles       Shuttle[]
 }
 
 model QRVerificationToken {
@@ -290,24 +253,23 @@ model LocationHistory {
 }
 
 model Trip {
-  id          String      @id @default(uuid())
-  scheduleId  Int
-  driverId    Int
-  shuttleId   Int
-  direction   TripDirection
-  status      TripStatus  @default(PENDING)
-  phase       TripPhase   @default(OUTBOUND)
-  startTime   DateTime?
+  id              String        @id @default(uuid())
+  scheduleId      Int
+  driverId        Int
+  shuttleId       Int
+  direction       TripDirection
+  status          TripStatus    @default(PENDING)
+  startTime       DateTime?
+  endTime         DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   outboundEndTime DateTime?
+  phase           TripPhase     @default(OUTBOUND)
   returnStartTime DateTime?
-  endTime     DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  schedule    Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  shuttle     Shuttle     @relation(fields: [shuttleId], references: [id], onDelete: Cascade)
-  bookings    Booking[]
+  bookings        Booking[]
+  driver          Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  schedule        Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  shuttle         Shuttle       @relation(fields: [shuttleId], references: [id], onDelete: Cascade)
 }
 
 model HotelLocation {
@@ -315,9 +277,45 @@ model HotelLocation {
   hotelId    Int
   locationId Int
   price      Float
-
   hotel      Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([hotelId, locationId])
+}
+
+enum PaymentMethod {
+  APP
+  FRONTDESK
+  DEPOSIT
+}
+
+enum BookingType {
+  HOTEL_TO_AIRPORT
+  AIRPORT_TO_HOTEL
+}
+
+enum CancellationActor {
+  GUEST
+  DRIVER
+  FRONTDESK
+  ADMIN
+  SYSTEM
+}
+
+enum TripDirection {
+  HOTEL_TO_AIRPORT
+  AIRPORT_TO_HOTEL
+}
+
+enum TripStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TripPhase {
+  OUTBOUND
+  RETURN
+  COMPLETED
 }
