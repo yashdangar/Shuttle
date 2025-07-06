@@ -1160,6 +1160,8 @@ const getDashboardStats = async (req: Request, res: Response) => {
             },
           },
         },
+        pickupLocation: true,
+        dropoffLocation: true,
       },
     });
 
@@ -1170,18 +1172,52 @@ const getDashboardStats = async (req: Request, res: Response) => {
 
     // Calculate revenue breakdown by trip type
     const completedBookings = bookings.filter((booking) => booking.isCompleted);
-    const totalRevenue = completedBookings.length * 50; // $50 per booking
 
-    // Calculate revenue by trip type
-    const hotelToAirportBookings = completedBookings.filter(
-      (booking) => booking.bookingType === "HOTEL_TO_AIRPORT"
-    );
-    const airportToHotelBookings = completedBookings.filter(
-      (booking) => booking.bookingType === "AIRPORT_TO_HOTEL"
-    );
+    // Calculate actual revenue based on hotel location prices and number of persons
+    let totalRevenue = 0;
+    let hotelToAirportRevenue = 0;
+    let airportToHotelRevenue = 0;
 
-    const hotelToAirportRevenue = hotelToAirportBookings.length * 50;
-    const airportToHotelRevenue = airportToHotelBookings.length * 50;
+    for (const booking of completedBookings) {
+      let bookingRevenue = 0;
+
+      // Determine which location to use for pricing based on booking type
+      let pricingLocationId = null;
+
+      if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+        // For hotel to airport, use dropoff location (airport) for pricing
+        pricingLocationId = booking.dropoffLocationId;
+      } else if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+        // For airport to hotel, use pickup location (airport) for pricing
+        pricingLocationId = booking.pickupLocationId;
+      }
+
+      if (pricingLocationId) {
+        // Get the hotel location price for this location
+        const hotelLocation = await prisma.hotelLocation.findUnique({
+          where: {
+            hotelId_locationId: {
+              hotelId: admin.hotelId,
+              locationId: pricingLocationId,
+            },
+          },
+        });
+
+        if (hotelLocation) {
+          // Calculate revenue: price per person * number of persons
+          bookingRevenue = hotelLocation.price * booking.numberOfPersons;
+        }
+      }
+
+      totalRevenue += bookingRevenue;
+
+      // Add to specific trip type revenue
+      if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+        hotelToAirportRevenue += bookingRevenue;
+      } else if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+        airportToHotelRevenue += bookingRevenue;
+      }
+    }
 
     // Calculate booking types (all bookings, not just completed)
     const hotelToAirport = bookings.filter(

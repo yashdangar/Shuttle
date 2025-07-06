@@ -117,7 +117,7 @@ function ShuttlesPage() {
           `/admin/edit/shuttle/${editingShuttle.id}`,
           {
             vehicleNumber: formData.vehicleNumber,
-            hotelId: parseInt(formData.hotelId),
+            hotelId: parseInt(hotels?.[0]?.id.toString() || ""),
             seats: Number.parseInt(formData.seats),
           }
         );
@@ -126,7 +126,7 @@ function ShuttlesPage() {
           vehicleNumber: formData.vehicleNumber,
           seats: Number.parseInt(formData.seats),
           createdAt: response.shuttle.createdAt,
-          hotelId: parseInt(formData.hotelId),
+          hotelId: parseInt(hotels?.[0]?.id.toString() || ""),
           schedules: editingShuttle.schedules,
         };
         setShuttles(
@@ -139,7 +139,7 @@ function ShuttlesPage() {
       } else {
         const response = await api.post("/admin/add/shuttle", {
           vehicleNumber: formData.vehicleNumber,
-          hotelId: parseInt(formData.hotelId),
+          hotelId: parseInt(hotels?.[0]?.id.toString() || ""),
           seats: Number.parseInt(formData.seats),
         });
         const newShuttle: Shuttle = {
@@ -147,7 +147,7 @@ function ShuttlesPage() {
           vehicleNumber: formData.vehicleNumber,
           seats: Number.parseInt(formData.seats),
           createdAt: response.shuttle.createdAt,
-          hotelId: parseInt(formData.hotelId),
+          hotelId: parseInt(hotels?.[0]?.id.toString() || ""),
           schedules: [],
         };
         setShuttles([...(shuttles || []), newShuttle]);
@@ -167,7 +167,7 @@ function ShuttlesPage() {
     setEditingShuttle(shuttle);
     setFormData({
       vehicleNumber: shuttle.vehicleNumber,
-      hotelId: shuttle.hotelId.toString(),
+      hotelId: hotels?.[0]?.id.toString() || "",
       seats: shuttle.seats.toString(),
     });
     setIsAddDialogOpen(true);
@@ -264,31 +264,6 @@ function ShuttlesPage() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="hotel">Hotel</Label>
-                <Select
-                  value={formData.hotelId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, hotelId: value })
-                  }
-                  required
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select hotel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {hotels && (
-                      <SelectItem
-                        key={hotels[0].id}
-                        value={hotels[0].id.toString()}
-                      >
-                        {hotels[0].name}
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
               <div>
                 <Label htmlFor="vehicleNumber">Vehicle Number</Label>
                 <Input

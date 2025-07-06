@@ -336,29 +336,6 @@ function DriversPage() {
                   />
                 </div>
               )}
-              <div>
-                <Label htmlFor="hotel">Hotel</Label>
-                <Select
-                  value={formData.hotel}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, hotel: value })
-                  }
-                  required
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select hotel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      key={hotels[0]?.id}
-                      value={hotels[0]?.id.toString()}
-                    >
-                      {hotels[0]?.name}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"

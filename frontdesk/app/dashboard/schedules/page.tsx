@@ -1426,119 +1426,128 @@ function SchedulesPage() {
                   <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
                     👈 Scroll horizontally to view the full weekly calendar
                   </div>
-                  <div className="relative bg-white border border-slate-200 rounded-lg overflow-x-auto">
-                    <div className="min-w-[1050px]">
-                      {/* Header: Days of week, perfectly aligned with columns */}
-                      <div className="grid grid-cols-7 border-b border-slate-200 h-12">
-                        {weekDays.map((day, idx) => (
+                  <div className="flex">
+                    {/* Hour labels column */}
+                    <div className="w-12 flex-shrink-0">
+                      {/* Empty header to align with day headers */}
+                      <div className="h-12 border-b border-slate-200"></div>
+                      {/* Hour labels */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-l-lg">
+                        {[...Array(24)].map((_, hour) => (
                           <div
-                            key={idx}
-                            className="flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 text-slate-600"
+                            key={hour}
+                            className="h-12 flex items-start justify-end pr-2 text-xs text-slate-500 select-none border-b border-slate-100 last:border-b-0"
                           >
-                            <div className="text-xs lg:text-sm font-semibold w-full text-center">
-                              {day.dayName}
-                            </div>
-                            <div className="text-xs lg:text-sm w-full text-center">
-                              {day.month} {day.dayNumber}
-                            </div>
-                            {day.isToday && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 mx-auto"></div>
-                            )}
+                            {hour === 0
+                              ? "12 AM"
+                              : hour < 12
+                              ? `${hour} AM`
+                              : hour === 12
+                              ? "12 PM"
+                              : `${hour - 12} PM`}
                           </div>
                         ))}
                       </div>
-                      {/* Body: 24-hour grid, columns perfectly aligned */}
-                      <div
-                        className="relative grid grid-cols-7"
-                        style={{ height: 24 * 48 + 1 }}
-                      >
-                        {weekDays.map((day, colIdx) => {
-                          const daySchedules = getSchedulesForDay(
-                            colIdx
-                          ).filter((sch) => sch !== null) as Array<any>;
-                          return (
+                    </div>
+
+                    {/* Main timeline grid */}
+                    <div className="flex-1 bg-white border border-slate-200 rounded-r-lg overflow-x-auto">
+                      <div className="min-w-[1050px]">
+                        {/* Header: Days of week, perfectly aligned with columns */}
+                        <div className="grid grid-cols-7 border-b border-slate-200 h-12">
+                          {weekDays.map((day, idx) => (
                             <div
-                              key={colIdx}
-                              className="relative border-r border-slate-100 last:border-r-0 h-full"
-                              style={{ overflow: "visible" }}
+                              key={idx}
+                              className="flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 text-slate-600"
                             >
-                              {[...Array(24)].map((_, hour) => (
-                                <div
-                                  key={hour}
-                                  className="border-b border-slate-100 h-12"
-                                ></div>
-                              ))}
-                              {daySchedules.map((sch, i) => {
-                                const start = sch._visibleStart;
-                                const end = sch._visibleEnd;
-                                const dayStart = new Date(day.date);
-                                dayStart.setHours(0, 0, 0, 0);
-                                const blockStartOffset =
-                                  (start.getTime() - dayStart.getTime()) /
-                                  (1000 * 60 * 60);
-                                const blockEndOffset =
-                                  (end.getTime() - dayStart.getTime()) /
-                                  (1000 * 60 * 60);
-                                const top = blockStartOffset * 48;
-                                const height = Math.max(
-                                  (blockEndOffset - blockStartOffset) * 48,
-                                  24
-                                );
-                                // Overlap stacking
-                                const overlapIdx = sch._overlapIdx || 0;
-                                const overlapTotal = sch._overlapTotal || 1;
-                                const leftPercent =
-                                  (overlapIdx / overlapTotal) * 100;
-                                const widthPercent = 100 / overlapTotal;
-                                return (
-                                  <div
-                                    key={sch.id + "-" + i}
-                                    className={`absolute rounded-md shadow-md cursor-pointer ${getShuttleColor(
-                                      sch.shuttle.id
-                                    )} flex flex-col justify-center items-center p-1.5 transition-all`}
-                                    style={{
-                                      top,
-                                      height,
-                                      left: `${leftPercent}%`,
-                                      width: `${widthPercent}%`,
-                                      minWidth: 60,
-                                      zIndex: 20 + i,
-                                    }}
-                                    onClick={() => handleEdit(sch)}
-                                    title={`${sch.driver.name} - ${sch.shuttle.vehicleNumber}`}
-                                  >
-                                    <div className="font-semibold text-xs truncate w-full text-center">
-                                      {sch.driver.name}
-                                    </div>
-                                    <div className="text-xs text-slate-700 truncate w-full text-center">
-                                      {sch.shuttle.vehicleNumber}
-                                    </div>
-                                    <div className="text-[10px] text-slate-500">
-                                      {formatTimeForDisplay(sch.startTime)} -{" "}
-                                      {formatTimeForDisplay(sch.endTime)}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                        {/* Hour labels (left gutter) */}
-                        <div className="absolute left-0 top-0 z-10 w-12 h-full flex flex-col pointer-events-none">
-                          {[...Array(24)].map((_, hour) => (
-                            <div
-                              key={hour}
-                              className="h-12 flex items-start justify-end pr-2 text-xs text-slate-400 select-none"
-                            >
-                              {hour === 0
-                                ? "12 AM"
-                                : hour < 12
-                                ? `${hour} AM`
-                                : hour === 12
-                                ? "12 PM"
-                                : `${hour - 12} PM`}
+                              <div className="text-xs lg:text-sm font-semibold w-full text-center">
+                                {day.dayName}
+                              </div>
+                              <div className="text-xs lg:text-sm w-full text-center">
+                                {day.month} {day.dayNumber}
+                              </div>
+                              {day.isToday && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 mx-auto"></div>
+                              )}
                             </div>
                           ))}
+                        </div>
+                        {/* Body: 24-hour grid, columns perfectly aligned */}
+                        <div
+                          className="relative grid grid-cols-7"
+                          style={{ height: 24 * 48 + 1 }}
+                        >
+                          {weekDays.map((day, colIdx) => {
+                            const daySchedules = getSchedulesForDay(
+                              colIdx
+                            ).filter((sch) => sch !== null) as Array<any>;
+                            return (
+                              <div
+                                key={colIdx}
+                                className="relative border-r border-slate-100 last:border-r-0 h-full"
+                                style={{ overflow: "visible" }}
+                              >
+                                {[...Array(24)].map((_, hour) => (
+                                  <div
+                                    key={hour}
+                                    className="border-b border-slate-100 h-12"
+                                  ></div>
+                                ))}
+                                {daySchedules.map((sch, i) => {
+                                  const start = sch._visibleStart;
+                                  const end = sch._visibleEnd;
+                                  const dayStart = new Date(day.date);
+                                  dayStart.setHours(0, 0, 0, 0);
+                                  const blockStartOffset =
+                                    (start.getTime() - dayStart.getTime()) /
+                                    (1000 * 60 * 60);
+                                  const blockEndOffset =
+                                    (end.getTime() - dayStart.getTime()) /
+                                    (1000 * 60 * 60);
+                                  const top = blockStartOffset * 48;
+                                  const height = Math.max(
+                                    (blockEndOffset - blockStartOffset) * 48,
+                                    24
+                                  );
+                                  // Overlap stacking
+                                  const overlapIdx = sch._overlapIdx || 0;
+                                  const overlapTotal = sch._overlapTotal || 1;
+                                  const leftPercent =
+                                    (overlapIdx / overlapTotal) * 100;
+                                  const widthPercent = 100 / overlapTotal;
+                                  return (
+                                    <div
+                                      key={sch.id + "-" + i}
+                                      className={`absolute rounded-md shadow-md cursor-pointer ${getShuttleColor(
+                                        sch.shuttle.id
+                                      )} flex flex-col justify-center items-center p-1.5 transition-all`}
+                                      style={{
+                                        top,
+                                        height,
+                                        left: `${leftPercent}%`,
+                                        width: `${widthPercent}%`,
+                                        minWidth: 60,
+                                        zIndex: 20 + i,
+                                      }}
+                                      onClick={() => handleEdit(sch)}
+                                      title={`${sch.driver.name} - ${sch.shuttle.vehicleNumber}`}
+                                    >
+                                      <div className="font-semibold text-xs truncate w-full text-center">
+                                        {sch.driver.name}
+                                      </div>
+                                      <div className="text-xs text-slate-700 truncate w-full text-center">
+                                        {sch.shuttle.vehicleNumber}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500">
+                                        {formatTimeForDisplay(sch.startTime)} -{" "}
+                                        {formatTimeForDisplay(sch.endTime)}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
