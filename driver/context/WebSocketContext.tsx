@@ -91,10 +91,6 @@ export const WebSocketProvider = ({
 
     socketInstance.on("booking_assigned", (data: any) => {
       console.log("New booking assigned via WebSocket:", data);
-      toast.success("🚗 New Booking Assigned!", {
-        description: data.message,
-        duration: 5000,
-      });
       
       // Notify all registered callbacks
       bookingUpdateCallbacksRef.current.forEach(callback => {

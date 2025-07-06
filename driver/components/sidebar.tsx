@@ -33,16 +33,6 @@ const navItems = [
     icon: Car,
     href: "/dashboard/trips",
   },
-  {
-    title: "Current Trip",
-    icon: MapPin,
-    href: "/dashboard/current-trip",
-  },
-  {
-    title: "Next Trip",
-    icon: Clock,
-    href: "/dashboard/next-trip",
-  },
 ];
 
 export function Sidebar() {

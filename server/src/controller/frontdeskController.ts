@@ -369,7 +369,13 @@ const createBooking = async (req: Request, res: Response) => {
     }
 
     // Validate number of persons
-    if (numberOfPersons <= 0 || numberOfPersons > 50) {
+    if (!numberOfPersons || parseInt(numberOfPersons) < 1) {
+      console.log(`Invalid number of persons: ${numberOfPersons}`);
+      return res.status(400).json({
+        message: "Number of persons must be at least 1",
+      });
+    }
+    if (parseInt(numberOfPersons) > 50) {
       console.log(`Invalid number of persons: ${numberOfPersons}`);
       return res.status(400).json({
         message: "Number of persons must be between 1 and 50",
@@ -830,7 +836,31 @@ const getBookingDetails = async (req: Request, res: Response) => {
       qrCodeUrl = await getSignedUrlFromPath(booking.qrCodePath);
     }
 
-    res.json({ booking: { ...booking, qrCodeUrl } });
+    // Pricing calculation
+    let pricePerPerson = 0;
+    let totalPrice = 0;
+    let pricingLocationId = null;
+    if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      pricingLocationId = booking.dropoffLocationId;
+    } else if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+      pricingLocationId = booking.pickupLocationId;
+    }
+    if (pricingLocationId) {
+      const hotelLocation = await prisma.hotelLocation.findUnique({
+        where: {
+          hotelId_locationId: {
+            hotelId: hotelId,
+            locationId: pricingLocationId,
+          },
+        },
+      });
+      if (hotelLocation) {
+        pricePerPerson = hotelLocation.price;
+        totalPrice = hotelLocation.price * booking.numberOfPersons;
+      }
+    }
+
+    res.json({ booking: { ...booking, qrCodeUrl, pricing: { pricePerPerson, totalPrice, numberOfPersons: booking.numberOfPersons } } });
   } catch (error) {
     console.error("Error fetching booking details:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -867,7 +897,52 @@ const getBookings = async (req: Request, res: Response) => {
       },
     });
 
-    res.json({ bookings });
+    // Add pricing information for each booking
+    const bookingsWithPricing = await Promise.all(
+      bookings.map(async (booking) => {
+        let pricePerPerson = 0;
+        let totalPrice = 0;
+
+        // Calculate pricing based on location and number of persons
+        let pricingLocationId = null;
+
+        if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+          // For hotel to airport, use dropoff location (airport) for pricing
+          pricingLocationId = booking.dropoffLocationId;
+        } else if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+          // For airport to hotel, use pickup location (airport) for pricing
+          pricingLocationId = booking.pickupLocationId;
+        }
+
+        if (pricingLocationId) {
+          // Get the hotel location price for this location
+          const hotelLocation = await prisma.hotelLocation.findUnique({
+            where: {
+              hotelId_locationId: {
+                hotelId: hotelId,
+                locationId: pricingLocationId,
+              },
+            },
+          });
+
+          if (hotelLocation) {
+            pricePerPerson = hotelLocation.price;
+            totalPrice = hotelLocation.price * booking.numberOfPersons;
+          }
+        }
+
+        return {
+          ...booking,
+          pricing: {
+            pricePerPerson,
+            totalPrice,
+            numberOfPersons: booking.numberOfPersons
+          }
+        };
+      })
+    );
+
+    res.json({ bookings: bookingsWithPricing });
   } catch (error) {
     console.error("Get bookings error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -1456,6 +1531,15 @@ const editSchedule = async (req: Request, res: Response) => {
     res.json({ schedule });
   } catch (error) {
     console.error("Edit schedule error:", error);
+
+    // Handle Prisma unique constraint violation
+    if ((error as any).code === "P2002") {
+      return res.status(400).json({
+        message:
+          "A schedule already exists for this driver on the selected date.",
+      });
+    }
+
     res.status(500).json({ message: "Internal server error" });
   }
 };

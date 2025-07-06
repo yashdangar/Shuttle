@@ -5,7 +5,6 @@ import {
   transitionTripPhase,
   endTrip,
   getCurrentTrip,
-  getTripHistory,
   getAvailableTrips,
   getCurrentTripBookings,
   addBookingToActiveTrip,
@@ -53,11 +52,7 @@ router.post(
   addBookingToActiveTrip as RequestHandler
 );
 
-router.get(
-  "/history",
-  driverAuthMiddleware as RequestHandler,
-  getTripHistory as RequestHandler
-);
+
 
 router.get(
   "/available",

@@ -153,6 +153,13 @@ export default function NewBookingPage() {
       return;
     }
 
+    // Validation: numberOfPersons must be > 0
+    if (!formData.numberOfPersons || parseInt(formData.numberOfPersons) < 1) {
+      toast.error("Number of persons must be at least 1");
+      setIsSubmitting(false);
+      return;
+    }
+
     // Validate trip type for Park Sleep Fly
     if (guestType === "park-sleep-fly" && !formData.tripType) {
       toast.error("Please select a trip direction for your Park, Sleep & Fly package.");

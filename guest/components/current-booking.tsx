@@ -126,7 +126,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
   const [eta, setEta] = useState(booking?.eta || "Calculating...")
   const [distance, setDistance] = useState(booking?.distance || "Unknown")
   const [showQR, setShowQR] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [etaLoading, setEtaLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [currentBooking, setCurrentBooking] = useState(booking)
   const { onBookingUpdate } = useWebSocket()
@@ -143,7 +143,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
     const cleanup = onBookingUpdate((updatedBooking) => {
       console.log("Received booking update via WebSocket:", updatedBooking)
       if (updatedBooking.id === currentBooking?.id) {
-        setCurrentBooking(prev => ({ ...prev, ...updatedBooking }))
+        setCurrentBooking((prev: any) => ({ ...prev, ...updatedBooking }))
       }
     })
 
@@ -155,6 +155,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
       // Debug: Log booking data to understand structure
       console.log("Current booking data:", currentBooking);
       console.log("QR Code Path:", currentBooking.qrCodePath);
+      console.log("Pricing data:", currentBooking.pricing);
       
       // Set initial ETA from booking data
       if (currentBooking.eta) {
@@ -177,7 +178,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
         }
         
         try {
-          setIsLoading(true);
+          setEtaLoading(true);
           console.log(`[ETA DEBUG] Fetching ETA for booking ${currentBooking.id}`);
           const response = await api.get(`/guest/booking/${currentBooking.id}/eta`);
           setEta(response.eta);
@@ -187,7 +188,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
           console.error("Error updating ETA:", error);
           setEta("Error fetching ETA");
         } finally {
-          setIsLoading(false);
+          setEtaLoading(false);
         }
       };
 
@@ -202,7 +203,7 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
   }, [currentBooking])
 
   // Show skeleton while loading
-  if (isLoading) {
+  if (etaLoading) {
     return <CurrentBookingSkeleton />
   }
 
@@ -335,6 +336,19 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
                   </p>
                 </div>
               </div>
+              {/* Price Section */}
+              {currentBooking.pricing && (
+                <div className="flex items-center space-x-3">
+                  <span className="w-5 h-5 flex items-center justify-center text-green-500 font-bold text-lg">$</span>
+                  <div>
+                    <p className="font-medium">Price</p>
+                    <p className="text-sm text-gray-600">
+                      ${currentBooking.pricing.pricePerPerson.toFixed(2)} per person<br/>
+                      <span className="font-semibold text-green-700">Total: ${currentBooking.pricing.totalPrice.toFixed(2)}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
@@ -352,9 +366,9 @@ export default function CurrentBooking({ booking, onNewBooking, isLoading = fals
                   <p className="font-medium">ETA</p>
                   <div className="flex items-center space-x-2">
                     <p className="text-sm text-green-600 font-medium">
-                      {isLoading ? "Updating..." : eta}
+                      {etaLoading ? "Updating..." : eta}
                     </p>
-                    {isLoading && (
+                    {etaLoading && (
                       <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
                     )}
                   </div>

@@ -66,6 +66,11 @@ interface Booking {
   dropoffLocation: {
     name: string;
   } | null;
+  pricing?: {
+    pricePerPerson: number;
+    totalPrice: number;
+    numberOfPersons: number;
+  };
 }
 
 function BookingsSkeleton() {
@@ -89,6 +94,7 @@ function BookingsSkeleton() {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead>Price</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -125,6 +131,12 @@ function BookingsSkeleton() {
                       <Skeleton className="w-8 h-8 rounded" />
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="w-8 h-8 rounded" />
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -146,6 +158,7 @@ export default function BookingsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const [newBookingIds, setNewBookingIds] = useState<Set<string>>(new Set());
+  const [verifyingBookings, setVerifyingBookings] = useState<Set<string>>(new Set());
 
   // Function to fetch bookings
   const fetchBookings = async () => {
@@ -336,6 +349,9 @@ export default function BookingsPage() {
 
   const handleVerifyBooking = async (bookingId: string) => {
     try {
+      // Set loading state for this specific booking
+      setVerifyingBookings(prev => new Set(prev).add(bookingId));
+      
       await api.post(`/frontdesk/bookings/${bookingId}/verify`, {
         reason: "Verified by frontdesk from bookings list",
       });
@@ -348,6 +364,13 @@ export default function BookingsPage() {
     } catch (error: any) {
       console.error("Error verifying booking:", error);
       toast.error(error.message || "Failed to verify booking");
+    } finally {
+      // Clear loading state for this booking
+      setVerifyingBookings(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bookingId);
+        return newSet;
+      });
     }
   };
 
@@ -477,6 +500,7 @@ export default function BookingsPage() {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead>Price</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -489,6 +513,10 @@ export default function BookingsPage() {
                       ? 'animate-pulse bg-green-50 border-l-4 border-l-green-500' 
                       : booking.isParkSleepFly
                       ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                      : ''
+                  } ${
+                    verifyingBookings.has(booking.id)
+                      ? 'bg-yellow-50 border-l-4 border-l-yellow-500'
                       : ''
                   } transition-all duration-300`}
                 >
@@ -536,12 +564,29 @@ export default function BookingsPage() {
                   <TableCell>
                     {format(new Date(booking.preferredTime), "PPp")}
                   </TableCell>
-                  <TableCell>{getStatusBadge(booking)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      {getStatusBadge(booking)}
+                      {verifyingBookings.has(booking.id) && (
+                        <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <CreditCard className="w-4 h-4" />
                       <span>{booking.paymentMethod}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {booking.pricing ? (
+                      <span>
+                        ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
+                        <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                      </span>
+                    ) : (
+                      <span>-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -563,13 +608,19 @@ export default function BookingsPage() {
                               <DropdownMenuItem
                                 onClick={() => handleVerifyBooking(booking.id)}
                                 className="cursor-pointer text-green-600"
+                                disabled={verifyingBookings.has(booking.id)}
                               >
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Verify Booking
+                                {verifyingBookings.has(booking.id) ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                )}
+                                {verifyingBookings.has(booking.id) ? "Verifying..." : "Verify Booking"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleRejectBooking(booking.id)}
                                 className="cursor-pointer text-red-600"
+                                disabled={verifyingBookings.has(booking.id)}
                               >
                                 <X className="w-4 h-4 mr-2" />
                                 Reject Booking
