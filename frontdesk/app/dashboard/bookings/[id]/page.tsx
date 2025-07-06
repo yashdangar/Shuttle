@@ -58,6 +58,11 @@ interface BookingDetails {
   } | null;
   cancelledBy?: string;
   cancellationReason?: string;
+  pricing?: {
+    pricePerPerson: number;
+    totalPrice: number;
+    numberOfPersons: number;
+  };
 }
 
 export default function BookingDetailsPage() {
@@ -274,6 +279,17 @@ export default function BookingDetailsPage() {
             <div>
               <p className="text-sm text-gray-500">Payment Method</p>
               <p className="font-medium">{booking.paymentMethod}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Price</p>
+              {booking.pricing ? (
+                <p className="font-medium">
+                  ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
+                  <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                </p>
+              ) : (
+                <p className="font-medium">-</p>
+              )}
             </div>
             {booking.isCancelled && (
               <div>

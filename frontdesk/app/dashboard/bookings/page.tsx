@@ -66,6 +66,11 @@ interface Booking {
   dropoffLocation: {
     name: string;
   } | null;
+  pricing?: {
+    pricePerPerson: number;
+    totalPrice: number;
+    numberOfPersons: number;
+  };
 }
 
 function BookingsSkeleton() {
@@ -89,6 +94,7 @@ function BookingsSkeleton() {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead>Price</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -117,6 +123,12 @@ function BookingsSkeleton() {
                     <div className="flex items-center space-x-2">
                       <Skeleton className="w-4 h-4 rounded" />
                       <Skeleton className="h-4 w-16" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="w-8 h-8 rounded" />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -477,6 +489,7 @@ export default function BookingsPage() {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead>Price</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -542,6 +555,16 @@ export default function BookingsPage() {
                       <CreditCard className="w-4 h-4" />
                       <span>{booking.paymentMethod}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {booking.pricing ? (
+                      <span>
+                        ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
+                        <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                      </span>
+                    ) : (
+                      <span>-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">

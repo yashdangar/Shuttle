@@ -87,7 +87,7 @@ export default function NewBooking({
     notes: "",
     paymentMethod: "frontdesk",
     numberOfBags: 0,
-    numberOfPersons: 1,
+    numberOfPersons: 0,
     pickupLocation: "",
     dropoffLocation: "",
     tripType: "",
@@ -100,6 +100,11 @@ export default function NewBooking({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [pricing, setPricing] = useState<{
+    pricePerPerson: number;
+    totalPrice: number;
+    locationName: string;
+  } | null>(null);
 
   // Validation state
   const hasName = formData.firstName.trim() && formData.lastName.trim();
@@ -116,9 +121,79 @@ export default function NewBooking({
     }
   };
 
+  const fetchPricing = async () => {
+    try {
+      // Determine which location to use for pricing based on trip direction
+      let locationId = null;
+      let locationName = "";
+
+      if (tripDirection === "hotel-to-airport") {
+        // For hotel to airport, use destination (airport) for pricing
+        const selectedLocation = locations.find(
+          (loc) => loc.name === formData.destination
+        );
+        if (selectedLocation) {
+          locationId = selectedLocation.id;
+          locationName = selectedLocation.name;
+        }
+      } else if (tripDirection === "airport-to-hotel") {
+        // For airport to hotel, use pickup (airport) for pricing
+        const selectedLocation = locations.find(
+          (loc) => loc.name === formData.pickup
+        );
+        if (selectedLocation) {
+          locationId = selectedLocation.id;
+          locationName = selectedLocation.name;
+        }
+      } else if (tripDirection === "park-sleep-fly") {
+        // For park sleep fly, use the appropriate location based on trip type
+        if (formData.tripType === "HOTEL_TO_AIRPORT") {
+          const selectedLocation = locations.find(
+            (loc) => loc.name === formData.destination
+          );
+          if (selectedLocation) {
+            locationId = selectedLocation.id;
+            locationName = selectedLocation.name;
+          }
+        } else if (formData.tripType === "AIRPORT_TO_HOTEL") {
+          const selectedLocation = locations.find(
+            (loc) => loc.name === formData.pickup
+          );
+          if (selectedLocation) {
+            locationId = selectedLocation.id;
+            locationName = selectedLocation.name;
+          }
+        }
+      }
+
+      if (locationId && formData.numberOfPersons > 0) {
+        const response = await api.get(`/guest/get-pricing?locationId=${locationId}&numberOfPersons=${formData.numberOfPersons}`);
+        if (response.pricing) {
+          setPricing({
+            pricePerPerson: response.pricing.pricePerPerson,
+            totalPrice: response.pricing.totalPrice,
+            locationName
+          });
+        }
+      } else {
+        setPricing(null);
+      }
+    } catch (error) {
+      console.error("Error fetching pricing:", error);
+      setPricing(null);
+    }
+  };
+
   useEffect(() => {
     fetchLocations();
   }, []);
+
+  // Fetch pricing when location or number of persons changes
+  useEffect(() => {
+    if (locations.length > 0) {
+      fetchPricing();
+    }
+  }, [locations, formData.destination, formData.pickup, formData.numberOfPersons, formData.tripType, tripDirection]);
 
   // Update time every minute
   useEffect(() => {
@@ -163,6 +238,12 @@ export default function NewBooking({
         toast.error("Please select your airport pickup location");
         return;
       }
+    }
+
+    // Validation: numberOfPersons must be > 0
+    if (formData.numberOfPersons < 1) {
+      toast.error("Number of persons must be at least 1");
+      return;
     }
 
     setIsSubmitting(true);
@@ -488,12 +569,14 @@ export default function NewBooking({
                       id="passengers"
                       type="number"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        let value = parseInt(e.target.value);
+                        if (isNaN(value) || value < 1) value = 1;
                         setFormData({
                           ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                          numberOfPersons: value,
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -516,6 +599,31 @@ export default function NewBooking({
                     />
                   </div>
                 </div>
+
+                {/* Pricing Information */}
+                {pricing && (
+                  <div className="space-y-2">
+                    <Label>Pricing</Label>
+                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {pricing.locationName} - {formData.numberOfPersons} person(s)
+                        </span>
+                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                          ${pricing.pricePerPerson.toFixed(2)} per person
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          Total Price
+                        </span>
+                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                          ${pricing.totalPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Notes Section */}
                 <div className="space-y-2">
@@ -775,12 +883,13 @@ export default function NewBooking({
                       id="passengers"
                       type="number"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
                         setFormData({
                           ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                          numberOfPersons: isNaN(value) ? 0 : value,
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -803,6 +912,31 @@ export default function NewBooking({
                     />
                   </div>
                 </div>
+
+                {/* Pricing Information */}
+                {pricing && (
+                  <div className="space-y-2">
+                    <Label>Pricing</Label>
+                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {pricing.locationName} - {formData.numberOfPersons} person(s)
+                        </span>
+                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                          ${pricing.pricePerPerson.toFixed(2)} per person
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          Total Price
+                        </span>
+                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                          ${pricing.totalPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Notes Section */}
                 <div className="space-y-2">
@@ -1142,12 +1276,13 @@ export default function NewBooking({
                       id="passengers"
                       type="number"
                       value={formData.numberOfPersons.toString()}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
                         setFormData({
                           ...formData,
-                          numberOfPersons: parseInt(e.target.value),
-                        })
-                      }
+                          numberOfPersons: isNaN(value) ? 0 : value,
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -1170,6 +1305,31 @@ export default function NewBooking({
                     />
                   </div>
                 </div>
+
+                {/* Pricing Information */}
+                {pricing && (
+                  <div className="space-y-2">
+                    <Label>Pricing</Label>
+                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {pricing.locationName} - {formData.numberOfPersons} person(s)
+                        </span>
+                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                          ${pricing.pricePerPerson.toFixed(2)} per person
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          Total Price
+                        </span>
+                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                          ${pricing.totalPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Notes Section */}
                 <div className="space-y-2">

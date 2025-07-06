@@ -26,6 +26,11 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
   // Update local bookings state when prop changes
   useEffect(() => {
     setCurrentBookings(bookings)
+    // Debug: Log booking data to understand structure
+    console.log("CurrentBookings - All bookings data:", bookings);
+    bookings.forEach((booking, index) => {
+      console.log(`Booking ${index + 1} pricing:`, booking.pricing);
+    });
   }, [bookings])
 
   // Listen for real-time booking updates via WebSocket
@@ -194,6 +199,19 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
                     </p>
                   </div>
                 </div>
+                {/* Price Section */}
+                {booking.pricing && (
+                  <div className="flex items-center space-x-3">
+                    <span className="w-5 h-5 flex items-center justify-center text-green-500 font-bold text-lg">$</span>
+                    <div>
+                      <p className="font-medium">Price</p>
+                      <p className="text-sm text-gray-600">
+                        ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
+                        <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
