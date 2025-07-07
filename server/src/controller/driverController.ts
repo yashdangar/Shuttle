@@ -415,9 +415,9 @@ const markAllNotificationsAsRead = async (req: Request, res: Response) => {
       },
     });
 
-    res.json({ 
+    res.json({
       message: "All notifications marked as read",
-      updatedCount: result.count 
+      updatedCount: result.count,
     });
   } catch (error) {
     console.error("Mark all notifications as read error:", error);
@@ -1309,7 +1309,198 @@ const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+// Chat functions
+const getChats = async (req: Request, res: Response) => {
+  const { hotelId } = req.params;
+  const userId = (req as any).user.userId;
 
+  try {
+    // Verify the driver is associated with this hotel
+    const driver = await prisma.driver.findUnique({
+      where: { id: userId },
+      select: { hotelId: true },
+    });
+
+    if (!driver || driver.hotelId !== parseInt(hotelId)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get all chats for this driver in the specified hotel
+    const chats = await prisma.chat.findMany({
+      where: {
+        driverId: userId,
+        hotelId: parseInt(hotelId),
+      },
+      include: {
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        booking: {
+          select: {
+            id: true,
+            numberOfPersons: true,
+            numberOfBags: true,
+            preferredTime: true,
+            pickupLocation: {
+              select: { name: true },
+            },
+            dropoffLocation: {
+              select: { name: true },
+            },
+          },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1, // Get only the latest message for preview
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    res.json({ chats });
+  } catch (error) {
+    console.error("Get chats error:", error);
+    res.status(500).json({ error: "Failed to fetch chats" });
+  }
+};
+
+const getChatMessages = async (req: Request, res: Response) => {
+  const { hotelId, chatId } = req.params;
+  const { page = 1, limit = 100 } = req.query;
+  const userId = (req as any).user.userId;
+
+  try {
+    // Verify the chat belongs to this driver and hotel
+    const chat = await prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        driverId: userId,
+        hotelId: parseInt(hotelId),
+      },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get messages with pagination
+    const messages = await prisma.message.findMany({
+      where: { chatId },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
+
+    // Get total count for pagination
+    const totalMessages = await prisma.message.count({
+      where: { chatId },
+    });
+
+    res.json({
+      messages: messages.reverse(), // Reverse to get chronological order
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalMessages,
+        totalPages: Math.ceil(totalMessages / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error("Get chat messages error:", error);
+    res.status(500).json({ error: "Failed to fetch messages" });
+  }
+};
+
+const sendMessage = async (req: Request, res: Response) => {
+  const { hotelId, chatId } = req.params;
+  const { content } = req.body;
+  const userId = (req as any).user.userId;
+
+  try {
+    // Verify the chat belongs to this driver and hotel
+    const chat = await prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        driverId: userId,
+        hotelId: parseInt(hotelId),
+      },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: "Message content is required" });
+    }
+
+    // Create the message
+    const message = await prisma.message.create({
+      data: {
+        chatId,
+        senderType: "DRIVER",
+        senderId: userId,
+        content: content.trim(),
+      },
+      include: {
+        chat: {
+          include: {
+            guest: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Update chat's updatedAt timestamp
+    await prisma.chat.update({
+      where: { id: chatId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Broadcast the message via WebSocket
+    const { sendToChat } = await import("../ws/index");
+    const { WsEvents } = await import("../ws/events");
+
+    sendToChat(chatId, WsEvents.NEW_MESSAGE, {
+      chatId,
+      message: {
+        id: message.id,
+        content: message.content,
+        senderType: message.senderType,
+        senderId: message.senderId,
+        createdAt: message.createdAt.toISOString(),
+      },
+    });
+
+    res.json({
+      message: "Message sent successfully",
+      data: message,
+    });
+  } catch (error) {
+    console.error("Send message error:", error);
+    res.status(500).json({ error: "Failed to send message" });
+  }
+};
 
 export default {
   login,
@@ -1334,4 +1525,7 @@ export default {
   verifyOtp,
   resetPassword,
   updateProfile,
+  getChats,
+  getChatMessages,
+  sendMessage,
 };

@@ -97,6 +97,37 @@ export const WsEvents = {
    */
   TRIP_UPDATED: "trip_updated",
 
+  // Chat Events
+  /**
+   * Sent when a user joins a chat room.
+   */
+  JOIN_CHAT: "join_chat",
+
+  /**
+   * Sent when a user leaves a chat room.
+   */
+  LEAVE_CHAT: "leave_chat",
+
+  /**
+   * Sent when a new message is received in a chat.
+   */
+  NEW_MESSAGE: "new_message",
+
+  /**
+   * Sent when a user starts typing in a chat.
+   */
+  TYPING_START: "typing_start",
+
+  /**
+   * Sent when a user stops typing in a chat.
+   */
+  TYPING_STOP: "typing_stop",
+
+  /**
+   * Sent when a message is sent (confirmation).
+   */
+  MESSAGE_SENT: "message_sent",
+
   // Client-to-Server Events (Example for future use)
 
   /**
@@ -194,5 +225,45 @@ export type WsPayloads = {
     lat: number;
     lng: number;
     heading?: number;
+  };
+
+  // Chat Payloads
+  [WsEvents.JOIN_CHAT]: {
+    chatId: string;
+    hotelId: number;
+  };
+
+  [WsEvents.LEAVE_CHAT]: {
+    chatId: string;
+    hotelId: number;
+  };
+
+  [WsEvents.NEW_MESSAGE]: {
+    chatId: string;
+    message: {
+      id: string;
+      content: string;
+      senderType: "GUEST" | "FRONTDESK" | "DRIVER";
+      senderId: number;
+      createdAt: string;
+    };
+  };
+
+  [WsEvents.TYPING_START]: {
+    chatId: string;
+    senderType: "GUEST" | "FRONTDESK" | "DRIVER";
+    senderId: number;
+  };
+
+  [WsEvents.TYPING_STOP]: {
+    chatId: string;
+    senderType: "GUEST" | "FRONTDESK" | "DRIVER";
+    senderId: number;
+  };
+
+  [WsEvents.MESSAGE_SENT]: {
+    chatId: string;
+    messageId: string;
+    success: boolean;
   };
 };

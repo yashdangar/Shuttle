@@ -24,6 +24,7 @@ model Guest {
   bookings        Booking[]
   hotel           Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications   Notification[]
+  chats           Chat[]
 }
 
 model Otp {
@@ -95,6 +96,7 @@ model Booking {
   waiverUser                 FrontDesk?           @relation("BookingWaiver", fields: [waivedBy], references: [id])
   verificationLogs           QRVerificationLog[]
   verificationToken          QRVerificationToken?
+  chats                      Chat[]
 }
 
 model FrontDesk {
@@ -109,6 +111,7 @@ model FrontDesk {
   waivedBookings Booking[]      @relation("BookingWaiver")
   hotel          Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications  Notification[]
+  chats          Chat[]
 }
 
 model Admin {
@@ -141,6 +144,7 @@ model Driver {
   verificationLogs   QRVerificationLog[]
   schedules          Schedule[]          @relation("DriverSchedules")
   trips              Trip[]
+  chats              Chat[]
 }
 
 model Shuttle {
@@ -203,6 +207,7 @@ model Hotel {
   guests         Guest[]
   hotelLocations HotelLocation[]
   shuttles       Shuttle[]
+  chats          Chat[]
 }
 
 model QRVerificationToken {
@@ -319,4 +324,39 @@ enum TripPhase {
   OUTBOUND
   RETURN
   COMPLETED
+}
+
+enum SenderType {
+  GUEST
+  FRONTDESK
+  DRIVER
+}
+
+model Chat {
+  id          String      @id @default(uuid())
+  guestId     Int?
+  frontDeskId Int?
+  driverId    Int?
+  hotelId     Int
+  bookingId   String?
+
+  guest       Guest?      @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  frontDesk   FrontDesk?  @relation(fields: [frontDeskId], references: [id], onDelete: Cascade)
+  driver      Driver?     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  hotel       Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  booking     Booking?    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  messages    Message[]
+}
+
+model Message {
+  id         String      @id @default(uuid())
+  chatId     String
+  senderType SenderType
+  senderId   Int
+  content    String
+  createdAt  DateTime    @default(now())
+  chat       Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
 }

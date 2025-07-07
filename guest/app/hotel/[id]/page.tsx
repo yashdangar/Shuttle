@@ -17,6 +17,7 @@ import CurrentBookings from "@/components/current-bookings";
 import BookingHistory from "@/components/booking-history";
 import NewBooking from "@/components/new-booking";
 import { NotificationDrawer } from "@/components/notification-drawer";
+import { ChatSheet } from "@/components/chat-sheet";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
@@ -34,31 +35,36 @@ function HotelPageSkeleton() {
     <div className="min-h-screen bg-gray-50">
       {/* Header Skeleton */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Skeleton className="w-10 h-10 rounded-lg" />
-              <div>
-                <Skeleton className="h-6 w-48 mb-2" />
-                <Skeleton className="h-4 w-64" />
+        <div className="max-w-6xl mx-auto px-4">
+          {/* Top Row Skeleton */}
+          <div className="flex items-center justify-between py-3">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <Skeleton className="w-8 h-8 rounded" />
+              <Skeleton className="w-8 h-8 rounded-lg" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-5 w-48 mb-1" />
+                <Skeleton className="h-3 w-64" />
               </div>
             </div>
+            <div className="flex items-center space-x-2 ml-3">
+              <Skeleton className="w-9 h-9 rounded" />
+              <Skeleton className="w-9 h-9 rounded" />
+              <Skeleton className="w-20 h-9 rounded" />
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Navigation Skeleton */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex space-x-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="py-4 px-1">
-                <div className="flex items-center space-x-2">
-                  <Skeleton className="w-4 h-4" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
+          {/* Bottom Row Skeleton */}
+          <div className="border-t border-gray-100">
+            <div className="flex justify-center sm:justify-start py-3">
+              <div className="flex space-x-6 sm:space-x-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center space-x-2">
+                    <Skeleton className="w-4 h-4" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -259,103 +265,58 @@ export default function HotelPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Unified Header with Hotel Name, Tabs, Notifications, and Profile */}
+      {/* Responsive Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
+          {/* Top Row: Hotel Info and Actions */}
+          <div className="flex items-center justify-between py-3">
             {/* Left: Hotel Info with Go Back Button */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleGoBack}
-                className="hover:bg-gray-100"
+                className="hover:bg-gray-100 flex-shrink-0"
               >
                 <ArrowLeft className="w-4 h-4" />
               </Button>
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <MapPin className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg font-bold text-gray-900 truncate">
                   {selectedHotel.name}
                 </h1>
-                <p className="text-sm text-gray-600">{selectedHotel.address}</p>
+                <p className="text-xs text-gray-600 truncate">
+                  {selectedHotel.address}
+                </p>
               </div>
             </div>
 
-            {/* Center: Navigation Tabs */}
-            <nav className="flex space-x-8">
-              <button
-                onClick={() => {
-                  setActiveTab("current");
-                  // If no bookings are loaded yet, fetch them
-                  if (currentBookings.length === 0 && !isLoadingBookings) {
-                    fetchCurrentBookings();
-                  }
-                }}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "current"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <QrCode className="w-4 h-4" />
-                  <span>Current Bookings</span>
-                  {currentBookings.length > 0 && (
-                    <Badge variant="secondary" className="ml-1">
-                      {currentBookings.length}
-                    </Badge>
-                  )}
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab("new")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "new"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Plus className="w-4 h-4" />
-                  <span>New Booking</span>
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab("history")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "history"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <History className="w-4 h-4" />
-                  <span>History</span>
-                </div>
-              </button>
-            </nav>
+            {/* Right: Chat, Notifications and Profile */}
+            <div className="flex items-center space-x-2 ml-3">
+              {/* Chat Button */}
+              <ChatSheet hotelId={parseInt(params.id as string)} />
 
-            {/* Right: Notifications and Profile */}
-            <div className="flex items-center space-x-4">
               <NotificationDrawer />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
+                    size="sm"
                     className="flex items-center space-x-2 hover:bg-blue-50 dark:hover:bg-blue-950"
                   >
-                    <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-white" />
+                    <div className="w-7 h-7 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                      <User className="w-3 h-3 text-white" />
                     </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-foreground">
+                    <div className="text-left hidden sm:block">
+                      <p className="text-xs font-medium text-foreground truncate">
                         {guestName}
                       </p>
-                      <p className="text-xs text-foreground/70">{guestEmail}</p>
+                      <p className="text-xs text-foreground/70 truncate">
+                        {guestEmail}
+                      </p>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
@@ -395,6 +356,64 @@ export default function HotelPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+          </div>
+
+          {/* Bottom Row: Navigation Tabs */}
+          <div className="border-t border-gray-100">
+            <nav className="flex justify-center sm:justify-start overflow-x-auto scrollbar-hide">
+              <div className="flex space-x-6 sm:space-x-8 min-w-full sm:min-w-0">
+                <button
+                  onClick={() => {
+                    setActiveTab("current");
+                    // If no bookings are loaded yet, fetch them
+                    if (currentBookings.length === 0 && !isLoadingBookings) {
+                      fetchCurrentBookings();
+                    }
+                  }}
+                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                    activeTab === "current"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <QrCode className="w-4 h-4" />
+                    <span>Current Bookings</span>
+                    {currentBookings.length > 0 && (
+                      <Badge variant="secondary" className="ml-1">
+                        {currentBookings.length}
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab("new")}
+                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                    activeTab === "new"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Plus className="w-4 h-4" />
+                    <span>New Booking</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab("history")}
+                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                    activeTab === "history"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <History className="w-4 h-4" />
+                    <span>History</span>
+                  </div>
+                </button>
+              </div>
+            </nav>
           </div>
         </div>
       </header>

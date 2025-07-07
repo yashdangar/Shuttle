@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import jwt from "jsonwebtoken";
 import { CORS_ORIGINS } from "../config/env";
+import { WsEvents } from "./events";
 let io: Server;
 
 interface SocketUser {
@@ -83,6 +84,65 @@ export const initWebSocket = (server: HttpServer) => {
       });
     }
 
+    // Chat event handlers
+    socket.on(
+      WsEvents.JOIN_CHAT,
+      (data: { chatId: string; hotelId: number }) => {
+        const chatRoom = `chat:${data.chatId}`;
+        socket.join(chatRoom);
+        console.log(`User ${user?.id} joined chat room: ${chatRoom}`);
+
+        // Notify other participants in the chat
+        socket.to(chatRoom).emit(WsEvents.JOIN_CHAT, {
+          chatId: data.chatId,
+          hotelId: data.hotelId,
+          userId: user?.id,
+          userType: user?.type,
+        });
+      }
+    );
+
+    socket.on(
+      WsEvents.LEAVE_CHAT,
+      (data: { chatId: string; hotelId: number }) => {
+        const chatRoom = `chat:${data.chatId}`;
+        socket.leave(chatRoom);
+        console.log(`User ${user?.id} left chat room: ${chatRoom}`);
+
+        // Notify other participants in the chat
+        socket.to(chatRoom).emit(WsEvents.LEAVE_CHAT, {
+          chatId: data.chatId,
+          hotelId: data.hotelId,
+          userId: user?.id,
+          userType: user?.type,
+        });
+      }
+    );
+
+    socket.on(
+      WsEvents.TYPING_START,
+      (data: { chatId: string; senderType: string; senderId: number }) => {
+        const chatRoom = `chat:${data.chatId}`;
+        socket.to(chatRoom).emit(WsEvents.TYPING_START, {
+          chatId: data.chatId,
+          senderType: data.senderType,
+          senderId: data.senderId,
+        });
+      }
+    );
+
+    socket.on(
+      WsEvents.TYPING_STOP,
+      (data: { chatId: string; senderType: string; senderId: number }) => {
+        const chatRoom = `chat:${data.chatId}`;
+        socket.to(chatRoom).emit(WsEvents.TYPING_STOP, {
+          chatId: data.chatId,
+          senderType: data.senderType,
+          senderId: data.senderId,
+        });
+      }
+    );
+
     socket.on("disconnect", (reason) => {
       console.log("User disconnected:", socket.id, "Reason:", reason);
     });
@@ -141,6 +201,19 @@ export const sendToRoleInHotel = (
   } catch (error) {
     console.error(
       `Error sending event '${event}' to room 'hotel:${hotelId}:${role}':`,
+      error
+    );
+  }
+};
+
+export const sendToChat = (chatId: string, event: string, payload: any) => {
+  try {
+    const room = `chat:${chatId}`;
+    console.log(`Sending event '${event}' to chat room '${room}'`);
+    getIo().to(room).emit(event, payload);
+  } catch (error) {
+    console.error(
+      `Error sending event '${event}' to chat room 'chat:${chatId}':`,
       error
     );
   }

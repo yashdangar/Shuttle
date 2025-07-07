@@ -135,4 +135,23 @@ router.delete(
   controller.deleteNotification as RequestHandler
 );
 
+// Chat routes
+router.get(
+  "/hotels/:hotelId/chats",
+  guestAuthMiddleware as RequestHandler,
+  controller.getChats as RequestHandler
+);
+
+router.get(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  guestAuthMiddleware as RequestHandler,
+  controller.getChatMessages as RequestHandler
+);
+
+router.post(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  guestAuthMiddleware as RequestHandler,
+  controller.sendMessage as RequestHandler
+);
+
 export default router;

@@ -17,6 +17,8 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useDriverProfile } from "@/hooks/use-driver-profile";
 import { useNotifications } from "@/hooks/use-notifications";
+import { ChatSheet } from "@/components/chat-sheet";
+import { useHotelId } from "@/hooks/use-hotel-id";
 
 export function DriverTopbar({
   onToggleSidebar,
@@ -28,6 +30,7 @@ export function DriverTopbar({
   const { profile, loading } = useDriverProfile();
   const { getUnreadCount } = useNotifications();
   const notificationCount = getUnreadCount();
+  const { hotelId } = useHotelId();
 
   const handleSignOut = () => {
     localStorage.removeItem("driverToken");
@@ -39,7 +42,7 @@ export function DriverTopbar({
   const handleToggleNotifications = useCallback(() => {
     const newState = !showNotifications;
     setShowNotifications(newState);
-    
+
     // Use setTimeout to avoid state updates during render
     setTimeout(() => {
       if (newState) {
@@ -52,7 +55,7 @@ export function DriverTopbar({
 
   const handleCloseNotifications = useCallback(() => {
     setShowNotifications(false);
-    
+
     // Use setTimeout to avoid state updates during render
     setTimeout(() => {
       toast.success("Closing notifications");
@@ -65,9 +68,9 @@ export function DriverTopbar({
         <div className="flex flex-1 items-center justify-between">
           <div className="flex items-center space-x-4">
             {onToggleSidebar && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={onToggleSidebar}
                 className="hover:bg-blue-50 dark:hover:bg-blue-950"
               >
@@ -77,6 +80,9 @@ export function DriverTopbar({
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Chat Button */}
+            {hotelId && <ChatSheet hotelId={hotelId} />}
+
             <div className="relative">
               <Button
                 variant="ghost"
@@ -92,16 +98,14 @@ export function DriverTopbar({
                 )}
               </Button>
               {showNotifications && (
-                <NotificationDropdown
-                  onClose={handleCloseNotifications}
-                />
+                <NotificationDropdown onClose={handleCloseNotifications} />
               )}
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="flex items-center space-x-2 hover:bg-blue-50 dark:hover:bg-blue-950"
                 >
                   <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
@@ -110,39 +114,54 @@ export function DriverTopbar({
                   <div className="text-left">
                     {loading ? (
                       <>
-                        <p className="text-sm font-medium text-foreground">Loading...</p>
-                        <p className="text-xs text-foreground/70">Please wait</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Loading...
+                        </p>
+                        <p className="text-xs text-foreground/70">
+                          Please wait
+                        </p>
                       </>
                     ) : profile ? (
                       <>
-                        <p className="text-sm font-medium text-foreground">{profile.name}</p>
-                        <p className="text-xs text-foreground/70">{profile.email}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {profile.name}
+                        </p>
+                        <p className="text-xs text-foreground/70">
+                          {profile.email}
+                        </p>
                       </>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-foreground">Driver</p>
-                        <p className="text-xs text-foreground/70">Not available</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Driver
+                        </p>
+                        <p className="text-xs text-foreground/70">
+                          Not available
+                        </p>
                       </>
                     )}
                   </div>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-background border-border">
-                <DropdownMenuLabel className="text-foreground">My Account</DropdownMenuLabel>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-background border-border"
+              >
+                <DropdownMenuLabel className="text-foreground">
+                  My Account
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-border" />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => router.push("/dashboard/profile")}
                   className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
                 >
                   Profile Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
-                >
+                <DropdownMenuItem className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950">
                   Notifications
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-border" />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={handleSignOut}
                   className="text-foreground hover:bg-blue-50 dark:hover:bg-blue-950 focus:bg-blue-50 dark:focus:bg-blue-950"
                 >

@@ -30,6 +30,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { NotificationDrawer } from "@/components/notification-drawer";
 import { useWebSocket } from "@/context/WebSocketContext";
+import { ChatSheet } from "@/components/chat-sheet";
+import { useHotelId } from "@/hooks/use-hotel-id";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -48,6 +50,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { notifications, isConnected, markUserInteraction } = useWebSocket();
+  const { hotelId } = useHotelId();
 
   const handleSignOut = () => {
     localStorage.removeItem("frontdeskToken");
@@ -154,9 +157,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              {/* Chat Button */}
+              {hotelId && <ChatSheet hotelId={hotelId} />}
+
+              <Button
+                variant="ghost"
+                size="icon"
                 className="relative hover:bg-gray-100 transition-colors"
                 onClick={() => setNotificationDrawerOpen(true)}
               >
@@ -204,14 +210,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Page content */}
         <main className="py-6">
-          <div className=" px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
+          <div className=" px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
 
       {/* Notification Drawer */}
-      <NotificationDrawer 
+      <NotificationDrawer
         isOpen={notificationDrawerOpen}
         onClose={() => {
           setNotificationDrawerOpen(false);

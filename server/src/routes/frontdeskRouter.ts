@@ -239,4 +239,23 @@ router.post(
   frontdeskController.resetPassword as RequestHandler
 );
 
+// Chat routes
+router.get(
+  "/hotels/:hotelId/chats",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getChats as RequestHandler
+);
+
+router.get(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getChatMessages as RequestHandler
+);
+
+router.post(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.sendMessage as RequestHandler
+);
+
 export default router;

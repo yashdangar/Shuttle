@@ -124,4 +124,23 @@ router.post("/forgot-password", controller.forgotPassword as RequestHandler);
 router.post("/verify-otp", controller.verifyOtp as RequestHandler);
 router.post("/reset-password", controller.resetPassword as RequestHandler);
 
+// Chat routes
+router.get(
+  "/hotels/:hotelId/chats",
+  driverAuthMiddleware as RequestHandler,
+  controller.getChats as RequestHandler
+);
+
+router.get(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  driverAuthMiddleware as RequestHandler,
+  controller.getChatMessages as RequestHandler
+);
+
+router.post(
+  "/hotels/:hotelId/chats/:chatId/messages",
+  driverAuthMiddleware as RequestHandler,
+  controller.sendMessage as RequestHandler
+);
+
 export default router;

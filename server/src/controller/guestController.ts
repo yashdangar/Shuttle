@@ -1472,7 +1472,259 @@ const deleteNotification = async (req: Request, res: Response) => {
     res.json({ message: "Notification deleted" });
   } catch (error) {
     console.error("Delete notification error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ error: "Failed to delete notification" });
+  }
+};
+
+// Chat functions
+const getChats = async (req: Request, res: Response) => {
+  const { hotelId } = req.params;
+  const userId = (req as any).user.userId;
+
+  try {
+    // Verify the guest is associated with this hotel
+    const guest = await prisma.guest.findUnique({
+      where: { id: userId },
+      select: { hotelId: true },
+    });
+
+    if (!guest || guest.hotelId !== parseInt(hotelId)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get all frontdesk staff for this hotel
+    const frontdeskStaff = await prisma.frontDesk.findMany({
+      where: { hotelId: parseInt(hotelId) },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
+
+    // Get existing chats for this guest in the specified hotel
+    const existingChats = await prisma.chat.findMany({
+      where: {
+        guestId: userId,
+        hotelId: parseInt(hotelId),
+      },
+      include: {
+        frontDesk: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1, // Get only the latest message for preview
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    // Create a map of existing chats by frontdesk ID
+    const existingChatsMap = new Map();
+    existingChats.forEach((chat) => {
+      if (chat.frontDesk) {
+        existingChatsMap.set(chat.frontDesk.id, chat);
+      }
+    });
+
+    // Create default chats with frontdesk staff if they don't exist
+    const chatsToCreate = [];
+    for (const frontdesk of frontdeskStaff) {
+      if (!existingChatsMap.has(frontdesk.id)) {
+        chatsToCreate.push({
+          guestId: userId,
+          frontDeskId: frontdesk.id,
+          hotelId: parseInt(hotelId),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    // Create the missing chats in bulk
+    if (chatsToCreate.length > 0) {
+      await prisma.chat.createMany({
+        data: chatsToCreate,
+      });
+    }
+
+    // Fetch all chats (including newly created ones) with proper includes
+    const allChats = await prisma.chat.findMany({
+      where: {
+        guestId: userId,
+        hotelId: parseInt(hotelId),
+      },
+      include: {
+        frontDesk: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1, // Get only the latest message for preview
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    res.json({ chats: allChats });
+  } catch (error) {
+    console.error("Get chats error:", error);
+    res.status(500).json({ error: "Failed to fetch chats" });
+  }
+};
+
+const getChatMessages = async (req: Request, res: Response) => {
+  const { hotelId, chatId } = req.params;
+  const { page = 1, limit = 100 } = req.query;
+  const userId = (req as any).user.userId;
+
+  try {
+    // Verify the chat belongs to this guest and hotel
+    const chat = await prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        guestId: userId,
+        hotelId: parseInt(hotelId),
+      },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get messages with pagination
+    const messages = await prisma.message.findMany({
+      where: { chatId },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limitNum,
+    });
+
+    // Get total count for pagination
+    const totalMessages = await prisma.message.count({
+      where: { chatId },
+    });
+
+    res.json({
+      messages: messages.reverse(), // Reverse to get chronological order
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalMessages,
+        totalPages: Math.ceil(totalMessages / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error("Get chat messages error:", error);
+    res.status(500).json({ error: "Failed to fetch messages" });
+  }
+};
+
+const sendMessage = async (req: Request, res: Response) => {
+  const { hotelId, chatId } = req.params;
+  const { content } = req.body;
+  const userId = (req as any).user.userId;
+
+  try {
+    // Verify the chat belongs to this guest and hotel
+    const chat = await prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        guestId: userId,
+        hotelId: parseInt(hotelId),
+      },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: "Message content is required" });
+    }
+
+    // Create the message
+    const message = await prisma.message.create({
+      data: {
+        chatId,
+        senderType: "GUEST",
+        senderId: userId,
+        content: content.trim(),
+      },
+      include: {
+        chat: {
+          include: {
+            frontDesk: {
+              select: { id: true, name: true, email: true },
+            },
+            driver: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Update chat's updatedAt timestamp
+    await prisma.chat.update({
+      where: { id: chatId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Broadcast the message via WebSocket
+    const { sendToChat } = await import("../ws/index");
+    const { WsEvents } = await import("../ws/events");
+
+    sendToChat(chatId, WsEvents.NEW_MESSAGE, {
+      chatId,
+      message: {
+        id: message.id,
+        content: message.content,
+        senderType: message.senderType,
+        senderId: message.senderId,
+        createdAt: message.createdAt.toISOString(),
+      },
+    });
+
+    res.json({
+      message: "Message sent successfully",
+      data: message,
+    });
+  } catch (error) {
+    console.error("Send message error:", error);
+    res.status(500).json({ error: "Failed to send message" });
   }
 };
 
@@ -1499,4 +1751,7 @@ export default {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  getChats,
+  getChatMessages,
+  sendMessage,
 };
