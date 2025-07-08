@@ -361,14 +361,17 @@ export default function TripsPage() {
               Offline
             </Badge>
           )}
-          <Button
-            onClick={() => setShowQRScanner(true)}
-            className="bg-blue-600 hover:bg-blue-700"
-            size="sm"
-          >
-            <QrCode className="h-4 w-4 mr-2" />
-            Scan QR
-          </Button>
+          {/* QR Scanner Button - Only show when trip is active */}
+          {currentTrip && currentTrip.status === "ACTIVE" && (
+            <Button
+              onClick={() => setShowQRScanner(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+              size="sm"
+            >
+              <QrCode className="h-4 w-4 mr-2" />
+              Scan QR
+            </Button>
+          )}
           <Button
             onClick={fetchTripData}
             variant="outline"
@@ -395,14 +398,16 @@ export default function TripsPage() {
         All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
 
-      {/* Location Tracker */}
-      <LocationTracker 
-        isActive={!!currentTrip} 
-        onLocationUpdate={(location) => {
-          console.log('Location updated:', location);
-          // The location tracker will automatically send location to server
-        }}
-      />
+      {/* Location Tracker - Only active when trip is active */}
+      {currentTrip && currentTrip.status === "ACTIVE" && (
+        <LocationTracker 
+          isActive={true} 
+          onLocationUpdate={(location) => {
+            console.log('Location updated:', location);
+            // The location tracker will automatically send location to server
+          }}
+        />
+      )}
 
       {/* New Booking Notification */}
       {newBookingNotification && (
@@ -539,23 +544,6 @@ export default function TripsPage() {
         </Card>
       ) : (
         <>
-          {/* General Map Overview */}
-          <Card className="border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-gray-500" />
-                Service Area Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DriverRouteMap
-                passengers={[]} // Empty passengers for overview
-                currentTrip={null}
-                height="400px"
-              />
-            </CardContent>
-          </Card>
-
           <Card className="border-gray-200">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -660,29 +648,6 @@ export default function TripsPage() {
       {/* Available Trips */}
       {availableTrips.length > 0 && (
         <>
-          {/* Preview Map for Available Trips */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                Route Preview
-                <Badge variant="secondary" className="ml-2">
-                  {availableTrips[0]?.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel → Airport' : 'Airport → Hotel'}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DriverRouteMap
-                passengers={[]} // Empty passengers for preview
-                currentTrip={{
-                  direction: availableTrips[0]?.direction || 'HOTEL_TO_AIRPORT',
-                  phase: 'OUTBOUND'
-                }}
-                height="400px"
-              />
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

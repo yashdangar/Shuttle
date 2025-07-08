@@ -18,12 +18,14 @@ import {
   AlertTriangle,
   ClipboardList,
   Bell,
+  QrCode,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { WsEvents } from "@/context/WebSocketContext";
 import { formatTimeForDisplay, getUserTimeZone } from "@/lib/utils";
+import { QRScannerModal } from "./qr-scanner-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,6 +99,7 @@ export default function TripDashboard() {
   const [showEndTripDialog, setShowEndTripDialog] = useState(false);
   const [newBookingNotification, setNewBookingNotification] =
     useState<LiveBooking | null>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const { toast } = useToast();
   const { socket, isConnected, onBookingUpdate } = useWebSocket();
 
@@ -576,6 +579,18 @@ export default function TripDashboard() {
                   Start Return Journey
                 </Button>
               )}
+              
+              {/* QR Scanner Button - Only show when trip is active */}
+              {currentTrip && currentTrip.status === "ACTIVE" && (
+                <Button
+                  onClick={() => setShowQRScanner(true)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Scan QR Code
+                </Button>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -751,6 +766,23 @@ export default function TripDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onSuccess={(passengerData) => {
+          console.log("QR scan successful:", passengerData);
+          toast({
+            title: "✅ Check-in Successful!",
+            description: `${passengerData.guest.firstName} ${passengerData.guest.lastName} has been checked in.`,
+          });
+          setShowQRScanner(false);
+          // Refresh trip data to update passenger counts
+          fetchTripData();
+        }}
+        passengerList={liveBookings}
+      />
     </div>
   );
 }
