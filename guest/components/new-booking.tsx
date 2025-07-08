@@ -81,7 +81,7 @@ export default function NewBooking({
 
   const [formData, setFormData] = useState({
     pickup: "",
-    destination: hotel.name,
+    destination: "",
     createdAt: currentDate,
     preferredTime: currentTime,
     notes: "",
@@ -105,6 +105,7 @@ export default function NewBooking({
     totalPrice: number;
     locationName: string;
   } | null>(null);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
 
   // Validation state
   const hasName = formData.firstName.trim() && formData.lastName.trim();
@@ -167,12 +168,17 @@ export default function NewBooking({
       }
 
       if (locationId && formData.numberOfPersons > 0) {
-        const response = await api.get(`/guest/get-pricing?locationId=${locationId}&numberOfPersons=${formData.numberOfPersons}`);
+        setIsLoadingPricing(true);
+        setPricing(null); // Clear previous pricing while loading
+        
+        const response = await api.get(
+          `/guest/get-pricing?locationId=${locationId}&numberOfPersons=${formData.numberOfPersons}`
+        );
         if (response.pricing) {
           setPricing({
             pricePerPerson: response.pricing.pricePerPerson,
             totalPrice: response.pricing.totalPrice,
-            locationName
+            locationName,
           });
         }
       } else {
@@ -181,6 +187,8 @@ export default function NewBooking({
     } catch (error) {
       console.error("Error fetching pricing:", error);
       setPricing(null);
+    } finally {
+      setIsLoadingPricing(false);
     }
   };
 
@@ -193,7 +201,14 @@ export default function NewBooking({
     if (locations.length > 0) {
       fetchPricing();
     }
-  }, [locations, formData.destination, formData.pickup, formData.numberOfPersons, formData.tripType, tripDirection]);
+  }, [
+    locations,
+    formData.destination,
+    formData.pickup,
+    formData.numberOfPersons,
+    formData.tripType,
+    tripDirection,
+  ]);
 
   // Update time every minute
   useEffect(() => {
@@ -349,7 +364,7 @@ export default function NewBooking({
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Book a Shuttle</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">Book a Shuttle</CardTitle>
           <CardDescription>
             Fill in the details below to book your shuttle ride
           </CardDescription>
@@ -358,33 +373,75 @@ export default function NewBooking({
           </div>
         </CardHeader>
         <CardContent>
+                    {/* Custom Mobile-Friendly Tabs */}
+          <div className="mb-6">
+            {/* Mobile: Vertical Stack */}
+            <div className="block sm:hidden space-y-2">
+              <button
+                onClick={() => handleTripDirectionChange("hotel-to-airport")}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
+                  tripDirection === "hotel-to-airport"
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <div className="font-medium">Hotel → Airport</div>
+              </button>
+              <button
+                onClick={() => handleTripDirectionChange("airport-to-hotel")}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
+                  tripDirection === "airport-to-hotel"
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <div className="font-medium">Airport → Hotel</div>
+              </button>
+              <button
+                onClick={() => handleTripDirectionChange("park-sleep-fly")}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
+                  tripDirection === "park-sleep-fly"
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <div className="font-medium">Park, Sleep & Fly</div>
+              </button>
+            </div>
+
+            {/* Desktop: Horizontal Tabs */}
+            <div className="hidden sm:block">
+              <Tabs
+                defaultValue="hotel-to-airport"
+                value={tripDirection}
+                onValueChange={handleTripDirectionChange}
+              >
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="hotel-to-airport">
+                    Hotel to Airport 
+                  </TabsTrigger>
+                  <TabsTrigger value="airport-to-hotel">
+                    Airport to Hotel 
+                  </TabsTrigger>
+                  <TabsTrigger value="park-sleep-fly">
+                    Park, Sleep & Fly
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
+          
+          {/* Content Tabs */}
           <Tabs
             defaultValue="hotel-to-airport"
             value={tripDirection}
             onValueChange={handleTripDirectionChange}
           >
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="hotel-to-airport">
-                Hotel to Airport (Outbound)
-              </TabsTrigger>
-              <TabsTrigger value="airport-to-hotel">
-                Airport to Hotel (Return)
-              </TabsTrigger>
-              <TabsTrigger value="park-sleep-fly">
-                Park, Sleep & Fly
-              </TabsTrigger>
-            </TabsList>
             <TabsContent value="hotel-to-airport">
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Round Trip:</strong> This booking will be part of a
-                  round trip that includes both outbound and return journeys.
-                </p>
-              </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Guest Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       <strong>Required:</strong> Please provide either your
@@ -528,6 +585,7 @@ export default function NewBooking({
                         <SelectValue placeholder="Select destination" />
                       </div>
                     </SelectTrigger>
+                    
                     <SelectContent>
                       {locations.map((location) => (
                         <SelectItem key={location.id} value={location.name}>
@@ -622,26 +680,44 @@ export default function NewBooking({
                 </div>
 
                 {/* Pricing Information */}
-                {pricing && (
+                {(pricing || isLoadingPricing) && (
                   <div className="space-y-2">
                     <Label>Pricing</Label>
-                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {pricing.locationName} - {formData.numberOfPersons} person(s)
-                        </span>
-                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                          ${pricing.pricePerPerson.toFixed(2)} per person
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                          Total Price
-                        </span>
-                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                          ${pricing.totalPrice.toFixed(2)}
-                        </span>
-                      </div>
+                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
+                      isLoadingPricing 
+                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
+                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                    }`}>
+                      {isLoadingPricing ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Calculating pricing...
+                            </span>
+                          </div>
+                        </div>
+                      ) : pricing ? (
+                        <>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              {pricing.locationName} - {formData.numberOfPersons}{" "}
+                              person(s)
+                            </span>
+                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                              ${pricing.pricePerPerson.toFixed(2)} per person
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              Total Price
+                            </span>
+                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                              ${pricing.totalPrice.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -705,16 +781,10 @@ export default function NewBooking({
               </form>
             </TabsContent>
             <TabsContent value="airport-to-hotel">
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Round Trip:</strong> This booking will be part of a
-                  round trip that includes both outbound and return journeys.
-                </p>
-              </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Guest Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       <strong>Required:</strong> Please provide either your
@@ -859,6 +929,7 @@ export default function NewBooking({
                   <Label htmlFor="destination">Destination</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    
                     <Input
                       id="destination"
                       value={hotel.name}
@@ -952,26 +1023,44 @@ export default function NewBooking({
                 </div>
 
                 {/* Pricing Information */}
-                {pricing && (
+                {(pricing || isLoadingPricing) && (
                   <div className="space-y-2">
                     <Label>Pricing</Label>
-                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {pricing.locationName} - {formData.numberOfPersons} person(s)
-                        </span>
-                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                          ${pricing.pricePerPerson.toFixed(2)} per person
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                          Total Price
-                        </span>
-                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                          ${pricing.totalPrice.toFixed(2)}
-                        </span>
-                      </div>
+                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
+                      isLoadingPricing 
+                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
+                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                    }`}>
+                      {isLoadingPricing ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Calculating pricing...
+                            </span>
+                          </div>
+                        </div>
+                      ) : pricing ? (
+                        <>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              {pricing.locationName} - {formData.numberOfPersons}{" "}
+                              person(s)
+                            </span>
+                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                              ${pricing.pricePerPerson.toFixed(2)} per person
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              Total Price
+                            </span>
+                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                              ${pricing.totalPrice.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -1035,18 +1124,10 @@ export default function NewBooking({
               </form>
             </TabsContent>
             <TabsContent value="park-sleep-fly">
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Park, Sleep & Fly Package:</strong> This booking is
-                  for guests who have purchased our Park, Sleep & Fly package.
-                  You can choose either Hotel to Airport or Airport to Hotel
-                  direction.
-                </p>
-              </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Guest Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Guest Information</h3>
+                  <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       <strong>Required:</strong> Please provide either your
@@ -1179,17 +1260,13 @@ export default function NewBooking({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="HOTEL_TO_AIRPORT">
-                        Hotel to Airport (Outbound)
+                        Hotel to Airport 
                       </SelectItem>
                       <SelectItem value="AIRPORT_TO_HOTEL">
-                        Airport to Hotel (Return)
+                        Airport to Hotel
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-blue-600">
-                    Choose the direction for your Park, Sleep & Fly package
-                    trip.
-                  </p>
                 </div>
 
                 {/* Pickup Location for Park Sleep Fly */}
@@ -1231,7 +1308,7 @@ export default function NewBooking({
                   <p className="text-sm text-blue-600">
                     {formData.tripType === "HOTEL_TO_AIRPORT"
                       ? "Pickup will be from the hotel lobby."
-                      : "Please select your airport terminal or pickup location for the Park, Sleep & Fly package."}
+                      : ""}
                   </p>
                 </div>
 
@@ -1362,26 +1439,44 @@ export default function NewBooking({
                 </div>
 
                 {/* Pricing Information */}
-                {pricing && (
+                {(pricing || isLoadingPricing) && (
                   <div className="space-y-2">
                     <Label>Pricing</Label>
-                    <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {pricing.locationName} - {formData.numberOfPersons} person(s)
-                        </span>
-                        <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                          ${pricing.pricePerPerson.toFixed(2)} per person
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                          Total Price
-                        </span>
-                        <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                          ${pricing.totalPrice.toFixed(2)}
-                        </span>
-                      </div>
+                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
+                      isLoadingPricing 
+                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
+                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                    }`}>
+                      {isLoadingPricing ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Calculating pricing...
+                            </span>
+                          </div>
+                        </div>
+                      ) : pricing ? (
+                        <>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              {pricing.locationName} - {formData.numberOfPersons}{" "}
+                              person(s)
+                            </span>
+                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                              ${pricing.pricePerPerson.toFixed(2)} per person
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              Total Price
+                            </span>
+                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                              ${pricing.totalPrice.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 )}

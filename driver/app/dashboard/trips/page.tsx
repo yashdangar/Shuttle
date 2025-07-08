@@ -23,6 +23,8 @@ import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { formatTimeForDisplay, getUserTimeZone } from "@/lib/utils";
 import { QRScannerModal } from "@/components/qr-scanner-modal";
+import DriverRouteMap from "@/components/driver-route-map";
+import LocationTracker from "@/components/location-tracker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -393,6 +395,15 @@ export default function TripsPage() {
         All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
 
+      {/* Location Tracker */}
+      <LocationTracker 
+        isActive={!!currentTrip} 
+        onLocationUpdate={(location) => {
+          console.log('Location updated:', location);
+          // The location tracker will automatically send location to server
+        }}
+      />
+
       {/* New Booking Notification */}
       {newBookingNotification && (
         <Card className="border-green-200 bg-green-50 animate-pulse">
@@ -527,35 +538,73 @@ export default function TripsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-gray-500" />
-              No Active Trip
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">
-              Start a round trip to begin serving passengers
-            </p>
-            {availableTrips.length > 0 ? (
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleStartTrip("HOTEL_TO_AIRPORT")}
-                  disabled={startingTrip}
-                  className="flex-1"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  {startingTrip ? "Starting..." : "Start Round Trip"}
-                </Button>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center py-4">
-                No trips available to start
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <>
+          {/* General Map Overview */}
+          <Card className="border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-gray-500" />
+                Service Area Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DriverRouteMap
+                passengers={[]} // Empty passengers for overview
+                currentTrip={null}
+                height="400px"
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-gray-500" />
+                No Active Trip
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 mb-4">
+                Start a round trip to begin serving passengers
+              </p>
+              {availableTrips.length > 0 ? (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleStartTrip("HOTEL_TO_AIRPORT")}
+                    disabled={startingTrip}
+                    className="flex-1"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    {startingTrip ? "Starting..." : "Start Round Trip"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-4">
+                  No trips available to start
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Route Map */}
+      {currentTrip && liveBookings.length > 0 && (
+        <DriverRouteMap
+          passengers={liveBookings.map((booking) => ({
+            id: booking.id,
+            name: `${booking.guest.firstName} ${booking.guest.lastName}`,
+            pickup: booking.pickupLocation?.name || "Hotel Lobby",
+            dropoff: booking.dropoffLocation?.name || "Airport",
+            persons: booking.numberOfPersons,
+            bags: booking.numberOfBags,
+            isVerified: false, // This will be updated based on actual verification status
+            pickupLocation: undefined, // Let the map component handle coordinate resolution
+            dropoffLocation: undefined, // Let the map component handle coordinate resolution
+          }))}
+          currentTrip={currentTrip}
+          height="500px"
+        />
       )}
 
       {/* Live Bookings */}
@@ -610,51 +659,76 @@ export default function TripsPage() {
 
       {/* Available Trips */}
       {availableTrips.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Available Round Trips
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              {availableTrips.map((trip, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">
-                      🏨↔️✈️
-                    </div>
-                    <div>
-                      <h4 className="font-medium">
-                        Round Trip (Hotel ↔ Airport)
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {trip.bookingCount} bookings • {trip.totalPersons}{" "}
-                        passengers • {trip.totalBags} bags
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatTimeForDisplay(trip.earliestTime)} -{" "}
-                        {formatTimeForDisplay(trip.latestTime)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleStartTrip(trip.direction)}
-                    disabled={startingTrip}
-                    size="sm"
+        <>
+          {/* Preview Map for Available Trips */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-blue-600" />
+                Route Preview
+                <Badge variant="secondary" className="ml-2">
+                  {availableTrips[0]?.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel → Airport' : 'Airport → Hotel'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DriverRouteMap
+                passengers={[]} // Empty passengers for preview
+                currentTrip={{
+                  direction: availableTrips[0]?.direction || 'HOTEL_TO_AIRPORT',
+                  phase: 'OUTBOUND'
+                }}
+                height="400px"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Available Round Trips
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {availableTrips.map((trip, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 border rounded-lg"
                   >
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Round Trip
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">
+                        🏨↔️✈️
+                      </div>
+                      <div>
+                        <h4 className="font-medium">
+                          Round Trip (Hotel ↔ Airport)
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {trip.bookingCount} bookings • {trip.totalPersons}{" "}
+                          passengers • {trip.totalBags} bags
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatTimeForDisplay(trip.earliestTime)} -{" "}
+                          {formatTimeForDisplay(trip.latestTime)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleStartTrip(trip.direction)}
+                      disabled={startingTrip}
+                      size="sm"
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      Start Round Trip
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* End Trip Confirmation Dialog */}

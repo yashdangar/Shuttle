@@ -158,8 +158,8 @@ export default function BookingHistory() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
+          <Skeleton className="h-3 sm:h-4 w-24 sm:w-32" />
         </div>
         
         {[1, 2, 3].map((i) => (
@@ -221,11 +221,11 @@ export default function BookingHistory() {
   if (bookings.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Clock className="w-12 h-12 text-gray-400" />
+        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400" />
         </div>
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">No Booking History</h3>
-        <p className="text-gray-600">Your completed bookings will appear here.</p>
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Booking History</h3>
+        <p className="text-sm sm:text-base text-gray-600">Your completed bookings will appear here.</p>
       </div>
     )
   }
@@ -233,13 +233,13 @@ export default function BookingHistory() {
   return (
     <div className="space-y-4">
       {/* Timezone Info */}
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-xs sm:text-sm">
         All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
 
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Booking History</h2>
-        <p className="text-gray-600">{bookings.length} total bookings</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Booking History</h2>
+        <p className="text-sm sm:text-base text-gray-600">{bookings.length} total bookings</p>
       </div>
 
       {bookings.map((booking) => (
@@ -247,13 +247,13 @@ export default function BookingHistory() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Booking {booking.id.slice(0, 8)}...</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base sm:text-lg">Booking {booking.id.slice(0, 8)}...</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Created: {formatDateTime(booking.createdAt)}
                 </CardDescription>
               </div>
               <div className="flex items-center space-x-2">
-                <Badge className={getStatusColor(booking)}>
+                <Badge className={`${getStatusColor(booking)} text-xs sm:text-sm`}>
                   {getStatusText(booking)}
                 </Badge>
                 {booking.qrCodePath && (
@@ -261,8 +261,9 @@ export default function BookingHistory() {
                     variant="outline" 
                     size="sm"
                     onClick={() => handleShowQR(booking)}
+                    className="text-xs sm:text-sm"
                   >
-                    <QrCode className="w-4 h-4 mr-1" />
+                    <QrCode className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                     QR Code
                   </Button>
                 )}
@@ -302,32 +303,32 @@ export default function BookingHistory() {
             </div>
             {booking.isCancelled && (
               <div className="bg-red-50 border-t border-red-200 px-6 py-3 mt-4">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    {getCancelledByIcon(booking.cancelledBy)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-red-800">
-                      {getCancelledByText(booking.cancelledBy)}
-                    </p>
-                    {booking.cancellationReason && (
-                      <p className="text-sm text-red-700 mt-1">
-                        <strong>Reason:</strong> {booking.cancellationReason}
+                                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      {getCancelledByIcon(booking.cancelledBy)}
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-semibold text-red-800">
+                        {getCancelledByText(booking.cancelledBy)}
                       </p>
-                    )}
+                      {booking.cancellationReason && (
+                        <p className="text-xs sm:text-sm text-red-700 mt-1">
+                          <strong>Reason:</strong> {booking.cancellationReason}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
               </div>
             )}
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
+            <div className="grid md:grid-cols-3 gap-4 text-xs sm:text-sm">
               <div className="flex items-center space-x-3">
-                <MapPin className="w-5 h-5 text-gray-400" />
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium">Trip Type</p>
+                  <p className="text-sm sm:text-base font-medium">Trip Type</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-xs sm:text-sm text-gray-600">
                       {getBookingTypeText(booking.bookingType)}
                     </p>
                     {booking.isParkSleepFly && (
@@ -339,17 +340,17 @@ export default function BookingHistory() {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4 text-gray-400" />
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                 <div>
-                  <p className="font-medium">Preferred Time</p>
-                  <p className="text-gray-600">{formatDateTime(booking.preferredTime)}</p>
+                  <p className="text-sm sm:text-base font-medium">Preferred Time</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{formatDateTime(booking.preferredTime)}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4 text-gray-400" />
+                <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                 <div>
-                  <p className="font-medium">Passengers & Bags</p>
-                  <p className="text-gray-600">{booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)</p>
+                  <p className="text-sm sm:text-base font-medium">Passengers & Bags</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{booking.numberOfPersons} person(s), {booking.numberOfBags} bag(s)</p>
                 </div>
               </div>
             </div>
@@ -357,8 +358,8 @@ export default function BookingHistory() {
             {booking.isParkSleepFly && (
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center space-x-2">
-                  <span className="text-lg">🏨✈️</span>
-                  <p className="text-sm text-blue-800 font-medium">
+                  <span className="text-base sm:text-lg">🏨✈️</span>
+                  <p className="text-xs sm:text-sm text-blue-800 font-medium">
                     Park, Sleep & Fly Package
                   </p>
                 </div>
@@ -368,17 +369,17 @@ export default function BookingHistory() {
               </div>
             )}
             
-            <div className="grid md:grid-cols-2 gap-4 text-sm mt-4">
+            <div className="grid md:grid-cols-2 gap-4 text-xs sm:text-sm mt-4">
               <div className="flex items-center space-x-2">
                 <div>
-                  <p className="font-medium">Payment Method</p>
-                  <p className="text-gray-600">{booking.paymentMethod}</p>
+                  <p className="text-sm sm:text-base font-medium">Payment Method</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{booking.paymentMethod}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <div>
-                  <p className="font-medium">Last Updated</p>
-                  <p className="text-gray-600">
+                  <p className="text-sm sm:text-base font-medium">Last Updated</p>
+                  <p className="text-xs sm:text-sm text-gray-600">
                     {formatDateTime(booking.updatedAt)}
                   </p>
                 </div>
@@ -388,8 +389,8 @@ export default function BookingHistory() {
             {/* Notes Section */}
             {booking.notes && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
-                <p className="text-sm font-medium text-gray-700 mb-1">Notes:</p>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-700 mb-1">Notes:</p>
+                <p className="text-xs sm:text-sm text-gray-600 whitespace-pre-wrap">{booking.notes}</p>
               </div>
             )}
           </CardContent>

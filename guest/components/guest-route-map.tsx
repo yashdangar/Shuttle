@@ -560,40 +560,7 @@ export default function GuestRouteMap({
           </div>
         </div>
 
-        {/* Trip Info */}
-        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-lg">Trip Details</h3>
-              <p className="text-sm text-gray-600">
-                {booking.pickup} → {booking.dropoff}
-              </p>
-              <p className="text-sm text-gray-500">
-                {booking.persons} passengers • {booking.bags} bags
-              </p>
-              {realTimeEta && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-green-600 font-medium">
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    Driver ETA: {realTimeEta}
-                  </p>
-                  {etaDistance && (
-                    <p className="text-sm text-blue-600">
-                      <Navigation className="h-3 w-3 inline mr-1" />
-                      Distance: {etaDistance}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <Badge 
-              variant={booking.status === 'active' ? 'default' : 'secondary'}
-              className={booking.status === 'active' ? 'bg-green-500' : ''}
-            >
-              {booking.status}
-            </Badge>
-          </div>
-        </div>
+
       </CardContent>
     </Card>
   );
