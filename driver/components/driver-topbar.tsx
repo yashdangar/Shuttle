@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
 import { useDriverProfile } from "@/context/DriverProfileContext";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ChatSheet } from "@/components/chat-sheet";
@@ -42,24 +41,10 @@ export function DriverTopbar({
   const handleToggleNotifications = useCallback(() => {
     const newState = !showNotifications;
     setShowNotifications(newState);
-
-    // Use setTimeout to avoid state updates during render
-    setTimeout(() => {
-      if (newState) {
-        toast.success("Opening notifications", {
-          description: "You can view your notifications here",
-        });
-      }
-    }, 0);
   }, [showNotifications]);
 
   const handleCloseNotifications = useCallback(() => {
     setShowNotifications(false);
-
-    // Use setTimeout to avoid state updates during render
-    setTimeout(() => {
-      toast.success("Closing notifications");
-    }, 0);
   }, []);
 
   return (

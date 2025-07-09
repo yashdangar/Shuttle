@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, MapPin, Users, Clock, Car, TrendingUp } from "lucide-react";
 import { NotificationDropdown } from "@/components/notification-dropdown";
-import { toast } from "sonner";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatSheet } from "@/components/chat-sheet";
@@ -31,11 +30,6 @@ export default function DashboardPage() {
   useEffect(() => {
     const name = localStorage.getItem("driverName") || "Driver";
     setDriverName(name);
-
-    // Welcome toast
-    toast.success("Welcome back!", {
-      description: "Your dashboard is ready",
-    });
   }, []);
 
   const currentTime = new Date().toLocaleTimeString([], {
@@ -44,9 +38,7 @@ export default function DashboardPage() {
   });
 
   const handleCardClick = (cardName: string) => {
-    toast.loading(cardName, {
-      description: "Loading detailed information...",
-    });
+    // Handle card click without showing loading toast
   };
 
   return (

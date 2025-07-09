@@ -4,16 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Navigation, Users, CheckCircle, Clock, Plane } from "lucide-react";
-import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline, Polygon } from "@react-google-maps/api";
+import { MapPin, Navigation, Users, CheckCircle, Clock } from "lucide-react";
+import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline, Polygon, Circle } from "@react-google-maps/api";
 import { api } from "@/lib/api";
-import { 
-  isDriverInAirportBoundary, 
-  getDriverTerminalArea, 
-  getAirportBoundaryForMap, 
-  getTerminalAreasForMap,
-  isDriverApproachingAirport 
-} from "@/lib/airportBoundary";
+
 import { toast } from "sonner";
 
 interface Location {
@@ -72,13 +66,13 @@ export default function DriverRouteMap({
   const [error, setError] = useState<string | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<Passenger | null>(null);
   const [activeInfoWindow, setActiveInfoWindow] = useState<string | null>(null);
-  const [isInAirportBoundary, setIsInAirportBoundary] = useState(false);
-  const [terminalArea, setTerminalArea] = useState<string | null>(null);
-  const [isApproachingAirport, setIsApproachingAirport] = useState(false);
-  const [lastBoundaryCheck, setLastBoundaryCheck] = useState<Date | null>(null);
   const [userInteractedWithMap, setUserInteractedWithMap] = useState(false);
   const [lastUserInteraction, setLastUserInteraction] = useState<Date | null>(null);
   const [autoFollowDriver, setAutoFollowDriver] = useState(true);
+  const [circleCenter, setCircleCenter] = useState<google.maps.LatLng | null>(null);
+  const [isInCircleBoundary, setIsInCircleBoundary] = useState(false);
+  const [lastCircleBoundaryCheck, setLastCircleBoundaryCheck] = useState<Date | null>(null);
+  const [hasAttemptedTransition, setHasAttemptedTransition] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
   const locationCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -89,59 +83,196 @@ export default function DriverRouteMap({
 
   console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
 
-  // Function to check airport boundary and handle trip transitions
-  const checkAirportBoundary = async (location: Location) => {
-    const driverCoords = { lat: location.latitude, lng: location.longitude };
-    const wasInAirport = isInAirportBoundary;
-    const isNowInAirport = isDriverInAirportBoundary(driverCoords);
-    const currentTerminalArea = getDriverTerminalArea(driverCoords);
-    const approaching = isDriverApproachingAirport(driverCoords);
+  // Function to calculate distance between two coordinates in meters
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
 
-    setIsInAirportBoundary(isNowInAirport);
-    setTerminalArea(currentTerminalArea);
-    setIsApproachingAirport(approaching);
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    // Only trigger transitions if we have a current trip and enough time has passed since last check
-    if (currentTrip && (!lastBoundaryCheck || Date.now() - lastBoundaryCheck.getTime() > 10000)) {
-      setLastBoundaryCheck(new Date());
+    return R * c;
+  };
 
-      if (isNowInAirport && !wasInAirport) {
-        // Driver entered airport boundary
-        console.log('🚁 Driver entered airport boundary');
-        
-        if (currentTrip.direction === 'HOTEL_TO_AIRPORT' && currentTrip.phase === 'OUTBOUND') {
-          // Automatically transition to RETURN phase
-          try {
-            console.log('🔄 Automatically transitioning to RETURN phase');
-            await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
-            
-            toast.success("Outbound trip completed!", {
-              description: "Return trip has started automatically",
-            });
-            
-            // Refresh trip data
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
-          } catch (error) {
-            console.error('Error transitioning trip phase:', error);
-            toast.error("Failed to transition trip phase", {
-              description: "Please manually end the outbound trip",
-            });
-          }
-        }
-      } else if (!isNowInAirport && wasInAirport) {
-        // Driver left airport boundary
-        console.log('🚗 Driver left airport boundary');
-        
-        if (currentTrip.direction === 'AIRPORT_TO_HOTEL' && currentTrip.phase === 'OUTBOUND') {
-          // For airport to hotel trips, we don't auto-transition when leaving airport
-          // The driver should manually end the trip when they reach the hotel
-          console.log('📍 Driver left airport - outbound trip continues to hotel');
-        }
+  // Test function to simulate driver movement for testing circle boundary
+  const testCircleBoundary = async () => {
+    if (!circleCenter) {
+      toast.error("Circle center not available.");
+      return;
+    }
+
+    // Simulate driver starting inside the circle
+    const insideLocation: Location = {
+      latitude: circleCenter.lat(),
+      longitude: circleCenter.lng(),
+      name: "Test Location Inside Circle"
+    };
+    
+    console.log('🧪 Testing: Driver inside circle');
+    await checkCircleBoundary(insideLocation);
+    
+    // Wait 2 seconds, then simulate driver moving outside the circle
+    setTimeout(async () => {
+      const outsideLocation: Location = {
+        latitude: circleCenter.lat() + 0.01, // Move about 1km north
+        longitude: circleCenter.lng() + 0.01, // Move about 1km east
+        name: "Test Location Outside Circle"
+      };
+      
+      console.log('🧪 Testing: Driver outside circle');
+      await checkCircleBoundary(outsideLocation);
+    }, 2000);
+  };
+
+  // Continuous simulation function that moves driver around and eventually out of circle
+  const startContinuousSimulation = () => {
+    if (!circleCenter) {
+      toast.error("Circle center not available.");
+      return;
+    }
+
+    let simulationActive = true;
+    let step = 0;
+    const totalSteps = 20; // Total simulation steps
+    const stepInterval = 3000; // 3 seconds between each movement
+
+    toast.info("Starting continuous simulation", {
+      description: "Driver will move around and eventually exit the circle"
+    });
+
+    const simulationLoop = () => {
+      if (!simulationActive) return;
+
+      step++;
+      console.log(`🧪 Simulation step ${step}/${totalSteps}`);
+
+      // Calculate new position based on step
+      const progress = step / totalSteps;
+      const angle = progress * 2 * Math.PI; // Full circle
+      const radius = 0.005 + (progress * 0.015); // Start close, move further out
+
+      const newLat = circleCenter.lat() + (radius * Math.cos(angle));
+      const newLng = circleCenter.lng() + (radius * Math.sin(angle));
+
+      const newLocation: Location = {
+        latitude: newLat,
+        longitude: newLng,
+        name: `Simulation Step ${step}`
+      };
+
+      // Update driver location
+      setDriverLocation(newLocation);
+      
+      // Check circle boundary
+      checkCircleBoundary(newLocation);
+
+      // Calculate distance from circle center
+      const distance = calculateDistance(
+        newLat, 
+        newLng, 
+        circleCenter.lat(), 
+        circleCenter.lng()
+      );
+
+      console.log(`📍 Driver at: ${newLat.toFixed(6)}, ${newLng.toFixed(6)}`);
+      console.log(`📏 Distance from center: ${distance.toFixed(0)}m`);
+      console.log(`🎯 Inside circle: ${distance <= 800 ? 'Yes' : 'No'}`);
+
+      // Continue simulation if not finished
+      if (step < totalSteps) {
+        setTimeout(simulationLoop, stepInterval);
+      } else {
+        console.log('🏁 Simulation completed');
+        toast.success("Simulation completed", {
+          description: "Driver has moved through the entire path"
+        });
       }
+    };
+
+    // Start the simulation
+    simulationLoop();
+
+    // Return function to stop simulation
+    return () => {
+      simulationActive = false;
+      console.log('⏹️ Simulation stopped');
+    };
+  };
+
+  // Function to check if driver is within circle boundary
+  const checkCircleBoundary = async (location: Location) => {
+    if (!circleCenter) return;
+
+    const driverCoords = { lat: location.latitude, lng: location.longitude };
+    const circleRadius = 800; // 800 meters radius
+    const distance = calculateDistance(
+      driverCoords.lat, 
+      driverCoords.lng, 
+      circleCenter.lat(), 
+      circleCenter.lng()
+    );
+
+    const wasInCircle = isInCircleBoundary;
+    const isNowInCircle = distance <= circleRadius;
+
+    console.log(`📍 Circle boundary check: Driver at ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`);
+    console.log(`📏 Distance from center: ${distance.toFixed(0)}m, Inside circle: ${isNowInCircle}`);
+    console.log(`🔄 State change: ${wasInCircle ? 'Inside' : 'Outside'} → ${isNowInCircle ? 'Inside' : 'Outside'}`);
+
+    setIsInCircleBoundary(isNowInCircle);
+
+    // Check if driver left circle boundary and trigger transition
+    if (currentTrip && !isNowInCircle && wasInCircle) {
+      // Driver left circle boundary
+      console.log('🚗 Driver left circle boundary');
+      console.log('Current trip direction:', currentTrip.direction);
+      console.log('Current trip phase:', currentTrip.phase);
+      console.log('Has attempted transition:', hasAttemptedTransition);
+      
+      // Only attempt transition if we haven't already tried for this circle exit
+      if (!hasAttemptedTransition && currentTrip.phase === 'OUTBOUND') {
+        setHasAttemptedTransition(true); // Mark that we've attempted transition
+        
+        // Automatically transition to RETURN phase
+        try {
+          console.log('🔄 Automatically transitioning to RETURN phase (circle exit)');
+          await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
+          
+          toast.success("Outbound trip completed!", {
+            description: "Return trip has started automatically (driver left circle boundary)",
+          });
+          
+          // Refresh trip data
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (error) {
+          console.error('Error transitioning trip phase:', error);
+          toast.error("Failed to transition trip phase", {
+            description: "Please manually end the outbound trip",
+          });
+          // Reset the flag so we can try again
+          setHasAttemptedTransition(false);
+        }
+      } else if (hasAttemptedTransition) {
+        console.log('⚠️ Already attempted transition for this circle exit');
+      } else {
+        console.log('⚠️ Trip is not in OUTBOUND phase, cannot transition automatically');
+        console.log('Current phase:', currentTrip.phase);
+      }
+    } else if (currentTrip && isNowInCircle && !wasInCircle) {
+      // Driver entered circle boundary - reset transition flag
+      console.log('📍 Driver entered circle boundary');
+      setHasAttemptedTransition(false); // Reset flag when entering circle
     }
   };
+
+
 
   // Fetch driver location and setup locations based on trip direction
   const fetchMapData = async () => {
@@ -160,17 +291,18 @@ export default function DriverRouteMap({
           };
           setDriverLocation(newDriverLocation);
           
-          // Check airport boundary immediately
-          await checkAirportBoundary(newDriverLocation);
+          // Check circle boundary immediately
+          await checkCircleBoundary(newDriverLocation);
         }
       } catch (locationError) {
         console.log('Driver location not available yet:', locationError);
         // Don't set error for missing location - this is normal when driver hasn't started tracking
         // Set a default location for map display
+        // For testing: Set driver location outside the circle
         const defaultLocation = {
-          latitude: 19.0760, // Mumbai center
-          longitude: 72.8777,
-          name: "Default Location"
+          latitude: 21.2269956 + 0.01, // Outside the circle (about 1km north)
+          longitude: 72.825646 + 0.01, // Outside the circle (about 1km east)
+          name: "Test Location Outside Circle"
         };
         setDriverLocation(defaultLocation);
       }
@@ -356,7 +488,7 @@ export default function DriverRouteMap({
               name: "Driver Location"
             };
             setDriverLocation(newLocation);
-            await checkAirportBoundary(newLocation);
+            await checkCircleBoundary(newLocation);
             
             // Only auto-follow driver if user hasn't interacted with map recently
             // and auto-follow is enabled
@@ -386,6 +518,60 @@ export default function DriverRouteMap({
     }
   }, [passengers, currentTrip]);
 
+  // Check for initial circle boundary state when driver location is set
+  useEffect(() => {
+    if (driverLocation && currentTrip && !hasAttemptedTransition && currentTrip.phase === 'OUTBOUND') {
+      // Check if driver is already outside circle boundary on initial load
+      const distance = calculateDistance(
+        driverLocation.latitude,
+        driverLocation.longitude,
+        circleCenter?.lat() || 0,
+        circleCenter?.lng() || 0
+      );
+      
+      const isOutsideCircle = distance > 800; // 800m radius
+      
+      console.log('🔍 Initial circle boundary check:');
+      console.log(`📍 Driver at: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
+      console.log(`📏 Distance from center: ${distance.toFixed(0)}m`);
+      console.log(`🎯 Outside circle: ${isOutsideCircle}`);
+      console.log(`🔄 Current boundary state: ${isInCircleBoundary ? 'Inside' : 'Outside'}`);
+      
+      if (isOutsideCircle && !isInCircleBoundary) {
+        console.log('🚗 Driver already outside circle boundary on initial load');
+        console.log('Current trip direction:', currentTrip.direction);
+        console.log('Current trip phase:', currentTrip.phase);
+        console.log('Has attempted transition:', hasAttemptedTransition);
+        
+        // Trigger transition immediately
+        setHasAttemptedTransition(true);
+        
+        (async () => {
+          try {
+            console.log('🔄 Automatically transitioning to RETURN phase (initial circle exit)');
+            await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
+            
+            toast.success("Outbound trip completed!", {
+              description: "Return trip has started automatically (driver outside circle boundary)",
+            });
+            
+            // Refresh trip data
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } catch (error) {
+            console.error('Error transitioning trip phase:', error);
+            toast.error("Failed to transition trip phase", {
+              description: "Please manually end the outbound trip",
+            });
+            // Reset the flag so we can try again
+            setHasAttemptedTransition(false);
+          }
+        })();
+      }
+    }
+  }, [driverLocation, currentTrip, hasAttemptedTransition, circleCenter, isInCircleBoundary]);
+
   // Center map on driver or first pickup location
   const center = driverLocation
     ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
@@ -395,6 +581,9 @@ export default function DriverRouteMap({
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
+    
+    // Initialize circle center with specified coordinates
+    setCircleCenter(new google.maps.LatLng(21.2269956, 72.825646));
     
     // Add event listeners for user interaction
     map.addListener('dragstart', () => {
@@ -409,10 +598,10 @@ export default function DriverRouteMap({
       console.log('User changed zoom level');
     });
     
-    map.addListener('click', () => {
+    map.addListener('click', (ev: google.maps.MapMouseEvent) => {
       setUserInteractedWithMap(true);
       setLastUserInteraction(new Date());
-      console.log('User clicked on map');
+      console.log('User clicked on map at:', ev.latLng);
     });
   };
 
@@ -531,15 +720,66 @@ export default function DriverRouteMap({
             <MapPin className="h-5 w-5 text-gray-600" />
             Route Map
           </CardTitle>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Badge variant="outline" className="text-xs">
+              <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+              Boundary Circle (800m)
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
+          <div className="relative">
+            <GoogleMap
+              mapContainerStyle={containerStyle}
+              center={{ lat: 21.2269956, lng: 72.825646 }}
+              zoom={15}
+              onLoad={onLoad}
+              onUnmount={onUnmount}
+              options={{
+                zoomControl: true,
+                streetViewControl: false,
+                mapTypeControl: true,
+                fullscreenControl: true,
+              }}
+            >
+              {/* Boundary Circle - shows 800m radius around specified coordinates */}
+              {circleCenter && (
+                <Circle
+                  center={circleCenter}
+                  radius={800}
+                  options={{
+                    fillColor: "#3b82f6",
+                    fillOpacity: 0.3,
+                    strokeColor: "#0c4cb3",
+                    strokeOpacity: 1,
+                    strokeWeight: 3,
+                  }}
+                />
+              )}
+            </GoogleMap>
+          </div>
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-              <p className="text-lg font-medium text-gray-600">No Active Bookings</p>
-              <p className="text-sm text-gray-500 mt-2">No passengers to display on the map</p>
+              <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm font-medium text-gray-600">No Active Bookings</p>
+              <p className="text-xs text-gray-500 mt-1">No passengers to display on the map</p>
             </div>
           </div>
+          
+          {/* Circle Boundary Status for No Bookings */}
+          {circleCenter && (
+            <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                  {isInCircleBoundary 
+                    ? `In Circle Boundary (800m radius)`
+                    : 'Outside Circle Boundary (800m radius)'
+                  }
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -582,17 +822,23 @@ export default function DriverRouteMap({
             <div className="w-3 h-3 bg-purple-500 rounded-full mr-1"></div>
             Airport
           </Badge>
+          <Badge variant="outline" className="text-xs">
+            <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+            Boundary Circle (800m)
+          </Badge>
         </div>
         
-        {/* Airport Boundary Status */}
-        {(isInAirportBoundary || isApproachingAirport) && (
-          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+
+        
+        {/* Circle Boundary Status */}
+        {circleCenter && (
+          <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 rounded-lg">
             <div className="flex items-center gap-2">
-              <Plane className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                {isInAirportBoundary 
-                  ? `In Airport Boundary${terminalArea ? ` (${terminalArea})` : ''}`
-                  : 'Approaching Airport'
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                {isInCircleBoundary 
+                  ? `In Circle Boundary (800m radius)`
+                  : 'Outside Circle Boundary (800m radius)'
                 }
               </span>
             </div>
@@ -616,6 +862,8 @@ export default function DriverRouteMap({
             )}
           </div>
         </div>
+        
+
       </CardHeader>
       <CardContent>
         <div className="relative">
@@ -632,51 +880,31 @@ export default function DriverRouteMap({
               fullscreenControl: true,
             }}
           >
-            {/* Airport Boundary Polygon */}
-            <Polygon
-              paths={getAirportBoundaryForMap()}
-              options={{
-                fillColor: "#3B82F6",
-                fillOpacity: 0.3,
-                strokeColor: "#1D4ED8",
-                strokeOpacity: 1.0,
-                strokeWeight: 3,
-              }}
-            />
-
-            {/* Terminal Areas */}
-            {getTerminalAreasForMap().terminal1 && (
-              <Polygon
-                paths={getTerminalAreasForMap().terminal1}
+            {/* Boundary Circle - shows 800m radius around specified coordinates */}
+            {circleCenter && (
+              <Circle
+                center={circleCenter}
+                radius={800}
                 options={{
-                  fillColor: "#10B981",
-                  fillOpacity: 0.4,
-                  strokeColor: "#059669",
-                  strokeOpacity: 1.0,
-                  strokeWeight: 2,
+                  fillColor: "#3b82f6",
+                  fillOpacity: 0.3,
+                  strokeColor: "#0c4cb3",
+                  strokeOpacity: 1,
+                  strokeWeight: 3,
                 }}
               />
             )}
 
-            {getTerminalAreasForMap().terminal2 && (
-              <Polygon
-                paths={getTerminalAreasForMap().terminal2}
-                options={{
-                  fillColor: "#F59E0B",
-                  fillOpacity: 0.4,
-                  strokeColor: "#D97706",
-                  strokeOpacity: 1.0,
-                  strokeWeight: 2,
-                }}
+            {/* Circle Center Marker */}
+            {circleCenter && (
+              <Marker
+                position={circleCenter}
+                title="Circle Center"
+                icon="https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
               />
             )}
 
-            {/* Airport Center Marker for reference */}
-            <Marker
-              position={{ lat: 19.0896, lng: 72.8656 }}
-              title="Airport Center (Terminal 1)"
-              icon="https://maps.google.com/mapfiles/ms/icons/airport.png"
-            />
+
 
             {/* Driver Location Marker */}
             {driverLocation && (
@@ -701,20 +929,7 @@ export default function DriverRouteMap({
                     <p className="text-sm text-yellow-600 mt-1">
                       ⚠ Location tracking not started. Please start location tracking to enable ETA calculation.
                     </p>
-                  ) : (
-                    <>
-                      {isInAirportBoundary && (
-                        <p className="text-sm text-green-600 mt-1">
-                          ✓ In Airport Boundary{terminalArea ? ` (${terminalArea})` : ''}
-                        </p>
-                      )}
-                      {isApproachingAirport && !isInAirportBoundary && (
-                        <p className="text-sm text-yellow-600 mt-1">
-                          ⚠ Approaching Airport
-                        </p>
-                      )}
-                    </>
-                  )}
+                  ) : null}
                 </div>
               </InfoWindow>
             )}
@@ -851,6 +1066,7 @@ export default function DriverRouteMap({
 
           {/* Map Controls */}
           <div className="absolute top-4 right-4 space-y-2">
+            {/* Auto-follow toggle */}
             <Button
               size="sm"
               variant={autoFollowDriver ? "default" : "secondary"}
@@ -871,100 +1087,75 @@ export default function DriverRouteMap({
             >
               <Navigation className="h-4 w-4" />
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="bg-white shadow-lg"
-              onClick={() => {
-                if (driverLocation && mapRef.current) {
-                  mapRef.current.panTo({ lat: driverLocation.latitude, lng: driverLocation.longitude });
-                  mapRef.current.setZoom(15);
-                  setLastUserInteraction(null); // Reset user interaction to allow auto-follow
-                }
-              }}
-            >
-              <div className="h-4 w-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-              </div>
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="bg-white shadow-lg"
-              onClick={() => {
-                if (mapRef.current) {
-                  mapRef.current.panTo({ lat: 19.0896, lng: 72.8656 });
-                  mapRef.current.setZoom(16);
-                  setLastUserInteraction(new Date()); // Mark as user interaction
-                }
-              }}
-            >
-              <Plane className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="bg-white shadow-lg"
-              onClick={() => {
-                if (pickupLocations && pickupLocations.length > 0 && mapRef.current) {
-                  const bounds = new window.google.maps.LatLngBounds();
-                  pickupLocations.forEach(loc => {
-                    bounds.extend({ lat: loc.latitude, lng: loc.longitude });
-                  });
-                  if (dropoffLocations) {
-                    dropoffLocations.forEach(loc => {
-                      bounds.extend({ lat: loc.latitude, lng: loc.longitude });
-                    });
-                  }
-                  if (driverLocation) {
-                    bounds.extend({ lat: driverLocation.latitude, lng: driverLocation.longitude });
-                  }
-                  mapRef.current.fitBounds(bounds);
-                  setLastUserInteraction(new Date()); // Mark as user interaction
-                }
-              }}
-            >
-              <MapPin className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="bg-white shadow-lg"
-              onClick={fetchMapData}
-              disabled={loading}
-            >
-              <div className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
-                </svg>
-              </div>
-            </Button>
-            {process.env.NODE_ENV === 'development' && (
+
+            {/* Simulation button (development only) */}
+            {circleCenter && process.env.NODE_ENV === 'development' && (
               <Button
                 size="sm"
-                variant="destructive"
+                variant="outline"
+                className="bg-white shadow-lg"
+                onClick={startContinuousSimulation}
+                title="Start continuous simulation (moves driver around and out of circle)"
+              >
+                <div className="h-4 w-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v20M2 12h20"/>
+                    <path d="M12 2v20M2 12h20" transform="rotate(90 12 12)"/>
+                  </svg>
+                </div>
+              </Button>
+            )}
+
+            {/* Manual transition button (development only) */}
+            {currentTrip && process.env.NODE_ENV === 'development' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white shadow-lg"
+                onClick={async () => {
+                  try {
+                    console.log('🔄 Manual transition to RETURN phase');
+                    await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
+                    toast.success("Manual transition to RETURN phase successful");
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 2000);
+                  } catch (error) {
+                    console.error('Error in manual transition:', error);
+                    toast.error("Manual transition failed");
+                  }
+                }}
+                title="Manually transition to RETURN phase"
+              >
+                <div className="h-4 w-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 12l2 2 4-4"/>
+                    <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+                  </svg>
+                </div>
+              </Button>
+            )}
+
+            {/* Force initial check button (development only) */}
+            {currentTrip && process.env.NODE_ENV === 'development' && (
+              <Button
+                size="sm"
+                variant="outline"
                 className="bg-white shadow-lg"
                 onClick={() => {
-                  console.log('Current state:', {
-                    pickupLocations,
-                    dropoffLocations,
-                    driverLocation,
-                    hotelLocation,
-                    currentTrip,
-                    isInAirportBoundary,
-                    terminalArea,
-                    isApproachingAirport,
-                    airportBoundary: getAirportBoundaryForMap(),
-                    terminalAreas: getTerminalAreasForMap(),
-                    autoFollowDriver,
-                    userInteractedWithMap,
-                    lastUserInteraction
-                  });
+                  console.log('🔍 Force initial circle boundary check');
+                  setHasAttemptedTransition(false); // Reset flag
+                  // Force a re-render to trigger the useEffect
+                  window.location.reload();
                 }}
+                title="Force initial circle boundary check"
               >
-                Debug
+                <div className="h-4 w-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v20M2 12h20"/>
+                    <path d="M12 2v20M2 12h20" transform="rotate(45 12 12)"/>
+                  </svg>
+                </div>
               </Button>
             )}
           </div>
@@ -1013,22 +1204,17 @@ export default function DriverRouteMap({
               </div>
             </div>
             <div className="mt-2">
-              <p><strong>Airport Boundary:</strong> {isInAirportBoundary ? 'Yes' : 'No'}</p>
-              <p><strong>Terminal Area:</strong> {terminalArea || 'None'}</p>
-              <p><strong>Approaching Airport:</strong> {isApproachingAirport ? 'Yes' : 'No'}</p>
-            </div>
-            <div className="mt-2">
               <p><strong>Auto-follow:</strong> {autoFollowDriver ? 'ON' : 'OFF'}</p>
               <p><strong>User Interacted:</strong> {userInteractedWithMap ? 'Yes' : 'No'}</p>
               <p><strong>Last Interaction:</strong> {lastUserInteraction ? lastUserInteraction.toLocaleTimeString() : 'None'}</p>
-            </div>
-            <div className="mt-2">
-              <p><strong>Airport Boundary Coordinates:</strong></p>
-              <p className="ml-2 text-xs font-mono">
-                {getAirportBoundaryForMap().map((coord, i) => 
-                  `${i}: ${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`
-                ).join(', ')}
-              </p>
+              <p><strong>Circle Center:</strong> {circleCenter ? `${circleCenter.lat().toFixed(4)}, ${circleCenter.lng().toFixed(4)}` : 'None'}</p>
+              <p><strong>Current Trip Direction:</strong> {currentTrip?.direction || 'None'}</p>
+              <p><strong>Current Trip Phase:</strong> {currentTrip?.phase || 'None'}</p>
+              <p><strong>Circle Boundary Status:</strong> {isInCircleBoundary ? 'Inside' : 'Outside'}</p>
+              <p><strong>Last Circle Check:</strong> {lastCircleBoundaryCheck ? lastCircleBoundaryCheck.toLocaleTimeString() : 'None'}</p>
+              <p><strong>Can Auto-Transition:</strong> {currentTrip?.phase === 'OUTBOUND' ? 'Yes' : 'No'}</p>
+              <p><strong>Time Since Last Check:</strong> {lastCircleBoundaryCheck ? `${Math.round((Date.now() - lastCircleBoundaryCheck.getTime()) / 1000)}s` : 'N/A'}</p>
+              <p><strong>Has Attempted Transition:</strong> {hasAttemptedTransition ? 'Yes' : 'No'}</p>
             </div>
             {pickupLocations.length > 0 && (
               <div className="mt-2">

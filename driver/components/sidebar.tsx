@@ -19,7 +19,6 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const navItems = [
@@ -98,7 +97,6 @@ export function Sidebar() {
                 )}
                 onClick={() => {
                   router.push(item.href);
-                  toast.success("Navigating to " + item.title);
                 }}
               >
                 <item.icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />

@@ -72,7 +72,6 @@ export const WebSocketProvider = ({
 
     socketInstance.on("connect", () => {
       console.log("WebSocket connected!");
-      toast.success("Real-time connection established!");
       setIsConnected(true);
     });
 
@@ -84,7 +83,7 @@ export const WebSocketProvider = ({
 
     socketInstance.on("welcome", (data: any) => {
       console.log("Received welcome message:", data);
-      toast.success("Message from server", {
+      toast.success("Connection established", {
         description: data.message,
       });
     });
