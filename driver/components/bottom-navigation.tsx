@@ -1,65 +1,62 @@
-"use client"
+"use client";
 
-import { usePathname } from "next/navigation"
-import Link from "next/link"
-import { Home, Car, Clock, Bell, User } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { usePathname, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Home, Car, User, Bell } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useNotifications } from "@/hooks/use-notifications";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
   {
-    href: "/dashboard",
+    title: "Dashboard",
     icon: Home,
-    label: "Home",
+    href: "/dashboard",
   },
   {
-    href: "/dashboard/current-trip",
+    title: "Trips",
     icon: Car,
-    label: "Current Trip",
+    href: "/dashboard/trips",
   },
   {
-    href: "/dashboard/next-trip",
-    icon: Clock,
-    label: "Next Trip",
-  },
-  {
-    href: "/dashboard/notifications",
-    icon: Bell,
-    label: "Notifications",
-  },
-  {
-    href: "/dashboard/profile",
+    title: "Profile",
     icon: User,
-    label: "Profile",
+    href: "/dashboard/profile",
   },
-]
+];
 
 export function BottomNavigation() {
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
+  const { getUnreadCount } = useNotifications();
+  const notificationCount = getUnreadCount();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border">
-      <nav className="flex items-center justify-around py-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href
-          const Icon = item.icon
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-0",
-                isActive
-                  ? "text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400"
-                  : "text-muted-foreground hover:text-foreground",
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50">
+      <div className="flex items-center justify-around px-2 py-2">
+        {navItems.map((item) => (
+          <Button
+            key={item.href}
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "flex flex-col items-center gap-1 h-16 w-full rounded-none hover:bg-blue-50 dark:hover:bg-blue-950",
+              pathname === item.href && "bg-blue-100 dark:bg-blue-900"
+            )}
+            onClick={() => router.push(item.href)}
+          >
+            <div className="relative">
+              <item.icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              {item.title === "Profile" && notificationCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center bg-red-500 text-white text-xs">
+                  {notificationCount > 9 ? "9+" : notificationCount}
+                </Badge>
               )}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="text-xs font-medium truncate">{item.label}</span>
-            </Link>
-          )
-        })}
-      </nav>
+            </div>
+            <span className="text-xs font-medium text-foreground">{item.title}</span>
+          </Button>
+        ))}
+      </div>
     </div>
-  )
+  );
 }

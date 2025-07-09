@@ -49,7 +49,7 @@ export function DriverTopbar({
 
   return (
     <>
-      <header className="bg-background border-b border-border px-6 py-4">
+      <header className="hidden lg:block bg-background border-b border-border px-6 py-4">
         <div className="flex flex-1 items-center justify-between">
           <div className="flex items-center space-x-4">
             {onToggleSidebar && (

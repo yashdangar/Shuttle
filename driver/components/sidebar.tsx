@@ -48,14 +48,13 @@ export function Sidebar() {
   const handleSignOut = () => {
     localStorage.removeItem("driverLoggedIn");
     localStorage.removeItem("driverName");
-    toast.error("Failed to sign out");
     router.push("/login");
   };
 
   return (
     <div
       className={cn(
-        "flex flex-col h-screen border-r border-border bg-background",
+        "hidden lg:flex flex-col h-screen border-r border-border bg-background",
         isCollapsed ? "w-[70px]" : "w-[240px]"
       )}
     >

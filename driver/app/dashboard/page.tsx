@@ -12,6 +12,7 @@ import { ChatProvider } from "@/context/ChatContext";
 import { ChatSheet } from "@/components/chat-sheet";
 import { useHotelId } from "@/hooks/use-hotel-id";
 import { useDriverProfile } from "@/context/DriverProfileContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const { socket, isConnected } = useWebSocket();
   const { hotelId } = useHotelId();
   const { profile } = useDriverProfile();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // You can add other WebSocket listeners here if they are specific to this page
@@ -42,12 +44,12 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 bg-background">
+    <div className="space-y-4 sm:space-y-6 bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Welcome back,</h1>
-          <p className="text-xl font-semibold text-foreground">{driverName}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Welcome back,</h1>
+          <p className="text-lg sm:text-xl font-semibold text-foreground">{driverName}</p>
         </div>
       </div>
 
@@ -59,19 +61,19 @@ export default function DashboardPage() {
           onClick={() => router.push("/dashboard/trips")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-foreground">
               <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <Car className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <Car className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Trip Management
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-2xl font-bold text-foreground">Manage Trips</p>
-            <p className="text-sm text-foreground">
+            <p className="text-xl sm:text-2xl font-bold text-foreground">Manage Trips</p>
+            <p className="text-xs sm:text-sm text-foreground">
               Start, monitor, and end shuttle trips
             </p>
-            <p className="text-sm text-foreground">Click to view details</p>
+            <p className="text-xs sm:text-sm text-foreground">Click to view details</p>
           </CardContent>
         </Card>
 
@@ -81,16 +83,16 @@ export default function DashboardPage() {
           onClick={() => handleCardClick("Current Trip Passengers")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-foreground">
               <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Current Passengers
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-2xl font-bold text-foreground">6 / 12</p>
-            <p className="text-sm text-foreground">4 checked in, 2 pending</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">6 / 12</p>
+            <p className="text-xs sm:text-sm text-foreground">4 checked in, 2 pending</p>
             <div className="w-full bg-blue-100 dark:bg-blue-900 rounded-full h-2">
               <div
                 className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
@@ -106,33 +108,33 @@ export default function DashboardPage() {
           onClick={() => router.push("/dashboard/trips")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-foreground">
               <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
               </div>
               Passenger Management
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="font-semibold text-foreground">
+              <p className="font-semibold text-foreground text-sm sm:text-base">
                 Check-in Passengers
               </p>
-              <p className="text-sm text-foreground">
+              <p className="text-xs sm:text-sm text-foreground">
                 QR code scanning and verification
               </p>
-              <p className="text-sm text-foreground">Real-time updates</p>
+              <p className="text-xs sm:text-sm text-foreground">Real-time updates</p>
             </div>
             <Button
-              size="sm"
-              className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
+              size={isMobile ? "sm" : "default"}
+              className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-xs sm:text-sm"
               onClick={(e) => {
                 e.stopPropagation();
                 router.push("/dashboard/trips");
               }}
             >
-              <Users className="h-4 w-4 mr-2" />
-              Manage Passengers
+              <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              {isMobile ? "Manage" : "Manage Passengers"}
             </Button>
           </CardContent>
         </Card>
@@ -140,25 +142,25 @@ export default function DashboardPage() {
 
       {/* Performance Stats */}
       <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-foreground text-base sm:text-lg">
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
             Today's Performance
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-foreground">12</p>
-              <p className="text-sm text-foreground">Trips Completed</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">12</p>
+              <p className="text-xs sm:text-sm text-foreground">Trips Completed</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-foreground">48</p>
-              <p className="text-sm text-foreground">Passengers Served</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">48</p>
+              <p className="text-xs sm:text-sm text-foreground">Passengers Served</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-foreground">4.9</p>
-              <p className="text-sm text-foreground">Rating</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">4.9</p>
+              <p className="text-xs sm:text-sm text-foreground">Rating</p>
             </div>
           </div>
         </CardContent>

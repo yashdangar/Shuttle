@@ -8,6 +8,7 @@ import { MapPin, Navigation, Users, CheckCircle, Clock, Wifi, WifiOff } from "lu
 import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline, Polygon, Circle } from "@react-google-maps/api";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import { toast } from "sonner";
 
@@ -82,6 +83,7 @@ export default function DriverRouteMap({
   const locationCheckInterval = useRef<NodeJS.Timeout | null>(null);
   const realTimeWatchId = useRef<number | null>(null);
   const { socket, isConnected } = useWebSocket();
+  const isMobile = useIsMobile();
 
   // Load Google Maps JS API
   const { isLoaded, loadError } = useJsApiLoader({
@@ -761,17 +763,17 @@ export default function DriverRouteMap({
   if (!isLoaded) {
     return (
       <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-green-600" />
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             Route Map
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-              <p className="text-lg font-medium">Loading Google Maps...</p>
+              <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-sm sm:text-base font-medium text-gray-600">Loading Google Maps...</p>
             </div>
           </div>
         </CardContent>
@@ -782,22 +784,22 @@ export default function DriverRouteMap({
   if (loadError) {
     return (
       <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-red-600" />
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
             Route Map
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-red-500" />
-              <p className="text-lg font-medium text-red-600">Google Maps Error</p>
-              <p className="text-sm text-gray-600 mt-2">Failed to load Google Maps API</p>
+              <MapPin className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-red-500" />
+              <p className="text-base sm:text-lg font-medium text-red-600">Google Maps Error</p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-2">Failed to load Google Maps API</p>
               <p className="text-xs text-gray-500 mt-1">Please check your API key configuration</p>
               <Button 
                 onClick={() => window.location.reload()}
-                className="mt-4"
+                className="mt-4 text-xs sm:text-sm"
                 variant="outline"
               >
                 Retry
@@ -809,25 +811,47 @@ export default function DriverRouteMap({
     );
   }
 
-  if (error) {
+  if (loading) {
     return (
       <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-red-600" />
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             Route Map
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-red-500" />
-              <p className="text-lg font-medium text-red-600">Error Loading Map</p>
-              <p className="text-sm text-gray-600">{error}</p>
+              <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-sm sm:text-base font-medium text-gray-600">Loading map...</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+            Route Map
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="aspect-video bg-muted rounded-xl flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-red-500" />
+              <p className="text-base sm:text-lg font-medium text-red-600">Error Loading Map</p>
+              <p className="text-xs sm:text-sm text-gray-600">{error}</p>
               <Button 
                 onClick={fetchMapData}
-                className="mt-4"
+                className="mt-4 text-xs sm:text-sm"
                 variant="outline"
+                size={isMobile ? "sm" : "default"}
               >
                 Retry
               </Button>
@@ -841,14 +865,14 @@ export default function DriverRouteMap({
   if (!passengers || passengers.length === 0) {
     return (
       <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-gray-600" />
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
             Route Map
           </CardTitle>
           <div className="flex flex-wrap gap-2 mt-2">
             <Badge variant="outline" className="text-xs">
-              <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
               Boundary Circle (800m)
             </Badge>
           </div>
@@ -856,7 +880,7 @@ export default function DriverRouteMap({
         <CardContent>
           <div className="relative">
             <GoogleMap
-              mapContainerStyle={containerStyle}
+              mapContainerStyle={{ ...containerStyle, height }}
               center={{ lat: 21.2269956, lng: 72.825646 }}
               zoom={15}
               onLoad={onLoad}
@@ -864,8 +888,8 @@ export default function DriverRouteMap({
               options={{
                 zoomControl: true,
                 streetViewControl: false,
-                mapTypeControl: true,
-                fullscreenControl: true,
+                mapTypeControl: !isMobile,
+                fullscreenControl: !isMobile,
               }}
             >
               {/* Boundary Circle - shows 800m radius around specified coordinates */}
@@ -884,10 +908,10 @@ export default function DriverRouteMap({
               )}
             </GoogleMap>
           </div>
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="mt-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <div className="text-center">
-              <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-              <p className="text-sm font-medium text-gray-600">No Active Bookings</p>
+              <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-gray-400" />
+              <p className="text-xs sm:text-sm font-medium text-gray-600">No Active Bookings</p>
               <p className="text-xs text-gray-500 mt-1">No passengers to display on the map</p>
             </div>
           </div>
@@ -896,8 +920,8 @@ export default function DriverRouteMap({
           {circleCenter && (
             <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 rounded-lg">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-xs sm:text-sm font-medium text-green-800 dark:text-green-200">
                   {isInCircleBoundary 
                     ? `In Circle Boundary (800m radius)`
                     : 'Outside Circle Boundary (800m radius)'
@@ -913,55 +937,55 @@ export default function DriverRouteMap({
 
   return (
     <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-green-600" />
-          Route Map
+      <CardHeader className="pb-3 sm:pb-6">
+        <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 text-base sm:text-lg">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            Route Map
+          </div>
           {currentTrip?.direction && (
-            <Badge variant="secondary" className="ml-2">
+            <Badge variant="secondary" className="self-start sm:ml-2 text-xs">
               {currentTrip.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel → Airport' : 'Airport → Hotel'}
             </Badge>
           )}
         </CardTitle>
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
             Driver
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-yellow-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-500 rounded-full mr-1"></div>
             Next Pickup
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full mr-1"></div>
             Checked In
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full mr-1"></div>
             Pending
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-cyan-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-cyan-500 rounded-full mr-1"></div>
             Dropoff
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-purple-500 rounded-full mr-1"></div>
             Airport
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
             Boundary Circle (800m)
           </Badge>
         </div>
-        
-
         
         {/* Circle Boundary Status */}
         {circleCenter && (
           <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 rounded-lg">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span className="text-sm font-medium text-green-800 dark:text-green-200">
+              <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-xs sm:text-sm font-medium text-green-800 dark:text-green-200">
                 {isInCircleBoundary 
                   ? `In Circle Boundary (800m radius)`
                   : 'Outside Circle Boundary (800m radius)'
@@ -976,11 +1000,11 @@ export default function DriverRouteMap({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isRealTimeTracking ? (
-                <Wifi className="h-4 w-4 text-green-600" />
+                <Wifi className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
               ) : (
-                <WifiOff className="h-4 w-4 text-gray-400" />
+                <WifiOff className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
               )}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                 Real-time Tracking: {isRealTimeTracking ? 'ON' : 'OFF'}
               </span>
             </div>
@@ -997,38 +1021,44 @@ export default function DriverRouteMap({
         <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Navigation className={`h-4 w-4 ${autoFollowDriver ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Navigation className={`h-3 w-3 sm:h-4 sm:w-4 ${autoFollowDriver ? 'text-green-600' : 'text-gray-400'}`} />
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                 Auto-follow: {autoFollowDriver ? 'ON' : 'OFF'}
               </span>
             </div>
-            {userInteractedWithMap && (
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className="text-xs text-gray-500">Manual control</span>
-              </div>
-            )}
           </div>
         </div>
-        
-
       </CardHeader>
       <CardContent>
         <div className="relative">
           <GoogleMap
-            mapContainerStyle={containerStyle}
-            center={center}
+            mapContainerStyle={{ ...containerStyle, height }}
+            center={driverLocation ? { lat: driverLocation.latitude, lng: driverLocation.longitude } : defaultCenter}
             zoom={15}
             onLoad={onLoad}
             onUnmount={onUnmount}
+            onDragStart={() => {
+              setUserInteractedWithMap(true);
+              setLastUserInteraction(new Date());
+              if (autoFollowDriver) {
+                setAutoFollowDriver(false);
+              }
+            }}
+            onZoomChanged={() => {
+              setUserInteractedWithMap(true);
+              setLastUserInteraction(new Date());
+              if (autoFollowDriver) {
+                setAutoFollowDriver(false);
+              }
+            }}
             options={{
               zoomControl: true,
               streetViewControl: false,
-              mapTypeControl: true,
-              fullscreenControl: true,
+              mapTypeControl: !isMobile,
+              fullscreenControl: !isMobile,
             }}
           >
-            {/* Boundary Circle - shows 800m radius around specified coordinates */}
+            {/* Boundary Circle */}
             {circleCenter && (
               <Circle
                 center={circleCenter}
@@ -1043,134 +1073,78 @@ export default function DriverRouteMap({
               />
             )}
 
-            {/* Circle Center Marker */}
-            {circleCenter && (
-              <Marker
-                position={circleCenter}
-                title="Circle Center"
-                icon="https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
-              />
-            )}
-
-
-
-            {/* Driver Location Marker */}
+            {/* Driver Marker */}
             {driverLocation && (
               <Marker
                 position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
                 icon={getMarkerIcon('driver')}
                 title={getMarkerTitle('driver')}
-                onClick={() => setActiveInfoWindow('driver')}
+                onClick={() => setSelectedPassenger(null)}
               />
-            )}
-
-            {/* Info Windows */}
-            {activeInfoWindow === 'driver' && driverLocation && (
-              <InfoWindow
-                position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
-                onCloseClick={() => setActiveInfoWindow(null)}
-              >
-                <div className="p-2">
-                  <h3 className="font-bold text-blue-600">🚗 Driver Location</h3>
-                  <p className="text-sm">Current position</p>
-                  {driverLocation.name === "Default Location" ? (
-                    <p className="text-sm text-yellow-600 mt-1">
-                      ⚠ Location tracking not started. Please start location tracking to enable ETA calculation.
-                    </p>
-                  ) : null}
-                </div>
-              </InfoWindow>
             )}
 
             {/* Pickup Location Markers */}
             {pickupLocations.map((location, index) => {
-              const isNext = index === 0 && !location.passenger.isVerified;
-              const markerId = `pickup-${location.passenger.id}`;
-              console.log(`Rendering pickup marker for ${location.passenger.name} at:`, location.latitude, location.longitude);
+              const isNextPickup = index === 0;
+              const isVerified = location.passenger.isVerified;
+              
               return (
                 <Marker
-                  key={markerId}
+                  key={`pickup-${location.passenger.id}`}
                   position={{ lat: location.latitude, lng: location.longitude }}
-                  icon={getMarkerIcon('pickup', location.passenger.isVerified, isNext)}
+                  icon={getMarkerIcon('pickup', isVerified, isNextPickup)}
                   title={getMarkerTitle('pickup', location.passenger)}
                   onClick={() => {
-                    setActiveInfoWindow(markerId);
                     setSelectedPassenger(location.passenger);
+                    setActiveInfoWindow(`pickup-${location.passenger.id}`);
                   }}
                 />
               );
             })}
 
             {/* Dropoff Location Markers */}
-            {dropoffLocations.map((location, index) => {
-              const markerId = `dropoff-${location.passenger.id}`;
-              console.log(`Rendering dropoff marker for ${location.passenger.name} at:`, location.latitude, location.longitude);
-              
-              // Add validation to ensure coordinates are valid
-              if (!location.latitude || !location.longitude || 
-                  isNaN(location.latitude) || isNaN(location.longitude)) {
-                console.error(`Invalid coordinates for dropoff marker ${location.passenger.name}:`, location);
-                return null;
-              }
+            {dropoffLocations.map((location) => {
+              const isVerified = location.passenger.isVerified;
               
               return (
                 <Marker
-                  key={markerId}
+                  key={`dropoff-${location.passenger.id}`}
                   position={{ lat: location.latitude, lng: location.longitude }}
-                  icon={getMarkerIcon('dropoff')}
+                  icon={getMarkerIcon('dropoff', isVerified)}
                   title={getMarkerTitle('dropoff', location.passenger)}
                   onClick={() => {
-                    setActiveInfoWindow(markerId);
                     setSelectedPassenger(location.passenger);
+                    setActiveInfoWindow(`dropoff-${location.passenger.id}`);
                   }}
                 />
               );
             })}
 
-            {/* Test marker to verify map is working */}
-            {process.env.NODE_ENV === 'development' && (
-              <Marker
-                position={{ lat: 19.0760, lng: 72.8777 }}
-                title="Test Marker - Mumbai"
-                icon="https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-              />
-            )}
-
-
-
+            {/* Info Windows */}
             {pickupLocations.map((location, index) => {
-              const isNext = index === 0 && !location.passenger.isVerified;
-              const markerId = `pickup-${location.passenger.id}`;
+              const isNextPickup = index === 0;
+              const isVerified = location.passenger.isVerified;
               
-              if (activeInfoWindow === markerId) {
+              if (activeInfoWindow === `pickup-${location.passenger.id}`) {
                 return (
                   <InfoWindow
-                    key={markerId}
+                    key={`info-pickup-${location.passenger.id}`}
                     position={{ lat: location.latitude, lng: location.longitude }}
                     onCloseClick={() => setActiveInfoWindow(null)}
+                    options={{
+                      pixelOffset: new window.google.maps.Size(0, -40),
+                    }}
                   >
-                    <div className="p-2 max-w-xs">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="h-4 w-4 text-red-500" />
-                        <h3 className="font-bold text-red-600">Pickup</h3>
-                        {isNext && <Badge className="bg-yellow-500 text-white text-xs">NEXT</Badge>}
-                        {location.passenger.isVerified && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      </div>
-                      <p className="font-semibold">{location.passenger.name}</p>
-                      <p className="text-sm text-gray-600">{location.name}</p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <div className="p-2">
+                      <h3 className="font-bold text-sm">{location.passenger.name}</h3>
+                      <p className="text-xs text-gray-600">{location.name}</p>
+                      <div className="flex items-center gap-2 mt-1 text-xs">
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
                           {location.passenger.persons}
                         </span>
                         <span>•</span>
                         <span>{location.passenger.bags} bags</span>
-                        {location.passenger.seatNumber && (
-                          <>
-                            <span>•</span>
-                            <span>Seat {location.passenger.seatNumber}</span>
-                          </>
-                        )}
                       </div>
                     </div>
                   </InfoWindow>
@@ -1180,23 +1154,22 @@ export default function DriverRouteMap({
             })}
 
             {dropoffLocations.map((location) => {
-              const markerId = `dropoff-${location.passenger.id}`;
+              const isVerified = location.passenger.isVerified;
               
-              if (activeInfoWindow === markerId) {
+              if (activeInfoWindow === `dropoff-${location.passenger.id}`) {
                 return (
                   <InfoWindow
-                    key={markerId}
+                    key={`info-dropoff-${location.passenger.id}`}
                     position={{ lat: location.latitude, lng: location.longitude }}
                     onCloseClick={() => setActiveInfoWindow(null)}
+                    options={{
+                      pixelOffset: new window.google.maps.Size(0, -40),
+                    }}
                   >
-                    <div className="p-2 max-w-xs">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="h-4 w-4 text-purple-500" />
-                        <h3 className="font-bold text-purple-600">Dropoff</h3>
-                      </div>
-                      <p className="font-semibold">{location.passenger.name}</p>
-                      <p className="text-sm text-gray-600">{location.name}</p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <div className="p-2">
+                      <h3 className="font-bold text-sm">{location.passenger.name}</h3>
+                      <p className="text-xs text-gray-600">{location.name}</p>
+                      <div className="flex items-center gap-2 mt-1 text-xs">
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
                           {location.passenger.persons}
@@ -1213,12 +1186,12 @@ export default function DriverRouteMap({
           </GoogleMap>
 
           {/* Map Controls */}
-          <div className="absolute top-4 right-4 space-y-2">
+          <div className="absolute top-2 sm:top-4 right-2 sm:right-4 space-y-1 sm:space-y-2">
             {/* Real-time tracking toggle */}
             <Button
-              size="sm"
+              size={isMobile ? "sm" : "default"}
               variant={isRealTimeTracking ? "default" : "secondary"}
-              className={`shadow-lg ${isRealTimeTracking ? 'bg-green-500 text-white' : 'bg-white'}`}
+              className={`shadow-lg ${isRealTimeTracking ? 'bg-green-500 text-white' : 'bg-white'} text-xs`}
               onClick={() => {
                 if (isRealTimeTracking) {
                   stopRealTimeTracking();
@@ -1228,14 +1201,14 @@ export default function DriverRouteMap({
               }}
               title={isRealTimeTracking ? "Stop real-time tracking" : "Start real-time tracking"}
             >
-              {isRealTimeTracking ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+              {isRealTimeTracking ? <Wifi className="h-3 w-3 sm:h-4 sm:w-4" /> : <WifiOff className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
 
             {/* Auto-follow toggle */}
             <Button
-              size="sm"
+              size={isMobile ? "sm" : "default"}
               variant={autoFollowDriver ? "default" : "secondary"}
-              className={`shadow-lg ${autoFollowDriver ? 'bg-blue-500 text-white' : 'bg-white'}`}
+              className={`shadow-lg ${autoFollowDriver ? 'bg-blue-500 text-white' : 'bg-white'} text-xs`}
               onClick={() => {
                 setAutoFollowDriver(!autoFollowDriver);
                 if (!autoFollowDriver) {
@@ -1250,19 +1223,19 @@ export default function DriverRouteMap({
                 });
               }}
             >
-              <Navigation className="h-4 w-4" />
+              <Navigation className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
             {/* Simulation button (development only) */}
             {circleCenter && process.env.NODE_ENV === 'development' && (
               <Button
-                size="sm"
+                size={isMobile ? "sm" : "default"}
                 variant="outline"
-                className="bg-white shadow-lg"
+                className="bg-white shadow-lg text-xs"
                 onClick={startContinuousSimulation}
                 title="Start continuous simulation (moves driver around and out of circle)"
               >
-                <div className="h-4 w-4">
+                <div className="h-3 w-3 sm:h-4 sm:w-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v20M2 12h20"/>
                     <path d="M12 2v20M2 12h20" transform="rotate(90 12 12)"/>
@@ -1274,9 +1247,9 @@ export default function DriverRouteMap({
             {/* Manual transition button (development only) */}
             {currentTrip && process.env.NODE_ENV === 'development' && (
               <Button
-                size="sm"
+                size={isMobile ? "sm" : "default"}
                 variant="outline"
-                className="bg-white shadow-lg"
+                className="bg-white shadow-lg text-xs"
                 onClick={async () => {
                   try {
                     console.log('🔄 Manual transition to RETURN phase');
@@ -1292,7 +1265,7 @@ export default function DriverRouteMap({
                 }}
                 title="Manually transition to RETURN phase"
               >
-                <div className="h-4 w-4">
+                <div className="h-3 w-3 sm:h-4 sm:w-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 12l2 2 4-4"/>
                     <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
@@ -1304,9 +1277,9 @@ export default function DriverRouteMap({
             {/* Force initial check button (development only) */}
             {currentTrip && process.env.NODE_ENV === 'development' && (
               <Button
-                size="sm"
+                size={isMobile ? "sm" : "default"}
                 variant="outline"
-                className="bg-white shadow-lg"
+                className="bg-white shadow-lg text-xs"
                 onClick={() => {
                   console.log('🔍 Force initial circle boundary check');
                   setHasAttemptedTransition(false); // Reset flag
@@ -1315,7 +1288,7 @@ export default function DriverRouteMap({
                 }}
                 title="Force initial circle boundary check"
               >
-                <div className="h-4 w-4">
+                <div className="h-3 w-3 sm:h-4 sm:w-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v20M2 12h20"/>
                     <path d="M12 2v20M2 12h20" transform="rotate(45 12 12)"/>
@@ -1328,21 +1301,22 @@ export default function DriverRouteMap({
 
         {/* Selected Passenger Info */}
         {selectedPassenger && (
-          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-            <div className="flex items-center justify-between">
+          <div className="mt-4 p-3 sm:p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 className="font-bold text-lg">{selectedPassenger.name}</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className="font-bold text-base sm:text-lg">{selectedPassenger.name}</h3>
+                <p className="text-xs sm:text-sm text-gray-600">
                   {selectedPassenger.pickup} → {selectedPassenger.dropoff}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-xs sm:text-sm text-gray-500">
                   {selectedPassenger.persons} passengers • {selectedPassenger.bags} bags
                 </p>
               </div>
               <Button
-                size="sm"
+                size={isMobile ? "sm" : "default"}
                 variant="outline"
                 onClick={() => setSelectedPassenger(null)}
+                className="text-xs sm:text-sm self-start sm:self-center"
               >
                 Close
               </Button>
@@ -1352,9 +1326,9 @@ export default function DriverRouteMap({
 
         {/* Debug Info */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-xs">
+          <div className="mt-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-xs">
             <h4 className="font-bold mb-2">Debug Info:</h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p><strong>Pickup Locations:</strong> {pickupLocations.length}</p>
                 <p><strong>Dropoff Locations:</strong> {dropoffLocations.length}</p>
