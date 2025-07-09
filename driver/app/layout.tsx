@@ -1,17 +1,13 @@
+"use client";
 import type React from "react";
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { WebSocketProvider } from "@/context/WebSocketContext";
 import { Toaster } from "@/components/ui/sonner";
+import { ChatProvider } from "@/context/ChatContext";
 
 const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Shuttle Driver Dashboard",
-  description: "Airport shuttle driver operations dashboard",
-};
 
 export default function RootLayout({
   children,
@@ -28,8 +24,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <WebSocketProvider>
-            {children}
-            <Toaster />
+            <ChatProvider>
+              {children}
+              <Toaster />
+            </ChatProvider>
           </WebSocketProvider>
         </ThemeProvider>
       </body>

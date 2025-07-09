@@ -21,6 +21,7 @@ import { ChatSheet } from "@/components/chat-sheet";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
+import { ChatProvider } from "@/context/ChatContext";
 
 interface Hotel {
   id: number;
@@ -95,6 +96,7 @@ export default function HotelPage() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [guestEmail, setGuestEmail] = useState("guest@example.com");
   const [guestName, setGuestName] = useState("Guest User");
+  const [guestId, setGuestId] = useState<number | null>(null);
 
   // Function to create guest name from email
   const createGuestName = (email: string) => {
@@ -127,6 +129,7 @@ export default function HotelPage() {
     try {
       const profileResponse = await api.get("/guest/profile");
       if (profileResponse.guest) {
+        setGuestId(profileResponse.guest.id);
         const email = profileResponse.guest.email || "guest@example.com";
         setGuestEmail(email);
 
@@ -259,7 +262,7 @@ export default function HotelPage() {
     return cleanup;
   }, [onBookingUpdate, handleBookingUpdate]);
 
-  if (isLoading || !selectedHotel) {
+  if (isLoading || !selectedHotel || !guestId) {
     return <HotelPageSkeleton />;
   }
 
@@ -296,7 +299,12 @@ export default function HotelPage() {
             {/* Right: Chat, Notifications and Profile */}
             <div className="flex items-center space-x-2 ml-3">
               {/* Chat Button */}
-              <ChatSheet hotelId={parseInt(params.id as string)} />
+              <ChatProvider
+                hotelId={parseInt(params.id as string)}
+                guestId={guestId}
+              >
+                <ChatSheet />
+              </ChatProvider>
 
               <NotificationDrawer />
 

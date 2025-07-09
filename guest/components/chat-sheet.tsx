@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -14,188 +14,78 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { MessageCircle, Send, X, ChevronLeft } from "lucide-react";
-import { useWebSocket } from "@/context/WebSocketContext";
-import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { MessageCircle, Send, ChevronLeft } from "lucide-react";
+import { useChat } from "@/context/ChatContext";
 
-interface Chat {
-  id: string;
-  frontDesk?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  driver?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  messages: Array<{
-    id: string;
-    content: string;
-    senderType: "GUEST" | "FRONTDESK" | "DRIVER";
-    senderId: number;
-    createdAt: string;
-  }>;
-  _count: {
-    messages: number;
-  };
-  updatedAt: string;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  senderType: "GUEST" | "FRONTDESK" | "DRIVER";
-  senderId: number;
-  createdAt: string;
-}
-
-interface ChatSheetProps {
-  hotelId: number;
-}
-
-export function ChatSheet({ hotelId }: ChatSheetProps) {
+// No more props
+export function ChatSheet() {
   const [isOpen, setIsOpen] = useState(false);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { socket } = useWebSocket();
+  const params = useParams();
+  const hotelId = parseInt(params.id as string);
+  const {
+    chats,
+    messages,
+    selectedChatId,
+    isLoading,
+    fetchChats,
+    fetchMessages,
+    sendMessage,
+    selectChat,
+  } = useChat();
+
+  // Find selected chat object
+  const selectedChat = chats.find((c) => c.id === selectedChatId) || null;
+  const chatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
 
   // Scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, [chatMessages]);
 
+  // Only fetch chats if not already loaded
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Fetch chats when sheet opens
-  useEffect(() => {
-    if (isOpen && hotelId) {
-      fetchChats();
+    if (isOpen && hotelId && chats.length === 0) {
+      fetchChats(hotelId);
     }
-  }, [isOpen, hotelId]);
+  }, [isOpen, hotelId, fetchChats, chats.length]);
 
-  // WebSocket event listeners
-  useEffect(() => {
-    if (!socket) return;
+  // Unread count (simple: count all messages in all chats)
+  const unreadCount = 0; // You can implement this if you have unread logic
 
-    const handleNewMessage = (data: any) => {
-      if (data.chatId === selectedChat?.id) {
-        setMessages((prev) => [...prev, data.message]);
-      }
-      // Update unread count
-      setUnreadCount((prev) => prev + 1);
-      // Update chat list with new message
-      setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === data.chatId
-            ? {
-                ...chat,
-                messages: [data.message],
-                updatedAt: new Date().toISOString(),
-              }
-            : chat
-        )
-      );
-    };
-
-    socket.on("new_message", handleNewMessage);
-
-    return () => {
-      socket.off("new_message", handleNewMessage);
-    };
-  }, [socket, selectedChat]);
-
-  const fetchChats = async () => {
-    try {
-      setIsLoading(true);
-      const data = await api.get(`/guest/hotels/${hotelId}/chats`);
-      setChats(data.chats);
-    } catch (error) {
-      console.error("Error fetching chats:", error);
-      toast.error("Failed to fetch chats");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchMessages = async (chatId: string) => {
-    try {
-      setIsLoading(true);
-      const data = await api.get(
-        `/guest/hotels/${hotelId}/chats/${chatId}/messages`
-      );
-      setMessages(data.messages);
-
-      // Join chat room via WebSocket
-      if (socket) {
-        socket.emit("join_chat", { chatId, hotelId });
-      }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast.error("Failed to fetch messages");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat) return;
-
-    try {
-      await api.post(
-        `/guest/hotels/${hotelId}/chats/${selectedChat.id}/messages`,
-        { content: newMessage.trim() }
-      );
-
-      setNewMessage("");
-      // Message will be added via WebSocket
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Failed to send message");
-    }
-  };
-
-  const handleChatSelect = (chat: Chat) => {
-    setSelectedChat(chat);
-    fetchMessages(chat.id);
+  const handleChatSelect = (chatId: string) => {
+    selectChat(chatId);
+    fetchMessages(hotelId, chatId);
   };
 
   const handleBackToChats = () => {
-    setSelectedChat(null);
-    setMessages([]);
-    if (socket && selectedChat) {
-      socket.emit("leave_chat", { chatId: selectedChat.id, hotelId });
-    }
+    selectChat(null);
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedChat) return;
+    const msg = newMessage.trim();
+    setNewMessage(""); // Clear input immediately (optimistic)
+    await sendMessage(
+      hotelId,
+      selectedChat.id,
+      msg,
+      1, // guestId, replace with real guestId if available
+      "GUEST"
+    );
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "--:--";
+    return date.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) return "Today";
-    if (diffDays === 2) return "Yesterday";
-    return date.toLocaleDateString();
-  };
-
-  const getChatTitle = (chat: Chat) => {
+  const getChatTitle = (chat: any) => {
     if (chat.frontDesk) {
       return `Front Desk - ${chat.frontDesk.name}`;
     }
@@ -205,7 +95,7 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
     return "Support";
   };
 
-  const getChatSubtitle = (chat: Chat) => {
+  const getChatSubtitle = (chat: any) => {
     if (chat.frontDesk) {
       return chat.frontDesk.email;
     }
@@ -215,7 +105,7 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
     return "Hotel Support";
   };
 
-  const getChatAvatar = (chat: Chat) => {
+  const getChatAvatar = (chat: any) => {
     if (chat.frontDesk) {
       return chat.frontDesk.name
         .split(" ")
@@ -301,7 +191,7 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                     <div
                       key={chat.id}
                       className="p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleChatSelect(chat)}
+                      onClick={() => handleChatSelect(chat.id)}
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
@@ -330,7 +220,7 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
             // Chat Messages
             <div className="flex-1 flex flex-col">
               <ScrollArea className="flex-1 p-4">
-                {messages.map((message) => (
+                {chatMessages.map((message) => (
                   <div
                     key={message.id}
                     className={`flex mb-4 ${
@@ -349,6 +239,9 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                       <p className="text-sm">{message.content}</p>
                       <p className="text-xs opacity-70 mt-1">
                         {formatTime(message.createdAt)}
+                        {message.optimistic && (
+                          <span className="ml-1 text-yellow-500">...</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -362,11 +255,11 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     disabled={isLoading}
                   />
                   <Button
-                    onClick={sendMessage}
+                    onClick={handleSendMessage}
                     disabled={!newMessage.trim() || isLoading}
                     size="icon"
                   >

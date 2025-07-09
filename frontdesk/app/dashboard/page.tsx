@@ -67,6 +67,7 @@ interface PendingBooking {
   notes: string;
   createdAt: string;
   timeSinceCreated: number;
+  isParkSleepFly: boolean;
 }
 
 export default function DashboardPage() {
@@ -187,19 +188,19 @@ export default function DashboardPage() {
       name: "Live Shuttles", 
       value: stats.totalLiveShuttles.toString(), 
       icon: Car, 
-      color: "text-blue-600" 
+      color: "text-blue-600",
     },
     { 
       name: "Active Bookings", 
       value: stats.totalActiveBookings.toString(), 
       icon: Users, 
-      color: "text-green-600" 
+      color: "text-green-600",
     },
     { 
       name: "Pending Bookings", 
       value: stats.totalPendingBookings.toString(), 
       icon: MapPin, 
-      color: "text-orange-600" 
+      color: "text-orange-600",
     },
   ];
 
@@ -212,9 +213,13 @@ export default function DashboardPage() {
             Welcome back! Here's what's happening today.
           </p>
           <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            ></div>
             <span className="text-sm text-gray-600">
-              WebSocket: {isConnected ? 'Connected' : 'Disconnected'}
+              WebSocket: {isConnected ? "Connected" : "Disconnected"}
             </span>
             {isConnected && (
               <span className="text-sm text-blue-600">
@@ -228,8 +233,10 @@ export default function DashboardPage() {
           disabled={refreshing}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw
+            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+          />
+          {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -276,7 +283,9 @@ export default function DashboardPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-center">
                 <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600">Loading live shuttle data...</span>
+                <span className="ml-2 text-gray-600">
+                  Loading live shuttle data...
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -293,7 +302,8 @@ export default function DashboardPage() {
                 <Car className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Live Shuttles</h3>
                 <p className="text-sm">
-                  No shuttles are currently active. Check back later for updates.
+                  No shuttles are currently active. Check back later for
+                  updates.
                 </p>
               </div>
             </CardContent>
@@ -304,7 +314,9 @@ export default function DashboardPage() {
       {/* Pending Bookings Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Pending Bookings (Last Hour)</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Pending Bookings (Last Hour)
+          </h2>
           <Badge className="bg-orange-100 text-orange-800">
             {stats.totalPendingBookings} Pending
           </Badge>

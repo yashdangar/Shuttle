@@ -18,6 +18,9 @@ import { MessageCircle, Send, X, ChevronLeft } from "lucide-react";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useChat } from "@/context/ChatContext";
+import { useHotelId } from "@/hooks/use-hotel-id";
+import { useDriverProfile } from "@/hooks/use-driver-profile";
 
 interface Chat {
   id: string;
@@ -53,143 +56,87 @@ interface ChatSheetProps {
   hotelId: number;
 }
 
-export function ChatSheet({ hotelId }: ChatSheetProps) {
+export function ChatSheet() {
   const [isOpen, setIsOpen] = useState(false);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { socket } = useWebSocket();
+  const { hotelId } = useHotelId();
+  const { profile } = useDriverProfile();
+  const driverId = profile?.id;
+  const {
+    chats,
+    messages,
+    selectedChatId,
+    isLoading,
+    fetchChats,
+    fetchMessages,
+    sendMessage,
+    selectChat,
+  } = useChat();
+
+  // Find selected chat object
+  const selectedChat = chats.find((c) => c.id === selectedChatId) || null;
+  const chatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
 
   // Scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, [chatMessages]);
 
+  // Only fetch chats if not already loaded
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Fetch chats when sheet opens
-  useEffect(() => {
-    if (isOpen && hotelId) {
-      fetchChats();
+    if (isOpen && hotelId && chats.length === 0) {
+      fetchChats(hotelId);
     }
-  }, [isOpen, hotelId]);
+  }, [isOpen, hotelId, fetchChats, chats.length]);
 
-  // WebSocket event listeners
-  useEffect(() => {
-    if (!socket) return;
+  // Unread count (simple: count all messages in all chats)
+  const unreadCount = 0; // You can implement this if you have unread logic
 
-    const handleNewMessage = (data: any) => {
-      if (data.chatId === selectedChat?.id) {
-        setMessages((prev) => [...prev, data.message]);
-      }
-      // Update unread count
-      setUnreadCount((prev) => prev + 1);
-      // Update chat list with new message
-      setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === data.chatId
-            ? {
-                ...chat,
-                messages: [data.message],
-                updatedAt: new Date().toISOString(),
-              }
-            : chat
-        )
-      );
-    };
-
-    socket.on("new_message", handleNewMessage);
-
-    return () => {
-      socket.off("new_message", handleNewMessage);
-    };
-  }, [socket, selectedChat]);
-
-  const fetchChats = async () => {
-    try {
-      setIsLoading(true);
-      const data = await api.get(`/driver/hotels/${hotelId}/chats`);
-      setChats(data.chats);
-    } catch (error) {
-      console.error("Error fetching chats:", error);
-      toast.error("Failed to fetch chats");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchMessages = async (chatId: string) => {
-    try {
-      setIsLoading(true);
-      const data = await api.get(
-        `/driver/hotels/${hotelId}/chats/${chatId}/messages`
-      );
-      setMessages(data.messages);
-
-      // Join chat room via WebSocket
-      if (socket) {
-        socket.emit("join_chat", { chatId, hotelId });
-      }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast.error("Failed to fetch messages");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat) return;
-
-    try {
-      await api.post(
-        `/driver/hotels/${hotelId}/chats/${selectedChat.id}/messages`,
-        { content: newMessage.trim() }
-      );
-
-      setNewMessage("");
-      // Message will be added via WebSocket
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Failed to send message");
-    }
-  };
-
-  const handleChatSelect = (chat: Chat) => {
-    setSelectedChat(chat);
-    fetchMessages(chat.id);
+  const handleChatSelect = (chatId: string) => {
+    selectChat(chatId);
+    fetchMessages(hotelId!, chatId);
   };
 
   const handleBackToChats = () => {
-    setSelectedChat(null);
-    setMessages([]);
-    if (socket && selectedChat) {
-      socket.emit("leave_chat", { chatId: selectedChat.id, hotelId });
-    }
+    selectChat(null);
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedChat || !hotelId || !driverId) return;
+    const msg = newMessage.trim();
+    setNewMessage(""); // Clear input immediately (optimistic)
+    await sendMessage(hotelId, selectedChat.id, msg, driverId, "DRIVER");
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "--:--";
+    return date.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const getChatTitle = (chat: any) => {
+    if (chat.guest) {
+      return `${chat.guest.firstName} ${chat.guest.lastName}`;
+    }
+    return "Guest";
+  };
 
-    if (diffDays === 1) return "Today";
-    if (diffDays === 2) return "Yesterday";
-    return date.toLocaleDateString();
+  const getChatSubtitle = (chat: any) => {
+    if (chat.guest) {
+      return chat.guest.email;
+    }
+    return "Guest";
+  };
+
+  const getChatAvatar = (chat: any) => {
+    if (chat.guest) {
+      return chat.guest.firstName?.[0] || "G";
+    }
+    return "G";
   };
 
   return (
@@ -221,23 +168,20 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
               </Button>
               <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    {selectedChat.guest.firstName?.[0]}
-                    {selectedChat.guest.lastName?.[0]}
-                  </AvatarFallback>
+                  <AvatarFallback>{getChatAvatar(selectedChat)}</AvatarFallback>
                 </Avatar>
                 <div>
                   <SheetTitle className="text-sm">
-                    {selectedChat.guest.firstName} {selectedChat.guest.lastName}
+                    {getChatTitle(selectedChat)}
                   </SheetTitle>
                   <p className="text-xs text-muted-foreground">
-                    {selectedChat.guest.email}
+                    {getChatSubtitle(selectedChat)}
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <SheetTitle>Chats</SheetTitle>
+            <SheetTitle>Guest Chats</SheetTitle>
           )}
         </SheetHeader>
 
@@ -251,7 +195,13 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                 </div>
               ) : chats.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
-                  No chats yet
+                  <div className="mb-4">
+                    <MessageCircle className="w-12 h-12 mx-auto text-gray-400" />
+                  </div>
+                  <p className="text-sm font-medium mb-2">No active chats</p>
+                  <p className="text-xs text-gray-500">
+                    No guest has started a chat yet
+                  </p>
                 </div>
               ) : (
                 <ScrollArea className="h-full">
@@ -259,19 +209,16 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                     <div
                       key={chat.id}
                       className="p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleChatSelect(chat)}
+                      onClick={() => handleChatSelect(chat.id)}
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            {chat.guest.firstName?.[0]}
-                            {chat.guest.lastName?.[0]}
-                          </AvatarFallback>
+                          <AvatarFallback>{getChatAvatar(chat)}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-sm truncate">
-                              {chat.guest.firstName} {chat.guest.lastName}
+                              {getChatTitle(chat)}
                             </p>
                             <span className="text-xs text-muted-foreground">
                               {formatTime(chat.updatedAt)}
@@ -291,7 +238,7 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
             // Chat Messages
             <div className="flex-1 flex flex-col">
               <ScrollArea className="flex-1 p-4">
-                {messages.map((message) => (
+                {chatMessages.map((message) => (
                   <div
                     key={message.id}
                     className={`flex mb-4 ${
@@ -310,6 +257,9 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                       <p className="text-sm">{message.content}</p>
                       <p className="text-xs opacity-70 mt-1">
                         {formatTime(message.createdAt)}
+                        {message.optimistic && (
+                          <span className="ml-1 text-yellow-500">...</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -323,11 +273,11 @@ export function ChatSheet({ hotelId }: ChatSheetProps) {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     disabled={isLoading}
                   />
                   <Button
-                    onClick={sendMessage}
+                    onClick={handleSendMessage}
                     disabled={!newMessage.trim() || isLoading}
                     size="icon"
                   >

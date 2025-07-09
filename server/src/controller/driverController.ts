@@ -1325,7 +1325,40 @@ const getChats = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Get all chats for this driver in the specified hotel
+    // 1. Get all frontdesk users for this hotel
+    const frontdesks = await prisma.frontDesk.findMany({
+      where: { hotelId: parseInt(hotelId) },
+      select: { id: true, name: true, email: true, phoneNumber: true },
+    });
+
+    // 2. Get all existing chats between this driver and any frontdesk in this hotel
+    const existingFrontdeskChats = await prisma.chat.findMany({
+      where: {
+        driverId: userId,
+        hotelId: parseInt(hotelId),
+        frontDeskId: { not: null },
+      },
+      select: { frontDeskId: true },
+    });
+    const existingFrontdeskIds = new Set(
+      existingFrontdeskChats.map((chat) => chat.frontDeskId)
+    );
+
+    // 3. Create missing chats for frontdesks that don't have one yet
+    const chatsToCreate = frontdesks
+      .filter((fd) => !existingFrontdeskIds.has(fd.id))
+      .map((fd) => ({
+        driverId: userId,
+        frontDeskId: fd.id,
+        hotelId: parseInt(hotelId),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+    if (chatsToCreate.length > 0) {
+      await prisma.chat.createMany({ data: chatsToCreate });
+    }
+
+    // 4. Fetch all chats (with guests or frontdesks)
     const chats = await prisma.chat.findMany({
       where: {
         driverId: userId,
@@ -1337,6 +1370,14 @@ const getChats = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        frontDesk: {
+          select: {
+            id: true,
+            name: true,
             email: true,
             phoneNumber: true,
           },

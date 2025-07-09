@@ -9,6 +9,10 @@ import { Bell, MapPin, Users, Clock, Car, TrendingUp } from "lucide-react";
 import { NotificationDropdown } from "@/components/notification-dropdown";
 import { toast } from "sonner";
 import { useWebSocket } from "@/context/WebSocketContext";
+import { ChatProvider } from "@/context/ChatContext";
+import { ChatSheet } from "@/components/chat-sheet";
+import { useHotelId } from "@/hooks/use-hotel-id";
+import { useDriverProfile } from "@/hooks/use-driver-profile";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +20,8 @@ export default function DashboardPage() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
   const { socket, isConnected } = useWebSocket();
+  const { hotelId } = useHotelId();
+  const { profile } = useDriverProfile();
 
   useEffect(() => {
     // You can add other WebSocket listeners here if they are specific to this page
@@ -77,8 +83,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-
-
         {/* Total Passengers */}
         <Card
           className="hover:shadow-lg transition-all cursor-pointer border-border hover:border-blue-300 dark:hover:border-blue-700"
@@ -119,8 +123,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="font-semibold text-foreground">Check-in Passengers</p>
-              <p className="text-sm text-foreground">QR code scanning and verification</p>
+              <p className="font-semibold text-foreground">
+                Check-in Passengers
+              </p>
+              <p className="text-sm text-foreground">
+                QR code scanning and verification
+              </p>
               <p className="text-sm text-foreground">Real-time updates</p>
             </div>
             <Button
