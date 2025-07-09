@@ -10,10 +10,8 @@ import { useWebSocket } from "@/context/WebSocketContext";
 
 // Types
 export interface Message {
-  id: string;
   content: string;
   senderType: "GUEST" | "FRONTDESK" | "DRIVER";
-  senderId: number;
   createdAt: string;
   optimistic?: boolean; // for optimistic UI
 }
@@ -21,12 +19,10 @@ export interface Message {
 export interface Chat {
   id: string;
   frontDesk?: {
-    id: number;
     name: string;
     email: string;
   };
   driver?: {
-    id: number;
     name: string;
     email: string;
   };
@@ -59,7 +55,7 @@ type Action =
   | { type: "SET_LOADING"; isLoading: boolean }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "UPDATE_CHAT_LAST_MESSAGE"; chatId: string; message: Message }
-  | { type: "REMOVE_OPTIMISTIC_MESSAGE"; chatId: string; tempId: string };
+  | { type: "REMOVE_OPTIMISTIC_MESSAGE"; chatId: string };
 
 function chatReducer(state: ChatState, action: Action): ChatState {
   switch (action.type) {
@@ -105,7 +101,7 @@ function chatReducer(state: ChatState, action: Action): ChatState {
         ...state,
         messages: {
           ...state.messages,
-          [action.chatId]: prev.filter((msg) => msg.id !== action.tempId),
+          [action.chatId]: prev.filter((msg) => !msg.optimistic),
         },
       };
     }
@@ -121,7 +117,6 @@ interface ChatContextProps extends ChatState {
     hotelId: number,
     chatId: string,
     content: string,
-    senderId: number,
     senderType: Message["senderType"]
   ) => Promise<void>;
   selectChat: (chatId: string | null) => void;
@@ -202,16 +197,12 @@ export const ChatProvider: React.FC<{
       hotelId: number,
       chatId: string,
       content: string,
-      senderId: number,
       senderType: Message["senderType"]
     ) => {
       // Optimistic message
-      const tempId = `temp-${Date.now()}`;
       const optimisticMsg: Message = {
-        id: tempId,
         content,
         senderType,
-        senderId,
         createdAt: new Date().toISOString(),
         optimistic: true,
       };
@@ -227,7 +218,7 @@ export const ChatProvider: React.FC<{
           { content }
         );
         // Remove optimistic message
-        dispatch({ type: "REMOVE_OPTIMISTIC_MESSAGE", chatId, tempId });
+        dispatch({ type: "REMOVE_OPTIMISTIC_MESSAGE", chatId });
         // Add confirmed message
         dispatch({ type: "ADD_MESSAGE", chatId, message: data.message });
         dispatch({
@@ -236,7 +227,7 @@ export const ChatProvider: React.FC<{
           message: data.message,
         });
       } catch (error: any) {
-        dispatch({ type: "REMOVE_OPTIMISTIC_MESSAGE", chatId, tempId });
+        dispatch({ type: "REMOVE_OPTIMISTIC_MESSAGE", chatId });
         dispatch({
           type: "SET_ERROR",
           error: error.message || "Failed to send message",

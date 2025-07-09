@@ -67,13 +67,7 @@ export function ChatSheet() {
     if (!newMessage.trim() || !selectedChat) return;
     const msg = newMessage.trim();
     setNewMessage(""); // Clear input immediately (optimistic)
-    await sendMessage(
-      hotelId,
-      selectedChat.id,
-      msg,
-      1, // guestId, replace with real guestId if available
-      "GUEST"
-    );
+    await sendMessage(hotelId, selectedChat.id, msg, "GUEST");
   };
 
   const formatTime = (dateString: string) => {
@@ -220,9 +214,9 @@ export function ChatSheet() {
             // Chat Messages
             <div className="flex-1 flex flex-col">
               <ScrollArea className="flex-1 p-4">
-                {chatMessages.map((message) => (
+                {chatMessages.map((message, index) => (
                   <div
-                    key={message.id}
+                    key={`${message.createdAt}-${index}`}
                     className={`flex mb-4 ${
                       message.senderType === "GUEST"
                         ? "justify-end"

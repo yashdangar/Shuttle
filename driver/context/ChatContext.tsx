@@ -22,15 +22,16 @@ export interface Message {
 
 export interface Chat {
   id: string;
-  guest: {
-    id: number;
+  guest?: {
     firstName: string;
     lastName: string;
     email: string;
-    phoneNumber: string;
+  };
+  frontDesk?: {
+    name: string;
+    email: string;
   };
   booking?: {
-    id: string;
     numberOfPersons: number;
     numberOfBags: number;
     preferredTime: string;

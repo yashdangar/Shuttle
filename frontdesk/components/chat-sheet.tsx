@@ -107,15 +107,24 @@ export function ChatSheet() {
               <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
-                    {selectedChat.guest?.name?.[0]}
+                    {selectedChat.guest?.firstName?.[0] ||
+                      selectedChat.guest?.lastName?.[0] ||
+                      selectedChat.driver?.name?.[0] ||
+                      "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <SheetTitle className="text-sm">
-                    {selectedChat.guest?.name}
+                    {selectedChat.guest
+                      ? `${selectedChat.guest.firstName || ""} ${
+                          selectedChat.guest.lastName || ""
+                        }`.trim()
+                      : selectedChat.driver?.name || "Unknown"}
                   </SheetTitle>
                   <p className="text-xs text-muted-foreground">
-                    {selectedChat.guest?.email}
+                    {selectedChat.guest?.email ||
+                      selectedChat.driver?.email ||
+                      ""}
                   </p>
                 </div>
               </div>
@@ -148,13 +157,20 @@ export function ChatSheet() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback>
-                            {chat.guest?.name?.[0]}
+                            {chat.guest?.firstName?.[0] ||
+                              chat.guest?.lastName?.[0] ||
+                              chat.driver?.name?.[0] ||
+                              "?"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-sm truncate">
-                              {chat.guest?.name}
+                              {chat.guest
+                                ? `${chat.guest.firstName || ""} ${
+                                    chat.guest.lastName || ""
+                                  }`.trim()
+                                : chat.driver?.name || "Unknown"}
                             </p>
                             <span className="text-xs text-muted-foreground">
                               {formatTime(chat.updatedAt)}
@@ -174,9 +190,9 @@ export function ChatSheet() {
             // Chat Messages
             <div className="flex-1 flex flex-col">
               <ScrollArea className="flex-1 p-4">
-                {chatMessages.map((message) => (
+                {chatMessages.map((message, index) => (
                   <div
-                    key={message.id}
+                    key={`${message.createdAt}-${index}`}
                     className={`flex mb-4 ${
                       message.senderType === "FRONTDESK"
                         ? "justify-end"

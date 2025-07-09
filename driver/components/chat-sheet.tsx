@@ -119,24 +119,41 @@ export function ChatSheet() {
   };
 
   const getChatTitle = (chat: any) => {
-    if (chat.guest) {
-      return `${chat.guest.firstName} ${chat.guest.lastName}`;
+    if (chat.frontDesk) {
+      return (
+        chat.frontDesk.name ||
+        chat.frontDesk.email ||
+        `Front Desk (${chat.frontDesk.id})`
+      );
     }
-    return "Guest";
+    if (chat.guest) {
+      return (
+        `${chat.guest.firstName} ${chat.guest.lastName}`.trim() ||
+        chat.guest.email ||
+        `Guest (${chat.guest.id})`
+      );
+    }
+    return "Unknown Chat";
   };
 
   const getChatSubtitle = (chat: any) => {
-    if (chat.guest) {
-      return chat.guest.email;
+    if (chat.frontDesk) {
+      return chat.frontDesk.email || chat.frontDesk.phoneNumber || "Front Desk";
     }
-    return "Guest";
+    if (chat.guest) {
+      return chat.guest.email || chat.guest.phoneNumber || "Guest";
+    }
+    return "";
   };
 
   const getChatAvatar = (chat: any) => {
-    if (chat.guest) {
-      return chat.guest.firstName?.[0] || "G";
+    if (chat.frontDesk) {
+      return chat.frontDesk.name?.[0]?.toUpperCase() || "F";
     }
-    return "G";
+    if (chat.guest) {
+      return chat.guest.firstName?.[0]?.toUpperCase() || "G";
+    }
+    return "?";
   };
 
   return (

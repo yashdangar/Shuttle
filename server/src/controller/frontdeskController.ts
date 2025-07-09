@@ -2803,19 +2803,15 @@ const getChats = async (req: Request, res: Response) => {
       include: {
         guest: {
           select: {
-            id: true,
             firstName: true,
             lastName: true,
             email: true,
-            phoneNumber: true,
           },
         },
         driver: {
           select: {
-            id: true,
             name: true,
             email: true,
-            phoneNumber: true,
           },
         },
         messages: {
@@ -2829,7 +2825,34 @@ const getChats = async (req: Request, res: Response) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    res.json({ chats });
+    // Transform chats to only include needed fields
+    const transformedChats = chats.map((chat) => ({
+      id: chat.id,
+      guest: chat.guest
+        ? {
+            firstName: chat.guest.firstName,
+            lastName: chat.guest.lastName,
+            email: chat.guest.email,
+          }
+        : null,
+      driver: chat.driver
+        ? {
+            name: chat.driver.name,
+            email: chat.driver.email,
+          }
+        : null,
+      messages: chat.messages.map((message) => ({
+        content: message.content,
+        senderType: message.senderType,
+        createdAt: message.createdAt.toISOString(),
+      })),
+      _count: {
+        messages: chat._count.messages,
+      },
+      updatedAt: chat.updatedAt.toISOString(),
+    }));
+
+    res.json({ chats: transformedChats });
   } catch (error) {
     console.error("Get chats error:", error);
     res.status(500).json({ error: "Failed to fetch chats" });
@@ -2872,8 +2895,15 @@ const getChatMessages = async (req: Request, res: Response) => {
       where: { chatId },
     });
 
+    // Transform messages to only include necessary data
+    const transformedMessages = messages.map((message) => ({
+      content: message.content,
+      senderType: message.senderType,
+      createdAt: message.createdAt.toISOString(),
+    }));
+
     res.json({
-      messages: messages.reverse(), // Reverse to get chronological order
+      messages: transformedMessages.reverse(), // Reverse to get chronological order
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -2923,7 +2953,6 @@ const sendMessage = async (req: Request, res: Response) => {
           include: {
             guest: {
               select: {
-                id: true,
                 firstName: true,
                 lastName: true,
                 email: true,
@@ -2944,20 +2973,20 @@ const sendMessage = async (req: Request, res: Response) => {
     const { sendToChat } = await import("../ws/index");
     const { WsEvents } = await import("../ws/events");
 
+    const messageData = {
+      content: message.content,
+      senderType: message.senderType,
+      createdAt: message.createdAt.toISOString(),
+    };
+
     sendToChat(chatId, WsEvents.NEW_MESSAGE, {
       chatId,
-      message: {
-        id: message.id,
-        content: message.content,
-        senderType: message.senderType,
-        senderId: message.senderId,
-        createdAt: message.createdAt.toISOString(),
-      },
+      message: messageData,
     });
 
     res.json({
       message: "Message sent successfully",
-      data: message,
+      data: messageData,
     });
   } catch (error) {
     console.error("Send message error:", error);
