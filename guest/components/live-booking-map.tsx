@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { GoogleMap, Marker, Polyline, useJsApiLoader } from "@react-google-maps/api";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Location {
   latitude: number;
@@ -32,7 +33,10 @@ export default function LiveBookingMap({ bookingId, height = "350px", refreshInt
   const [directionsPath, setDirectionsPath] = useState<Array<{ lat: number; lng: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRealTimeTracking, setIsRealTimeTracking] = useState(false);
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const { onDriverLocationUpdate } = useWebSocket();
 
   // Load Google Maps JS API
   const { isLoaded } = useJsApiLoader({
@@ -83,12 +87,53 @@ export default function LiveBookingMap({ bookingId, height = "350px", refreshInt
     }
   };
 
+  // Set up real-time driver location tracking
+  useEffect(() => {
+    if (!onDriverLocationUpdate || !bookingId) return;
+
+    const cleanup = onDriverLocationUpdate((data) => {
+      // Only update if this location update is for our booking
+      if (data.bookingId === bookingId) {
+        console.log("Real-time driver location update for booking:", bookingId, data.location);
+        
+        setDriverLocation({
+          latitude: data.location.latitude,
+          longitude: data.location.longitude,
+        });
+        
+        setIsRealTimeTracking(true);
+        setLastLocationUpdate(new Date());
+        setLoading(false);
+        
+        // Auto-follow driver on map
+        if (mapRef.current) {
+          mapRef.current.panTo({ 
+            lat: data.location.latitude, 
+            lng: data.location.longitude 
+          });
+        }
+      }
+    });
+
+    return cleanup;
+  }, [onDriverLocationUpdate, bookingId]);
+
+  // Fallback to periodic updates if real-time is not available
   useEffect(() => {
     if (!bookingId) return;
+    
+    // Initial fetch
     fetchTracking();
-    const interval = setInterval(fetchTracking, refreshInterval);
+    
+    // Set up periodic updates (only if real-time tracking is not active)
+    const interval = setInterval(() => {
+      if (!isRealTimeTracking) {
+        fetchTracking();
+      }
+    }, refreshInterval);
+    
     return () => clearInterval(interval);
-  }, [bookingId]);
+  }, [bookingId, isRealTimeTracking, refreshInterval]);
 
   // Center map on driver or destination
   const center = driverLocation
@@ -114,10 +159,16 @@ export default function LiveBookingMap({ bookingId, height = "350px", refreshInt
           <Marker
             position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
             icon={{
-              url: "/placeholder-user.jpg", // Use a custom icon if you want
+              url: isRealTimeTracking 
+                ? "https://maps.google.com/mapfiles/ms/icons/blue-dot.png" // Real-time indicator
+                : "/placeholder-user.jpg",
               scaledSize: new window.google.maps.Size(40, 40),
             }}
-            label={{ text: "Driver", color: "#1976d2", fontWeight: "bold" }}
+            label={{ 
+              text: isRealTimeTracking ? "🚗 Driver (Live)" : "Driver", 
+              color: isRealTimeTracking ? "#1976d2" : "#666666", 
+              fontWeight: "bold" 
+            }}
           />
         )}
         {/* Pickup Marker */}
@@ -154,8 +205,25 @@ export default function LiveBookingMap({ bookingId, height = "350px", refreshInt
           />
         )}
       </GoogleMap>
-      {loading && <div className="text-center text-gray-500 mt-2">Updating live location...</div>}
-      {error && <div className="text-center text-red-500 mt-2">{error}</div>}
+      <div className="mt-2 text-center">
+        {loading && <div className="text-gray-500">Updating live location...</div>}
+        {error && <div className="text-red-500">{error}</div>}
+        {isRealTimeTracking && (
+          <div className="text-green-600 text-sm font-medium">
+            🚗 Live tracking active
+            {lastLocationUpdate && (
+              <span className="text-gray-500 ml-2">
+                Last update: {lastLocationUpdate.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        )}
+        {!isRealTimeTracking && !loading && (
+          <div className="text-gray-500 text-sm">
+            📡 Checking for driver location...
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

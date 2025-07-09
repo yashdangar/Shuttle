@@ -3,6 +3,7 @@ import { Server as HttpServer } from "http";
 import jwt from "jsonwebtoken";
 import { CORS_ORIGINS } from "../config/env";
 import { WsEvents } from "./events";
+import prisma from "../db/prisma";
 let io: Server;
 
 interface SocketUser {
@@ -145,6 +146,97 @@ export const initWebSocket = (server: HttpServer) => {
 
     socket.on("disconnect", (reason) => {
       console.log("User disconnected:", socket.id, "Reason:", reason);
+    });
+
+    // Driver location update handler
+    socket.on(WsEvents.DRIVER_LOCATION_UPDATE, async (data: any) => {
+      if (user?.type !== "driver") {
+        console.log("Non-driver user attempted to send location update");
+        return;
+      }
+
+      try {
+        console.log(`Driver ${user.id} location update:`, {
+          lat: data.latitude,
+          lng: data.longitude,
+          accuracy: data.accuracy,
+          speed: data.speed,
+          heading: data.heading
+        });
+
+        // Update driver location in database
+        await prisma.driverLocation.upsert({
+          where: { driverId: user.id },
+          update: {
+            latitude: parseFloat(data.latitude),
+            longitude: parseFloat(data.longitude),
+            accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
+            speed: data.speed ? parseFloat(data.speed) : null,
+            heading: data.heading ? parseFloat(data.heading) : null,
+            timestamp: new Date(),
+          },
+          create: {
+            driverId: user.id,
+            latitude: parseFloat(data.latitude),
+            longitude: parseFloat(data.longitude),
+            accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
+            speed: data.speed ? parseFloat(data.speed) : null,
+            heading: data.heading ? parseFloat(data.heading) : null,
+          },
+        });
+
+        // Add to location history
+        await prisma.locationHistory.create({
+          data: {
+            driverId: user.id,
+            latitude: parseFloat(data.latitude),
+            longitude: parseFloat(data.longitude),
+            accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
+            speed: data.speed ? parseFloat(data.speed) : null,
+            heading: data.heading ? parseFloat(data.heading) : null,
+          },
+        });
+
+        // Get all active bookings for this driver
+        const activeBookings = await prisma.booking.findMany({
+          where: {
+            trip: {
+              driverId: user.id,
+              status: "ACTIVE",
+            },
+            isCompleted: false,
+            isCancelled: false,
+          },
+          include: {
+            guest: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        });
+
+        // Broadcast location update to all guests with active bookings for this driver
+        activeBookings.forEach((booking) => {
+          const guestRoom = `guest:${booking.guest.id}`;
+          getIo().to(guestRoom).emit("driver_location_update", {
+            bookingId: booking.id,
+            driverId: user.id,
+            location: {
+              latitude: parseFloat(data.latitude),
+              longitude: parseFloat(data.longitude),
+              accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
+              speed: data.speed ? parseFloat(data.speed) : null,
+              heading: data.heading ? parseFloat(data.heading) : null,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        });
+
+        console.log(`Broadcasted location update to ${activeBookings.length} guests`);
+      } catch (error) {
+        console.error("Error handling driver location update:", error);
+      }
     });
 
     socket.on("error", (error) => {

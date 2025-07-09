@@ -12,6 +12,7 @@ interface WebSocketContextType {
   refreshNotifications: () => void;
   onBookingUpdate?: (callback: (booking: any) => void) => void;
   onNotificationUpdate?: (callback: () => void) => void;
+  onDriverLocationUpdate?: (callback: (data: any) => void) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -35,6 +36,7 @@ export const WebSocketProvider = ({
   const [hasMounted, setHasMounted] = useState(false);
   const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
   const notificationUpdateCallbacksRef = useRef<(() => void)[]>([]);
+  const driverLocationUpdateCallbacksRef = useRef<((data: any) => void)[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -173,6 +175,16 @@ export const WebSocketProvider = ({
       });
     });
 
+    // Listen for real-time driver location updates
+    socketInstance.on("driver_location_update", (data: any) => {
+      console.log("Real-time driver location update received:", data);
+      
+      // Notify all registered driver location update callbacks
+      driverLocationUpdateCallbacksRef.current.forEach(callback => {
+        callback(data);
+      });
+    });
+
     // Initial load of notifications
     refreshNotifications();
 
@@ -205,6 +217,18 @@ export const WebSocketProvider = ({
     };
   };
 
+  const onDriverLocationUpdate = (callback: (data: any) => void) => {
+    driverLocationUpdateCallbacksRef.current.push(callback);
+    
+    // Return cleanup function
+    return () => {
+      const index = driverLocationUpdateCallbacksRef.current.indexOf(callback);
+      if (index > -1) {
+        driverLocationUpdateCallbacksRef.current.splice(index, 1);
+      }
+    };
+  };
+
   return (
     <WebSocketContext.Provider value={{ 
       socket, 
@@ -212,7 +236,8 @@ export const WebSocketProvider = ({
       notifications, 
       refreshNotifications, 
       onBookingUpdate, 
-      onNotificationUpdate 
+      onNotificationUpdate,
+      onDriverLocationUpdate
     }}>
       {children}
     </WebSocketContext.Provider>
