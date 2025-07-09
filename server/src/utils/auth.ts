@@ -7,6 +7,8 @@ import { PrismaClient } from "@prisma/client";
 const router = express.Router();
 const prisma = new PrismaClient();
 
+
+
 // Configure Google Strategy
 passport.use(
   new GoogleStrategy(
@@ -59,8 +61,6 @@ passport.deserializeUser(async (id: string, done) => {
 
 // Google OAuth routes
 router.get("/google", (req, res, next) => {
-  // console.log('state:', req.query.hotelId);  // this will now show correctly when you visit /auth/google?state=123
-
   // Dynamically pass state into authenticate middleware
   passport.authenticate("google", {
     scope: ["profile", "email"],
@@ -120,5 +120,7 @@ router.get("/verify", async (req: Request, res: Response): Promise<void> => {
     res.status(401).json({ error: "Invalid token" });
   }
 });
+
+
 
 export default router;

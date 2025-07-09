@@ -150,17 +150,29 @@ export default function DriverRouteMap({
       setError(null);
 
       // Get driver's current location
-      const driverResponse = await api.get('/driver/current-location');
-      if (driverResponse.location) {
-        const newDriverLocation = {
-          latitude: driverResponse.location.latitude,
-          longitude: driverResponse.location.longitude,
-          name: "Driver Location"
+      try {
+        const driverResponse = await api.get('/driver/current-location');
+        if (driverResponse.location) {
+          const newDriverLocation = {
+            latitude: driverResponse.location.latitude,
+            longitude: driverResponse.location.longitude,
+            name: "Driver Location"
+          };
+          setDriverLocation(newDriverLocation);
+          
+          // Check airport boundary immediately
+          await checkAirportBoundary(newDriverLocation);
+        }
+      } catch (locationError) {
+        console.log('Driver location not available yet:', locationError);
+        // Don't set error for missing location - this is normal when driver hasn't started tracking
+        // Set a default location for map display
+        const defaultLocation = {
+          latitude: 19.0760, // Mumbai center
+          longitude: 72.8777,
+          name: "Default Location"
         };
-        setDriverLocation(newDriverLocation);
-        
-        // Check airport boundary immediately
-        await checkAirportBoundary(newDriverLocation);
+        setDriverLocation(defaultLocation);
       }
 
       // Get current trip data with hotel information
@@ -332,7 +344,7 @@ export default function DriverRouteMap({
 
   // Set up periodic location checking for airport boundary detection
   useEffect(() => {
-    if (currentTrip && driverLocation) {
+    if (currentTrip) {
       // Check location every 30 seconds for boundary detection
       locationCheckInterval.current = setInterval(async () => {
         try {
@@ -355,7 +367,8 @@ export default function DriverRouteMap({
             }
           }
         } catch (error) {
-          console.error('Error updating driver location:', error);
+          console.log('Driver location not available during periodic check:', error);
+          // Don't treat this as an error - it's normal when driver hasn't started tracking
         }
       }, 30000); // 30 seconds
     }
@@ -365,7 +378,7 @@ export default function DriverRouteMap({
         clearInterval(locationCheckInterval.current);
       }
     };
-  }, [currentTrip, driverLocation, autoFollowDriver, lastUserInteraction]);
+  }, [currentTrip, autoFollowDriver, lastUserInteraction]);
 
   useEffect(() => {
     if (passengers && passengers.length > 0 && currentTrip) {
@@ -675,6 +688,37 @@ export default function DriverRouteMap({
               />
             )}
 
+            {/* Info Windows */}
+            {activeInfoWindow === 'driver' && driverLocation && (
+              <InfoWindow
+                position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
+                onCloseClick={() => setActiveInfoWindow(null)}
+              >
+                <div className="p-2">
+                  <h3 className="font-bold text-blue-600">🚗 Driver Location</h3>
+                  <p className="text-sm">Current position</p>
+                  {driverLocation.name === "Default Location" ? (
+                    <p className="text-sm text-yellow-600 mt-1">
+                      ⚠ Location tracking not started. Please start location tracking to enable ETA calculation.
+                    </p>
+                  ) : (
+                    <>
+                      {isInAirportBoundary && (
+                        <p className="text-sm text-green-600 mt-1">
+                          ✓ In Airport Boundary{terminalArea ? ` (${terminalArea})` : ''}
+                        </p>
+                      )}
+                      {isApproachingAirport && !isInAirportBoundary && (
+                        <p className="text-sm text-yellow-600 mt-1">
+                          ⚠ Approaching Airport
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </InfoWindow>
+            )}
+
             {/* Pickup Location Markers */}
             {pickupLocations.map((location, index) => {
               const isNext = index === 0 && !location.passenger.isVerified;
@@ -729,28 +773,7 @@ export default function DriverRouteMap({
               />
             )}
 
-            {/* Info Windows */}
-            {activeInfoWindow === 'driver' && driverLocation && (
-              <InfoWindow
-                position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
-                onCloseClick={() => setActiveInfoWindow(null)}
-              >
-                <div className="p-2">
-                  <h3 className="font-bold text-blue-600">🚗 Driver Location</h3>
-                  <p className="text-sm">Current position</p>
-                  {isInAirportBoundary && (
-                    <p className="text-sm text-green-600 mt-1">
-                      ✓ In Airport Boundary{terminalArea ? ` (${terminalArea})` : ''}
-                    </p>
-                  )}
-                  {isApproachingAirport && !isInAirportBoundary && (
-                    <p className="text-sm text-yellow-600 mt-1">
-                      ⚠ Approaching Airport
-                    </p>
-                  )}
-                </div>
-              </InfoWindow>
-            )}
+
 
             {pickupLocations.map((location, index) => {
               const isNext = index === 0 && !location.passenger.isVerified;

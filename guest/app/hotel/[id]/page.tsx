@@ -287,7 +287,7 @@ export default function HotelPage() {
                 <MapPin className="w-4 h-4 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg font-bold text-gray-900 truncate">
+                <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
                   {selectedHotel.name}
                 </h1>
                 <p className="text-xs text-gray-600 truncate">
@@ -367,9 +367,9 @@ export default function HotelPage() {
           </div>
 
           {/* Bottom Row: Navigation Tabs */}
-          <div className="border-t border-gray-100">
-            <nav className="flex justify-center sm:justify-start overflow-x-auto scrollbar-hide">
-              <div className="flex space-x-6 sm:space-x-8 min-w-full sm:min-w-0">
+          <div className="border-t border-gray-100 tabs-container">
+            <nav className="flex overflow-x-auto mobile-tabs justify-center sm:justify-start">
+              <div className="flex space-x-4 sm:space-x-6 lg:space-x-8 px-6 sm:px-0 min-w-max">
                 <button
                   onClick={() => {
                     setActiveTab("current");
@@ -378,17 +378,17 @@ export default function HotelPage() {
                       fetchCurrentBookings();
                     }
                   }}
-                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                  className={`py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 touch-manipulation ${
                     activeTab === "current"
                       ? "border-blue-500 text-blue-600"
                       : "border-transparent text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <QrCode className="w-4 h-4" />
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span>Current Bookings</span>
                     {currentBookings.length > 0 && (
-                      <Badge variant="secondary" className="ml-1">
+                      <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0.5">
                         {currentBookings.length}
                       </Badge>
                     )}
@@ -396,27 +396,27 @@ export default function HotelPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("new")}
-                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                  className={`py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 touch-manipulation ${
                     activeTab === "new"
                       ? "border-blue-500 text-blue-600"
                       : "border-transparent text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <Plus className="w-4 h-4" />
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span>New Booking</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveTab("history")}
-                  className={`py-3 px-2 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                  className={`py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 touch-manipulation ${
                     activeTab === "history"
                       ? "border-blue-500 text-blue-600"
                       : "border-transparent text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <History className="w-4 h-4" />
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <History className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span>History</span>
                   </div>
                 </button>

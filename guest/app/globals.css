@@ -19,6 +19,49 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Mobile tab navigation improvements */
+  .mobile-tabs {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  .mobile-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tab container with fade indicators */
+  .tabs-container {
+    position: relative;
+  }
+
+  .tabs-container::before,
+  .tabs-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .tabs-container::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+  }
+
+  .tabs-container::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+  }
+
+  @media (max-width: 640px) {
+    .tabs-container::before,
+    .tabs-container::after {
+      width: 15px;
+    }
+  }
 }
 
 @layer base {
@@ -99,5 +142,32 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Mobile text sizing */
+@layer utilities {
+  .text-mobile-sm {
+    @apply text-xs sm:text-sm;
+  }
+  
+  .text-mobile-base {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-mobile-lg {
+    @apply text-base sm:text-lg;
+  }
+  
+  .text-mobile-xl {
+    @apply text-lg sm:text-xl;
+  }
+  
+  .text-mobile-2xl {
+    @apply text-xl sm:text-2xl;
+  }
+  
+  .text-mobile-3xl {
+    @apply text-2xl sm:text-3xl;
   }
 }
