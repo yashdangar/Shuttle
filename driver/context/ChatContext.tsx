@@ -8,7 +8,7 @@ import React, {
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { useHotelId } from "@/hooks/use-hotel-id";
-import { useDriverProfile } from "@/hooks/use-driver-profile";
+import { useDriverProfile } from "@/context/DriverProfileContext";
 
 // Types
 export interface Message {

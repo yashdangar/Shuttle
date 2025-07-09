@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./notification-dropdown";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { useDriverProfile } from "@/hooks/use-driver-profile";
+import { useDriverProfile } from "@/context/DriverProfileContext";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ChatSheet } from "@/components/chat-sheet";
 import { useHotelId } from "@/hooks/use-hotel-id";

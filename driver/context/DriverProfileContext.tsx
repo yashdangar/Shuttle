@@ -1,4 +1,12 @@
-import { useState, useEffect } from "react";
+"use client";
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -16,7 +24,19 @@ interface DriverProfile {
   };
 }
 
-export function useDriverProfile() {
+interface DriverProfileContextType {
+  profile: DriverProfile | null;
+  loading: boolean;
+  error: string | null;
+  fetchProfile: () => Promise<void>;
+  updateProfile: (updates: Partial<DriverProfile>) => Promise<DriverProfile>;
+}
+
+const DriverProfileContext = createContext<
+  DriverProfileContextType | undefined
+>(undefined);
+
+export function DriverProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +73,27 @@ export function useDriverProfile() {
     }
   };
 
-  return {
+  const value = {
     profile,
     loading,
     error,
     fetchProfile,
     updateProfile,
   };
-} 
+
+  return (
+    <DriverProfileContext.Provider value={value}>
+      {children}
+    </DriverProfileContext.Provider>
+  );
+}
+
+export function useDriverProfile() {
+  const context = useContext(DriverProfileContext);
+  if (context === undefined) {
+    throw new Error(
+      "useDriverProfile must be used within a DriverProfileProvider"
+    );
+  }
+  return context;
+}

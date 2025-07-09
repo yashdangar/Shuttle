@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useChat } from "@/context/ChatContext";
 import { useHotelId } from "@/hooks/use-hotel-id";
-import { useDriverProfile } from "@/hooks/use-driver-profile";
+import { useDriverProfile } from "@/context/DriverProfileContext";
 
 interface Chat {
   id: string;

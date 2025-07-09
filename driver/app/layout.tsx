@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { WebSocketProvider } from "@/context/WebSocketContext";
 import { Toaster } from "@/components/ui/sonner";
 import { ChatProvider } from "@/context/ChatContext";
+import { DriverProfileProvider } from "@/context/DriverProfileContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,19 +18,21 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <WebSocketProvider>
-            <ChatProvider>
-              {children}
-              <Toaster />
-            </ChatProvider>
-          </WebSocketProvider>
-        </ThemeProvider>
+        <DriverProfileProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <WebSocketProvider>
+              <ChatProvider>
+                {children}
+                <Toaster />
+              </ChatProvider>
+            </WebSocketProvider>
+          </ThemeProvider>
+        </DriverProfileProvider>
       </body>
     </html>
   );

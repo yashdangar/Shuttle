@@ -12,7 +12,7 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatSheet } from "@/components/chat-sheet";
 import { useHotelId } from "@/hooks/use-hotel-id";
-import { useDriverProfile } from "@/hooks/use-driver-profile";
+import { useDriverProfile } from "@/context/DriverProfileContext";
 
 export default function DashboardPage() {
   const router = useRouter();

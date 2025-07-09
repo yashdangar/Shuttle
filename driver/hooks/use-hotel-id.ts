@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useDriverProfile } from "./use-driver-profile";
+import { useDriverProfile } from "@/context/DriverProfileContext";
 
 export function useHotelId() {
   const [hotelId, setHotelId] = useState<number | null>(null);
