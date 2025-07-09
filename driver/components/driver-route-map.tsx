@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Navigation, Users, CheckCircle, Clock } from "lucide-react";
+import { MapPin, Navigation, Users, CheckCircle, Clock, Wifi, WifiOff } from "lucide-react";
 import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline, Polygon, Circle } from "@react-google-maps/api";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 import { toast } from "sonner";
 
@@ -73,8 +74,14 @@ export default function DriverRouteMap({
   const [isInCircleBoundary, setIsInCircleBoundary] = useState(false);
   const [lastCircleBoundaryCheck, setLastCircleBoundaryCheck] = useState<Date | null>(null);
   const [hasAttemptedTransition, setHasAttemptedTransition] = useState(false);
+  const [isRealTimeTracking, setIsRealTimeTracking] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const [locationSpeed, setLocationSpeed] = useState<number | null>(null);
+  const [locationHeading, setLocationHeading] = useState<number | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const locationCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const realTimeWatchId = useRef<number | null>(null);
+  const { socket, isConnected } = useWebSocket();
 
   // Load Google Maps JS API
   const { isLoaded, loadError } = useJsApiLoader({
@@ -202,6 +209,115 @@ export default function DriverRouteMap({
       simulationActive = false;
       console.log('⏹️ Simulation stopped');
     };
+  };
+
+  // Start real-time location tracking
+  const startRealTimeTracking = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by this browser");
+      return;
+    }
+
+    if (realTimeWatchId.current) {
+      // Already tracking
+      return;
+    }
+
+    console.log('🚀 Starting real-time location tracking...');
+    
+    realTimeWatchId.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const newLocation: Location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          name: "Driver Location (Real-time)"
+        };
+
+        console.log('📍 Real-time location update:', {
+          lat: position.coords.latitude.toFixed(6),
+          lng: position.coords.longitude.toFixed(6),
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading
+        });
+
+        // Update location state
+        setDriverLocation(newLocation);
+        setLocationAccuracy(position.coords.accuracy);
+        setLocationSpeed(position.coords.speed || null);
+        setLocationHeading(position.coords.heading || null);
+
+        // Check circle boundary
+        checkCircleBoundary(newLocation);
+
+        // Auto-follow driver if enabled and user hasn't interacted recently
+        if (autoFollowDriver && (!lastUserInteraction || Date.now() - lastUserInteraction.getTime() > 30000)) {
+          if (mapRef.current) {
+            mapRef.current.panTo({ lat: newLocation.latitude, lng: newLocation.longitude });
+          }
+        }
+
+        // Send location to server via WebSocket if connected
+        if (socket && isConnected) {
+          socket.emit('driver_location_update', {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed,
+            heading: position.coords.heading,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Also send via API for backup
+        api.post('/driver/update-location', {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading
+        }).catch(error => {
+          console.log('API location update failed (this is normal if WebSocket is working):', error);
+        });
+      },
+      (error) => {
+        console.error('Real-time location tracking error:', error);
+        let errorMessage = 'Location tracking error';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information unavailable';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out';
+            break;
+        }
+        toast.error(errorMessage);
+        setIsRealTimeTracking(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000, // Accept cached positions up to 5 seconds old
+      }
+    );
+
+    setIsRealTimeTracking(true);
+    toast.success("Real-time location tracking started", {
+      description: "Your location will update continuously"
+    });
+  };
+
+  // Stop real-time location tracking
+  const stopRealTimeTracking = () => {
+    if (realTimeWatchId.current) {
+      navigator.geolocation.clearWatch(realTimeWatchId.current);
+      realTimeWatchId.current = null;
+      setIsRealTimeTracking(false);
+      toast.info("Real-time location tracking stopped");
+    }
   };
 
   // Function to check if driver is within circle boundary
@@ -474,10 +590,11 @@ export default function DriverRouteMap({
     }
   };
 
-  // Set up periodic location checking for airport boundary detection
+  // Set up periodic location checking for airport boundary detection (fallback)
   useEffect(() => {
-    if (currentTrip) {
-      // Check location every 30 seconds for boundary detection
+    if (currentTrip && !isRealTimeTracking) {
+      // Only use periodic checking if real-time tracking is not active
+      // Check location every 10 seconds for boundary detection
       locationCheckInterval.current = setInterval(async () => {
         try {
           const driverResponse = await api.get('/driver/current-location');
@@ -502,7 +619,7 @@ export default function DriverRouteMap({
           console.log('Driver location not available during periodic check:', error);
           // Don't treat this as an error - it's normal when driver hasn't started tracking
         }
-      }, 30000); // 30 seconds
+      }, 10000); // 10 seconds (faster fallback)
     }
 
     return () => {
@@ -510,7 +627,16 @@ export default function DriverRouteMap({
         clearInterval(locationCheckInterval.current);
       }
     };
-  }, [currentTrip, autoFollowDriver, lastUserInteraction]);
+  }, [currentTrip, autoFollowDriver, lastUserInteraction, isRealTimeTracking]);
+
+  // Cleanup real-time tracking on unmount
+  useEffect(() => {
+    return () => {
+      if (realTimeWatchId.current) {
+        navigator.geolocation.clearWatch(realTimeWatchId.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (passengers && passengers.length > 0 && currentTrip) {
@@ -845,6 +971,28 @@ export default function DriverRouteMap({
           </div>
         )}
         
+        {/* Real-time Tracking Status */}
+        <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isRealTimeTracking ? (
+                <Wifi className="h-4 w-4 text-green-600" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-gray-400" />
+              )}
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Real-time Tracking: {isRealTimeTracking ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            {isRealTimeTracking && locationAccuracy && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-xs text-gray-500">±{locationAccuracy.toFixed(0)}m</span>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Auto-follow Status */}
         <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
           <div className="flex items-center justify-between">
@@ -1066,6 +1214,23 @@ export default function DriverRouteMap({
 
           {/* Map Controls */}
           <div className="absolute top-4 right-4 space-y-2">
+            {/* Real-time tracking toggle */}
+            <Button
+              size="sm"
+              variant={isRealTimeTracking ? "default" : "secondary"}
+              className={`shadow-lg ${isRealTimeTracking ? 'bg-green-500 text-white' : 'bg-white'}`}
+              onClick={() => {
+                if (isRealTimeTracking) {
+                  stopRealTimeTracking();
+                } else {
+                  startRealTimeTracking();
+                }
+              }}
+              title={isRealTimeTracking ? "Stop real-time tracking" : "Start real-time tracking"}
+            >
+              {isRealTimeTracking ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+            </Button>
+
             {/* Auto-follow toggle */}
             <Button
               size="sm"
@@ -1215,6 +1380,11 @@ export default function DriverRouteMap({
               <p><strong>Can Auto-Transition:</strong> {currentTrip?.phase === 'OUTBOUND' ? 'Yes' : 'No'}</p>
               <p><strong>Time Since Last Check:</strong> {lastCircleBoundaryCheck ? `${Math.round((Date.now() - lastCircleBoundaryCheck.getTime()) / 1000)}s` : 'N/A'}</p>
               <p><strong>Has Attempted Transition:</strong> {hasAttemptedTransition ? 'Yes' : 'No'}</p>
+              <p><strong>Real-time Tracking:</strong> {isRealTimeTracking ? 'ON' : 'OFF'}</p>
+              <p><strong>WebSocket Connected:</strong> {isConnected ? 'Yes' : 'No'}</p>
+              <p><strong>Location Accuracy:</strong> {locationAccuracy ? `${locationAccuracy.toFixed(1)}m` : 'N/A'}</p>
+              <p><strong>Location Speed:</strong> {locationSpeed ? `${(locationSpeed * 3.6).toFixed(1)} km/h` : 'N/A'}</p>
+              <p><strong>Location Heading:</strong> {locationHeading ? `${locationHeading.toFixed(0)}°` : 'N/A'}</p>
             </div>
             {pickupLocations.length > 0 && (
               <div className="mt-2">
