@@ -669,7 +669,7 @@ export default function TripDashboard() {
                 <Button
                   onClick={() => handleStartTrip("HOTEL_TO_AIRPORT")}
                   disabled={startingTrip}
-                  className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-200"
                   size="default"
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -782,7 +782,7 @@ export default function TripDashboard() {
                     onClick={() => handleStartTrip(trip.direction)}
                     disabled={startingTrip}
                     size="default"
-                    className="h-10 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-md hover:shadow-lg transition-all duration-200 self-start sm:self-center"
+                    className="h-10 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-200 self-start sm:self-center"
                   >
                     <div className="flex items-center gap-2">
                       <Play className="h-4 w-4" />

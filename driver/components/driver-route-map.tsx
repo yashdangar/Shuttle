@@ -75,6 +75,7 @@ export default function DriverRouteMap({
   const [isInCircleBoundary, setIsInCircleBoundary] = useState(false);
   const [lastCircleBoundaryCheck, setLastCircleBoundaryCheck] = useState<Date | null>(null);
   const [hasAttemptedTransition, setHasAttemptedTransition] = useState(false);
+  const [hasEnteredCircleDuringTrip, setHasEnteredCircleDuringTrip] = useState(false);
   const [isRealTimeTracking, setIsRealTimeTracking] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [locationSpeed, setLocationSpeed] = useState<number | null>(null);
@@ -341,8 +342,17 @@ export default function DriverRouteMap({
     console.log(`📍 Circle boundary check: Driver at ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`);
     console.log(`📏 Distance from center: ${distance.toFixed(0)}m, Inside circle: ${isNowInCircle}`);
     console.log(`🔄 State change: ${wasInCircle ? 'Inside' : 'Outside'} → ${isNowInCircle ? 'Inside' : 'Outside'}`);
+    console.log(`🎯 Has entered circle during trip: ${hasEnteredCircleDuringTrip}`);
 
     setIsInCircleBoundary(isNowInCircle);
+
+    // Check if driver entered circle boundary during the trip
+    if (currentTrip && isNowInCircle && !wasInCircle) {
+      // Driver entered circle boundary
+      console.log('📍 Driver entered circle boundary');
+      setHasEnteredCircleDuringTrip(true); // Mark that driver has entered circle during this trip
+      setHasAttemptedTransition(false); // Reset transition flag when entering circle
+    }
 
     // Check if driver left circle boundary and trigger transition
     if (currentTrip && !isNowInCircle && wasInCircle) {
@@ -351,18 +361,22 @@ export default function DriverRouteMap({
       console.log('Current trip direction:', currentTrip.direction);
       console.log('Current trip phase:', currentTrip.phase);
       console.log('Has attempted transition:', hasAttemptedTransition);
+      console.log('Has entered circle during trip:', hasEnteredCircleDuringTrip);
       
-      // Only attempt transition if we haven't already tried for this circle exit
-      if (!hasAttemptedTransition && currentTrip.phase === 'OUTBOUND') {
+      // Only attempt transition if:
+      // 1. We haven't already tried for this circle exit
+      // 2. Trip is in OUTBOUND phase
+      // 3. Driver has entered the circle during this trip (meaning they've picked up guests)
+      if (!hasAttemptedTransition && currentTrip.phase === 'OUTBOUND' && hasEnteredCircleDuringTrip) {
         setHasAttemptedTransition(true); // Mark that we've attempted transition
         
         // Automatically transition to RETURN phase
         try {
-          console.log('🔄 Automatically transitioning to RETURN phase (circle exit)');
+          console.log('🔄 Automatically transitioning to RETURN phase (circle exit after pickup)');
           await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
           
           toast.success("Outbound trip completed!", {
-            description: "Return trip has started automatically (driver left circle boundary)",
+            description: "Return trip has started automatically (driver left circle after pickup)",
           });
           
           // Refresh trip data
@@ -379,14 +393,12 @@ export default function DriverRouteMap({
         }
       } else if (hasAttemptedTransition) {
         console.log('⚠️ Already attempted transition for this circle exit');
+      } else if (!hasEnteredCircleDuringTrip) {
+        console.log('⚠️ Driver has not entered circle during this trip yet, cannot transition');
       } else {
         console.log('⚠️ Trip is not in OUTBOUND phase, cannot transition automatically');
         console.log('Current phase:', currentTrip.phase);
       }
-    } else if (currentTrip && isNowInCircle && !wasInCircle) {
-      // Driver entered circle boundary - reset transition flag
-      console.log('📍 Driver entered circle boundary');
-      setHasAttemptedTransition(false); // Reset flag when entering circle
     }
   };
 
@@ -658,15 +670,25 @@ export default function DriverRouteMap({
       );
       
       const isOutsideCircle = distance > 800; // 800m radius
+      const isInsideCircle = distance <= 800; // 800m radius
       
       console.log('🔍 Initial circle boundary check:');
       console.log(`📍 Driver at: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
       console.log(`📏 Distance from center: ${distance.toFixed(0)}m`);
       console.log(`🎯 Outside circle: ${isOutsideCircle}`);
+      console.log(`🎯 Inside circle: ${isInsideCircle}`);
       console.log(`🔄 Current boundary state: ${isInCircleBoundary ? 'Inside' : 'Outside'}`);
+      console.log(`🎯 Has entered circle during trip: ${hasEnteredCircleDuringTrip}`);
       
-      if (isOutsideCircle && !isInCircleBoundary) {
-        console.log('🚗 Driver already outside circle boundary on initial load');
+      // If driver is inside circle on initial load, mark that they've entered during this trip
+      if (isInsideCircle && !hasEnteredCircleDuringTrip) {
+        console.log('📍 Driver is inside circle on initial load - marking as entered during trip');
+        setHasEnteredCircleDuringTrip(true);
+      }
+      
+      // Only trigger transition if driver is outside circle AND has entered circle during this trip
+      if (isOutsideCircle && !isInCircleBoundary && hasEnteredCircleDuringTrip) {
+        console.log('🚗 Driver already outside circle boundary on initial load (after having entered)');
         console.log('Current trip direction:', currentTrip.direction);
         console.log('Current trip phase:', currentTrip.phase);
         console.log('Has attempted transition:', hasAttemptedTransition);
@@ -676,11 +698,11 @@ export default function DriverRouteMap({
         
         (async () => {
           try {
-            console.log('🔄 Automatically transitioning to RETURN phase (initial circle exit)');
+            console.log('🔄 Automatically transitioning to RETURN phase (initial circle exit after pickup)');
             await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
             
             toast.success("Outbound trip completed!", {
-              description: "Return trip has started automatically (driver outside circle boundary)",
+              description: "Return trip has started automatically (driver outside circle after pickup)",
             });
             
             // Refresh trip data
@@ -696,9 +718,11 @@ export default function DriverRouteMap({
             setHasAttemptedTransition(false);
           }
         })();
+      } else if (isOutsideCircle && !hasEnteredCircleDuringTrip) {
+        console.log('🚗 Driver outside circle but has not entered during this trip yet - waiting for entry');
       }
     }
-  }, [driverLocation, currentTrip, hasAttemptedTransition, circleCenter, isInCircleBoundary]);
+  }, [driverLocation, currentTrip, hasAttemptedTransition, circleCenter, isInCircleBoundary, hasEnteredCircleDuringTrip]);
 
   // Center map on driver or first pickup location
   const center = driverLocation
@@ -928,6 +952,17 @@ export default function DriverRouteMap({
                   }
                 </span>
               </div>
+              {currentTrip && (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${hasEnteredCircleDuringTrip ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                  <span className="text-xs text-green-700 dark:text-green-300">
+                    {hasEnteredCircleDuringTrip 
+                      ? '✓ Has entered circle during this trip'
+                      : '⏳ Waiting to enter circle during this trip'
+                    }
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -992,6 +1027,17 @@ export default function DriverRouteMap({
                 }
               </span>
             </div>
+            {currentTrip && (
+              <div className="flex items-center gap-2 mt-1">
+                <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${hasEnteredCircleDuringTrip ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-xs text-green-700 dark:text-green-300">
+                  {hasEnteredCircleDuringTrip 
+                    ? '✓ Has entered circle during this trip'
+                    : '⏳ Waiting to enter circle during this trip'
+                  }
+                </span>
+              </div>
+            )}
           </div>
         )}
         
@@ -1283,6 +1329,7 @@ export default function DriverRouteMap({
                 onClick={() => {
                   console.log('🔍 Force initial circle boundary check');
                   setHasAttemptedTransition(false); // Reset flag
+                  setHasEnteredCircleDuringTrip(false); // Reset circle entry flag
                   // Force a re-render to trigger the useEffect
                   window.location.reload();
                 }}
@@ -1292,6 +1339,28 @@ export default function DriverRouteMap({
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v20M2 12h20"/>
                     <path d="M12 2v20M2 12h20" transform="rotate(45 12 12)"/>
+                  </svg>
+                </div>
+              </Button>
+            )}
+
+            {/* Mark as entered circle button (development only) */}
+            {currentTrip && process.env.NODE_ENV === 'development' && (
+              <Button
+                size={isMobile ? "sm" : "default"}
+                variant="outline"
+                className="bg-white shadow-lg text-xs"
+                onClick={() => {
+                  console.log('📍 Manually marking as entered circle during trip');
+                  setHasEnteredCircleDuringTrip(true);
+                  toast.success("Marked as entered circle during trip");
+                }}
+                title="Manually mark as entered circle during trip"
+              >
+                <div className="h-3 w-3 sm:h-4 sm:w-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v20M2 12h20"/>
+                    <path d="M12 2v20M2 12h20" transform="rotate(90 12 12)"/>
                   </svg>
                 </div>
               </Button>
@@ -1350,8 +1419,9 @@ export default function DriverRouteMap({
               <p><strong>Current Trip Direction:</strong> {currentTrip?.direction || 'None'}</p>
               <p><strong>Current Trip Phase:</strong> {currentTrip?.phase || 'None'}</p>
               <p><strong>Circle Boundary Status:</strong> {isInCircleBoundary ? 'Inside' : 'Outside'}</p>
+              <p><strong>Has Entered Circle During Trip:</strong> {hasEnteredCircleDuringTrip ? 'Yes' : 'No'}</p>
               <p><strong>Last Circle Check:</strong> {lastCircleBoundaryCheck ? lastCircleBoundaryCheck.toLocaleTimeString() : 'None'}</p>
-              <p><strong>Can Auto-Transition:</strong> {currentTrip?.phase === 'OUTBOUND' ? 'Yes' : 'No'}</p>
+              <p><strong>Can Auto-Transition:</strong> {currentTrip?.phase === 'OUTBOUND' && hasEnteredCircleDuringTrip ? 'Yes' : 'No'}</p>
               <p><strong>Time Since Last Check:</strong> {lastCircleBoundaryCheck ? `${Math.round((Date.now() - lastCircleBoundaryCheck.getTime()) / 1000)}s` : 'N/A'}</p>
               <p><strong>Has Attempted Transition:</strong> {hasAttemptedTransition ? 'Yes' : 'No'}</p>
               <p><strong>Real-time Tracking:</strong> {isRealTimeTracking ? 'ON' : 'OFF'}</p>

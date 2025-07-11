@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Notification {
   id: number;
@@ -19,6 +20,7 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { onBookingUpdate } = useWebSocket();
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -101,6 +103,16 @@ export function useNotifications() {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Listen for booking assignment events and refresh notifications
+  useEffect(() => {
+    const cleanup = onBookingUpdate((booking) => {
+      // Refresh notifications when a new booking is assigned
+      fetchNotifications();
+    });
+
+    return cleanup;
+  }, [onBookingUpdate, fetchNotifications]);
 
   return {
     notifications,

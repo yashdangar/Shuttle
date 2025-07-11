@@ -1240,6 +1240,40 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
           hotelId
         );
 
+        // Create notification for the assigned driver
+        const driverId = availableShuttle.schedules[0]?.driverId;
+        if (driverId) {
+          let driverMessage = `A new booking has been assigned to your shuttle ${availableShuttle.vehicleNumber}.`;
+          if (assignmentResult.assigned) {
+            driverMessage += ` It has been added to your current active trip.`;
+          } else if (assignmentResult.shuttleAssigned) {
+            driverMessage += ` It will be included in your next trip.`;
+          }
+
+          // Create database notification for the driver
+          await prisma.notification.create({
+            data: {
+              driverId: driverId,
+              title: "New Booking Assigned",
+              message: driverMessage,
+            },
+          });
+
+          // Send WebSocket notification to the driver
+          const driverNotificationPayload = {
+            title: "New Booking Assigned",
+            message: driverMessage,
+            booking: booking,
+            assignmentResult,
+          };
+          sendToUser(
+            driverId,
+            "driver",
+            WsEvents.BOOKING_ASSIGNED,
+            driverNotificationPayload
+          );
+        }
+
         const result = {
           bookingId: booking.id,
           guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
@@ -1854,6 +1888,15 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       } else if (assignmentResult.shuttleAssigned) {
         driverMessage += ` It will be included in your next trip.`;
       }
+
+      // Create database notification for the driver
+      await prisma.notification.create({
+        data: {
+          driverId: driverId,
+          title: "New Booking Assigned",
+          message: driverMessage,
+        },
+      });
 
       const driverNotificationPayload = {
         title: "New Booking Assigned",
