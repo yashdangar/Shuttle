@@ -50,9 +50,10 @@ const containerStyle = {
   height: "400px",
 };
 
+// Dynamic center will be calculated based on available data
 const defaultCenter = {
-  lat: 19.0896, // Airport center (Terminal 1)
-  lng: 72.8656,
+  lat: 0,
+  lng: 0,
 };
 
 export default function DriverRouteMap({ 
@@ -80,9 +81,17 @@ export default function DriverRouteMap({
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [locationSpeed, setLocationSpeed] = useState<number | null>(null);
   const [locationHeading, setLocationHeading] = useState<number | null>(null);
+  
+  // New state for directions/routes
+  const [driverToPickupRoutes, setDriverToPickupRoutes] = useState<google.maps.DirectionsResult[]>([]);
+  const [pickupToDropoffRoutes, setPickupToDropoffRoutes] = useState<google.maps.DirectionsResult[]>([]);
+  const [showDirections, setShowDirections] = useState(true);
+  const [loadingDirections, setLoadingDirections] = useState(false);
+  
   const mapRef = useRef<google.maps.Map | null>(null);
   const locationCheckInterval = useRef<NodeJS.Timeout | null>(null);
   const realTimeWatchId = useRef<number | null>(null);
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
   const { socket, isConnected } = useWebSocket();
   const isMobile = useIsMobile();
 
@@ -91,7 +100,12 @@ export default function DriverRouteMap({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });
 
-  console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
+  console.log('🗺️ Google Maps API Status:', { 
+    isLoaded, 
+    loadError: loadError?.message || loadError, 
+    apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set',
+    driverLocation: driverLocation ? 'Available' : 'Not Available'
+  });
 
   // Function to calculate distance between two coordinates in meters
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -402,7 +416,90 @@ export default function DriverRouteMap({
     }
   };
 
+  // Function to fetch directions between two points
+  const fetchDirections = async (
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number },
+    waypoints?: { lat: number; lng: number }[]
+  ): Promise<google.maps.DirectionsResult | null> => {
+    return new Promise((resolve) => {
+      if (!directionsServiceRef.current) {
+        directionsServiceRef.current = new google.maps.DirectionsService();
+      }
 
+      const request: google.maps.DirectionsRequest = {
+        origin,
+        destination,
+        waypoints: waypoints?.map(point => ({
+          location: point,
+          stopover: true
+        })),
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: true,
+      };
+
+      directionsServiceRef.current.route(request, (result, status) => {
+        if (status === google.maps.DirectionsStatus.OK && result) {
+          resolve(result);
+        } else {
+          console.warn('Directions request failed:', status);
+          resolve(null);
+        }
+      });
+    });
+  };
+
+  // Function to update all routes
+  const updateDirections = async () => {
+    if (!driverLocation || !showDirections || loadingDirections) {
+      return;
+    }
+
+    setLoadingDirections(true);
+    console.log('🗺️ Updating directions...');
+
+    try {
+      const newDriverToPickupRoutes: google.maps.DirectionsResult[] = [];
+      const newPickupToDropoffRoutes: google.maps.DirectionsResult[] = [];
+
+      // Get directions from driver to each pickup location
+      for (const pickupLoc of pickupLocations) {
+        const route = await fetchDirections(
+          { lat: driverLocation.latitude, lng: driverLocation.longitude },
+          { lat: pickupLoc.latitude, lng: pickupLoc.longitude }
+        );
+        if (route) {
+          newDriverToPickupRoutes.push(route);
+        }
+      }
+
+      // Get directions from each pickup to corresponding dropoff location
+      for (let i = 0; i < pickupLocations.length; i++) {
+        const pickupLoc = pickupLocations[i];
+        const dropoffLoc = dropoffLocations.find(d => d.passenger.id === pickupLoc.passenger.id);
+        
+        if (dropoffLoc) {
+          const route = await fetchDirections(
+            { lat: pickupLoc.latitude, lng: pickupLoc.longitude },
+            { lat: dropoffLoc.latitude, lng: dropoffLoc.longitude }
+          );
+          if (route) {
+            newPickupToDropoffRoutes.push(route);
+          }
+        }
+      }
+
+      setDriverToPickupRoutes(newDriverToPickupRoutes);
+      setPickupToDropoffRoutes(newPickupToDropoffRoutes);
+      console.log('🗺️ Directions updated successfully');
+
+    } catch (error) {
+      console.error('Error updating directions:', error);
+      toast.error("Failed to load directions");
+    } finally {
+      setLoadingDirections(false);
+    }
+  };
 
   // Fetch driver location and setup locations based on trip direction
   const fetchMapData = async () => {
@@ -412,29 +509,28 @@ export default function DriverRouteMap({
 
       // Get driver's current location
       try {
+        console.log('🗺️ Fetching driver location from API...');
         const driverResponse = await api.get('/driver/current-location');
+        console.log('🗺️ Driver location API response:', driverResponse);
+        
         if (driverResponse.location) {
           const newDriverLocation = {
             latitude: driverResponse.location.latitude,
             longitude: driverResponse.location.longitude,
             name: "Driver Location"
           };
+          console.log('🗺️ Setting driver location:', newDriverLocation);
           setDriverLocation(newDriverLocation);
           
           // Check circle boundary immediately
           await checkCircleBoundary(newDriverLocation);
+        } else {
+          console.log('🗺️ No location in API response');
         }
       } catch (locationError) {
-        console.log('Driver location not available yet:', locationError);
+        console.log('🗺️ Driver location not available yet:', locationError);
         // Don't set error for missing location - this is normal when driver hasn't started tracking
-        // Set a default location for map display
-        // For testing: Set driver location outside the circle
-        const defaultLocation = {
-          latitude: 21.2269956 + 0.01, // Outside the circle (about 1km north)
-          longitude: 72.825646 + 0.01, // Outside the circle (about 1km east)
-          name: "Test Location Outside Circle"
-        };
-        setDriverLocation(defaultLocation);
+        console.log('🗺️ Driver location not available yet - will use map center based on trip data');
       }
 
       // Get current trip data with hotel information
@@ -483,15 +579,8 @@ export default function DriverRouteMap({
               });
             });
           } else {
-            // Fallback hotel location (Mumbai area)
-            passengers.forEach((passenger) => {
-              pickupLocs.push({
-                latitude: 19.0760 + (Math.random() * 0.01),
-                longitude: 72.8777 + (Math.random() * 0.01),
-                name: 'Hotel',
-                passenger
-              });
-            });
+            // Skip pickup locations if no hotel location available
+            console.log('No hotel location available for HOTEL_TO_AIRPORT trip');
           }
 
           // Dropoff: Use actual dropoff locations from booking data
@@ -505,14 +594,8 @@ export default function DriverRouteMap({
                 passenger
               });
             } else {
-              // Fallback to airport area if no specific location
-              console.log(`No dropoff location for ${passenger.name}, using fallback`);
-              dropoffLocs.push({
-                latitude: 19.0896 + (Math.random() * 0.01),
-                longitude: 72.8656 + (Math.random() * 0.01),
-                name: passenger.dropoff || 'Airport',
-                passenger
-              });
+              // Skip if no specific dropoff location available
+              console.log(`No dropoff location available for ${passenger.name}`);
             }
           });
         } else if (direction === 'AIRPORT_TO_HOTEL') {
@@ -529,14 +612,8 @@ export default function DriverRouteMap({
                 passenger
               });
             } else {
-              // Fallback to airport area if no specific location
-              console.log(`No pickup location for ${passenger.name}, using fallback`);
-              pickupLocs.push({
-                latitude: 19.0896 + (Math.random() * 0.01),
-                longitude: 72.8656 + (Math.random() * 0.01),
-                name: passenger.pickup || 'Airport',
-                passenger
-              });
+              // Skip if no specific pickup location available
+              console.log(`No pickup location available for ${passenger.name}`);
             }
           });
 
@@ -551,15 +628,8 @@ export default function DriverRouteMap({
               });
             });
           } else {
-            // Fallback hotel location
-            passengers.forEach((passenger) => {
-              dropoffLocs.push({
-                latitude: 19.0760 + (Math.random() * 0.01),
-                longitude: 72.8777 + (Math.random() * 0.01),
-                name: 'Hotel',
-                passenger
-              });
-            });
+            // Skip dropoff locations if no hotel location available
+            console.log('No hotel location available for AIRPORT_TO_HOTEL trip');
           }
         }
 
@@ -574,31 +644,9 @@ export default function DriverRouteMap({
       setError("Could not load map data");
       console.error("Error fetching map data:", err);
       
-      // Fallback to placeholder coordinates
-      const pickupLocs: Array<Location & { passenger: Passenger }> = [];
-      const dropoffLocs: Array<Location & { passenger: Passenger }> = [];
-
-      passengers.forEach((passenger, index) => {
-        const baseLat = 19.0760 + (index * 0.01);
-        const baseLng = 72.8777 + (index * 0.01);
-
-        pickupLocs.push({
-          latitude: baseLat,
-          longitude: baseLng,
-          name: passenger.pickup,
-          passenger
-        });
-
-        dropoffLocs.push({
-          latitude: baseLat + 0.005,
-          longitude: baseLng + 0.005,
-          name: passenger.dropoff,
-          passenger
-        });
-      });
-
-      setPickupLocations(pickupLocs);
-      setDropoffLocations(dropoffLocs);
+      // Clear locations if map data cannot be loaded
+      setPickupLocations([]);
+      setDropoffLocations([]);
     } finally {
       setLoading(false);
     }
@@ -657,6 +705,31 @@ export default function DriverRouteMap({
       fetchMapData();
     }
   }, [passengers, currentTrip]);
+
+  // Update directions when driver location or pickup/dropoff locations change
+  useEffect(() => {
+    if (driverLocation && pickupLocations.length > 0 && dropoffLocations.length > 0 && showDirections) {
+      const updateTimeout = setTimeout(() => {
+        updateDirections();
+      }, 1000); // Debounce to avoid too many API calls
+
+      return () => clearTimeout(updateTimeout);
+    }
+  }, [driverLocation, pickupLocations, dropoffLocations, showDirections]);
+
+  // Set circle center based on available location data
+  useEffect(() => {
+    if (hotelLocation && !circleCenter) {
+      // Use hotel location as circle center
+      setCircleCenter(new google.maps.LatLng(hotelLocation.latitude, hotelLocation.longitude));
+    } else if (pickupLocations.length > 0 && !circleCenter) {
+      // Use first pickup location as circle center
+      setCircleCenter(new google.maps.LatLng(pickupLocations[0].latitude, pickupLocations[0].longitude));
+    } else if (dropoffLocations.length > 0 && !circleCenter) {
+      // Use first dropoff location as circle center
+      setCircleCenter(new google.maps.LatLng(dropoffLocations[0].latitude, dropoffLocations[0].longitude));
+    }
+  }, [hotelLocation, pickupLocations, dropoffLocations, circleCenter]);
 
   // Check for initial circle boundary state when driver location is set
   useEffect(() => {
@@ -724,18 +797,19 @@ export default function DriverRouteMap({
     }
   }, [driverLocation, currentTrip, hasAttemptedTransition, circleCenter, isInCircleBoundary, hasEnteredCircleDuringTrip]);
 
-  // Center map on driver or first pickup location
+  // Center map on driver, pickup location, hotel, or circle center
   const center = driverLocation
     ? { lat: driverLocation.latitude, lng: driverLocation.longitude }
     : pickupLocations && pickupLocations.length > 0
     ? { lat: pickupLocations[0].latitude, lng: pickupLocations[0].longitude }
-    : defaultCenter;
+    : hotelLocation
+    ? { lat: hotelLocation.latitude, lng: hotelLocation.longitude }
+    : circleCenter
+    ? { lat: circleCenter.lat(), lng: circleCenter.lng() }
+    : { lat: 0, lng: 0 };
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
-    
-    // Initialize circle center with specified coordinates
-    setCircleCenter(new google.maps.LatLng(21.2269956, 72.825646));
     
     // Add event listeners for user interaction
     map.addListener('dragstart', () => {
@@ -765,7 +839,8 @@ export default function DriverRouteMap({
     const baseUrl = 'https://maps.google.com/mapfiles/ms/icons/';
     
     if (type === 'driver') {
-      return `${baseUrl}blue-dot.png`;
+      // Use green marker to distinguish from blue circle
+      return `${baseUrl}green-dot.png`;
     } else if (type === 'pickup') {
       if (isNext) return `${baseUrl}yellow-dot.png`;
       if (isVerified) return `${baseUrl}green-dot.png`;
@@ -899,13 +974,25 @@ export default function DriverRouteMap({
               <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
               Boundary Circle (800m)
             </Badge>
+            {showDirections && (
+              <>
+                <Badge variant="outline" className="text-xs">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-600 rounded-full mr-1"></div>
+                  Route to Pickup
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full mr-1"></div>
+                  Route to Dropoff
+                </Badge>
+              </>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           <div className="relative">
             <GoogleMap
               mapContainerStyle={{ ...containerStyle, height }}
-              center={{ lat: 21.2269956, lng: 72.825646 }}
+              center={circleCenter ? { lat: circleCenter.lat(), lng: circleCenter.lng() } : defaultCenter}
               zoom={15}
               onLoad={onLoad}
               onUnmount={onUnmount}
@@ -986,7 +1073,7 @@ export default function DriverRouteMap({
         </CardTitle>
         <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
           <Badge variant="outline" className="text-xs">
-            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full mr-1"></div>
             Driver
           </Badge>
           <Badge variant="outline" className="text-xs">
@@ -1013,6 +1100,18 @@ export default function DriverRouteMap({
             <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full mr-1"></div>
             Boundary Circle (800m)
           </Badge>
+          {showDirections && (
+            <>
+              <Badge variant="outline" className="text-xs">
+                <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-600 rounded-full mr-1"></div>
+                Route to Pickup
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full mr-1"></div>
+                Route to Dropoff
+              </Badge>
+            </>
+          )}
         </div>
         
         {/* Circle Boundary Status */}
@@ -1121,12 +1220,16 @@ export default function DriverRouteMap({
 
             {/* Driver Marker */}
             {driverLocation && (
-              <Marker
-                position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
-                icon={getMarkerIcon('driver')}
-                title={getMarkerTitle('driver')}
-                onClick={() => setSelectedPassenger(null)}
-              />
+              <>
+                {console.log('🗺️ Rendering driver marker at:', driverLocation.latitude, driverLocation.longitude)}
+                <Marker
+                  position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
+                  icon={getMarkerIcon('driver')}
+                  title={getMarkerTitle('driver')}
+                  onClick={() => setSelectedPassenger(null)}
+                  zIndex={1000} // Make sure driver marker is on top
+                />
+              </>
             )}
 
             {/* Pickup Location Markers */}
@@ -1165,6 +1268,38 @@ export default function DriverRouteMap({
                 />
               );
             })}
+
+            {/* Directions Routes */}
+            {showDirections && (
+              <>
+                {/* Driver to Pickup Routes (Blue) */}
+                {driverToPickupRoutes.map((route, index) => (
+                  <Polyline
+                    key={`route-driver-to-pickup-${index}`}
+                    path={route.routes[0].overview_path}
+                    options={{
+                      strokeColor: "#3b82f6", // Blue color for driver to pickup routes
+                      strokeWeight: 4,
+                      strokeOpacity: 0.8,
+                      zIndex: 1
+                    }}
+                  />
+                ))}
+                {/* Pickup to Dropoff Routes (Green) */}
+                {pickupToDropoffRoutes.map((route, index) => (
+                  <Polyline
+                    key={`route-pickup-to-dropoff-${index}`}
+                    path={route.routes[0].overview_path}
+                    options={{
+                      strokeColor: "#10b981", // Green color for pickup to dropoff routes
+                      strokeWeight: 4,
+                      strokeOpacity: 0.8,
+                      zIndex: 2
+                    }}
+                  />
+                ))}
+              </>
+            )}
 
             {/* Info Windows */}
             {pickupLocations.map((location, index) => {
@@ -1272,6 +1407,27 @@ export default function DriverRouteMap({
               <Navigation className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
+            {/* Directions toggle */}
+            <Button
+              size={isMobile ? "sm" : "default"}
+              variant={showDirections ? "default" : "secondary"}
+              className={`shadow-lg ${showDirections ? 'bg-purple-500 text-white' : 'bg-white'} text-xs`}
+              onClick={() => {
+                setShowDirections(!showDirections);
+                toast.info(showDirections ? "Directions hidden" : "Directions shown", {
+                  description: showDirections ? "Route lines removed from map" : "Route lines added to map"
+                });
+              }}
+              title={showDirections ? "Hide directions" : "Show directions"}
+            >
+              <div className="h-3 w-3 sm:h-4 sm:w-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12h18m-9-9v18"/>
+                  <path d="M8 8l8 8M16 8l-8 8"/>
+                </svg>
+              </div>
+            </Button>
+
             {/* Simulation button (development only) */}
             {circleCenter && process.env.NODE_ENV === 'development' && (
               <Button
@@ -1315,6 +1471,38 @@ export default function DriverRouteMap({
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 12l2 2 4-4"/>
                     <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+                  </svg>
+                </div>
+              </Button>
+            )}
+
+            {/* Set driver location to map center button (development only) */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                size={isMobile ? "sm" : "default"}
+                variant="outline"
+                className="bg-white shadow-lg text-xs"
+                onClick={() => {
+                  if (mapRef.current) {
+                    const mapCenter = mapRef.current.getCenter();
+                    if (mapCenter) {
+                      const testLocation = {
+                        latitude: mapCenter.lat(),
+                        longitude: mapCenter.lng(),
+                        name: "Test Driver Location (Map Center)"
+                      };
+                      console.log('🗺️ Setting driver location to map center:', testLocation);
+                      setDriverLocation(testLocation);
+                      toast.success("Driver location set to map center");
+                    }
+                  }
+                }}
+                title="Set driver location to current map center"
+              >
+                <div className="h-3 w-3 sm:h-4 sm:w-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 12v6M4.93 4.93l4.24 4.24m8.48 8.48l4.24 4.24M1 12h6m12 0h6M4.93 19.07l4.24-4.24m8.48-8.48l4.24-4.24"/>
                   </svg>
                 </div>
               </Button>
@@ -1403,6 +1591,9 @@ export default function DriverRouteMap({
                 <p><strong>Dropoff Locations:</strong> {dropoffLocations.length}</p>
                 <p><strong>Driver Location:</strong> {driverLocation ? 'Yes' : 'No'}</p>
                 <p><strong>Hotel Location:</strong> {hotelLocation ? 'Yes' : 'No'}</p>
+                {driverLocation && (
+                  <p><strong>Driver Coords:</strong> {driverLocation.latitude.toFixed(6)}, {driverLocation.longitude.toFixed(6)}</p>
+                )}
               </div>
               <div>
                 <p><strong>Trip Direction:</strong> {currentTrip?.direction || 'None'}</p>
@@ -1429,6 +1620,10 @@ export default function DriverRouteMap({
               <p><strong>Location Accuracy:</strong> {locationAccuracy ? `${locationAccuracy.toFixed(1)}m` : 'N/A'}</p>
               <p><strong>Location Speed:</strong> {locationSpeed ? `${(locationSpeed * 3.6).toFixed(1)} km/h` : 'N/A'}</p>
               <p><strong>Location Heading:</strong> {locationHeading ? `${locationHeading.toFixed(0)}°` : 'N/A'}</p>
+              <p><strong>Show Directions:</strong> {showDirections ? 'Yes' : 'No'}</p>
+              <p><strong>Loading Directions:</strong> {loadingDirections ? 'Yes' : 'No'}</p>
+              <p><strong>Driver-to-Pickup Routes:</strong> {driverToPickupRoutes.length}</p>
+              <p><strong>Pickup-to-Dropoff Routes:</strong> {pickupToDropoffRoutes.length}</p>
             </div>
             {pickupLocations.length > 0 && (
               <div className="mt-2">

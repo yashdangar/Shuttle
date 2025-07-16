@@ -456,6 +456,8 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
               <div className="mt-6">
                 {/* <h4 className="text-lg font-medium mb-3">Live Tracking</h4> */}
                 
+                
+                
                 {/* Real-time ETA display */}
                 {/* {realTimeEtas[booking.id] && realTimeEtas[booking.id].eta !== 'Calculating...' && realTimeEtas[booking.id].eta !== 'Error calculating ETA' && (
                   <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">

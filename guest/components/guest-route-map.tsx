@@ -63,7 +63,7 @@ export default function GuestRouteMap({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });
 
-  console.log('Google Maps API Status:', { isLoaded, loadError, apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? 'Set' : 'Not Set' });
+
 
   // Calculate real-time ETA using Google Maps Directions API
   const calculateRealTimeETA = useCallback(async () => {
@@ -118,11 +118,15 @@ export default function GuestRouteMap({
 
       // Set driver location if available
       if (tracking.driverLocation) {
-        setDriverLocation({
+        const newDriverLocation = {
           latitude: tracking.driverLocation.latitude,
           longitude: tracking.driverLocation.longitude,
           name: "Driver Location"
-        });
+        };
+        console.log('Driver location set:', newDriverLocation);
+        setDriverLocation(newDriverLocation);
+      } else {
+        console.log('No driver location in tracking response');
       }
 
       // Set pickup location
@@ -150,21 +154,25 @@ export default function GuestRouteMap({
 
       // Set dropoff location
       if (tracking.dropoffLocation) {
-        setDropoffLocation({
+        const newDropoffLocation = {
           latitude: tracking.dropoffLocation.latitude,
           longitude: tracking.dropoffLocation.longitude,
           name: booking.dropoff
-        });
+        };
+        console.log('Dropoff location set:', newDropoffLocation);
+        setDropoffLocation(newDropoffLocation);
       } else {
         // If no dropoff location, get hotel location
         try {
           const guestResponse = await api.get('/guest/profile');
           if (guestResponse.guest?.hotel?.latitude && guestResponse.guest?.hotel?.longitude) {
-            setDropoffLocation({
+            const fallbackDropoffLocation = {
               latitude: guestResponse.guest.hotel.latitude,
               longitude: guestResponse.guest.hotel.longitude,
               name: `${guestResponse.guest.hotel.name} (Hotel)`
-            });
+            };
+            console.log('Dropoff location set to hotel fallback:', fallbackDropoffLocation);
+            setDropoffLocation(fallbackDropoffLocation);
           }
         } catch (err) {
           console.error('Error fetching hotel location:', err);
@@ -252,11 +260,41 @@ export default function GuestRouteMap({
     const baseUrl = 'https://maps.google.com/mapfiles/ms/icons/';
     
     if (type === 'driver') {
-      return `${baseUrl}blue-dot.png`;
+      // Use a more reliable custom marker for driver
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="12" fill="#22C55E" stroke="#FFFFFF" stroke-width="3"/>
+            <circle cx="16" cy="16" r="6" fill="#FFFFFF"/>
+          </svg>
+        `),
+        scaledSize: new google.maps.Size(32, 32),
+        anchor: new google.maps.Point(16, 16),
+      };
     } else if (type === 'pickup') {
-      return `${baseUrl}red-dot.png`;
+      // Custom SVG for pickup to ensure reliability
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="12" fill="#DC2626" stroke="#FFFFFF" stroke-width="3"/>
+            <circle cx="16" cy="16" r="6" fill="#FFFFFF"/>
+          </svg>
+        `),
+        scaledSize: new google.maps.Size(32, 32),
+        anchor: new google.maps.Point(16, 16),
+      };
     } else {
-      return `${baseUrl}green-dot.png`;
+      // Custom SVG for dropoff to ensure reliability
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="12" fill="#0EA5E9" stroke="#FFFFFF" stroke-width="3"/>
+            <circle cx="16" cy="16" r="6" fill="#FFFFFF"/>
+          </svg>
+        `),
+        scaledSize: new google.maps.Size(32, 32),
+        anchor: new google.maps.Point(16, 16),
+      };
     }
   };
 
@@ -356,7 +394,7 @@ export default function GuestRouteMap({
         </CardTitle>
         <div className="flex flex-wrap gap-2 mt-2">
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+            <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
             Driver
           </Badge>
           <Badge variant="outline" className="text-xs">
@@ -364,7 +402,7 @@ export default function GuestRouteMap({
             Pickup
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+            <div className="w-3 h-3 bg-cyan-500 rounded-full mr-1"></div>
             Dropoff
           </Badge>
         </div>
@@ -386,12 +424,16 @@ export default function GuestRouteMap({
           >
             {/* Driver Location Marker */}
             {driverLocation && (
-              <Marker
-                position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
-                icon={getMarkerIcon('driver')}
-                title={getMarkerTitle('driver')}
-                onClick={() => setActiveInfoWindow('driver')}
-              />
+              <>
+                {console.log('Rendering driver marker at:', driverLocation.latitude, driverLocation.longitude)}
+                <Marker
+                  position={{ lat: driverLocation.latitude, lng: driverLocation.longitude }}
+                  icon={getMarkerIcon('driver')}
+                  title={getMarkerTitle('driver')}
+                  onClick={() => setActiveInfoWindow('driver')}
+                  zIndex={1000} // Make sure driver marker is on top
+                />
+              </>
             )}
 
             {/* Pickup Location Marker */}
@@ -401,17 +443,22 @@ export default function GuestRouteMap({
                 icon={getMarkerIcon('pickup')}
                 title={getMarkerTitle('pickup')}
                 onClick={() => setActiveInfoWindow('pickup')}
+                zIndex={998} // Ensure pickup marker is visible
               />
             )}
 
             {/* Dropoff Location Marker */}
             {dropoffLocation && (
-              <Marker
-                position={{ lat: dropoffLocation.latitude, lng: dropoffLocation.longitude }}
-                icon={getMarkerIcon('dropoff')}
-                title={getMarkerTitle('dropoff')}
-                onClick={() => setActiveInfoWindow('dropoff')}
-              />
+              <>
+                {console.log('Rendering dropoff marker at:', dropoffLocation.latitude, dropoffLocation.longitude)}
+                <Marker
+                  position={{ lat: dropoffLocation.latitude, lng: dropoffLocation.longitude }}
+                  icon={getMarkerIcon('dropoff')}
+                  title={getMarkerTitle('dropoff')}
+                  onClick={() => setActiveInfoWindow('dropoff')}
+                  zIndex={999} // Ensure dropoff marker is visible
+                />
+              </>
             )}
 
             {/* Info Windows */}

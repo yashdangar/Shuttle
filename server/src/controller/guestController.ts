@@ -827,6 +827,15 @@ const getBookingETA = async (req: Request, res: Response) => {
         },
         pickupLocation: true,
         dropoffLocation: true,
+        trip: {
+          include: {
+            driver: {
+              include: {
+                currentLocation: true,
+              },
+            },
+          },
+        },
         shuttle: {
           include: {
             schedules: {
@@ -847,19 +856,31 @@ const getBookingETA = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Find the first schedule with a driver who has a currentLocation
-    const scheduleWithLocation = booking.shuttle?.schedules.find(
-      (s) => s.driver?.currentLocation
-    );
-    const driverLocation = scheduleWithLocation?.driver?.currentLocation;
+    // Try to get driver location from trip first, then fall back to shuttle schedules
+    let driverLocation = null;
+    let driverId = null;
+
+    if (booking.trip?.driver) {
+      // Booking is assigned to a specific trip with a driver
+      driverLocation = booking.trip.driver.currentLocation;
+      driverId = booking.trip.driver.id;
+    } else if (booking.shuttle?.schedules?.[0]?.driver) {
+      // Fall back to first shuttle schedule driver
+      driverLocation = booking.shuttle.schedules[0].driver.currentLocation;
+      driverId = booking.shuttle.schedules[0].driverId;
+    }
+
+    if (!driverLocation && driverId) {
+      // Try to get driver location directly from DriverLocation table as fallback
+      const directLocation = await prisma.driverLocation.findUnique({
+        where: { driverId: driverId },
+      });
+      if (directLocation) {
+        driverLocation = directLocation;
+      }
+    }
 
     if (!driverLocation) {
-      // Try to get driver location directly from DriverLocation table as fallback
-      if (booking.shuttle?.schedules?.[0]?.driverId) {
-        const directLocation = await prisma.driverLocation.findUnique({
-          where: { driverId: booking.shuttle.schedules[0].driverId },
-        });
-      }
       return res.json({
         eta: "Driver location not available",
         distance: "Unknown",
@@ -946,6 +967,15 @@ const getBookingTracking = async (req: Request, res: Response) => {
         },
         pickupLocation: true,
         dropoffLocation: true,
+        trip: {
+          include: {
+            driver: {
+              include: {
+                currentLocation: true,
+              },
+            },
+          },
+        },
         shuttle: {
           include: {
             schedules: {
@@ -966,8 +996,32 @@ const getBookingTracking = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    const driverLocation =
-      booking.shuttle?.schedules[0]?.driver?.currentLocation;
+    // Try to get driver location from trip first, then fall back to shuttle schedules
+    let driverLocation = null;
+    let driverId = null;
+
+    if (booking.trip?.driver) {
+      // Booking is assigned to a specific trip with a driver
+      driverLocation = booking.trip.driver.currentLocation;
+      driverId = booking.trip.driver.id;
+
+    } else if (booking.shuttle?.schedules?.[0]?.driver) {
+      // Fall back to first shuttle schedule driver
+      driverLocation = booking.shuttle.schedules[0].driver.currentLocation;
+      driverId = booking.shuttle.schedules[0].driverId;
+
+    }
+
+    if (!driverLocation && driverId) {
+      // Try to get driver location directly if we have a driver ID
+      const directDriverLocation = await prisma.driverLocation.findUnique({
+        where: { driverId: driverId },
+      });
+      
+      if (directDriverLocation) {
+        driverLocation = directDriverLocation;
+      }
+    }
 
     if (!driverLocation) {
       return res.json({
@@ -980,6 +1034,8 @@ const getBookingTracking = async (req: Request, res: Response) => {
         },
       });
     }
+
+
 
     // Get directions if Google Maps is available
     let directions = null;
