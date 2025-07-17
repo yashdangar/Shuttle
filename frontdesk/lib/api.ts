@@ -61,7 +61,9 @@ export const api = {
 
     if (!response.ok) {
       const errorData = await response.json();
-      const error = new Error(errorData.error || errorData.message || "API request failed");
+      const error = new Error(
+        errorData.error || errorData.message || "API request failed"
+      );
       (error as any).response = { data: errorData, status: response.status };
       throw error;
     }
@@ -100,5 +102,11 @@ export const api = {
 
   async getPendingBookingsLastHour() {
     return this.get("/frontdesk/dashboard/pending-bookings");
+  },
+
+  async getSchedules(params?: URLSearchParams) {
+    return this.get(
+      `/frontdesk/get/schedule${params ? `?${params.toString()}` : ""}`
+    );
   },
 };

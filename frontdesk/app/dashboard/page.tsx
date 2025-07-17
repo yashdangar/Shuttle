@@ -2,7 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Car, Users, MapPin, Bell, RefreshCw, AlertCircle } from "lucide-react";
+import {
+  Car,
+  Users,
+  MapPin,
+  Bell,
+  RefreshCw,
+  AlertCircle,
+  Clock,
+  Calendar,
+} from "lucide-react";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { api } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
@@ -70,12 +79,31 @@ interface PendingBooking {
   isParkSleepFly: boolean;
 }
 
+interface Schedule {
+  id: string;
+  scheduleDate: string;
+  startTime: string;
+  endTime: string;
+  driver: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  shuttle: {
+    id: string;
+    vehicleNumber: string;
+    seats: number;
+  };
+}
+
 export default function DashboardPage() {
   const { isConnected, socket, markUserInteraction } = useWebSocket();
   const [liveShuttles, setLiveShuttles] = useState<LiveShuttle[]>([]);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
+  const [todaySchedules, setTodaySchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [schedulesLoading, setSchedulesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalLiveShuttles: 0,
@@ -92,7 +120,7 @@ export default function DashboardPage() {
     try {
       setRefreshing(true);
       setError(null);
-      
+
       const [liveShuttleData, pendingBookingsData] = await Promise.all([
         api.getLiveShuttleData(),
         api.getPendingBookingsLastHour(),
@@ -113,6 +141,134 @@ export default function DashboardPage() {
       setRefreshing(false);
     }
   }, []);
+
+  const fetchTodaySchedules = useCallback(async () => {
+    try {
+      setSchedulesLoading(true);
+
+      // Get today's start and end
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Get tomorrow's start to check for extended schedules
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(23, 59, 59, 999);
+
+      const params = new URLSearchParams();
+      params.append("start", today.toISOString());
+      params.append("end", tomorrow.toISOString());
+
+      const response = await api.get(
+        `/frontdesk/schedule?${params.toString()}`
+      );
+      setTodaySchedules(response.schedules || []);
+    } catch (error) {
+      console.error("Error fetching today's schedules:", error);
+    } finally {
+      setSchedulesLoading(false);
+    }
+  }, []);
+
+  // Timezone utility functions
+  const getUserTimeZone = () => {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  };
+
+  const getTimeZoneAbbr = (date: Date) => {
+    return date
+      .toLocaleTimeString([], { timeZoneName: "short" })
+      .split(" ")
+      .pop();
+  };
+
+  const formatTimeForDisplay = (isoString: string | null | undefined) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    const time = date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const abbr = getTimeZoneAbbr(date);
+    return `${time} (${abbr})`;
+  };
+
+  // Generate colors for different shuttles
+  const getShuttleColor = (shuttleId: string | number) => {
+    const colors = [
+      "bg-blue-100 border-blue-300 text-blue-800",
+      "bg-green-100 border-green-300 text-green-800",
+      "bg-purple-100 border-purple-300 text-purple-800",
+      "bg-orange-100 border-orange-300 text-orange-800",
+      "bg-pink-100 border-pink-300 text-pink-800",
+      "bg-indigo-100 border-indigo-300 text-indigo-800",
+      "bg-red-100 border-red-300 text-red-800",
+      "bg-yellow-100 border-yellow-300 text-yellow-800",
+    ];
+    const hash = String(shuttleId)
+      .split("")
+      .reduce((a, b) => {
+        a = (a << 5) - a + b.charCodeAt(0);
+        return a & a;
+      }, 0);
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  // Get today's schedule blocks for timeline
+  const getTodayScheduleBlocks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const tomorrowEnd = new Date(tomorrow);
+    tomorrowEnd.setHours(23, 59, 59, 999);
+
+    const blocks: any[] = [];
+
+    todaySchedules.forEach((schedule) => {
+      const scheduleStart = new Date(schedule.startTime);
+      const scheduleEnd = new Date(schedule.endTime);
+
+      // Today's portion
+      if (scheduleStart <= todayEnd) {
+        const blockStart = scheduleStart > today ? scheduleStart : today;
+        const blockEnd = scheduleEnd < todayEnd ? scheduleEnd : todayEnd;
+
+        if (blockStart < blockEnd) {
+          blocks.push({
+            ...schedule,
+            displayStart: blockStart,
+            displayEnd: blockEnd,
+            isToday: true,
+            dayLabel: "Today",
+          });
+        }
+      }
+
+      // Tomorrow's portion (only if schedule extends from today)
+      if (scheduleEnd > todayEnd && scheduleStart <= todayEnd) {
+        const blockStart = tomorrow;
+        const blockEnd = scheduleEnd < tomorrowEnd ? scheduleEnd : tomorrowEnd;
+
+        if (blockStart < blockEnd) {
+          blocks.push({
+            ...schedule,
+            displayStart: blockStart,
+            displayEnd: blockEnd,
+            isToday: false,
+            dayLabel: "Tomorrow",
+          });
+        }
+      }
+    });
+
+    return blocks;
+  };
 
   // WebSocket event handlers for real-time updates
   useEffect(() => {
@@ -177,29 +333,33 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchTodaySchedules();
+  }, [fetchDashboardData, fetchTodaySchedules]);
 
   const handleManualRefresh = () => {
     fetchDashboardData();
+    fetchTodaySchedules();
   };
 
+  const scheduleBlocks = getTodayScheduleBlocks();
+
   const dashboardStats = [
-    { 
-      name: "Live Shuttles", 
-      value: stats.totalLiveShuttles.toString(), 
-      icon: Car, 
+    {
+      name: "Live Shuttles",
+      value: stats.totalLiveShuttles.toString(),
+      icon: Car,
       color: "text-blue-600",
     },
-    { 
-      name: "Active Bookings", 
-      value: stats.totalActiveBookings.toString(), 
-      icon: Users, 
+    {
+      name: "Active Bookings",
+      value: stats.totalActiveBookings.toString(),
+      icon: Users,
       color: "text-green-600",
     },
-    { 
-      name: "Pending Bookings", 
-      value: stats.totalPendingBookings.toString(), 
-      icon: MapPin, 
+    {
+      name: "Pending Bookings",
+      value: stats.totalPendingBookings.toString(),
+      icon: MapPin,
       color: "text-orange-600",
     },
   ];
@@ -269,6 +429,185 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* Today's Schedule Timeline */}
+      <Card className="border-slate-200">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            Today's Schedule Overview
+          </CardTitle>
+          <div className="text-sm text-gray-600">
+            All times shown in your local timezone: <b>{getUserTimeZone()}</b> (
+            {getTimeZoneAbbr(new Date())})
+          </div>
+        </CardHeader>
+        <CardContent>
+          {schedulesLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+              <span className="ml-2 text-gray-600">Loading schedules...</span>
+            </div>
+          ) : scheduleBlocks.length === 0 ? (
+            <div className="text-center py-8">
+              <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                No schedules today
+              </h3>
+              <p className="text-gray-500">
+                There are no scheduled shuttles for today.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Group by day */}
+              {["Today", "Tomorrow"].map((dayLabel) => {
+                const dayBlocks = scheduleBlocks.filter(
+                  (block) => block.dayLabel === dayLabel
+                );
+                if (dayBlocks.length === 0) return null;
+
+                return (
+                  <div key={dayLabel} className="space-y-2">
+                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          dayLabel === "Today" ? "bg-blue-500" : "bg-orange-500"
+                        }`}
+                      ></span>
+                      {dayLabel}
+                    </h4>
+
+                    {/* Timeline for this day */}
+                    <div className="relative">
+                      {/* Scroll indicator for mobile */}
+                      <div className="block sm:hidden text-xs text-gray-500 text-center mb-2 bg-blue-50 rounded border border-blue-200 py-1">
+                        👈 Scroll horizontally to view full timeline
+                      </div>
+
+                      {/* Scrollable timeline container */}
+                      <div className="overflow-x-auto scrollbar-thin">
+                        <div className="w-[1200px]">
+                          {/* Hour markers */}
+                          <div className="flex text-xs text-gray-400 mb-2">
+                            {[...Array(24)].map((_, hour) => (
+                              <div
+                                key={hour}
+                                className="text-center border-l border-gray-200 first:border-l-0"
+                                style={{ width: "50px" }}
+                              >
+                                {hour === 0
+                                  ? "12 AM"
+                                  : hour < 12
+                                  ? `${hour} AM`
+                                  : hour === 12
+                                  ? "12 PM"
+                                  : `${hour - 12} PM`}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Timeline background */}
+                          <div className="relative h-20 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                            {/* Hour grid lines */}
+                            <div className="absolute inset-0 flex">
+                              {[...Array(24)].map((_, hour) => (
+                                <div
+                                  key={hour}
+                                  className="border-r border-gray-200 last:border-r-0"
+                                  style={{ width: "50px" }}
+                                ></div>
+                              ))}
+                            </div>
+
+                            {/* Current time indicator */}
+                            {dayLabel === "Today" &&
+                              (() => {
+                                const now = new Date();
+                                const currentHour =
+                                  now.getHours() + now.getMinutes() / 60;
+                                const currentPosition = currentHour * 50; // 50px per hour
+
+                                return (
+                                  <div
+                                    className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-30"
+                                    style={{ left: `${currentPosition}px` }}
+                                  >
+                                    <div className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                                  </div>
+                                );
+                              })()}
+
+                            {/* Schedule blocks */}
+                            {dayBlocks.map((block, index) => {
+                              const dayStart = new Date(block.displayStart);
+                              dayStart.setHours(0, 0, 0, 0);
+                              const dayEnd = new Date(dayStart);
+                              dayEnd.setHours(23, 59, 59, 999);
+
+                              const blockStart = block.displayStart;
+                              const blockEnd = block.displayEnd;
+
+                              // Calculate position and width in pixels (50px per hour)
+                              const startHour =
+                                (blockStart.getTime() - dayStart.getTime()) /
+                                (1000 * 60 * 60);
+                              const endHour =
+                                (blockEnd.getTime() - dayStart.getTime()) /
+                                (1000 * 60 * 60);
+
+                              const left = startHour * 50; // 50px per hour
+                              const width = (endHour - startHour) * 50; // 50px per hour
+
+                              return (
+                                <div
+                                  key={`${block.id}-${index}`}
+                                  className={`absolute rounded-md shadow-sm cursor-pointer transition-all hover:shadow-md ${getShuttleColor(
+                                    block.shuttle.id
+                                  )} flex flex-col justify-center items-center p-1 sm:p-2`}
+                                  style={{
+                                    left: `${left}px`,
+                                    width: `${width}px`,
+                                    top: "8px",
+                                    height: "calc(100% - 16px)",
+                                    minWidth: "80px",
+                                    zIndex: 10 + index,
+                                  }}
+                                  title={`${block.driver.name} - ${block.shuttle.vehicleNumber}`}
+                                >
+                                  <div className="font-semibold text-[10px] sm:text-xs truncate w-full text-center">
+                                    {block.driver.name}
+                                  </div>
+                                  <div className="text-[10px] sm:text-xs text-gray-700 truncate w-full text-center">
+                                    {block.shuttle.vehicleNumber}
+                                  </div>
+                                  <div className="text-[8px] sm:text-[10px] text-gray-500 text-center leading-tight">
+                                    {
+                                      formatTimeForDisplay(
+                                        block.displayStart.toISOString()
+                                      ).split(" ")[0]
+                                    }{" "}
+                                    -{" "}
+                                    {
+                                      formatTimeForDisplay(
+                                        block.displayEnd.toISOString()
+                                      ).split(" ")[0]
+                                    }
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Live Shuttles Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -277,7 +616,7 @@ export default function DashboardPage() {
             {stats.totalLiveShuttles} Active
           </Badge>
         </div>
-        
+
         {loading ? (
           <Card>
             <CardContent className="p-6">
@@ -321,8 +660,8 @@ export default function DashboardPage() {
             {stats.totalPendingBookings} Pending
           </Badge>
         </div>
-        
-        <PendingBookingsCard 
+
+        <PendingBookingsCard
           bookings={pendingBookings}
           totalPendingBookings={stats.totalPendingBookings}
           timeRange={{
