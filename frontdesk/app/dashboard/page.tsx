@@ -97,7 +97,8 @@ interface Schedule {
 }
 
 export default function DashboardPage() {
-  const { isConnected, socket, markUserInteraction } = useWebSocket();
+  const { isConnected, socket, markUserInteraction, connectWebSocket } =
+    useWebSocket();
   const [liveShuttles, setLiveShuttles] = useState<LiveShuttle[]>([]);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<Schedule[]>([]);
@@ -105,6 +106,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionRetryCount, setConnectionRetryCount] = useState(0);
   const [stats, setStats] = useState({
     totalLiveShuttles: 0,
     totalActiveBookings: 0,
@@ -115,6 +117,22 @@ export default function DashboardPage() {
   useEffect(() => {
     markUserInteraction();
   }, [markUserInteraction]);
+
+  // Handle WebSocket connection retry
+  useEffect(() => {
+    if (!isConnected && connectionRetryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(
+          `Retrying WebSocket connection... Attempt ${connectionRetryCount + 1}`
+        );
+        setConnectionRetryCount((prev) => prev + 1);
+        // Try to connect manually
+        connectWebSocket();
+      }, 2000 * (connectionRetryCount + 1)); // Exponential backoff
+
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, connectionRetryCount, connectWebSocket]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -386,6 +404,19 @@ export default function DashboardPage() {
                 Real-time updates enabled
               </span>
             )}
+            {!isConnected && connectionRetryCount < 3 && (
+              <button
+                onClick={connectWebSocket}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Retry Connection
+              </button>
+            )}
+            {!isConnected && connectionRetryCount >= 3 && (
+              <span className="text-sm text-red-600">
+                Connection failed. Please refresh the page.
+              </span>
+            )}
           </div>
         </div>
         <button
@@ -612,9 +643,9 @@ export default function DashboardPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">Live Shuttles</h2>
-          <Badge className="bg-blue-100 text-blue-800">
+          {/* <Badge className="bg-blue-100 text-blue-800">
             {stats.totalLiveShuttles} Active
-          </Badge>
+          </Badge> */}
         </div>
 
         {loading ? (

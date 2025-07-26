@@ -4,12 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Bell, MapPin, Users, Clock, Car, TrendingUp } from "lucide-react";
-import { NotificationDropdown } from "@/components/notification-dropdown";
 import { useWebSocket } from "@/context/WebSocketContext";
-import { ChatProvider } from "@/context/ChatContext";
-import { ChatSheet } from "@/components/chat-sheet";
 import { useHotelId } from "@/hooks/use-hotel-id";
 import { useDriverProfile } from "@/context/DriverProfileContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -19,7 +15,8 @@ export default function DashboardPage() {
   const [driverName, setDriverName] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
-  const { socket, isConnected } = useWebSocket();
+  const [connectionRetryCount, setConnectionRetryCount] = useState(0);
+  const { socket, isConnected, connectWebSocket } = useWebSocket();
   const { hotelId } = useHotelId();
   const { profile } = useDriverProfile();
   const isMobile = useIsMobile();
@@ -28,6 +25,22 @@ export default function DashboardPage() {
     // You can add other WebSocket listeners here if they are specific to this page
     // For example, listening for live trip updates
   }, [socket]);
+
+  // Handle WebSocket connection retry
+  useEffect(() => {
+    if (!isConnected && connectionRetryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(
+          `Retrying WebSocket connection... Attempt ${connectionRetryCount + 1}`
+        );
+        setConnectionRetryCount((prev) => prev + 1);
+        // Try to connect manually
+        connectWebSocket();
+      }, 2000 * (connectionRetryCount + 1)); // Exponential backoff
+
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, connectionRetryCount, connectWebSocket]);
 
   useEffect(() => {
     const name = localStorage.getItem("driverName") || "Driver";
@@ -48,8 +61,40 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Welcome back,</h1>
-          <p className="text-lg sm:text-xl font-semibold text-foreground">{driverName}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            Welcome back,
+          </h1>
+          <p className="text-lg sm:text-xl font-semibold text-foreground">
+            {driverName}
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            ></div>
+            <span className="text-sm text-gray-600">
+              WebSocket: {isConnected ? "Connected" : "Disconnected"}
+            </span>
+            {isConnected && (
+              <span className="text-sm text-blue-600">
+                Real-time updates enabled
+              </span>
+            )}
+            {!isConnected && connectionRetryCount < 3 && (
+              <button
+                onClick={connectWebSocket}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Retry Connection
+              </button>
+            )}
+            {!isConnected && connectionRetryCount >= 3 && (
+              <span className="text-sm text-red-600">
+                Connection failed. Please refresh the page.
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -69,11 +114,15 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-xl sm:text-2xl font-bold text-foreground">Manage Trips</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">
+              Manage Trips
+            </p>
             <p className="text-xs sm:text-sm text-foreground">
               Start, monitor, and end shuttle trips
             </p>
-            <p className="text-xs sm:text-sm text-foreground">Click to view details</p>
+            <p className="text-xs sm:text-sm text-foreground">
+              Click to view details
+            </p>
           </CardContent>
         </Card>
 
@@ -91,8 +140,12 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-xl sm:text-2xl font-bold text-foreground">6 / 12</p>
-            <p className="text-xs sm:text-sm text-foreground">4 checked in, 2 pending</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">
+              6 / 12
+            </p>
+            <p className="text-xs sm:text-sm text-foreground">
+              4 checked in, 2 pending
+            </p>
             <div className="w-full bg-blue-100 dark:bg-blue-900 rounded-full h-2">
               <div
                 className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
@@ -123,7 +176,9 @@ export default function DashboardPage() {
               <p className="text-xs sm:text-sm text-foreground">
                 QR code scanning and verification
               </p>
-              <p className="text-xs sm:text-sm text-foreground">Real-time updates</p>
+              <p className="text-xs sm:text-sm text-foreground">
+                Real-time updates
+              </p>
             </div>
             <Button
               size={isMobile ? "sm" : "default"}
@@ -151,15 +206,25 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-xl sm:text-2xl font-bold text-foreground">12</p>
-              <p className="text-xs sm:text-sm text-foreground">Trips Completed</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">
+                12
+              </p>
+              <p className="text-xs sm:text-sm text-foreground">
+                Trips Completed
+              </p>
             </div>
             <div className="text-center">
-              <p className="text-xl sm:text-2xl font-bold text-foreground">48</p>
-              <p className="text-xs sm:text-sm text-foreground">Passengers Served</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">
+                48
+              </p>
+              <p className="text-xs sm:text-sm text-foreground">
+                Passengers Served
+              </p>
             </div>
             <div className="text-center">
-              <p className="text-xl sm:text-2xl font-bold text-foreground">4.9</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">
+                4.9
+              </p>
               <p className="text-xs sm:text-sm text-foreground">Rating</p>
             </div>
           </div>

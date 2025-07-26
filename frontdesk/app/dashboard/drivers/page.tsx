@@ -156,8 +156,8 @@ function DriversPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Assigned Schedules</TableHead>
-                  <TableHead>Created At</TableHead>
+                  {/* <TableHead>Assigned Schedules</TableHead> */}
+                  {/* <TableHead>Created At</TableHead> */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -167,7 +167,7 @@ function DriversPage() {
                     <TableCell className="font-medium">{driver.name}</TableCell>
                     <TableCell>{driver.email}</TableCell>
                     <TableCell>{driver.phoneNumber}</TableCell>
-                    <TableCell>
+                    {/* <TableCell>
                       {driver.schedules && driver.schedules.length > 0 ? (
                         <div className="space-y-1">
                           {driver.schedules.map((schedule) => (
@@ -183,10 +183,10 @@ function DriversPage() {
                       ) : (
                         <span className="text-slate-400">No schedules</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell> */}
+                    {/* <TableCell>
                       {new Date(driver.createdAt).toLocaleDateString()}
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell className="text-right">
                       <Button
                         variant="outline"

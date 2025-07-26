@@ -36,6 +36,7 @@ import {
 import Link from "next/link";
 import { RescheduleModal } from "@/components/reschedule-modal";
 import { CancelBookingModal } from "@/components/cancel-booking-modal";
+import { RejectBookingModal } from "@/components/reject-booking-modal";
 import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Booking {
@@ -157,8 +158,12 @@ export default function BookingsPage() {
   );
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectBookingId, setRejectBookingId] = useState<string | null>(null);
   const [newBookingIds, setNewBookingIds] = useState<Set<string>>(new Set());
-  const [verifyingBookings, setVerifyingBookings] = useState<Set<string>>(new Set());
+  const [verifyingBookings, setVerifyingBookings] = useState<Set<string>>(
+    new Set()
+  );
 
   // Function to fetch bookings
   const fetchBookings = async () => {
@@ -190,16 +195,18 @@ export default function BookingsPage() {
     const handleNewBooking = async (data: any) => {
       console.log("New booking received via WebSocket:", data);
       console.log("Booking guest data:", data.booking?.guest);
-      
+
       // Add the new booking to the top of the list
       if (data.booking) {
         let completeBooking = data.booking;
-        
+
         // If the WebSocket booking doesn't have guest information, fetch it from the API
         if (!data.booking.guest) {
           try {
             console.log("Fetching complete booking data from API...");
-            const response = await api.get(`/frontdesk/bookings/${data.booking.id}`);
+            const response = await api.get(
+              `/frontdesk/bookings/${data.booking.id}`
+            );
             completeBooking = response.booking;
             console.log("Complete booking data fetched:", completeBooking);
           } catch (error) {
@@ -207,33 +214,33 @@ export default function BookingsPage() {
             // Continue with the incomplete data if API call fails
           }
         }
-        
-        setBookings(prevBookings => {
+
+        setBookings((prevBookings) => {
           // Check if booking already exists to avoid duplicates
-          const exists = prevBookings.find(b => b.id === completeBooking.id);
+          const exists = prevBookings.find((b) => b.id === completeBooking.id);
           if (exists) {
             return prevBookings;
           }
           return [completeBooking, ...prevBookings];
         });
-        
+
         // Add to new booking IDs for highlighting
-        setNewBookingIds(prev => new Set([...prev, completeBooking.id]));
-        
+        setNewBookingIds((prev) => new Set([...prev, completeBooking.id]));
+
         // Show a toast notification for the new booking
-        const guestName = completeBooking.guest?.firstName 
+        const guestName = completeBooking.guest?.firstName
           ? `${completeBooking.guest.firstName} ${completeBooking.guest.lastName}`
-          : completeBooking.guest?.email || completeBooking.confirmationNum 
-            ? `Confirmation: ${completeBooking.confirmationNum}`
-            : 'Guest';
-        
+          : completeBooking.guest?.email || completeBooking.confirmationNum
+          ? `Confirmation: ${completeBooking.confirmationNum}`
+          : "Guest";
+
         toast.success(`${guestName} has made a new booking`, {
           duration: 4000,
         });
-        
+
         // Remove highlight after 5 seconds
         setTimeout(() => {
-          setNewBookingIds(prev => {
+          setNewBookingIds((prev) => {
             const newSet = new Set(prev);
             newSet.delete(completeBooking.id);
             return newSet;
@@ -245,11 +252,11 @@ export default function BookingsPage() {
     // Listen for booking updates (cancelled, verified, etc.)
     const handleBookingUpdate = (data: any) => {
       console.log("Booking update received via WebSocket:", data);
-      
+
       if (data.booking) {
-        setBookings(prevBookings => 
-          prevBookings.map(booking => 
-            booking.id === data.booking.id 
+        setBookings((prevBookings) =>
+          prevBookings.map((booking) =>
+            booking.id === data.booking.id
               ? { ...booking, ...data.booking }
               : booking
           )
@@ -260,11 +267,11 @@ export default function BookingsPage() {
     // Listen for booking cancellations
     const handleBookingCancelled = (data: any) => {
       console.log("Booking cancelled via WebSocket:", data);
-      
+
       if (data.booking) {
-        setBookings(prevBookings => 
-          prevBookings.map(booking => 
-            booking.id === data.booking.id 
+        setBookings((prevBookings) =>
+          prevBookings.map((booking) =>
+            booking.id === data.booking.id
               ? { ...booking, isCancelled: true }
               : booking
           )
@@ -275,11 +282,11 @@ export default function BookingsPage() {
     // Listen for booking assignments
     const handleBookingAssigned = (data: any) => {
       console.log("Booking assigned via WebSocket:", data);
-      
+
       if (data.booking) {
-        setBookings(prevBookings => 
-          prevBookings.map(booking => 
-            booking.id === data.booking.id 
+        setBookings((prevBookings) =>
+          prevBookings.map((booking) =>
+            booking.id === data.booking.id
               ? { ...booking, ...data.booking }
               : booking
           )
@@ -350,8 +357,8 @@ export default function BookingsPage() {
   const handleVerifyBooking = async (bookingId: string) => {
     try {
       // Set loading state for this specific booking
-      setVerifyingBookings(prev => new Set(prev).add(bookingId));
-      
+      setVerifyingBookings((prev) => new Set(prev).add(bookingId));
+
       await api.post(`/frontdesk/bookings/${bookingId}/verify`, {
         reason: "Verified by frontdesk from bookings list",
       });
@@ -366,7 +373,7 @@ export default function BookingsPage() {
       toast.error(error.message || "Failed to verify booking");
     } finally {
       // Clear loading state for this booking
-      setVerifyingBookings(prev => {
+      setVerifyingBookings((prev) => {
         const newSet = new Set(prev);
         newSet.delete(bookingId);
         return newSet;
@@ -374,10 +381,10 @@ export default function BookingsPage() {
     }
   };
 
-  const handleRejectBooking = async (bookingId: string) => {
+  const handleRejectBooking = async (bookingId: string, reason: string) => {
     try {
       await api.post(`/frontdesk/bookings/${bookingId}/reject`, {
-        reason: "Rejected by frontdesk",
+        reason: reason,
       });
 
       toast.success("Booking rejected successfully");
@@ -388,7 +395,13 @@ export default function BookingsPage() {
     } catch (error: any) {
       console.error("Error rejecting booking:", error);
       toast.error(error.message || "Failed to reject booking");
+      throw error; // Re-throw to let the modal handle the error state
     }
+  };
+
+  const handleOpenRejectModal = (bookingId: string) => {
+    setRejectBookingId(bookingId);
+    setShowRejectModal(true);
   };
 
   const handleRescheduleBooking = (booking: Booking) => {
@@ -399,7 +412,7 @@ export default function BookingsPage() {
   const handleRescheduleSuccess = async () => {
     setShowReschedule(false);
     setRescheduleBooking(null);
-    
+
     // Refresh the bookings list
     try {
       const data = await api.get("/frontdesk/bookings");
@@ -420,30 +433,30 @@ export default function BookingsPage() {
     const hasName = guest?.firstName?.trim() && guest?.lastName?.trim();
     const hasConfirmation = booking.confirmationNum?.trim();
     const hasEmail = guest?.email?.trim();
-    
+
     if (hasName && guest) {
       return {
         display: `${guest.firstName} ${guest.lastName}`,
-        type: 'name' as const,
-        icon: User
+        type: "name" as const,
+        icon: User,
       };
     } else if (hasConfirmation) {
       return {
         display: `Confirmation: ${booking.confirmationNum}`,
-        type: 'confirmation' as const,
-        icon: Hash
+        type: "confirmation" as const,
+        icon: Hash,
       };
     } else if (hasEmail && guest) {
       return {
         display: guest.email,
-        type: 'email' as const,
-        icon: User
+        type: "email" as const,
+        icon: User,
       };
     } else {
       return {
-        display: 'Unknown Guest',
-        type: 'unknown' as const,
-        icon: User
+        display: "Unknown Guest",
+        type: "unknown" as const,
+        icon: User,
       };
     }
   };
@@ -460,9 +473,13 @@ export default function BookingsPage() {
           <p className="text-gray-600">View and manage all shuttle bookings</p>
         </div>
         <div className="flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div
+            className={`w-3 h-3 rounded-full ${
+              isConnected ? "bg-green-500" : "bg-red-500"
+            }`}
+          ></div>
           <span className="text-sm text-gray-600">
-            {isConnected ? 'Live updates active' : 'Live updates disconnected'}
+            {isConnected ? "Live updates active" : "Live updates disconnected"}
           </span>
         </div>
       </div>
@@ -479,13 +496,13 @@ export default function BookingsPage() {
               <div className="flex items-center gap-2">
                 <span className="text-gray-600">Park, Sleep & Fly:</span>
                 <Badge className="bg-blue-100 text-blue-800">
-                  {bookings.filter(b => b.isParkSleepFly).length}
+                  {bookings.filter((b) => b.isParkSleepFly).length}
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-600">Regular:</span>
                 <Badge variant="outline">
-                  {bookings.filter(b => !b.isParkSleepFly).length}
+                  {bookings.filter((b) => !b.isParkSleepFly).length}
                 </Badge>
               </div>
             </div>
@@ -506,18 +523,18 @@ export default function BookingsPage() {
             </TableHeader>
             <TableBody>
               {bookings.map((booking) => (
-                <TableRow 
+                <TableRow
                   key={booking.id}
                   className={`${
-                    newBookingIds.has(booking.id) 
-                      ? 'animate-pulse bg-green-50 border-l-4 border-l-green-500' 
+                    newBookingIds.has(booking.id)
+                      ? "animate-pulse bg-green-50 border-l-4 border-l-green-500"
                       : booking.isParkSleepFly
-                      ? 'bg-blue-50 border-l-4 border-l-blue-500'
-                      : ''
+                      ? "bg-blue-50 border-l-4 border-l-blue-500"
+                      : ""
                   } ${
                     verifyingBookings.has(booking.id)
-                      ? 'bg-yellow-50 border-l-4 border-l-yellow-500'
-                      : ''
+                      ? "bg-yellow-50 border-l-4 border-l-yellow-500"
+                      : ""
                   } transition-all duration-300`}
                 >
                   <TableCell>
@@ -538,9 +555,10 @@ export default function BookingsPage() {
                                 )}
                               </p>
                               <p className="text-sm text-gray-500">
-                                {booking.guest?.email || (booking.confirmationNum 
-                                  ? `Confirmation: ${booking.confirmationNum}`
-                                  : 'No email provided')}
+                                {booking.guest?.email ||
+                                  (booking.confirmationNum
+                                    ? `Confirmation: ${booking.confirmationNum}`
+                                    : "No email provided")}
                               </p>
                             </div>
                           </div>
@@ -581,8 +599,11 @@ export default function BookingsPage() {
                   <TableCell>
                     {booking.pricing ? (
                       <span>
-                        ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
-                        <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                        ${booking.pricing.pricePerPerson.toFixed(2)} per person
+                        <br />
+                        <span className="font-semibold text-green-700">
+                          Total: ${booking.pricing.totalPrice.toFixed(2)}
+                        </span>
                       </span>
                     ) : (
                       <span>-</span>
@@ -615,10 +636,14 @@ export default function BookingsPage() {
                                 ) : (
                                   <CheckCircle className="w-4 h-4 mr-2" />
                                 )}
-                                {verifyingBookings.has(booking.id) ? "Verifying..." : "Verify Booking"}
+                                {verifyingBookings.has(booking.id)
+                                  ? "Verifying..."
+                                  : "Verify Booking"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleRejectBooking(booking.id)}
+                                onClick={() =>
+                                  handleOpenRejectModal(booking.id)
+                                }
                                 className="cursor-pointer text-red-600"
                                 disabled={verifyingBookings.has(booking.id)}
                               >
@@ -627,29 +652,35 @@ export default function BookingsPage() {
                               </DropdownMenuItem>
                             </>
                           )}
-                          {canModifyBooking(booking) && !booking.needsFrontdeskVerification && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleRescheduleBooking(booking)}
-                                className="cursor-pointer"
-                              >
-                                <Clock className="w-4 h-4 mr-2" />
-                                Reschedule
+                          {canModifyBooking(booking) &&
+                            !booking.needsFrontdeskVerification && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleRescheduleBooking(booking)
+                                  }
+                                  className="cursor-pointer"
+                                >
+                                  <Clock className="w-4 h-4 mr-2" />
+                                  Reschedule
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleOpenCancelModal(booking.id)
+                                  }
+                                  className="cursor-pointer text-red-600"
+                                >
+                                  <X className="w-4 h-4 mr-2" />
+                                  Cancel Booking
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          {!canModifyBooking(booking) &&
+                            !booking.needsFrontdeskVerification && (
+                              <DropdownMenuItem disabled>
+                                No actions available
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleOpenCancelModal(booking.id)}
-                                className="cursor-pointer text-red-600"
-                              >
-                                <X className="w-4 h-4 mr-2" />
-                                Cancel Booking
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {!canModifyBooking(booking) && !booking.needsFrontdeskVerification && (
-                            <DropdownMenuItem disabled>
-                              No actions available
-                            </DropdownMenuItem>
-                          )}
+                            )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -692,6 +723,19 @@ export default function BookingsPage() {
           }}
           onConfirm={(reason) => handleCancelBooking(cancelBookingId, reason)}
           bookingId={cancelBookingId}
+        />
+      )}
+
+      {/* Reject Booking Modal */}
+      {rejectBookingId && (
+        <RejectBookingModal
+          isOpen={showRejectModal}
+          onClose={() => {
+            setShowRejectModal(false);
+            setRejectBookingId(null);
+          }}
+          onConfirm={(reason) => handleRejectBooking(rejectBookingId, reason)}
+          bookingId={rejectBookingId}
         />
       )}
     </div>

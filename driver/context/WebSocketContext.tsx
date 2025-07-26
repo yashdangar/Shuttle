@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
@@ -8,6 +14,7 @@ interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   onBookingUpdate?: (callback: (booking: any) => void) => void;
+  connectWebSocket: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -49,37 +56,107 @@ export const WebSocketProvider = ({
     setHasMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (!hasMounted) return;
+  const onBookingUpdate = (callback: (booking: any) => void) => {
+    bookingUpdateCallbacksRef.current.push(callback);
 
+    // Return cleanup function
+    return () => {
+      const index = bookingUpdateCallbacksRef.current.indexOf(callback);
+      if (index > -1) {
+        bookingUpdateCallbacksRef.current.splice(index, 1);
+      }
+    };
+  };
+
+  const connectWebSocket = () => {
     const token = localStorage.getItem("driverToken");
 
     if (!token) {
-      console.log("No token found, WebSocket connection not initiated.");
+      console.log("No driver token found, cannot connect WebSocket.");
       return;
     }
 
-    const socketInstance = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080", {
+    console.log("Token found, attempting WebSocket connection...");
+
+    // If socket already exists and is connected, don't create a new one
+    if (socket && socket.connected) {
+      console.log("WebSocket already connected.");
+      return;
+    }
+
+    // If socket exists but is disconnected, try to reconnect
+    if (socket && socket.disconnected) {
+      console.log("Attempting to reconnect existing WebSocket...");
+      socket.connect();
+      return;
+    }
+
+    const wsUrl =
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:8080";
+    console.log("Creating new WebSocket connection to:", wsUrl);
+
+    const socketInstance = io(wsUrl, {
       auth: {
         token,
       },
-      transports: ["websocket"],
-      upgrade: false,
+      transports: ["websocket", "polling"],
+      upgrade: true,
       timeout: 20000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      // maxReconnectionAttempts: 5,
+      forceNew: true,
     });
 
     setSocket(socketInstance);
 
-    socketInstance.on("connect", () => {
-      console.log("WebSocket connected!");
+    // Set up connection event handlers
+    const handleConnect = () => {
+      console.log("Driver WebSocket connected!");
       setIsConnected(true);
-    });
+    };
 
-    socketInstance.on("disconnect", () => {
-      console.log("WebSocket disconnected.");
-      toast.error("Real-time connection lost.");
+    const handleDisconnect = (reason: string) => {
+      console.log("Driver WebSocket disconnected:", reason);
       setIsConnected(false);
-    });
+    };
+
+    const handleConnectError = (error: any) => {
+      console.error("Driver WebSocket connection error:", error);
+      setIsConnected(false);
+    };
+
+    const handleReconnect = (attemptNumber: number) => {
+      console.log(
+        "Driver WebSocket reconnected after",
+        attemptNumber,
+        "attempts"
+      );
+      setIsConnected(true);
+    };
+
+    const handleReconnectError = (error: any) => {
+      console.error("Driver WebSocket reconnection error:", error);
+    };
+
+    const handleReconnectFailed = () => {
+      console.error("Driver WebSocket reconnection failed");
+    };
+
+    // Add event listeners
+    socketInstance.on("connect", handleConnect);
+    socketInstance.on("disconnect", handleDisconnect);
+    socketInstance.on("connect_error", handleConnectError);
+    socketInstance.on("reconnect", handleReconnect);
+    socketInstance.on("reconnect_error", handleReconnectError);
+    socketInstance.on("reconnect_failed", handleReconnectFailed);
+
+    // Try to connect immediately
+    if (socketInstance.disconnected) {
+      socketInstance.connect();
+    }
 
     socketInstance.on("welcome", (data: any) => {
       console.log("Received welcome message:", data);
@@ -90,14 +167,14 @@ export const WebSocketProvider = ({
 
     socketInstance.on("booking_assigned", (data: any) => {
       console.log("New booking assigned via WebSocket:", data);
-      
+
       // Show toast notification
       toast.success(data.title, {
         description: data.message,
       });
-      
+
       // Notify all registered callbacks
-      bookingUpdateCallbacksRef.current.forEach(callback => {
+      bookingUpdateCallbacksRef.current.forEach((callback) => {
         callback(data.booking);
       });
     });
@@ -109,22 +186,21 @@ export const WebSocketProvider = ({
     return () => {
       socketInstance.disconnect();
     };
-  }, [hasMounted]);
-
-  const onBookingUpdate = (callback: (booking: any) => void) => {
-    bookingUpdateCallbacksRef.current.push(callback);
-    
-    // Return cleanup function
-    return () => {
-      const index = bookingUpdateCallbacksRef.current.indexOf(callback);
-      if (index > -1) {
-        bookingUpdateCallbacksRef.current.splice(index, 1);
-      }
-    };
   };
 
+  useEffect(() => {
+    if (!hasMounted) return;
+
+    // Add a small delay to ensure localStorage is available and token is set
+    const timer = setTimeout(() => {
+      connectWebSocket();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [hasMounted, connectWebSocket]);
+
   return (
-    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate }}>
+    <WebSocketContext.Provider value={{ socket, isConnected, onBookingUpdate, connectWebSocket }}>
       {children}
     </WebSocketContext.Provider>
   );

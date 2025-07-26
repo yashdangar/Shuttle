@@ -79,7 +79,8 @@ function ShuttlesPage() {
       try {
         setLoading(true);
         const response = await fetchWithAuth("/frontdesk/get/shuttle");
-        setShuttles(response.shuttles);
+        const data = await response.json();
+        setShuttles(data.shuttles);
         
         // Also fetch capacity status
         const capacityResponse = await fetchWithAuth("/frontdesk/shuttle-capacity-status");
@@ -163,7 +164,7 @@ function ShuttlesPage() {
                   <TableHead>Seats</TableHead>
                   <TableHead>Capacity Status</TableHead>
                   <TableHead>Assigned Schedules</TableHead>
-                  <TableHead>Created At</TableHead>
+                  {/* <TableHead>Created At</TableHead> */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -193,7 +194,7 @@ function ShuttlesPage() {
                               ))}
                           </div>
                         ) : (
-                          <span className="text-slate-400">Loading capacity...</span>
+                          <span className="text-slate-400">No capacity data</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -213,9 +214,9 @@ function ShuttlesPage() {
                           <span className="text-slate-400">No schedules</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         {new Date(shuttle.createdAt).toLocaleDateString()}
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell className="text-right">
                         <Button
                           variant="outline"

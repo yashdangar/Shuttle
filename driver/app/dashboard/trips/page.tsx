@@ -98,8 +98,10 @@ export default function TripsPage() {
   const [newBookingNotification, setNewBookingNotification] =
     useState<LiveBooking | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [connectionRetryCount, setConnectionRetryCount] = useState(0);
   const { toast } = useToast();
-  const { socket, isConnected, onBookingUpdate } = useWebSocket();
+  const { socket, isConnected, onBookingUpdate, connectWebSocket } =
+    useWebSocket();
   const isMobile = useIsMobile();
 
   const fetchTripData = useCallback(async () => {
@@ -141,13 +143,29 @@ export default function TripsPage() {
     }
   }, [toast]);
 
+  // Handle WebSocket connection retry
+  useEffect(() => {
+    if (!isConnected && connectionRetryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(
+          `Retrying WebSocket connection... Attempt ${connectionRetryCount + 1}`
+        );
+        setConnectionRetryCount((prev) => prev + 1);
+        // Try to connect manually
+        connectWebSocket();
+      }, 2000 * (connectionRetryCount + 1)); // Exponential backoff
+
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, connectionRetryCount, connectWebSocket]);
+
   // WebSocket event listeners for real-time updates
   useEffect(() => {
     if (!onBookingUpdate) return;
 
     const cleanup = onBookingUpdate((updatedBooking) => {
       console.log("Booking update received via WebSocket:", updatedBooking);
-      
+
       // Create a new booking notification
       const newBooking: LiveBooking = {
         id: updatedBooking.id,
@@ -160,15 +178,15 @@ export default function TripsPage() {
         bookingType: updatedBooking.bookingType,
         assignedAt: new Date().toISOString(),
       };
-      
+
       setLiveBookings((prev) => [...prev, newBooking]);
       setNewBookingNotification(newBooking);
-      
+
       toast({
         title: "🚗 New Booking Assigned!",
         description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
       });
-      
+
       // Refresh trip data
       fetchTripData();
     });
@@ -198,8 +216,7 @@ export default function TripsPage() {
         console.error("Error starting trip:", error);
         toast({
           title: "Error",
-          description:
-            error.response?.data?.message || "Failed to start trip",
+          description: error.response?.data?.message || "Failed to start trip",
           variant: "destructive",
         });
       } finally {
@@ -263,27 +280,31 @@ export default function TripsPage() {
     }
   }, [currentTrip, endTripConfirmed]);
 
-  const handleTransitionPhase = useCallback(async (phase: "RETURN") => {
-    if (!currentTrip) return;
+  const handleTransitionPhase = useCallback(
+    async (phase: "RETURN") => {
+      if (!currentTrip) return;
 
-    try {
-      await api.post(`/trips/${currentTrip.id}/transition`, { phase });
-      
-      toast({
-        title: "Trip Phase Updated",
-        description: `Trip transitioned to ${phase.toLowerCase()} phase`,
-      });
-      
-      fetchTripData();
-    } catch (error: any) {
-      console.error("Error transitioning trip phase:", error);
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to transition trip phase",
-        variant: "destructive",
-      });
-    }
-  }, [currentTrip, toast, fetchTripData]);
+      try {
+        await api.post(`/trips/${currentTrip.id}/transition`, { phase });
+
+        toast({
+          title: "Trip Phase Updated",
+          description: `Trip transitioned to ${phase.toLowerCase()} phase`,
+        });
+
+        fetchTripData();
+      } catch (error: any) {
+        console.error("Error transitioning trip phase:", error);
+        toast({
+          title: "Error",
+          description:
+            error.response?.data?.message || "Failed to transition trip phase",
+          variant: "destructive",
+        });
+      }
+    },
+    [currentTrip, toast, fetchTripData]
+  );
 
   const getDirectionLabel = (direction: string) => {
     return direction === "HOTEL_TO_AIRPORT"
@@ -326,7 +347,7 @@ export default function TripsPage() {
       title: "✅ Passenger Checked In!",
       description: `${passengerData.name} has been successfully checked in.`,
     });
-    
+
     // Refresh trip data to update passenger counts
     fetchTripData();
   };
@@ -337,7 +358,9 @@ export default function TripsPage() {
         <div className="flex items-center justify-center h-48 sm:h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 text-sm sm:text-base">Loading trips...</p>
+            <p className="text-gray-600 text-sm sm:text-base">
+              Loading trips...
+            </p>
           </div>
         </div>
       </div>
@@ -358,10 +381,28 @@ export default function TripsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isConnected && (
-            <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+            <Badge
+              variant="destructive"
+              className="flex items-center gap-1 text-xs"
+            >
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
               Offline
             </Badge>
+          )}
+          {!isConnected && connectionRetryCount < 3 && (
+            <Button
+              onClick={connectWebSocket}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            >
+              Retry Connection
+            </Button>
+          )}
+          {!isConnected && connectionRetryCount >= 3 && (
+            <span className="text-xs text-red-600">
+              Connection failed. Please refresh the page.
+            </span>
           )}
           {/* QR Scanner Button - Only show when trip is active */}
           {currentTrip && currentTrip.status === "ACTIVE" && (
@@ -381,7 +422,11 @@ export default function TripsPage() {
             disabled={loading}
             className="text-xs sm:text-sm"
           >
-            <div className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`}>
+            <div
+              className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${
+                loading ? "animate-spin" : ""
+              }`}
+            >
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -403,10 +448,10 @@ export default function TripsPage() {
 
       {/* Location Tracker - Only active when trip is active */}
       {currentTrip && currentTrip.status === "ACTIVE" && (
-        <LocationTracker 
-          isActive={true} 
+        <LocationTracker
+          isActive={true}
           onLocationUpdate={(location) => {
-            console.log('Location updated:', location);
+            console.log("Location updated:", location);
             // The location tracker will automatically send location to server
           }}
         />
@@ -452,7 +497,10 @@ export default function TripsPage() {
                 <Navigation className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                 Active Round Trip
               </div>
-              <Badge variant="secondary" className="self-start sm:ml-auto text-xs">
+              <Badge
+                variant="secondary"
+                className="self-start sm:ml-auto text-xs"
+              >
                 {getDirectionLabel(currentTrip.direction)}
               </Badge>
             </CardTitle>
@@ -461,37 +509,83 @@ export default function TripsPage() {
             {/* Trip Phase Display */}
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <span className="text-sm font-medium text-gray-700">Trip Phase:</span>
-                <Badge className={`${getPhaseColor(currentTrip.phase)} text-xs`}>
+                <span className="text-sm font-medium text-gray-700">
+                  Trip Phase:
+                </span>
+                <Badge
+                  className={`${getPhaseColor(currentTrip.phase)} text-xs`}
+                >
                   {getPhaseLabel(currentTrip.phase)}
                 </Badge>
               </div>
-              
+
               {/* Phase Progress - Simplified for mobile */}
               {isMobile ? (
                 <div className="flex items-center justify-center gap-4 text-xs">
                   <div className="flex items-center gap-1">
-                    <div className={`w-3 h-3 rounded-full ${currentTrip.phase === "OUTBOUND" || currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-blue-500" : "bg-gray-300"}`}></div>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        currentTrip.phase === "OUTBOUND" ||
+                        currentTrip.phase === "RETURN" ||
+                        currentTrip.phase === "COMPLETED"
+                          ? "bg-blue-500"
+                          : "bg-gray-300"
+                      }`}
+                    ></div>
                     <span>Outbound</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className={`w-3 h-3 rounded-full ${currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-orange-500" : "bg-gray-300"}`}></div>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        currentTrip.phase === "RETURN" ||
+                        currentTrip.phase === "COMPLETED"
+                          ? "bg-orange-500"
+                          : "bg-gray-300"
+                      }`}
+                    ></div>
                     <span>Return</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className={`w-3 h-3 rounded-full ${currentTrip.phase === "COMPLETED" ? "bg-green-500" : "bg-gray-300"}`}></div>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        currentTrip.phase === "COMPLETED"
+                          ? "bg-green-500"
+                          : "bg-gray-300"
+                      }`}
+                    ></div>
                     <span>Complete</span>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 mb-4">
-                  <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "OUTBOUND" || currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-blue-500" : "bg-gray-300"}`}></div>
+                  <div
+                    className={`w-4 h-4 rounded-full ${
+                      currentTrip.phase === "OUTBOUND" ||
+                      currentTrip.phase === "RETURN" ||
+                      currentTrip.phase === "COMPLETED"
+                        ? "bg-blue-500"
+                        : "bg-gray-300"
+                    }`}
+                  ></div>
                   <span className="text-xs text-gray-600">Outbound</span>
                   <div className="flex-1 h-1 bg-gray-200 rounded"></div>
-                  <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "RETURN" || currentTrip.phase === "COMPLETED" ? "bg-orange-500" : "bg-gray-300"}`}></div>
+                  <div
+                    className={`w-4 h-4 rounded-full ${
+                      currentTrip.phase === "RETURN" ||
+                      currentTrip.phase === "COMPLETED"
+                        ? "bg-orange-500"
+                        : "bg-gray-300"
+                    }`}
+                  ></div>
                   <span className="text-xs text-gray-600">Return</span>
                   <div className="flex-1 h-1 bg-gray-200 rounded"></div>
-                  <div className={`w-4 h-4 rounded-full ${currentTrip.phase === "COMPLETED" ? "bg-green-500" : "bg-gray-300"}`}></div>
+                  <div
+                    className={`w-4 h-4 rounded-full ${
+                      currentTrip.phase === "COMPLETED"
+                        ? "bg-green-500"
+                        : "bg-gray-300"
+                    }`}
+                  ></div>
                   <span className="text-xs text-gray-600">Complete</span>
                 </div>
               )}
@@ -675,8 +769,7 @@ export default function TripsPage() {
                       {formatTimeForDisplay(booking.preferredTime)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Assigned{" "}
-                      {formatTimeForDisplay(booking.assignedAt)}
+                      Assigned {formatTimeForDisplay(booking.assignedAt)}
                     </p>
                   </div>
                 </div>
@@ -704,9 +797,7 @@ export default function TripsPage() {
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="text-xl sm:text-2xl">
-                        🏨↔️✈️
-                      </div>
+                      <div className="text-xl sm:text-2xl">🏨↔️✈️</div>
                       <div className="min-w-0 flex-1">
                         <h4 className="font-medium text-sm sm:text-base">
                           Round Trip (Hotel ↔ Airport)
@@ -776,4 +867,4 @@ export default function TripsPage() {
       />
     </div>
   );
-} 
+}
