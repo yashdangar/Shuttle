@@ -68,7 +68,7 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
             className="text-sm text-blue-600 hover:text-blue-700"
             onClick={handleClearAll}
           >
-            Clear all
+            Mark all Read
           </button>
         </div>
       </div>
