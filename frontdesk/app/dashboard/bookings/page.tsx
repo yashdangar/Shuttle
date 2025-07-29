@@ -215,6 +215,19 @@ export default function BookingsPage() {
           }
         }
 
+        // Calculate pricing for the new booking if not already present
+        if (!completeBooking.pricing) {
+          try {
+            const response = await api.get(
+              `/frontdesk/bookings/${completeBooking.id}`
+            );
+            completeBooking = response.booking;
+          } catch (error) {
+            console.error("Error fetching booking with pricing:", error);
+            // Continue without pricing if API call fails
+          }
+        }
+
         setBookings((prevBookings) => {
           // Check if booking already exists to avoid duplicates
           const exists = prevBookings.find((b) => b.id === completeBooking.id);
@@ -227,14 +240,18 @@ export default function BookingsPage() {
         // Add to new booking IDs for highlighting
         setNewBookingIds((prev) => new Set([...prev, completeBooking.id]));
 
-        // Show a toast notification for the new booking
+        // Show a toast notification for the new booking with pricing info
         const guestName = completeBooking.guest?.firstName
           ? `${completeBooking.guest.firstName} ${completeBooking.guest.lastName}`
           : completeBooking.guest?.email || completeBooking.confirmationNum
           ? `Confirmation: ${completeBooking.confirmationNum}`
           : "Guest";
 
-        toast.success(`${guestName} has made a new booking`, {
+        const pricingInfo = completeBooking.pricing 
+          ? ` - $${completeBooking.pricing.totalPrice.toFixed(2)}`
+          : "";
+
+        toast.success(`${guestName} has made a new booking${pricingInfo}`, {
           duration: 4000,
         });
 
@@ -250,14 +267,29 @@ export default function BookingsPage() {
     };
 
     // Listen for booking updates (cancelled, verified, etc.)
-    const handleBookingUpdate = (data: any) => {
+    const handleBookingUpdate = async (data: any) => {
       console.log("Booking update received via WebSocket:", data);
 
       if (data.booking) {
+        let updatedBooking = data.booking;
+
+        // Fetch complete booking data with pricing if not already present
+        if (!updatedBooking.pricing) {
+          try {
+            const response = await api.get(
+              `/frontdesk/bookings/${updatedBooking.id}`
+            );
+            updatedBooking = response.booking;
+          } catch (error) {
+            console.error("Error fetching updated booking with pricing:", error);
+            // Continue without pricing if API call fails
+          }
+        }
+
         setBookings((prevBookings) =>
           prevBookings.map((booking) =>
-            booking.id === data.booking.id
-              ? { ...booking, ...data.booking }
+            booking.id === updatedBooking.id
+              ? { ...booking, ...updatedBooking }
               : booking
           )
         );

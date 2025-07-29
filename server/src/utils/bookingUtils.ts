@@ -78,6 +78,60 @@ export async function getBookingDataForWebSocket(
   fallbackData: any
 ): Promise<any> {
   const completeData = await fetchCompleteBookingData(bookingId);
+  
+  if (completeData) {
+    // Add pricing information to the booking data
+    try {
+      // Get the hotel ID from the guest
+      const guest = await prisma.guest.findUnique({
+        where: { id: completeData.guestId },
+        select: { hotelId: true }
+      });
+
+      if (guest?.hotelId) {
+        let pricePerPerson = 0;
+        let totalPrice = 0;
+        let pricingLocationId = null;
+
+        // Determine which location to use for pricing based on booking type
+        if (completeData.bookingType === "HOTEL_TO_AIRPORT") {
+          // For hotel to airport, use dropoff location (airport) for pricing
+          pricingLocationId = completeData.dropoffLocationId;
+        } else if (completeData.bookingType === "AIRPORT_TO_HOTEL") {
+          // For airport to hotel, use pickup location (airport) for pricing
+          pricingLocationId = completeData.pickupLocationId;
+        }
+
+        if (pricingLocationId) {
+          // Get the hotel location price for this location
+          const hotelLocation = await prisma.hotelLocation.findUnique({
+            where: {
+              hotelId_locationId: {
+                hotelId: guest.hotelId,
+                locationId: pricingLocationId,
+              },
+            },
+          });
+
+          if (hotelLocation) {
+            pricePerPerson = hotelLocation.price;
+            totalPrice = hotelLocation.price * completeData.numberOfPersons;
+          }
+        }
+
+        // Add pricing to the booking data
+        completeData.pricing = {
+          pricePerPerson,
+          totalPrice,
+          numberOfPersons: completeData.numberOfPersons,
+        };
+      }
+    } catch (error) {
+      console.error("Error calculating pricing for WebSocket booking data:", error);
+      // Continue without pricing if calculation fails
+    }
+  }
+  
   return completeData || fallbackData;
 }
 

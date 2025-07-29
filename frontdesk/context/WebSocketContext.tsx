@@ -185,20 +185,6 @@ export const WebSocketProvider = ({
         // Immediately refresh notifications from database to update count
         await refreshNotifications();
 
-        // Show toast notification immediately
-        toast.info(
-          `${data.title || "New Booking"}\n${
-            data.message || "A new booking has been created"
-          }`,
-          {
-            duration: 5000,
-            action: {
-              label: "Stop Sound",
-              onClick: () => stopNotificationSound(),
-            },
-          }
-        );
-
         // Play continuous notification sound immediately
         console.log("Triggering continuous notification sound...");
         await playContinuousNotificationSound();
@@ -222,20 +208,6 @@ export const WebSocketProvider = ({
         // Immediately refresh notifications from database to update count
         await refreshNotifications();
 
-        // Show toast notification immediately
-        toast.info(
-          `${data.title || "Booking Update"}\n${
-            data.message || "A booking has been updated"
-          }`,
-          {
-            duration: 5000,
-            action: {
-              label: "Stop Sound",
-              onClick: () => stopNotificationSound(),
-            },
-          }
-        );
-
         // Play continuous notification sound immediately
         await playContinuousNotificationSound();
 
@@ -256,20 +228,6 @@ export const WebSocketProvider = ({
       try {
         // Immediately refresh notifications from database to update count
         await refreshNotifications();
-
-        // Show toast notification immediately
-        toast.info(
-          `${data.title || "Driver Update"}\n${
-            data.message || "Driver status has been updated"
-          }`,
-          {
-            duration: 5000,
-            action: {
-              label: "Stop Sound",
-              onClick: () => stopNotificationSound(),
-            },
-          }
-        );
 
         // Play continuous notification sound immediately
         await playContinuousNotificationSound();
@@ -292,22 +250,9 @@ export const WebSocketProvider = ({
         // Immediately refresh notifications from database to update count
         await refreshNotifications();
 
-        // Show toast notification immediately
-        toast.info(
-          `${data.title || "Shuttle Update"}\n${
-            data.message || "Shuttle status has been updated"
-          }`,
-          {
-            duration: 5000,
-            action: {
-              label: "Stop Sound",
-              onClick: () => stopNotificationSound(),
-            },
-          }
-        );
-
         // Play continuous notification sound immediately
         await playContinuousNotificationSound();
+        
         // Show custom notification modal
         setNotificationModal({
           isOpen: true,
