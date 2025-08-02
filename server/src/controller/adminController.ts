@@ -844,7 +844,7 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
             driverId: parseInt(driverId),
             shuttleId: parseInt(shuttleId),
             scheduleDate: scheduleDate,
-            startTime: new Date(startTime), // UTC
+            startTime: new Date(startTime), // UTC //to
             endTime: new Date(endTime), // UTC
           },
           include: {
@@ -1347,7 +1347,58 @@ const getGlobalLocations = async (req: Request, res: Response) => {
   }
 };
 
-// Get all locations for the admin's hotel (with price)
+// Add a private location for the admin's hotel
+const addPrivateLocation = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { name, latitude, longitude, address, price } = req.body;
+
+    if (!name || !latitude || !longitude || !price) {
+      return res.status(400).json({
+        message: "Name, latitude, longitude, and price are required",
+      });
+    }
+
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+
+    if (!admin?.hotelId) {
+      return res.status(400).json({ message: "Admin does not have a hotel" });
+    }
+
+    // Create the private location
+    const location = await prisma.location.create({
+      data: {
+        name,
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        address,
+        isPrivate: true,
+        createdByAdminId: parseInt(userId),
+        createdByType: "ADMIN",
+      },
+    });
+
+    // Create the hotel location with price
+    const hotelLocation = await prisma.hotelLocation.create({
+      data: {
+        hotelId: admin.hotelId,
+        locationId: location.id,
+        price: parseFloat(price),
+      },
+      include: { location: true },
+    });
+
+    res.json({ location: hotelLocation });
+  } catch (error) {
+    console.error("Add private location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get all locations for the admin's hotel (including private ones)
 const getHotelLocations = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
@@ -1355,14 +1406,29 @@ const getHotelLocations = async (req: Request, res: Response) => {
       where: { id: parseInt(userId) },
       select: { hotelId: true },
     });
+
     if (!admin?.hotelId) {
       return res.json({ locations: [] });
     }
+
     const hotelLocations = await prisma.hotelLocation.findMany({
       where: { hotelId: admin.hotelId },
-      include: { location: true },
+      include: {
+        location: {
+          include: {
+            createdByAdmin: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { id: "asc" },
     });
+
     res.json({ locations: hotelLocations });
   } catch (error) {
     console.error("Get hotel locations error:", error);
@@ -1688,6 +1754,7 @@ export default {
   addWeeklySchedule,
   getScheduleByWeek,
   addHotelLocation,
+  addPrivateLocation,
   editHotelLocation,
   deleteHotelLocation,
   getGlobalLocations,

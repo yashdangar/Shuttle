@@ -19,7 +19,7 @@ export const initWebSocket = (server: HttpServer) => {
       methods: ["GET", "POST"],
       credentials: true,
     },
-    transports: ["websocket"], // Only allow websocket transport
+    transports: ["websocket"],
     allowEIO3: true, // Allow Engine.IO v3 clients
     pingTimeout: 60000, // 60 seconds
     pingInterval: 25000, // 25 seconds
@@ -161,7 +161,7 @@ export const initWebSocket = (server: HttpServer) => {
           lng: data.longitude,
           accuracy: data.accuracy,
           speed: data.speed,
-          heading: data.heading
+          heading: data.heading,
         });
 
         // Update driver location in database
@@ -219,21 +219,25 @@ export const initWebSocket = (server: HttpServer) => {
         // Broadcast location update to all guests with active bookings for this driver
         activeBookings.forEach((booking) => {
           const guestRoom = `guest:${booking.guest.id}`;
-          getIo().to(guestRoom).emit("driver_location_update", {
-            bookingId: booking.id,
-            driverId: user.id,
-            location: {
-              latitude: parseFloat(data.latitude),
-              longitude: parseFloat(data.longitude),
-              accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
-              speed: data.speed ? parseFloat(data.speed) : null,
-              heading: data.heading ? parseFloat(data.heading) : null,
-              timestamp: new Date().toISOString(),
-            },
-          });
+          getIo()
+            .to(guestRoom)
+            .emit("driver_location_update", {
+              bookingId: booking.id,
+              driverId: user.id,
+              location: {
+                latitude: parseFloat(data.latitude),
+                longitude: parseFloat(data.longitude),
+                accuracy: data.accuracy ? parseFloat(data.accuracy) : null,
+                speed: data.speed ? parseFloat(data.speed) : null,
+                heading: data.heading ? parseFloat(data.heading) : null,
+                timestamp: new Date().toISOString(),
+              },
+            });
         });
 
-        console.log(`Broadcasted location update to ${activeBookings.length} guests`);
+        console.log(
+          `Broadcasted location update to ${activeBookings.length} guests`
+        );
       } catch (error) {
         console.error("Error handling driver location update:", error);
       }

@@ -105,6 +105,14 @@ export default function LiveShuttleCard({ shuttle }: LiveShuttleCardProps) {
     }
   };
 
+  // Calculate total passengers from bookings
+  const totalPassengers = shuttle.bookings?.reduce((total, booking) => {
+    return total + (booking.numberOfPersons || 0);
+  }, 0) || 0;
+
+  // Calculate available seats
+  const availableSeats = (shuttle.shuttle?.totalSeats || 0) - totalPassengers;
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -121,9 +129,9 @@ export default function LiveShuttleCard({ shuttle }: LiveShuttleCardProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={getStatusColor(shuttle.shuttle?.utilization || 0)}>
+            {/* <Badge className={getStatusColor(shuttle.shuttle?.utilization || 0)}>
               {shuttle.shuttle?.utilization ? `${shuttle.shuttle.utilization}% Full` : 'N/A'}
-            </Badge>
+            </Badge> */}
             <Badge className={getPhaseColor(shuttle.phase)}>
               {shuttle.phase}
             </Badge>
@@ -201,9 +209,9 @@ export default function LiveShuttleCard({ shuttle }: LiveShuttleCardProps) {
             <span className="text-sm font-medium">Capacity</span>
           </div>
           <div className="text-sm">
-            <span className="font-medium">{shuttle.totalBookings}</span> / {shuttle.shuttle?.totalSeats || 'N/A'} passengers
+            <span className="font-medium">{totalPassengers}</span> / {shuttle.shuttle?.totalSeats || 'N/A'} passengers
             <span className="text-gray-500 ml-2">
-              ({shuttle.shuttle?.availableSeats || 'N/A'} available)
+              ({availableSeats} available)
             </span>
           </div>
         </div>
@@ -214,7 +222,7 @@ export default function LiveShuttleCard({ shuttle }: LiveShuttleCardProps) {
             <div className="flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-gray-600" />
               <span className="font-medium text-sm">
-                Bookings ({shuttle.totalBookings})
+                Bookings ({shuttle.bookings?.length || 0})
               </span>
             </div>
             <Button

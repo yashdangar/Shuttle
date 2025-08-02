@@ -176,6 +176,11 @@ router.post(
   adminAuthMiddleware as RequestHandler,
   controller.addHotelLocation as RequestHandler
 );
+router.post(
+  "/add/private-location",
+  adminAuthMiddleware as RequestHandler,
+  controller.addPrivateLocation as RequestHandler
+);
 router.put(
   "/edit/location/:id",
   adminAuthMiddleware as RequestHandler,

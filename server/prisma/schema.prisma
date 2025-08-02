@@ -45,10 +45,15 @@ model Location {
   longitude       Float
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
-  address         String?
+  address         String?  
+  isPrivate       Boolean         @default(false)
+  createdByAdminId       Int?            // Admin ID who created this location
+  createdByType   LocationCreatorType? // Type of user who created this location
   bookingsDropoff Booking[]       @relation("dropoff")
   bookingsPickup  Booking[]       @relation("pickup")
   hotelLocations  HotelLocation[]
+  // Relations
+  createdByAdmin  Admin?          @relation("LocationCreator", fields: [createdByAdminId], references: [id])
 }
 
 model Booking {
@@ -124,6 +129,7 @@ model Admin {
   updatedAt     DateTime       @updatedAt
   hotel         Hotel?         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications Notification[]
+  createdLocations Location[]  @relation("LocationCreator")
 }
 
 model Driver {
@@ -330,6 +336,11 @@ enum SenderType {
   GUEST
   FRONTDESK
   DRIVER
+}
+
+enum LocationCreatorType {
+  SUPER_ADMIN
+  ADMIN
 }
 
 model Chat {

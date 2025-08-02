@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { authApi, hotelsApi, adminsApi, locationsApi } from "@/lib/api";
 import withAuth from "@/components/withAuth";
 import { HotelDetailsModal } from "@/components/hotel-details-modal";
@@ -40,7 +41,9 @@ import {
   Trash2,
   Calendar,
   Shield,
+  Search,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Hotel {
   id: number;
@@ -104,6 +107,12 @@ interface Location {
   longitude: number;
   address?: string;
   createdAt: string;
+  isPrivate?: boolean;
+  createdByAdmin?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
 }
 
 function HomePage() {
@@ -121,6 +130,9 @@ function HomePage() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     null
   );
+  const [hotelSearch, setHotelSearch] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
 
   useEffect(() => {
     fetchAllData();
@@ -182,14 +194,25 @@ function HomePage() {
     if (!confirm("Are you sure you want to delete this location?")) return;
 
     try {
+      // Check if location is private
+      const location = locations.find((loc) => loc.id === locationId);
+      if (location?.isPrivate) {
+        toast.error("Cannot delete private locations created by admins");
+        return;
+      }
+
       const response = await locationsApi.delete(locationId);
       if (response.success) {
         setLocations(
           locations.filter((location) => location.id !== locationId)
         );
+        toast.success("Location deleted successfully");
+      } else {
+        toast.error(response.error || "Failed to delete location");
       }
     } catch (error) {
       console.error("Error deleting location:", error);
+      toast.error("Failed to delete location");
     }
   };
 
@@ -197,6 +220,42 @@ function HomePage() {
     setSelectedLocation(location);
     setEditLocationModalOpen(true);
   };
+
+  // Filter functions for search
+  const filteredHotels = hotels.filter((hotel) => {
+    const searchTerm = hotelSearch.toLowerCase();
+    return (
+      hotel.name.toLowerCase().includes(searchTerm) ||
+      (hotel.address && hotel.address.toLowerCase().includes(searchTerm)) ||
+      (hotel.email && hotel.email.toLowerCase().includes(searchTerm)) ||
+      (hotel.phoneNumber &&
+        hotel.phoneNumber.toLowerCase().includes(searchTerm)) ||
+      hotel.status.toLowerCase().includes(searchTerm) ||
+      hotel.id.toString().includes(searchTerm)
+    );
+  });
+
+  const filteredAdmins = admins.filter((admin) => {
+    const searchTerm = adminSearch.toLowerCase();
+    return (
+      admin.name.toLowerCase().includes(searchTerm) ||
+      admin.email.toLowerCase().includes(searchTerm) ||
+      (admin.hotel && admin.hotel.name.toLowerCase().includes(searchTerm)) ||
+      admin.id.toString().includes(searchTerm)
+    );
+  });
+
+  const filteredLocations = locations.filter((location) => {
+    const searchTerm = locationSearch.toLowerCase();
+    return (
+      location.name.toLowerCase().includes(searchTerm) ||
+      (location.address &&
+        location.address.toLowerCase().includes(searchTerm)) ||
+      location.latitude.toString().includes(searchTerm) ||
+      location.longitude.toString().includes(searchTerm) ||
+      location.id.toString().includes(searchTerm)
+    );
+  });
 
   const HotelTableSkeleton = () => (
     <div className="space-y-3">
@@ -344,9 +403,18 @@ function HomePage() {
           {/* Hotels Tab */}
           <TabsContent value="hotels" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Hotels ({loading ? "..." : hotels.length})
-              </h2>
+              <h2 className="text-2xl font-bold text-gray-900">Hotels</h2>
+            </div>
+
+            {/* Hotel Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search hotels by name, address, email, phone, status, or ID..."
+                value={hotelSearch}
+                onChange={(e) => setHotelSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
             <Card>
@@ -368,7 +436,7 @@ function HomePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {hotels.length === 0 ? (
+                      {filteredHotels.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center py-8">
                             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -379,7 +447,7 @@ function HomePage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        hotels.map((hotel) => (
+                        filteredHotels.map((hotel) => (
                           <TableRow key={hotel.id} className="hover:bg-gray-50">
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
@@ -495,12 +563,23 @@ function HomePage() {
           <TabsContent value="admins" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">
-                System Admins ({loading ? "..." : admins.length})
+                System Admins
               </h2>
               <Button onClick={() => setAddAdminModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Admin
               </Button>
+            </div>
+
+            {/* Admin Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search admins by name, email, hotel assignment, or ID..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
             <Card>
@@ -519,7 +598,7 @@ function HomePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {admins.length === 0 ? (
+                      {filteredAdmins.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-8">
                             <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -530,7 +609,7 @@ function HomePage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        admins.map((admin) => (
+                        filteredAdmins.map((admin) => (
                           <TableRow key={admin.id}>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
@@ -580,12 +659,23 @@ function HomePage() {
           <TabsContent value="locations" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">
-                System Locations ({loading ? "..." : locations.length})
+                System Locations
               </h2>
               <Button onClick={() => setAddLocationModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Location
               </Button>
+            </div>
+
+            {/* Location Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search locations by name, address, coordinates, or ID..."
+                value={locationSearch}
+                onChange={(e) => setLocationSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
             <Card>
@@ -605,7 +695,7 @@ function HomePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {locations.length === 0 ? (
+                      {filteredLocations.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-8">
                             <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -616,13 +706,23 @@ function HomePage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        locations.map((location) => (
+                        filteredLocations.map((location) => (
                           <TableRow key={location.id}>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4 text-green-600" />
-                                {location.name}
+                                <span>{location.name}</span>
+                                {location.isPrivate && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    Private
+                                  </span>
+                                )}
                               </div>
+                              {location.createdByAdmin && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Created by: {location.createdByAdmin.name}
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell>
                               <code className="text-sm bg-gray-100 px-2 py-1 rounded">
@@ -665,6 +765,7 @@ function HomePage() {
                                 size="sm"
                                 onClick={() => handleEditLocation(location)}
                                 className="text-blue-600 hover:text-blue-800 mr-2"
+                                disabled={location.isPrivate}
                               >
                                 Edit
                               </Button>
@@ -675,9 +776,15 @@ function HomePage() {
                                   handleDeleteLocation(location.id)
                                 }
                                 className="text-red-600 hover:text-red-800"
+                                disabled={location.isPrivate}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
+                              {location.isPrivate && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Private locations cannot be edited
+                                </div>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))
