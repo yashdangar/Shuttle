@@ -1424,7 +1424,7 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
 
     const schedules = await prisma.schedule.findMany({
       where: {
-        scheduleDate: {
+        startTime: {
           gte: targetWeekStart,
           lte: targetWeekEnd,
         },
@@ -1439,7 +1439,7 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        scheduleDate: "asc",
+        startTime: "asc",
       },
     });
 
@@ -1460,7 +1460,7 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
 
 const addSchedule = async (req: Request, res: Response) => {
   try {
-    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+    const { driverId, shuttleId, startTime, endTime } = req.body;
     const hotelId = (req as any).user.hotelId;
 
     // Security Check: Verify driver and shuttle belong to the hotel
@@ -1476,14 +1476,11 @@ const addSchedule = async (req: Request, res: Response) => {
         .json({ message: "Driver or shuttle does not belong to this hotel" });
     }
 
-    const dateOnly = new Date(scheduleDate);
-    dateOnly.setUTCHours(0, 0, 0, 0);
-
-    // Check if a schedule already exists for this driver on this date
+    // Check if a schedule already exists for this driver at this start time
     const existingSchedule = await prisma.schedule.findFirst({
       where: {
         driverId: parseInt(driverId),
-        scheduleDate: dateOnly,
+        startTime: new Date(startTime),
       },
       include: {
         driver: true,
@@ -1495,7 +1492,7 @@ const addSchedule = async (req: Request, res: Response) => {
       return res.status(400).json({
         message: `Driver ${
           existingSchedule.driver.name
-        } already has a schedule for ${dateOnly.toDateString()}. Please edit the existing schedule instead.`,
+        } already has a schedule starting at ${new Date(startTime).toLocaleString()}. Please edit the existing schedule instead.`,
         existingSchedule,
       });
     }
@@ -1504,7 +1501,6 @@ const addSchedule = async (req: Request, res: Response) => {
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
-        scheduleDate: dateOnly,
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       },
@@ -1529,7 +1525,7 @@ const addSchedule = async (req: Request, res: Response) => {
 const editSchedule = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
+    const { driverId, shuttleId, startTime, endTime } = req.body;
     const hotelId = (req as any).user.hotelId;
 
     // Security Check: Verify the schedule being edited belongs to the hotel
@@ -1558,15 +1554,11 @@ const editSchedule = async (req: Request, res: Response) => {
       });
     }
 
-    const dateOnly = new Date(scheduleDate);
-    dateOnly.setUTCHours(0, 0, 0, 0);
-
     const schedule = await prisma.schedule.update({
       where: { id: parseInt(id) },
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
-        scheduleDate: dateOnly,
         startTime: new Date(startTime),
         endTime: new Date(endTime),
       },
@@ -1652,7 +1644,7 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     const existingSchedules = await prisma.schedule.findMany({
       where: {
         driverId: parseInt(driverId),
-        scheduleDate: {
+        startTime: {
           gte: weekStart,
           lte: weekEnd,
         },
@@ -1664,7 +1656,7 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
 
     if (existingSchedules.length > 0) {
       const existingDates = existingSchedules
-        .map((s) => s.scheduleDate.toDateString())
+        .map((s) => new Date(s.startTime).toDateString())
         .join(", ");
       return res.status(400).json({
         message: `Driver ${existingSchedules[0].driver.name} already has schedules for the following dates: ${existingDates}. Please edit existing schedules or choose a different week.`,
@@ -1692,14 +1684,10 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
         const startTime = dayData.startUtc || dayData.startTime; // fallback for legacy
         const endTime = dayData.endUtc || dayData.endTime;
         if (!startTime || !endTime) continue;
-        const scheduleDate = new Date(weekStart);
-        scheduleDate.setUTCDate(scheduleDate.getUTCDate() + i);
-        scheduleDate.setUTCHours(0, 0, 0, 0);
         const schedule = await prisma.schedule.create({
           data: {
             driverId: parseInt(driverId),
             shuttleId: parseInt(shuttleId),
-            scheduleDate: scheduleDate,
             startTime: new Date(startTime), // UTC
             endTime: new Date(endTime), // UTC
           },
@@ -2063,7 +2051,7 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
         hotelId: hotelId,
         schedules: {
           some: {
-            scheduleDate: {
+            startTime: {
               gte: startOfDay,
               lte: endOfDay,
             },
@@ -2073,7 +2061,7 @@ const getShuttleCapacityStatus = async (req: Request, res: Response) => {
       include: {
         schedules: {
           where: {
-            scheduleDate: {
+            startTime: {
               gte: startOfDay,
               lte: endOfDay,
             },
@@ -2243,7 +2231,6 @@ const debugSchedule = async (req: Request, res: Response) => {
         id: schedule.id,
         driverId: schedule.driverId,
         shuttleId: schedule.shuttleId,
-        scheduleDate: schedule.scheduleDate,
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         startTimeISO: schedule.startTime.toISOString(),
@@ -2283,7 +2270,7 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
       include: {
         schedules: {
           where: {
-            scheduleDate: {
+            startTime: {
               gte: startOfDay,
               lte: endOfDay,
             },
@@ -2312,7 +2299,6 @@ const debugShuttleSchedules = async (req: Request, res: Response) => {
 
       return {
         id: schedule.id,
-        scheduleDate: schedule.scheduleDate,
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         startTimeUTC: scheduleStartTime.toISOString(),
@@ -2363,7 +2349,7 @@ const getLiveShuttleData = async (req: Request, res: Response) => {
       where: {
         status: "ACTIVE",
         schedule: {
-          scheduleDate: {
+          startTime: {
             gte: startOfDay,
             lte: endOfDay,
           },
@@ -2611,7 +2597,7 @@ const getSchedule21DayWindow = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        scheduleDate: "asc",
+        startTime: "asc",
       },
     });
     res.json({ schedules });

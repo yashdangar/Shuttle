@@ -17,7 +17,6 @@ interface SchedulePayload {
   id: number;
   driverId: number;
   shuttleId: number;
-  scheduleDate: string;
   startTime: string;
   endTime: string;
   // ... other relevant schedule fields
