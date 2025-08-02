@@ -77,6 +77,7 @@ export const useNotificationSound = () => {
     // Check if sound is enabled in user preferences
     const soundEnabled = localStorage.getItem("frontdesk-sound-enabled");
     console.log('Sound enabled:', soundEnabled);
+    console.log('User has interacted:', hasUserInteracted.current);
     
     if (soundEnabled === "false") {
       console.log('Sound is disabled, not playing');

@@ -79,7 +79,7 @@ const startTrip = async (req: Request, res: Response) => {
       });
     }
 
-    // Get unassigned bookings for both directions
+    // Get unassigned bookings for both directions (excluding held bookings)
     const hotelId = (req as any).user.hotelId;
     const unassignedBookings = await prisma.booking.findMany({
       where: {
@@ -88,6 +88,8 @@ const startTrip = async (req: Request, res: Response) => {
         isCompleted: false,
         isCancelled: false,
         needsFrontdeskVerification: false, // Frontdesk has verified this booking
+        // Hide held bookings from drivers until confirmed
+        seatsConfirmed: true, // Only show confirmed bookings to drivers
         guest: {
           hotelId: hotelId,
         },
@@ -524,6 +526,10 @@ const getCurrentTrip = async (req: Request, res: Response) => {
         shuttle: true,
         driver: true,
         bookings: {
+          where: {
+            // Hide held bookings from drivers until confirmed
+            seatsConfirmed: true, // Only show confirmed bookings to drivers
+          },
           include: {
             guest: {
               select: {
@@ -792,11 +798,13 @@ const getCurrentTripBookings = async (req: Request, res: Response) => {
       });
     }
 
-    // Get all bookings for this trip
+    // Get all bookings for this trip (excluding held bookings)
     const bookings = await prisma.booking.findMany({
       where: {
         tripId: currentTrip.id,
         isCancelled: false,
+        // Hide held bookings from drivers until confirmed
+        seatsConfirmed: true, // Only show confirmed bookings to drivers
       },
       include: {
         guest: {
@@ -858,6 +866,8 @@ const addBookingToActiveTrip = async (req: Request, res: Response) => {
           where: {
             isCompleted: false,
             isCancelled: false,
+            // Hide held bookings from drivers until confirmed
+            seatsConfirmed: true, // Only show confirmed bookings to drivers
           },
         },
       },

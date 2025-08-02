@@ -37,6 +37,10 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
     const savedPreference = localStorage.getItem("frontdesk-sound-enabled");
     if (savedPreference !== null) {
       setSoundEnabled(savedPreference === "true");
+    } else {
+      // Default to enabled if no preference is saved
+      setSoundEnabled(true);
+      localStorage.setItem("frontdesk-sound-enabled", "true");
     }
   }, []);
 

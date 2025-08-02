@@ -8,6 +8,10 @@ import { googleMapsService, type Location } from "../utils/googleMapsUtils";
 import { sendToRoleInHotel, sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
+import {
+  holdSeatsForBooking,
+  getSeatHoldStatus,
+} from "../utils/seatHoldingUtils";
 
 const getGuest = (req: Request, res: Response) => {
   res.json({ message: "Guest route" });
@@ -295,6 +299,30 @@ const createTrip = async (req: Request, res: Response) => {
 
     // For guest bookings, we don't assign shuttle immediately - wait for frontdesk verification
     // The shuttle assignment will happen after frontdesk verifies the booking
+
+    // Determine direction for seat holding
+    const direction =
+      tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL";
+
+    // Hold seats temporarily for this booking
+    const seatsHeld = await holdSeatsForBooking(
+      trip.id,
+      numberOfPersons,
+      guest.hotelId,
+      preferredTime ? new Date(preferredTime) : undefined,
+      direction
+    );
+    if (!seatsHeld) {
+      console.error("Failed to hold seats for booking:", trip.id);
+      // Delete the booking since no seats are available
+      await prisma.booking.delete({
+        where: { id: trip.id },
+      });
+      return res.status(400).json({
+        error:
+          "No shuttle capacity available for your booking. Please try again later or contact the front desk.",
+      });
+    }
 
     // For guest bookings, QR code will be generated after frontdesk verification
     // No QR code generation here - it will happen in verifyGuestBooking
@@ -1004,12 +1032,10 @@ const getBookingTracking = async (req: Request, res: Response) => {
       // Booking is assigned to a specific trip with a driver
       driverLocation = booking.trip.driver.currentLocation;
       driverId = booking.trip.driver.id;
-
     } else if (booking.shuttle?.schedules?.[0]?.driver) {
       // Fall back to first shuttle schedule driver
       driverLocation = booking.shuttle.schedules[0].driver.currentLocation;
       driverId = booking.shuttle.schedules[0].driverId;
-
     }
 
     if (!driverLocation && driverId) {
@@ -1017,7 +1043,7 @@ const getBookingTracking = async (req: Request, res: Response) => {
       const directDriverLocation = await prisma.driverLocation.findUnique({
         where: { driverId: driverId },
       });
-      
+
       if (directDriverLocation) {
         driverLocation = directDriverLocation;
       }
@@ -1034,8 +1060,6 @@ const getBookingTracking = async (req: Request, res: Response) => {
         },
       });
     }
-
-
 
     // Get directions if Google Maps is available
     let directions = null;
@@ -1801,6 +1825,43 @@ const sendMessage = async (req: Request, res: Response) => {
   }
 };
 
+// Get seat hold status for a booking
+const getSeatHoldStatusForBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const guestId = (req as any).user.userId;
+
+    // Validate booking ID
+    if (!bookingId) {
+      return res.status(400).json({
+        error: "Booking ID is required",
+      });
+    }
+
+    // Get the booking to verify ownership
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        guestId: guestId,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        error: "Booking not found or access denied",
+      });
+    }
+
+    // Get seat hold status
+    const seatHoldStatus = await getSeatHoldStatus(bookingId);
+
+    res.json({ seatHoldStatus });
+  } catch (error) {
+    console.error("Error getting seat hold status:", error);
+    res.status(500).json({ error: "Failed to get seat hold status" });
+  }
+};
+
 export default {
   getGuest,
   getHotels,
@@ -1827,4 +1888,5 @@ export default {
   getChats,
   getChatMessages,
   sendMessage,
+  getSeatHoldStatusForBooking,
 };

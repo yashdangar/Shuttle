@@ -15,6 +15,7 @@ import tripRouter from "./routes/tripRouter";
 import publicRouter from "./routes/publicRouter";
 import { CORS_ORIGINS } from "./config/env";
 import { startBookingCancellationJob } from "./utils/cronService";
+import "./utils/cronService"; // This will start the seat hold cleanup service
 
 // Load environment variables
 dotenv.config();

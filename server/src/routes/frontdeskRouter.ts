@@ -35,6 +35,13 @@ router.get(
   frontdeskController.getShuttleCapacityStatus as RequestHandler
 );
 
+// Shuttle availability route
+router.get(
+  "/shuttle-availability",
+  frontdeskAuthMiddleware as RequestHandler,
+  frontdeskController.getShuttleAvailabilityInfo as RequestHandler
+);
+
 // Debug shuttle bookings route
 router.get(
   "/debug/shuttle/:shuttleId/bookings",

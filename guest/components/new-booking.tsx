@@ -328,11 +328,15 @@ export default function NewBooking({
         }
 
         setIsSubmitting(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error creating trip:", error);
+        // Display error message to user
+        const errorMessage = error.response?.data?.error || "Failed to create booking. Please try again.";
+        toast.error(errorMessage);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating trip:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

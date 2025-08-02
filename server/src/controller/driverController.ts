@@ -829,7 +829,7 @@ const updateETAForDriverBookings = async (
   driverLocation: Location
 ) => {
   try {
-    // Get all active bookings for this driver
+    // Get all active bookings for this driver (excluding held bookings)
     const activeBookings = await prisma.booking.findMany({
       where: {
         shuttle: {
@@ -842,6 +842,8 @@ const updateETAForDriverBookings = async (
         isCompleted: false,
         isCancelled: false,
         trackingEnabled: true,
+        // Hide held bookings from drivers until confirmed
+        seatsConfirmed: true, // Only show confirmed bookings to drivers
       },
       include: {
         pickupLocation: true,
@@ -901,12 +903,14 @@ const getDebugInfo = async (req: Request, res: Response) => {
       include: { shuttle: true },
     });
 
-    // Get all active bookings for this hotel
+    // Get all active bookings for this hotel (excluding held bookings)
     const activeBookings = await prisma.booking.findMany({
       where: {
         isCompleted: false,
         isCancelled: false,
         guest: { hotelId },
+        // Hide held bookings from drivers until confirmed
+        seatsConfirmed: true, // Only show confirmed bookings to drivers
       },
       include: {
         guest: true,
@@ -999,12 +1003,14 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
       });
     }
 
-    // Find unassigned bookings for this hotel
+    // Find unassigned bookings for this hotel (excluding held bookings)
     const unassignedBookings = await prisma.booking.findMany({
       where: {
         shuttleId: null,
         isCompleted: false,
         isCancelled: false,
+        // Hide held bookings from drivers until confirmed
+        seatsConfirmed: true, // Only show confirmed bookings to drivers
         guest: {
           hotelId: hotelId,
         },

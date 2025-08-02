@@ -338,7 +338,11 @@ const shouldAssignBookingToCurrentTrip = (
 };
 
 // Helper function to check if shuttle has available capacity
-export const checkShuttleCapacity = async (shuttleId: number, numberOfPersons: number): Promise<boolean> => {
+export const checkShuttleCapacity = async (
+  shuttleId: number, 
+  numberOfPersons: number, 
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+): Promise<boolean> => {
   try {
     console.log(`=== CHECKING SHUTTLE CAPACITY ===`);
     console.log(`Shuttle ID: ${shuttleId}, New passengers: ${numberOfPersons}`);
@@ -372,13 +376,31 @@ export const checkShuttleCapacity = async (shuttleId: number, numberOfPersons: n
       currentPassengers += booking.numberOfPersons;
     });
 
-    const hasCapacity = (currentPassengers + numberOfPersons) <= shuttle.seats;
+    // Use direction-specific capacity if provided, otherwise fall back to general seats
+    let capacity = shuttle.seats;
+    if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity > 0) {
+      capacity = shuttle.airportToHotelCapacity;
+    } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity > 0) {
+      capacity = shuttle.hotelToAirportCapacity;
+    }
+    
+    // Include held and confirmed seats in capacity calculation
+    const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
+    const availableSeats = capacity - totalOccupiedSeats;
+    const hasCapacity = availableSeats >= numberOfPersons;
     
     console.log(`Capacity check for shuttle ${shuttleId} (${shuttle.vehicleNumber}):`);
+    console.log(`  - Direction: ${direction || 'Not specified'}`);
     console.log(`  - Total seats: ${shuttle.seats}`);
-    console.log(`  - Current passengers: ${currentPassengers}`);
+    console.log(`  - Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
+    console.log(`  - Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
+    console.log(`  - Used capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
+    console.log(`  - Current passengers (confirmed bookings): ${currentPassengers}`);
+    console.log(`  - Seats held: ${shuttle.seatsHeld}`);
+    console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
+    console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);
+    console.log(`  - Available seats: ${availableSeats}`);
     console.log(`  - New passengers: ${numberOfPersons}`);
-    console.log(`  - Total after booking: ${currentPassengers + numberOfPersons}`);
     console.log(`  - Has capacity: ${hasCapacity}`);
     console.log(`  - Bookings count: ${shuttle.bookings.length}`);
     console.log(`=== END CAPACITY CHECK ===`);
@@ -391,7 +413,11 @@ export const checkShuttleCapacity = async (shuttleId: number, numberOfPersons: n
 };
 
 // Enhanced function to find available shuttle with capacity
-export const findAvailableShuttleWithCapacity = async (hotelId: number, numberOfPersons: number): Promise<any> => {
+export const findAvailableShuttleWithCapacity = async (
+  hotelId: number, 
+  numberOfPersons: number, 
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+): Promise<any> => {
   try {
     console.log(`=== FINDING AVAILABLE SHUTTLE ===`);
     console.log(`Hotel ID: ${hotelId}, Passengers needed: ${numberOfPersons}`);
@@ -446,7 +472,11 @@ export const findAvailableShuttleWithCapacity = async (hotelId: number, numberOf
     // Find the first shuttle with available capacity and active schedule
     for (const shuttle of availableShuttles) {
       console.log(`\n--- Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}) ---`);
+      console.log(`Direction: ${direction || 'Not specified'}`);
       console.log(`Total seats: ${shuttle.seats}`);
+      console.log(`Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
+      console.log(`Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
+      console.log(`Used capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
       console.log(`Total bookings: ${shuttle.bookings.length}`);
       
       // Check if any schedule is currently active
@@ -488,13 +518,28 @@ export const findAvailableShuttleWithCapacity = async (hotelId: number, numberOf
         0
       );
 
+      // Use direction-specific capacity if provided, otherwise fall back to general seats
+      let capacity = shuttle.seats;
+      if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity > 0) {
+        capacity = shuttle.airportToHotelCapacity;
+      } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity > 0) {
+        capacity = shuttle.hotelToAirportCapacity;
+      }
+      
+      // Include held and confirmed seats in capacity calculation
+      const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
+      const availableSeats = capacity - totalOccupiedSeats;
+
       console.log(`Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}):`);
       console.log(`  - Total seats: ${shuttle.seats}`);
-      console.log(`  - Current passengers: ${currentPassengers}`);
-      console.log(`  - Available seats: ${shuttle.seats - currentPassengers}`);
-      console.log(`  - Can accommodate ${numberOfPersons} passengers: ${(currentPassengers + numberOfPersons) <= shuttle.seats}`);
+      console.log(`  - Current passengers (confirmed bookings): ${currentPassengers}`);
+      console.log(`  - Seats held: ${shuttle.seatsHeld}`);
+      console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
+      console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);
+      console.log(`  - Available seats: ${availableSeats}`);
+      console.log(`  - Can accommodate ${numberOfPersons} passengers: ${availableSeats >= numberOfPersons}`);
 
-      if ((currentPassengers + numberOfPersons) <= shuttle.seats) {
+      if (availableSeats >= numberOfPersons) {
         console.log(`✅ Selected shuttle ${shuttle.id} (${shuttle.vehicleNumber}) for booking`);
         console.log(`✅ This shuttle has active schedule and sufficient capacity`);
         console.log(`✅ Shuttle ID: ${shuttle.id}, Vehicle: ${shuttle.vehicleNumber}`);

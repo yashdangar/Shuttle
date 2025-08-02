@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import LiveShuttleCard from "@/components/live-shuttle-card";
 import PendingBookingsCard from "@/components/pending-bookings-card";
+import { Button } from "@/components/ui/button";
 
 interface LiveShuttle {
   tripId: string;
@@ -97,7 +98,7 @@ interface Schedule {
 }
 
 export default function DashboardPage() {
-  const { isConnected, socket, markUserInteraction, connectWebSocket } =
+  const { isConnected, socket, markUserInteraction, connectWebSocket, stopNotificationSound } =
     useWebSocket();
   const [liveShuttles, setLiveShuttles] = useState<LiveShuttle[]>([]);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
@@ -359,6 +360,18 @@ export default function DashboardPage() {
     fetchTodaySchedules();
   };
 
+  const testNotificationSound = () => {
+    console.log("Testing notification sound...");
+    markUserInteraction();
+    // Simulate a new booking notification
+    if (socket) {
+      socket.emit("test_notification", {
+        title: "Test Notification",
+        message: "This is a test notification sound"
+      });
+    }
+  };
+
   const scheduleBlocks = getTodayScheduleBlocks();
 
   const dashboardStats = [
@@ -419,16 +432,26 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        <button
-          onClick={handleManualRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-          />
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+          <Button
+            onClick={testNotificationSound}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Bell className="h-4 w-4" />
+            Test Sound
+          </Button>
+        </div>
       </div>
 
       {/* Error Message */}

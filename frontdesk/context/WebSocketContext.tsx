@@ -264,6 +264,25 @@ export const WebSocketProvider = ({
       }
     });
 
+    socketInstance.on("test_notification", async (data: any) => {
+      console.log("Test notification received:", data);
+
+      try {
+        // Play continuous notification sound immediately
+        console.log("Triggering test notification sound...");
+        await playContinuousNotificationSound();
+
+        // Show custom notification modal
+        setNotificationModal({
+          isOpen: true,
+          title: data.title || "Test Notification",
+          message: data.message || "This is a test notification",
+        });
+      } catch (error) {
+        console.error("Error handling test notification:", error);
+      }
+    });
+
     // Initial load of notifications
     refreshNotifications();
 

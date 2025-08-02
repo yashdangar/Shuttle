@@ -154,4 +154,11 @@ router.post(
   controller.sendMessage as RequestHandler
 );
 
+// Seat hold status route
+router.get(
+  "/bookings/:bookingId/seat-hold-status",
+  guestAuthMiddleware as RequestHandler,
+  controller.getSeatHoldStatusForBooking as RequestHandler
+);
+
 export default router;

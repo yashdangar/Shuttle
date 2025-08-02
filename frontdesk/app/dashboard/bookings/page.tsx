@@ -55,6 +55,18 @@ interface Booking {
   confirmationNum: string | null;
   notes: string | null;
   isParkSleepFly: boolean;
+  // Seat holding fields
+  seatsHeld: boolean;
+  seatsHeldAt: string | null;
+  seatsHeldUntil: string | null;
+  seatsConfirmed: boolean;
+  seatsConfirmedAt: string | null;
+  shuttleId: number | null;
+  shuttle?: {
+    id: number;
+    vehicleNumber: string;
+    seats: number;
+  };
   guest?: {
     firstName: string;
     lastName: string;
@@ -348,14 +360,26 @@ export default function BookingsPage() {
     if (booking.isCompleted) {
       return <Badge variant="default">Completed</Badge>;
     }
-    if (booking.needsFrontdeskVerification) {
-      return <Badge variant="secondary">Pending Verification</Badge>;
+    if (booking.isVerified) {
+      return <Badge variant="default">Driver Checked In</Badge>;
     }
     if (!booking.needsFrontdeskVerification && !booking.isVerified) {
       return <Badge variant="default">Frontdesk Verified</Badge>;
     }
-    if (booking.isVerified) {
-      return <Badge variant="default">Driver Checked In</Badge>;
+    if (booking.needsFrontdeskVerification) {
+      if (booking.seatsHeld && !booking.seatsConfirmed) {
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge variant="secondary">Seats Held</Badge>
+            {booking.shuttle && (
+              <Badge variant="outline" className="text-xs">
+                🚐 {booking.shuttle.vehicleNumber}
+              </Badge>
+            )}
+          </div>
+        );
+      }
+      return <Badge variant="secondary">Pending Verification</Badge>;
     }
     if (booking.isPaid) {
       return <Badge variant="default">Paid</Badge>;

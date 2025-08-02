@@ -20,6 +20,8 @@ import {
   findAvailableShuttleWithCapacity,
   getISTDateRange,
 } from "../utils/bookingUtils";
+import { confirmHeldSeats, getSeatHoldStatus } from "../utils/seatHoldingUtils";
+import { getShuttleAvailability } from "../utils/shuttleSeatUtils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
   try {
@@ -535,13 +537,17 @@ const createBooking = async (req: Request, res: Response) => {
 
     console.log("Booking created successfully:", booking.id);
 
+    // Determine direction for shuttle capacity calculation
+    const direction = tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL";
+    
     // Find an available shuttle for this hotel with capacity
     console.log(
-      `Looking for available shuttle with capacity for ${numberOfPersons} passengers...`
+      `Looking for available shuttle with capacity for ${numberOfPersons} passengers (${direction})...`
     );
     const availableShuttle = await findAvailableShuttleWithCapacity(
       hotelId,
-      numberOfPersons
+      numberOfPersons,
+      direction
     );
 
     console.log(
@@ -1771,6 +1777,14 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       return res.status(400).json({
         message: "No available shuttle with capacity found for this booking",
       });
+    }
+
+    // Confirm held seats for this booking
+    const seatsConfirmed = await confirmHeldSeats(bookingId);
+    if (!seatsConfirmed) {
+      console.warn(`Failed to confirm held seats for booking ${bookingId}`);
+      // Note: We continue with verification even if seat confirmation fails
+      // The booking can still be processed
     }
 
     // Use intelligent booking assignment logic
@@ -3037,6 +3051,62 @@ const sendMessage = async (req: Request, res: Response) => {
   }
 };
 
+const getShuttleAvailabilityInfo = async (req: Request, res: Response) => {
+  try {
+    const hotelId = (req as any).user.hotelId;
+    
+    // Get all shuttles for the hotel with availability information
+    const shuttles = await prisma.shuttle.findMany({
+      where: { hotelId },
+      select: {
+        id: true,
+        vehicleNumber: true,
+        seats: true,
+        seatsHeld: true,
+        seatsConfirmed: true,
+        schedules: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                phoneNumber: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Calculate availability for each shuttle
+    const shuttlesWithAvailability = shuttles.map(shuttle => {
+      const availableSeats = shuttle.seats - shuttle.seatsHeld - shuttle.seatsConfirmed;
+      const utilizationPercentage = ((shuttle.seatsHeld + shuttle.seatsConfirmed) / shuttle.seats) * 100;
+      
+      return {
+        ...shuttle,
+        availableSeats,
+        utilizationPercentage: Math.round(utilizationPercentage * 100) / 100, // Round to 2 decimal places
+        status: availableSeats === 0 ? 'FULL' : availableSeats < 5 ? 'LOW_CAPACITY' : 'AVAILABLE',
+      };
+    });
+
+    res.json({ 
+      shuttles: shuttlesWithAvailability,
+      summary: {
+        totalShuttles: shuttles.length,
+        totalSeats: shuttles.reduce((sum, s) => sum + s.seats, 0),
+        totalHeldSeats: shuttles.reduce((sum, s) => sum + s.seatsHeld, 0),
+        totalConfirmedSeats: shuttles.reduce((sum, s) => sum + s.seatsConfirmed, 0),
+        totalAvailableSeats: shuttlesWithAvailability.reduce((sum, s) => sum + s.availableSeats, 0),
+      }
+    });
+  } catch (error) {
+    console.error("Get shuttle availability error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getFrontdesk,
   getShuttle,
@@ -3081,4 +3151,5 @@ export default {
   getChats,
   getChatMessages,
   sendMessage,
+  getShuttleAvailabilityInfo,
 };

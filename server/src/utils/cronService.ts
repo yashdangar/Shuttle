@@ -2,6 +2,7 @@ import { CronJob } from 'cron';
 import prisma from '../db/prisma';
 import { sendToUser, sendToRoleInHotel } from '../ws/index';
 import { WsEvents } from '../ws/events';
+import { cleanupExpiredSeatHolds } from "./seatHoldingUtils";
 
 // Function to cancel bookings that haven't been verified by frontdesk for 6+ hours
 const cancelUnverifiedBookings = async () => {
@@ -120,3 +121,49 @@ export const stopBookingCancellationJob = () => {
 
 // Export the cancellation function for manual testing
 export { cancelUnverifiedBookings }; 
+
+// Run cleanup every 5 minutes
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+export const startSeatHoldCleanup = () => {
+  console.log("Starting seat hold cleanup service...");
+  
+  // Run initial cleanup
+  cleanupExpiredSeatHolds();
+  
+  // Set up periodic cleanup
+  cleanupInterval = setInterval(async () => {
+    try {
+      await cleanupExpiredSeatHolds();
+    } catch (error) {
+      console.error("Error during seat hold cleanup:", error);
+    }
+  }, CLEANUP_INTERVAL_MS);
+  
+  console.log(`Seat hold cleanup service started. Running every ${CLEANUP_INTERVAL_MS / 1000} seconds.`);
+};
+
+export const stopSeatHoldCleanup = () => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    console.log("Seat hold cleanup service stopped.");
+  }
+};
+
+// Start cleanup service when this module is imported
+console.log("🚀 Starting seat hold cleanup service...");
+startSeatHoldCleanup();
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log("Received SIGTERM, stopping seat hold cleanup service...");
+  stopSeatHoldCleanup();
+});
+
+process.on('SIGINT', () => {
+  console.log("Received SIGINT, stopping seat hold cleanup service...");
+  stopSeatHoldCleanup();
+}); 
