@@ -476,7 +476,6 @@ export const findAvailableShuttleWithCapacity = async (
       console.log(`Total seats: ${shuttle.seats}`);
       console.log(`Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
       console.log(`Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
-      console.log(`Used capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
       console.log(`Total bookings: ${shuttle.bookings.length}`);
       
       // Check if any schedule is currently active
@@ -509,14 +508,13 @@ export const findAvailableShuttleWithCapacity = async (
         console.log(`❌ No active schedule found for shuttle ${shuttle.id}`);
         continue;
       }
-      
-      const currentPassengers = shuttle.bookings.reduce(
-        (sum, booking) => {
-          console.log(`  Booking ${booking.id}: ${booking.numberOfPersons} persons (TripID: ${booking.tripId})`);
-          return sum + booking.numberOfPersons;
-        },
-        0
-      );
+
+      const currentPassengers = shuttle.bookings.reduce((sum, booking) => {
+        console.log(
+          `  Booking ${booking.id}: ${booking.numberOfPersons} persons (TripID: ${booking.tripId})`
+        );
+        return sum + booking.numberOfPersons;
+      }, 0);
 
       // Use direction-specific capacity if provided, otherwise fall back to general seats
       let capacity = shuttle.seats;

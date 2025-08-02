@@ -645,11 +645,7 @@ const getShuttle = async (req: Request, res: Response) => {
 
 const addSchedule = async (req: Request, res: Response) => {
   try {
-    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
-
-    // scheduleDate is used for uniqueness, set to start of day UTC
-    const dateOnly = new Date(scheduleDate);
-    dateOnly.setUTCHours(0, 0, 0, 0);
+    const { driverId, shuttleId, startTime, endTime } = req.body;
 
     // All times from frontend are expected as UTC ISO strings
     // Store directly as Date objects (which are UTC by default)
@@ -657,7 +653,6 @@ const addSchedule = async (req: Request, res: Response) => {
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
-        scheduleDate: dateOnly,
         startTime: new Date(startTime), // UTC
         endTime: new Date(endTime), // UTC
       },
@@ -670,7 +665,7 @@ const addSchedule = async (req: Request, res: Response) => {
     // Notify the assigned driver
     sendToUser(schedule.driverId, "driver", WsEvents.NEW_SCHEDULE, {
       title: "New Schedule Assigned",
-      message: `You have a new schedule for ${schedule.scheduleDate.toDateString()}.`,
+      message: `You have a new schedule starting at ${schedule.startTime.toLocaleString()}.`,
       schedule,
     });
 
@@ -682,7 +677,7 @@ const addSchedule = async (req: Request, res: Response) => {
     if ((error as any).code === "P2002") {
       return res.status(400).json({
         message:
-          "A schedule already exists for this driver on the selected date.",
+          "A schedule already exists for this driver at the selected start time.",
       });
     }
 
@@ -693,10 +688,7 @@ const addSchedule = async (req: Request, res: Response) => {
 const editSchedule = async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    const { driverId, shuttleId, scheduleDate, startTime, endTime } = req.body;
-
-    const dateOnly = new Date(scheduleDate);
-    dateOnly.setUTCHours(0, 0, 0, 0);
+    const { driverId, shuttleId, startTime, endTime } = req.body;
 
     // All times from frontend are expected as UTC ISO strings
     const schedule = await prisma.schedule.update({
@@ -704,7 +696,6 @@ const editSchedule = async (req: Request, res: Response) => {
       data: {
         driverId: parseInt(driverId),
         shuttleId: parseInt(shuttleId),
-        scheduleDate: dateOnly,
         startTime: new Date(startTime), // UTC
         endTime: new Date(endTime), // UTC
       },
@@ -717,7 +708,7 @@ const editSchedule = async (req: Request, res: Response) => {
     // Notify the assigned driver
     sendToUser(schedule.driverId, "driver", WsEvents.UPDATED_SCHEDULE, {
       title: "Schedule Updated",
-      message: `Your schedule for ${schedule.scheduleDate.toDateString()} has been updated.`,
+      message: `Your schedule starting at ${schedule.startTime.toLocaleString()} has been updated.`,
       schedule,
     });
 
@@ -729,7 +720,7 @@ const editSchedule = async (req: Request, res: Response) => {
     if ((error as any).code === "P2002") {
       return res.status(400).json({
         message:
-          "A schedule already exists for this driver on the selected date.",
+          "A schedule already exists for this driver at the selected start time.",
       });
     }
 
@@ -747,7 +738,7 @@ const deleteSchedule = async (req: Request, res: Response) => {
     // Notify the assigned driver
     sendToUser(schedule.driverId, "driver", WsEvents.DELETED_SCHEDULE, {
       title: "Schedule Canceled",
-      message: `Your schedule for ${schedule.scheduleDate.toDateString()} has been canceled.`,
+      message: `Your schedule starting at ${schedule.startTime.toLocaleString()} has been canceled.`,
       schedule,
     });
 
@@ -765,7 +756,7 @@ const getSchedule = async (req: Request, res: Response) => {
     let dateFilter = {};
     if (start && end) {
       dateFilter = {
-        scheduleDate: {
+        startTime: {
           gte: new Date(start as string),
           lte: new Date(end as string),
         },
@@ -796,7 +787,7 @@ const getSchedule = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        scheduleDate: "asc",
+        startTime: "asc",
       },
     });
     res.json({ schedules });
@@ -831,9 +822,11 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
       const dayKey = dayKeys[i];
       const dayData = weekSchedule[dayKey];
       if (dayData && dayData.enabled) {
-        const scheduleDate = new Date(weekStart);
-        scheduleDate.setUTCDate(scheduleDate.getUTCDate() + i);
-        scheduleDate.setUTCHours(0, 0, 0, 0);
+        // Calculate the date for this day of the week
+        const dayDate = new Date(weekStart);
+        dayDate.setUTCDate(dayDate.getUTCDate() + i);
+        dayDate.setUTCHours(0, 0, 0, 0);
+
         // All times from frontend are expected as UTC ISO strings
         // For weekly, you may want to accept startTime/endTime as UTC ISO, or as "HH:mm" and convert here
         // But for consistency, expect UTC ISO from frontend
@@ -843,7 +836,6 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
           data: {
             driverId: parseInt(driverId),
             shuttleId: parseInt(shuttleId),
-            scheduleDate: scheduleDate,
             startTime: new Date(startTime), // UTC
             endTime: new Date(endTime), // UTC
           },
@@ -924,7 +916,7 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
             ],
           },
           {
-            scheduleDate: {
+            startTime: {
               gte: targetWeekStart,
               lte: targetWeekEnd,
             },
@@ -936,7 +928,7 @@ const getScheduleByWeek = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        scheduleDate: "asc",
+        startTime: "asc",
       },
     });
 
@@ -986,7 +978,7 @@ const getScheduleBy21Days = async (req: Request, res: Response) => {
             ],
           },
           {
-            scheduleDate: {
+            startTime: {
               gte: start,
               lte: end,
             },
@@ -998,7 +990,7 @@ const getScheduleBy21Days = async (req: Request, res: Response) => {
         shuttle: true,
       },
       orderBy: {
-        scheduleDate: "asc",
+        startTime: "asc",
       },
     });
     res.json({
@@ -1347,7 +1339,58 @@ const getGlobalLocations = async (req: Request, res: Response) => {
   }
 };
 
-// Get all locations for the admin's hotel (with price)
+// Add a private location for the admin's hotel
+const addPrivateLocation = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { name, latitude, longitude, address, price } = req.body;
+
+    if (!name || !latitude || !longitude || !price) {
+      return res.status(400).json({
+        message: "Name, latitude, longitude, and price are required",
+      });
+    }
+
+    const admin = await prisma.admin.findUnique({
+      where: { id: parseInt(userId) },
+      select: { hotelId: true },
+    });
+
+    if (!admin?.hotelId) {
+      return res.status(400).json({ message: "Admin does not have a hotel" });
+    }
+
+    // Create the private location
+    const location = await prisma.location.create({
+      data: {
+        name,
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        address,
+        isPrivate: true,
+        createdByAdminId: parseInt(userId),
+        createdByType: "ADMIN",
+      },
+    });
+
+    // Create the hotel location with price
+    const hotelLocation = await prisma.hotelLocation.create({
+      data: {
+        hotelId: admin.hotelId,
+        locationId: location.id,
+        price: parseFloat(price),
+      },
+      include: { location: true },
+    });
+
+    res.json({ location: hotelLocation });
+  } catch (error) {
+    console.error("Add private location error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get all locations for the admin's hotel (including private ones)
 const getHotelLocations = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
@@ -1355,14 +1398,29 @@ const getHotelLocations = async (req: Request, res: Response) => {
       where: { id: parseInt(userId) },
       select: { hotelId: true },
     });
+
     if (!admin?.hotelId) {
       return res.json({ locations: [] });
     }
+
     const hotelLocations = await prisma.hotelLocation.findMany({
       where: { hotelId: admin.hotelId },
-      include: { location: true },
+      include: {
+        location: {
+          include: {
+            createdByAdmin: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { id: "asc" },
     });
+
     res.json({ locations: hotelLocations });
   } catch (error) {
     console.error("Get hotel locations error:", error);
@@ -1688,6 +1746,7 @@ export default {
   addWeeklySchedule,
   getScheduleByWeek,
   addHotelLocation,
+  addPrivateLocation,
   editHotelLocation,
   deleteHotelLocation,
   getGlobalLocations,

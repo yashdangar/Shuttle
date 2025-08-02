@@ -20,7 +20,7 @@ const startTrip = async (req: Request, res: Response) => {
     const schedules = await prisma.schedule.findMany({
       where: {
         driverId,
-        scheduleDate: {
+        startTime: {
           gte: startOfDay,
           lte: endOfDay,
         },
@@ -39,14 +39,17 @@ const startTrip = async (req: Request, res: Response) => {
     for (const schedule of schedules) {
       // Current time is already UTC-based in Node.js
       const currentTimeUTC = new Date();
-      
+
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
       console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
       console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
-      
-      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
+
+      if (
+        currentTimeUTC >= schedule.startTime &&
+        currentTimeUTC <= schedule.endTime
+      ) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         currentSchedule = schedule;
         break;
@@ -62,7 +65,9 @@ const startTrip = async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`✅ Found active schedule: Driver ${driverId}, Shuttle ${currentSchedule.shuttleId}`);
+    console.log(
+      `✅ Found active schedule: Driver ${driverId}, Shuttle ${currentSchedule.shuttleId}`
+    );
 
     // Check if there's already an active trip for this driver
     const activeTrip = await prisma.trip.findFirst({
@@ -177,8 +182,8 @@ const startTrip = async (req: Request, res: Response) => {
       status: booking.isVerified
         ? "checked-in"
         : index === 0
-        ? "next"
-        : "pending",
+          ? "next"
+          : "pending",
       seatNumber: booking.isVerified ? `A${index + 1}` : null,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
@@ -224,29 +229,34 @@ const startTrip = async (req: Request, res: Response) => {
     try {
       const { sendToRoleInHotel } = await import("../ws/index");
       const { WsEvents } = await import("../ws/events");
-      
+
       // Get hotel ID from the driver
       const driverWithHotel = await prisma.driver.findUnique({
         where: { id: driverId },
-        select: { hotelId: true }
+        select: { hotelId: true },
       });
 
       if (driverWithHotel) {
         // Send to all frontdesk users of this hotel
-        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.TRIP_STARTED, {
-          title: "Trip Started",
-          message: `Driver ${newTrip.driver.name} started a trip with ${totalBookings} bookings`,
-          trip: {
-            id: newTrip.id,
-            driver: newTrip.driver,
-            shuttle: newTrip.shuttle,
-            direction: newTrip.direction,
-            phase: newTrip.phase,
-            startTime: newTrip.startTime,
-            totalBookings,
-            totalPeople,
+        sendToRoleInHotel(
+          Number(driverWithHotel.hotelId),
+          "frontdesk",
+          WsEvents.TRIP_STARTED,
+          {
+            title: "Trip Started",
+            message: `Driver ${newTrip.driver.name} started a trip with ${totalBookings} bookings`,
+            trip: {
+              id: newTrip.id,
+              driver: newTrip.driver,
+              shuttle: newTrip.shuttle,
+              direction: newTrip.direction,
+              phase: newTrip.phase,
+              startTime: newTrip.startTime,
+              totalBookings,
+              totalPeople,
+            },
           }
-        });
+        );
       }
     } catch (wsError) {
       console.error("WebSocket notification error:", wsError);
@@ -332,25 +342,30 @@ const transitionTripPhase = async (req: Request, res: Response) => {
     try {
       const { sendToRoleInHotel } = await import("../ws/index");
       const { WsEvents } = await import("../ws/events");
-      
+
       // Get hotel ID from the driver
       const driverWithHotel = await prisma.driver.findUnique({
         where: { id: driverId },
-        select: { hotelId: true }
+        select: { hotelId: true },
       });
 
       if (driverWithHotel) {
         // Send to all frontdesk users of this hotel
-        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.TRIP_UPDATED, {
-          title: "Trip Updated",
-          message: `Trip ${tripId} transitioned to ${phase} phase`,
-          trip: {
-            id: tripId,
-            phase: phase,
-            direction: trip.direction,
-            totalBookings: trip.bookings.length,
+        sendToRoleInHotel(
+          Number(driverWithHotel.hotelId),
+          "frontdesk",
+          WsEvents.TRIP_UPDATED,
+          {
+            title: "Trip Updated",
+            message: `Trip ${tripId} transitioned to ${phase} phase`,
+            trip: {
+              id: tripId,
+              phase: phase,
+              direction: trip.direction,
+              totalBookings: trip.bookings.length,
+            },
           }
-        });
+        );
       }
     } catch (wsError) {
       console.error("WebSocket notification error:", wsError);
@@ -455,49 +470,40 @@ const endTrip = async (req: Request, res: Response) => {
     );
 
     // Notify guests about trip completion
-      for (const booking of verifiedBookings) {
-        await prisma.notification.create({
-          data: {
-            guestId: booking.guestId,
-            title: "Trip Completed",
-          message: `Your shuttle trip has been completed. Thank you for choosing our service!`,
-          },
-        });
-
-        // Send WebSocket notification
-        sendToUser(
-          booking.guestId,
-          "guest",
-        "trip_completed",
-        {
+    for (const booking of verifiedBookings) {
+      await prisma.notification.create({
+        data: {
+          guestId: booking.guestId,
           title: "Trip Completed",
-          message: "Your shuttle trip has been completed successfully.",
-          booking: booking,
-        }
-      );
+          message: `Your shuttle trip has been completed. Thank you for choosing our service!`,
+        },
+      });
+
+      // Send WebSocket notification
+      sendToUser(booking.guestId, "guest", "trip_completed", {
+        title: "Trip Completed",
+        message: "Your shuttle trip has been completed successfully.",
+        booking: booking,
+      });
     }
 
     // Notify unverified guests about cancellation
     for (const booking of unverifiedBookings) {
       await prisma.notification.create({
         data: {
-            guestId: booking.guestId,
+          guestId: booking.guestId,
           title: "Trip Cancelled",
           message: `Your shuttle trip has been cancelled as you were not checked in.`,
-          },
-        });
+        },
+      });
 
-        // Send WebSocket notification
-        sendToUser(
-          booking.guestId,
-          "guest",
-        "trip_cancelled",
-        {
-          title: "Trip Cancelled",
-          message: "Your shuttle trip has been cancelled as you were not checked in.",
-          booking: booking,
-        }
-      );
+      // Send WebSocket notification
+      sendToUser(booking.guestId, "guest", "trip_cancelled", {
+        title: "Trip Cancelled",
+        message:
+          "Your shuttle trip has been cancelled as you were not checked in.",
+        booking: booking,
+      });
     }
 
     res.json({
@@ -567,8 +573,8 @@ const getCurrentTrip = async (req: Request, res: Response) => {
       status: booking.isVerified
         ? "checked-in"
         : index === 0
-        ? "next"
-        : "pending",
+          ? "next"
+          : "pending",
       seatNumber: booking.isVerified ? `A${index + 1}` : null,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
@@ -624,8 +630,6 @@ const getCurrentTrip = async (req: Request, res: Response) => {
   }
 };
 
-
-
 // Get available trips (bookings that can be started)
 const getAvailableTrips = async (req: Request, res: Response) => {
   try {
@@ -645,7 +649,7 @@ const getAvailableTrips = async (req: Request, res: Response) => {
     const schedules = await prisma.schedule.findMany({
       where: {
         driverId,
-        scheduleDate: {
+        startTime: {
           gte: startOfDay,
           lte: endOfDay,
         },
@@ -655,21 +659,26 @@ const getAvailableTrips = async (req: Request, res: Response) => {
       },
     });
 
-    console.log(`Found ${schedules.length} schedules for driver ${driverId} today`);
+    console.log(
+      `Found ${schedules.length} schedules for driver ${driverId} today`
+    );
 
     // Find the currently active schedule using UTC time comparison
     let currentSchedule = null;
     for (const schedule of schedules) {
       // Current time is already UTC-based in Node.js
       const currentTimeUTC = new Date();
-      
+
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
       console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
       console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
-      
-      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
+
+      if (
+        currentTimeUTC >= schedule.startTime &&
+        currentTimeUTC <= schedule.endTime
+      ) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         currentSchedule = schedule;
         break;
@@ -686,7 +695,9 @@ const getAvailableTrips = async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`✅ Found active schedule: Driver ${driverId}, Shuttle ${currentSchedule.shuttleId}`);
+    console.log(
+      `✅ Found active schedule: Driver ${driverId}, Shuttle ${currentSchedule.shuttleId}`
+    );
 
     // Get unassigned bookings grouped by direction
     // Updated logic: Include bookings that are verified by frontdesk but not yet verified by driver
@@ -719,7 +730,9 @@ const getAvailableTrips = async (req: Request, res: Response) => {
       },
     });
 
-    console.log(`Found ${unassignedBookings.length} unassigned bookings ready for trip`);
+    console.log(
+      `Found ${unassignedBookings.length} unassigned bookings ready for trip`
+    );
 
     // Group by booking type
     const hotelToAirport = unassignedBookings.filter(
@@ -963,8 +976,8 @@ const addBookingToActiveTrip = async (req: Request, res: Response) => {
       status: booking.isVerified
         ? "checked-in"
         : index === 0
-        ? "next"
-        : "pending",
+          ? "next"
+          : "pending",
       seatNumber: booking.isVerified ? `A${index + 1}` : null,
       phoneNumber: booking.guest.phoneNumber,
       preferredTime: booking.preferredTime,
@@ -1014,43 +1027,44 @@ const addBookingToActiveTrip = async (req: Request, res: Response) => {
 
     // Send WebSocket notification to guest
     const { sendToUser } = await import("../ws/index");
-    sendToUser(
-      booking.guestId,
-      "guest",
-      "booking_added_to_trip",
-      {
-        title: "Booking Added to Trip",
-        message: "Your booking has been added to the current active shuttle trip.",
-        booking: booking,
-        trip: updatedTrip,
-      }
-    );
+    sendToUser(booking.guestId, "guest", "booking_added_to_trip", {
+      title: "Booking Added to Trip",
+      message:
+        "Your booking has been added to the current active shuttle trip.",
+      booking: booking,
+      trip: updatedTrip,
+    });
 
     // Send WebSocket notification to frontdesk about booking assignment
     try {
       const { sendToRoleInHotel } = await import("../ws/index");
       const { WsEvents } = await import("../ws/events");
-      
+
       // Get hotel ID from the driver
       const driverWithHotel = await prisma.driver.findUnique({
         where: { id: driverId },
-        select: { hotelId: true }
+        select: { hotelId: true },
       });
 
       if (driverWithHotel) {
         // Send to all frontdesk users of this hotel
-        sendToRoleInHotel(Number(driverWithHotel.hotelId), "frontdesk", WsEvents.BOOKING_ASSIGNED, {
-          title: "Booking Assigned",
-          message: `Booking ${bookingId} assigned to active trip ${activeTrip.id}`,
-          booking: {
-            id: booking.id,
-            guest: booking.guest,
-            numberOfPersons: booking.numberOfPersons,
-            pickupLocation: booking.pickupLocation,
-            dropoffLocation: booking.dropoffLocation,
-          },
-          tripId: activeTrip.id,
-        });
+        sendToRoleInHotel(
+          Number(driverWithHotel.hotelId),
+          "frontdesk",
+          WsEvents.BOOKING_ASSIGNED,
+          {
+            title: "Booking Assigned",
+            message: `Booking ${bookingId} assigned to active trip ${activeTrip.id}`,
+            booking: {
+              id: booking.id,
+              guest: booking.guest,
+              numberOfPersons: booking.numberOfPersons,
+              pickupLocation: booking.pickupLocation,
+              dropoffLocation: booking.dropoffLocation,
+            },
+            tripId: activeTrip.id,
+          }
+        );
       }
     } catch (wsError) {
       console.error("WebSocket notification error:", wsError);
@@ -1087,14 +1101,14 @@ const shouldAssignBookingToCurrentTrip = (
     // These will be handled during the return phase
     return bookingType === "AIRPORT_TO_HOTEL";
   }
-  
+
   // If trip is in RETURN phase (airport to hotel)
   if (tripPhase === "RETURN") {
     // During return, don't assign new airport-to-hotel bookings to current trip
     // They should go to a new trip
     return false;
   }
-  
+
   // For any other phase, don't assign to current trip
   return false;
 };
@@ -1118,11 +1132,10 @@ const debugDriverBookings = async (req: Request, res: Response) => {
     const currentSchedule = await prisma.schedule.findFirst({
       where: {
         driverId,
-        scheduleDate: {
+        startTime: {
           gte: startOfDay,
           lte: endOfDay,
         },
-        startTime: { lte: new Date() },
         endTime: { gte: new Date() },
       },
       include: {
@@ -1163,11 +1176,12 @@ const debugDriverBookings = async (req: Request, res: Response) => {
     });
 
     // Get bookings that should be available for trips
-    const availableBookings = allBookings.filter(booking => 
-      !booking.isCompleted && 
-      !booking.isCancelled && 
-      !booking.needsFrontdeskVerification &&
-      !booking.tripId
+    const availableBookings = allBookings.filter(
+      (booking) =>
+        !booking.isCompleted &&
+        !booking.isCancelled &&
+        !booking.needsFrontdeskVerification &&
+        !booking.tripId
     );
 
     console.log(`Total bookings for shuttle: ${allBookings.length}`);
@@ -1181,7 +1195,7 @@ const debugDriverBookings = async (req: Request, res: Response) => {
         startTime: currentSchedule.startTime,
         endTime: currentSchedule.endTime,
       },
-      allBookings: allBookings.map(b => ({
+      allBookings: allBookings.map((b) => ({
         id: b.id,
         numberOfPersons: b.numberOfPersons,
         bookingType: b.bookingType,
@@ -1194,7 +1208,7 @@ const debugDriverBookings = async (req: Request, res: Response) => {
         guest: b.guest,
         createdAt: b.createdAt,
       })),
-      availableBookings: availableBookings.map(b => ({
+      availableBookings: availableBookings.map((b) => ({
         id: b.id,
         numberOfPersons: b.numberOfPersons,
         bookingType: b.bookingType,
@@ -1220,15 +1234,19 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
 
     // Get current date in IST
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
-    
-    console.log(`Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-    console.log(`Date range (IST): ${startOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} to ${endOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+
+    console.log(
+      `Current IST time: ${istTime.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
+    console.log(
+      `Date range (IST): ${startOfDay.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} to ${endOfDay.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
 
     // Get all schedules for this driver today
     const allSchedules = await prisma.schedule.findMany({
       where: {
         driverId,
-        scheduleDate: {
+        startTime: {
           gte: startOfDay,
           lte: endOfDay,
         },
@@ -1238,7 +1256,7 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
         driver: true,
       },
       orderBy: {
-        startTime: 'asc',
+        startTime: "asc",
       },
     });
 
@@ -1249,14 +1267,17 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
     for (const schedule of allSchedules) {
       // Current time is already UTC-based in Node.js
       const currentTimeUTC = new Date();
-      
+
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${schedule.startTime.toISOString()}`);
       console.log(`  End time (UTC): ${schedule.endTime.toISOString()}`);
       console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
       console.log(`  Current time (IST): ${currentTimeUTC.toLocaleString()}`);
-      
-      if (currentTimeUTC >= schedule.startTime && currentTimeUTC <= schedule.endTime) {
+
+      if (
+        currentTimeUTC >= schedule.startTime &&
+        currentTimeUTC <= schedule.endTime
+      ) {
         console.log(`✅ Schedule ${schedule.id} is currently active`);
         activeSchedule = schedule;
         break;
@@ -1265,7 +1286,7 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
       }
     }
 
-    console.log(`Active schedule: ${activeSchedule ? 'Found' : 'Not found'}`);
+    console.log(`Active schedule: ${activeSchedule ? "Found" : "Not found"}`);
 
     // Get all shuttles for this hotel
     const hotelShuttles = await prisma.shuttle.findMany({
@@ -1275,7 +1296,7 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
       include: {
         schedules: {
           where: {
-            scheduleDate: {
+            startTime: {
               gte: startOfDay,
               lte: endOfDay,
             },
@@ -1294,26 +1315,29 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
       hotelId,
       currentTime: {
         utc: new Date().toISOString(),
-        ist: istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        ist: istTime.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
       },
       dateRange: {
         startOfDay: startOfDay.toISOString(),
         endOfDay: endOfDay.toISOString(),
       },
-      allSchedules: allSchedules.map(s => {
+      allSchedules: allSchedules.map((s) => {
         // The schedule times are stored as UTC, so we need to compare with current UTC time
         const scheduleStartTime = new Date(s.startTime);
         const scheduleEndTime = new Date(s.endTime);
         const currentTime = new Date(); // Current time in server timezone (IST)
-        
+
         // Convert current time to UTC for comparison
-        const currentTimeUTC = new Date(currentTime.getTime() - (currentTime.getTimezoneOffset() * 60 * 1000));
-        
-        const isActive = currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime;
-        
+        const currentTimeUTC = new Date(
+          currentTime.getTime() - currentTime.getTimezoneOffset() * 60 * 1000
+        );
+
+        const isActive =
+          currentTimeUTC >= scheduleStartTime &&
+          currentTimeUTC <= scheduleEndTime;
+
         return {
           id: s.id,
-          scheduleDate: s.scheduleDate,
           startTime: s.startTime,
           endTime: s.endTime,
           shuttleId: s.shuttleId,
@@ -1322,23 +1346,23 @@ const debugDriverSchedule = async (req: Request, res: Response) => {
           isActive: isActive,
         };
       }),
-      activeSchedule: activeSchedule ? {
-        id: activeSchedule.id,
-        scheduleDate: activeSchedule.scheduleDate,
-        startTime: activeSchedule.startTime,
-        endTime: activeSchedule.endTime,
-        shuttleId: activeSchedule.shuttleId,
-        shuttle: activeSchedule.shuttle,
-        driver: activeSchedule.driver,
-      } : null,
-      hotelShuttles: hotelShuttles.map(s => ({
+      activeSchedule: activeSchedule
+        ? {
+            id: activeSchedule.id,
+            startTime: activeSchedule.startTime,
+            endTime: activeSchedule.endTime,
+            shuttleId: activeSchedule.shuttleId,
+            shuttle: activeSchedule.shuttle,
+            driver: activeSchedule.driver,
+          }
+        : null,
+      hotelShuttles: hotelShuttles.map((s) => ({
         id: s.id,
         vehicleNumber: s.vehicleNumber,
         seats: s.seats,
         scheduleCount: s.schedules.length,
-        schedules: s.schedules.map(sch => ({
+        schedules: s.schedules.map((sch) => ({
           id: sch.id,
-          scheduleDate: sch.scheduleDate,
           startTime: sch.startTime,
           endTime: sch.endTime,
           driverId: sch.driverId,
@@ -1357,7 +1381,7 @@ const testCurrentTime = async (req: Request, res: Response) => {
   try {
     const now = new Date();
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
-    
+
     res.json({
       serverTime: {
         local: now.toLocaleString(),

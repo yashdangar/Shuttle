@@ -65,6 +65,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { AddPrivateLocationModal } from "@/components/add-private-location-modal";
 
 interface Hotel {
   id: string;
@@ -90,7 +91,14 @@ type Location = {
 
 type HotelLocation = {
   id: number;
-  location: Location;
+  location: Location & {
+    isPrivate?: boolean;
+    createdByAdmin?: {
+      id: number;
+      name: string;
+      email: string;
+    } | null;
+  };
   price: number;
 };
 
@@ -238,6 +246,10 @@ function HotelsPage() {
     id: number;
     name: string;
   }>(null);
+
+  // Add state for private location modal
+  const [isPrivateLocationModalOpen, setIsPrivateLocationModalOpen] =
+    useState(false);
 
   // Add state for Google Maps search
   const [searchQuery, setSearchQuery] = useState("");
@@ -1710,6 +1722,26 @@ function HotelsPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      variant="outline"
+                      className="ml-2 mt-2 md:mt-0"
+                      onClick={() => setIsPrivateLocationModalOpen(true)}
+                      aria-label="Add private location"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Private Location
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Create a new private location for your hotel
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -1743,7 +1775,21 @@ function HotelsPage() {
                 ) : (
                   hotelLocations.map((hotelLoc) => (
                     <TableRow key={hotelLoc.id} className="hover:bg-slate-50">
-                      <TableCell>{hotelLoc.location.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{hotelLoc.location.name}</span>
+                          {hotelLoc.location.isPrivate && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              Private
+                            </span>
+                          )}
+                        </div>
+                        {hotelLoc.location.createdByAdmin && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Created by: {hotelLoc.location.createdByAdmin.name}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>{hotelLoc.location.latitude}</TableCell>
                       <TableCell>{hotelLoc.location.longitude}</TableCell>
                       <TableCell>
@@ -1947,6 +1993,13 @@ function HotelsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Private Location Modal */}
+      <AddPrivateLocationModal
+        open={isPrivateLocationModalOpen}
+        onOpenChange={setIsPrivateLocationModalOpen}
+        onLocationCreated={fetchLocations}
+      />
     </div>
   );
 }

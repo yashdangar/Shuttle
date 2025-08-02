@@ -953,7 +953,7 @@ const assignUnassignedBookings = async (req: Request, res: Response) => {
     const schedules = await prisma.schedule.findMany({
       where: {
         driverId,
-        scheduleDate: {
+        startTime: {
           gte: startOfDay,
           lte: endOfDay,
         },

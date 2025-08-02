@@ -425,6 +425,15 @@ export const superAdminController = {
   getLocations: async (req: Request, res: Response) => {
     try {
       const locations = await prisma.location.findMany({
+        include: {
+          createdByAdmin: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
         orderBy: {
           createdAt: "desc",
         },

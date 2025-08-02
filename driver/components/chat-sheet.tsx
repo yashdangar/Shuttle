@@ -205,7 +205,7 @@ export function ChatSheet() {
         <div className="flex-1 flex flex-col h-[calc(100vh-8rem)]">
           {!selectedChat ? (
             // Chat List
-            <div className="flex-1">
+            <div className="flex-1 overflow-hidden">
               {isLoading ? (
                 <div className="p-4 text-center text-muted-foreground">
                   Loading chats...
@@ -253,38 +253,40 @@ export function ChatSheet() {
             </div>
           ) : (
             // Chat Messages
-            <div className="flex-1 flex flex-col">
-              <ScrollArea className="flex-1 p-4">
-                {chatMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex mb-4 ${
-                      message.senderType === "DRIVER"
-                        ? "justify-end"
-                        : "justify-start"
-                    }`}
-                  >
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <ScrollArea className="flex-1">
+                <div className="p-4">
+                  {chatMessages.map((message) => (
                     <div
-                      className={`max-w-[70%] rounded-lg px-3 py-2 ${
+                      key={message.id}
+                      className={`flex mb-4 ${
                         message.senderType === "DRIVER"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
+                          ? "justify-end"
+                          : "justify-start"
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {formatTime(message.createdAt)}
-                        {message.optimistic && (
-                          <span className="ml-1 text-yellow-500">...</span>
-                        )}
-                      </p>
+                      <div
+                        className={`max-w-[70%] rounded-lg px-3 py-2 ${
+                          message.senderType === "DRIVER"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        }`}
+                      >
+                        <p className="text-sm">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-1">
+                          {formatTime(message.createdAt)}
+                          {message.optimistic && (
+                            <span className="ml-1 text-yellow-500">...</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
               </ScrollArea>
 
-              <div className="p-4 border-t">
+              <div className="p-4 border-t flex-shrink-0">
                 <div className="flex gap-2">
                   <Input
                     value={newMessage}
