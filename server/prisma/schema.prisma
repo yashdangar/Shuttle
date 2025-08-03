@@ -91,7 +91,13 @@ model Booking {
   waivedBy                   Int?
   waiverReason               String?
   notes                      String?
-  isParkSleepFly             Boolean              @default(false)
+  isParkSleepFly            Boolean              @default(false)
+  // Seat holding fields
+  seatsHeld                  Boolean              @default(false)
+  seatsHeldAt                DateTime?
+  seatsHeldUntil             DateTime?
+  seatsConfirmed             Boolean              @default(false)
+  seatsConfirmedAt           DateTime?
   dropoffLocation            Location?            @relation("dropoff", fields: [dropoffLocationId], references: [id])
   guest                      Guest                @relation(fields: [guestId], references: [id], onDelete: Cascade)
   pickupLocation             Location?            @relation("pickup", fields: [pickupLocationId], references: [id])
@@ -158,6 +164,17 @@ model Shuttle {
   hotelId       Int
   vehicleNumber String
   seats         Int
+  // General seat holding fields (for backward compatibility)
+  seatsHeld     Int        @default(0)
+  seatsConfirmed Int       @default(0)
+  // Direction-specific seat holding fields
+  airportToHotelSeatsHeld     Int        @default(0)
+  airportToHotelSeatsConfirmed Int       @default(0)
+  hotelToAirportSeatsHeld     Int        @default(0)
+  hotelToAirportSeatsConfirmed Int       @default(0)
+  // Direction-specific capacity fields
+  airportToHotelCapacity Int?
+  hotelToAirportCapacity Int?
   createdAt     DateTime   @default(now())
   bookings      Booking[]
   schedules     Schedule[] @relation("ShuttleSchedules")

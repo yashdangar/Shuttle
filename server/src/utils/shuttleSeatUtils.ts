@@ -38,9 +38,11 @@ export const findAvailableShuttle = async (
               },
             } : {
               // If no preferred time, consider schedules active today
-              scheduleDate: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                lte: new Date(new Date().setHours(23, 59, 59, 999)),
+              startTime: {
+                lte: new Date(), // Schedules that have started
+              },
+              endTime: {
+                gte: new Date(), // Schedules that haven't ended
               },
             }),
           },
@@ -57,8 +59,16 @@ export const findAvailableShuttle = async (
     for (const shuttle of shuttles) {
       console.log(`Shuttle ${shuttle.id} (${shuttle.vehicleNumber}):`);
       console.log(`  Total seats: ${shuttle.seats}`);
-      console.log(`  Seats held: ${shuttle.seatsHeld}`);
-      console.log(`  Seats confirmed: ${shuttle.seatsConfirmed}`);
+      
+      // Log direction-specific seat information
+      if (direction === 'AIRPORT_TO_HOTEL') {
+        console.log(`  Airport to Hotel - Seats held: ${shuttle.airportToHotelSeatsHeld}, Seats confirmed: ${shuttle.airportToHotelSeatsConfirmed}`);
+      } else if (direction === 'HOTEL_TO_AIRPORT') {
+        console.log(`  Hotel to Airport - Seats held: ${shuttle.hotelToAirportSeatsHeld}, Seats confirmed: ${shuttle.hotelToAirportSeatsConfirmed}`);
+      } else {
+        console.log(`  General - Seats held: ${shuttle.seatsHeld}, Seats confirmed: ${shuttle.seatsConfirmed}`);
+      }
+      
       console.log(`  Schedules: ${shuttle.schedules.length}`);
 
       // Check if shuttle has active schedules
@@ -69,7 +79,7 @@ export const findAvailableShuttle = async (
 
       // Check if any schedule is currently active
       const now = new Date();
-      const hasActiveSchedule = shuttle.schedules.some(schedule => {
+      const hasActiveSchedule = shuttle.schedules.some((schedule: any) => {
         const isActive = now >= schedule.startTime && now <= schedule.endTime;
         console.log(`  Schedule ${schedule.id}: ${schedule.startTime.toISOString()} - ${schedule.endTime.toISOString()} (Active: ${isActive})`);
         return isActive;
@@ -80,15 +90,30 @@ export const findAvailableShuttle = async (
         continue;
       }
 
-      // Use direction-specific capacity if provided, otherwise fall back to general seats
+      // Use direction-specific capacity and seat counts
       let capacity = shuttle.seats;
-      if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity > 0) {
-        capacity = shuttle.airportToHotelCapacity;
-      } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity > 0) {
-        capacity = shuttle.hotelToAirportCapacity;
+      let seatsHeld = 0;
+      let seatsConfirmed = 0;
+      
+      if (direction === 'AIRPORT_TO_HOTEL') {
+        if (shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+          capacity = shuttle.airportToHotelCapacity;
+        }
+        seatsHeld = shuttle.airportToHotelSeatsHeld;
+        seatsConfirmed = shuttle.airportToHotelSeatsConfirmed;
+      } else if (direction === 'HOTEL_TO_AIRPORT') {
+        if (shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+          capacity = shuttle.hotelToAirportCapacity;
+        }
+        seatsHeld = shuttle.hotelToAirportSeatsHeld;
+        seatsConfirmed = shuttle.hotelToAirportSeatsConfirmed;
+      } else {
+        // Fallback to general seats for backward compatibility
+        seatsHeld = shuttle.seatsHeld;
+        seatsConfirmed = shuttle.seatsConfirmed;
       }
       
-      const availableSeats = capacity - shuttle.seatsHeld - shuttle.seatsConfirmed;
+      const availableSeats = capacity - seatsHeld - seatsConfirmed;
       console.log(`  Direction: ${direction || 'Not specified'}`);
       console.log(`  Capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
       console.log(`  Available seats: ${availableSeats}`);
@@ -114,15 +139,17 @@ export const findAvailableShuttle = async (
  * Hold seats in a specific shuttle
  * @param shuttleId - The shuttle ID
  * @param numberOfPersons - Number of persons to hold seats for
+ * @param direction - Direction of the trip (AIRPORT_TO_HOTEL or HOTEL_TO_AIRPORT)
  * @returns Promise<boolean> - Whether seats were successfully held
  */
 export const holdSeatsInShuttle = async (
   shuttleId: number,
-  numberOfPersons: number
+  numberOfPersons: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
 ): Promise<boolean> => {
   try {
     console.log(`=== HOLDING SEATS IN SHUTTLE ===`);
-    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}`);
+    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || 'Not specified'}`);
 
     // Get current shuttle state
     const shuttle = await prisma.shuttle.findUnique({
@@ -134,7 +161,24 @@ export const holdSeatsInShuttle = async (
       return false;
     }
 
-    const availableSeats = shuttle.seats - shuttle.seatsHeld - shuttle.seatsConfirmed;
+    // Calculate available seats based on direction
+    let availableSeats = 0;
+    let capacity = shuttle.seats;
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      if (shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+        capacity = shuttle.airportToHotelCapacity;
+      }
+      availableSeats = capacity - shuttle.airportToHotelSeatsHeld - shuttle.airportToHotelSeatsConfirmed;
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      if (shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+        capacity = shuttle.hotelToAirportCapacity;
+      }
+      availableSeats = capacity - shuttle.hotelToAirportSeatsHeld - shuttle.hotelToAirportSeatsConfirmed;
+    } else {
+      // Fallback to general seats for backward compatibility
+      availableSeats = shuttle.seats - shuttle.seatsHeld - shuttle.seatsConfirmed;
+    }
     
     if (availableSeats < numberOfPersons) {
       console.log(`❌ Not enough available seats in shuttle ${shuttleId}`);
@@ -142,15 +186,24 @@ export const holdSeatsInShuttle = async (
       return false;
     }
 
-    // Update shuttle with held seats
+    // Update shuttle with held seats based on direction
+    const updateData: any = {};
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      updateData.airportToHotelSeatsHeld = shuttle.airportToHotelSeatsHeld + numberOfPersons;
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      updateData.hotelToAirportSeatsHeld = shuttle.hotelToAirportSeatsHeld + numberOfPersons;
+    } else {
+      // Fallback to general seats for backward compatibility
+      updateData.seatsHeld = shuttle.seatsHeld + numberOfPersons;
+    }
+
     await prisma.shuttle.update({
       where: { id: shuttleId },
-      data: {
-        seatsHeld: shuttle.seatsHeld + numberOfPersons,
-      },
+      data: updateData,
     });
 
-    console.log(`✅ Held ${numberOfPersons} seats in shuttle ${shuttleId}`);
+    console.log(`✅ Held ${numberOfPersons} seats in shuttle ${shuttleId} for direction: ${direction || 'General'}`);
     console.log(`=== END SHUTTLE SEAT HOLDING ===`);
     return true;
   } catch (error) {
@@ -163,15 +216,17 @@ export const holdSeatsInShuttle = async (
  * Confirm held seats in a shuttle
  * @param shuttleId - The shuttle ID
  * @param numberOfPersons - Number of persons to confirm
+ * @param direction - Direction of the trip (AIRPORT_TO_HOTEL or HOTEL_TO_AIRPORT)
  * @returns Promise<boolean> - Whether seats were successfully confirmed
  */
 export const confirmSeatsInShuttle = async (
   shuttleId: number,
-  numberOfPersons: number
+  numberOfPersons: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
 ): Promise<boolean> => {
   try {
     console.log(`=== CONFIRMING SEATS IN SHUTTLE ===`);
-    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}`);
+    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || 'Not specified'}`);
 
     // Get current shuttle state
     const shuttle = await prisma.shuttle.findUnique({
@@ -183,22 +238,44 @@ export const confirmSeatsInShuttle = async (
       return false;
     }
 
-    if (shuttle.seatsHeld < numberOfPersons) {
+    // Check held seats based on direction
+    let heldSeats = 0;
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      heldSeats = shuttle.airportToHotelSeatsHeld;
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      heldSeats = shuttle.hotelToAirportSeatsHeld;
+    } else {
+      // Fallback to general seats for backward compatibility
+      heldSeats = shuttle.seatsHeld;
+    }
+
+    if (heldSeats < numberOfPersons) {
       console.log(`❌ Not enough held seats in shuttle ${shuttleId}`);
-      console.log(`  Held: ${shuttle.seatsHeld}, Required: ${numberOfPersons}`);
+      console.log(`  Held: ${heldSeats}, Required: ${numberOfPersons}`);
       return false;
     }
 
-    // Update shuttle: move seats from held to confirmed
+    // Update shuttle: move seats from held to confirmed based on direction
+    const updateData: any = {};
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      updateData.airportToHotelSeatsHeld = shuttle.airportToHotelSeatsHeld - numberOfPersons;
+      updateData.airportToHotelSeatsConfirmed = shuttle.airportToHotelSeatsConfirmed + numberOfPersons;
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      updateData.hotelToAirportSeatsHeld = shuttle.hotelToAirportSeatsHeld - numberOfPersons;
+      updateData.hotelToAirportSeatsConfirmed = shuttle.hotelToAirportSeatsConfirmed + numberOfPersons;
+    } else {
+      // Fallback to general seats for backward compatibility
+      updateData.seatsHeld = shuttle.seatsHeld - numberOfPersons;
+      updateData.seatsConfirmed = shuttle.seatsConfirmed + numberOfPersons;
+    }
+
     await prisma.shuttle.update({
       where: { id: shuttleId },
-      data: {
-        seatsHeld: shuttle.seatsHeld - numberOfPersons,
-        seatsConfirmed: shuttle.seatsConfirmed + numberOfPersons,
-      },
+      data: updateData,
     });
 
-    console.log(`✅ Confirmed ${numberOfPersons} seats in shuttle ${shuttleId}`);
+    console.log(`✅ Confirmed ${numberOfPersons} seats in shuttle ${shuttleId} for direction: ${direction || 'General'}`);
     console.log(`=== END SHUTTLE SEAT CONFIRMATION ===`);
     return true;
   } catch (error) {
@@ -211,15 +288,17 @@ export const confirmSeatsInShuttle = async (
  * Release held seats in a shuttle
  * @param shuttleId - The shuttle ID
  * @param numberOfPersons - Number of persons to release
+ * @param direction - Direction of the trip (AIRPORT_TO_HOTEL or HOTEL_TO_AIRPORT)
  * @returns Promise<boolean> - Whether seats were successfully released
  */
 export const releaseSeatsInShuttle = async (
   shuttleId: number,
-  numberOfPersons: number
+  numberOfPersons: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
 ): Promise<boolean> => {
   try {
     console.log(`=== RELEASING SEATS IN SHUTTLE ===`);
-    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}`);
+    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || 'Not specified'}`);
 
     // Get current shuttle state
     const shuttle = await prisma.shuttle.findUnique({
@@ -231,22 +310,41 @@ export const releaseSeatsInShuttle = async (
       return false;
     }
 
-    console.log(`Shuttle ${shuttleId} current state: ${shuttle.seatsHeld} held, ${shuttle.seatsConfirmed} confirmed, ${shuttle.seats} total`);
+    // Log current state based on direction
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.airportToHotelSeatsHeld} held, ${shuttle.airportToHotelSeatsConfirmed} confirmed`);
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.hotelToAirportSeatsHeld} held, ${shuttle.hotelToAirportSeatsConfirmed} confirmed`);
+    } else {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.seatsHeld} held, ${shuttle.seatsConfirmed} confirmed, ${shuttle.seats} total`);
+    }
 
     // Release the exact number of seats that were held for this booking
     const seatsToRelease = numberOfPersons;
 
-    // Update shuttle: reduce held seats
-    const newHeldSeats = Math.max(0, shuttle.seatsHeld - seatsToRelease);
+    // Update shuttle: reduce held seats based on direction
+    const updateData: any = {};
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      const newHeldSeats = Math.max(0, shuttle.airportToHotelSeatsHeld - seatsToRelease);
+      updateData.airportToHotelSeatsHeld = newHeldSeats;
+      console.log(`✅ Released ${seatsToRelease} seats in shuttle ${shuttleId} for AIRPORT_TO_HOTEL (${shuttle.airportToHotelSeatsHeld} -> ${newHeldSeats} held)`);
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      const newHeldSeats = Math.max(0, shuttle.hotelToAirportSeatsHeld - seatsToRelease);
+      updateData.hotelToAirportSeatsHeld = newHeldSeats;
+      console.log(`✅ Released ${seatsToRelease} seats in shuttle ${shuttleId} for HOTEL_TO_AIRPORT (${shuttle.hotelToAirportSeatsHeld} -> ${newHeldSeats} held)`);
+    } else {
+      // Fallback to general seats for backward compatibility
+      const newHeldSeats = Math.max(0, shuttle.seatsHeld - seatsToRelease);
+      updateData.seatsHeld = newHeldSeats;
+      console.log(`✅ Released ${seatsToRelease} seats in shuttle ${shuttleId} for General (${shuttle.seatsHeld} -> ${newHeldSeats} held)`);
+    }
     
     await prisma.shuttle.update({
       where: { id: shuttleId },
-      data: {
-        seatsHeld: newHeldSeats,
-      },
+      data: updateData,
     });
 
-    console.log(`✅ Released ${seatsToRelease} seats in shuttle ${shuttleId} (${shuttle.seatsHeld} -> ${newHeldSeats} held)`);
     console.log(`=== END SHUTTLE SEAT RELEASE ===`);
     return true;
   } catch (error) {
@@ -258,9 +356,13 @@ export const releaseSeatsInShuttle = async (
 /**
  * Get shuttle availability information
  * @param shuttleId - The shuttle ID
+ * @param direction - Direction to get availability for (optional)
  * @returns Promise<object> - Shuttle availability information
  */
-export const getShuttleAvailability = async (shuttleId: number) => {
+export const getShuttleAvailability = async (
+  shuttleId: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+) => {
   try {
     const shuttle = await prisma.shuttle.findUnique({
       where: { id: shuttleId },
@@ -270,6 +372,12 @@ export const getShuttleAvailability = async (shuttleId: number) => {
         seats: true,
         seatsHeld: true,
         seatsConfirmed: true,
+        airportToHotelSeatsHeld: true,
+        airportToHotelSeatsConfirmed: true,
+        hotelToAirportSeatsHeld: true,
+        hotelToAirportSeatsConfirmed: true,
+        airportToHotelCapacity: true,
+        hotelToAirportCapacity: true,
       },
     });
 
@@ -277,16 +385,35 @@ export const getShuttleAvailability = async (shuttleId: number) => {
       return null;
     }
 
-    const availableSeats = shuttle.seats - shuttle.seatsHeld - shuttle.seatsConfirmed;
+    let capacity = shuttle.seats;
+    let seatsHeld = shuttle.seatsHeld;
+    let seatsConfirmed = shuttle.seatsConfirmed;
+
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      if (shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+        capacity = shuttle.airportToHotelCapacity;
+      }
+      seatsHeld = shuttle.airportToHotelSeatsHeld;
+      seatsConfirmed = shuttle.airportToHotelSeatsConfirmed;
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      if (shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+        capacity = shuttle.hotelToAirportCapacity;
+      }
+      seatsHeld = shuttle.hotelToAirportSeatsHeld;
+      seatsConfirmed = shuttle.hotelToAirportSeatsConfirmed;
+    }
+
+    const availableSeats = capacity - seatsHeld - seatsConfirmed;
 
     return {
       shuttleId: shuttle.id,
       vehicleNumber: shuttle.vehicleNumber,
-      totalSeats: shuttle.seats,
-      seatsHeld: shuttle.seatsHeld,
-      seatsConfirmed: shuttle.seatsConfirmed,
+      totalSeats: capacity,
+      seatsHeld,
+      seatsConfirmed,
       availableSeats,
-      utilizationPercentage: ((shuttle.seatsHeld + shuttle.seatsConfirmed) / shuttle.seats) * 100,
+      utilizationPercentage: ((seatsHeld + seatsConfirmed) / capacity) * 100,
+      direction: direction || 'General',
     };
   } catch (error) {
     console.error("Error getting shuttle availability:", error);
@@ -364,7 +491,21 @@ export const cleanupExpiredShuttleSeatHolds = async (): Promise<void> => {
           console.log(`Shuttle ${booking.shuttleId} not found before release`);
         }
         
-        await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons);
+                 // Get booking direction to determine which seat holding field to release
+         const bookingDetails = await prisma.booking.findUnique({
+           where: { id: booking.id },
+           select: { bookingType: true }
+         });
+
+         let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
+         
+         if (bookingDetails?.bookingType === 'AIRPORT_TO_HOTEL') {
+           direction = 'AIRPORT_TO_HOTEL';
+         } else if (bookingDetails?.bookingType === 'HOTEL_TO_AIRPORT') {
+           direction = 'HOTEL_TO_AIRPORT';
+         }
+
+        await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
         
         // Get shuttle after release
         const shuttleAfter = await prisma.shuttle.findUnique({

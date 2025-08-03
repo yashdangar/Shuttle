@@ -33,7 +33,7 @@ export const holdSeatsForBooking = async (
     }
 
     // Hold seats in the shuttle
-    const seatsHeld = await holdSeatsInShuttle(availableShuttle.id, numberOfPersons);
+    const seatsHeld = await holdSeatsInShuttle(availableShuttle.id, numberOfPersons, direction);
     
     if (!seatsHeld) {
       console.log(`❌ Failed to hold seats in shuttle ${availableShuttle.id}`);
@@ -80,6 +80,10 @@ export const confirmHeldSeats = async (bookingId: string): Promise<boolean> => {
     // Get the booking to check if seats are held
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
     });
 
     if (!booking) {
@@ -103,8 +107,17 @@ export const confirmHeldSeats = async (bookingId: string): Promise<boolean> => {
       return false;
     }
 
+    // Determine direction based on booking type
+    let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
+    
+    if (booking.bookingType === 'AIRPORT_TO_HOTEL') {
+      direction = 'AIRPORT_TO_HOTEL';
+    } else if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
+      direction = 'HOTEL_TO_AIRPORT';
+    }
+
     // Confirm the held seats in the shuttle
-    const seatsConfirmed = await confirmSeatsInShuttle(booking.shuttleId, booking.numberOfPersons);
+    const seatsConfirmed = await confirmSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
     
     if (!seatsConfirmed) {
       console.log(`❌ Failed to confirm seats in shuttle ${booking.shuttleId}`);
@@ -162,7 +175,21 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
 
     // Release seats in the shuttle if assigned
     if (booking.shuttleId) {
-      const seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons);
+      // Get booking details to determine direction
+      const bookingDetails = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: { bookingType: true }
+      });
+
+      let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
+      
+      if (bookingDetails?.bookingType === 'AIRPORT_TO_HOTEL') {
+        direction = 'AIRPORT_TO_HOTEL';
+      } else if (bookingDetails?.bookingType === 'HOTEL_TO_AIRPORT') {
+        direction = 'HOTEL_TO_AIRPORT';
+      }
+
+      const seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
       
       if (!seatsReleased) {
         console.log(`❌ Failed to release seats in shuttle ${booking.shuttleId}`);

@@ -303,21 +303,76 @@ export default function BookingHistory() {
             </div>
             {booking.isCancelled && (
               <div className="bg-red-50 border-t border-red-200 px-6 py-3 mt-4">
-                                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      {getCancelledByIcon(booking.cancelledBy)}
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-semibold text-red-800">
-                        {getCancelledByText(booking.cancelledBy)}
-                      </p>
-                      {booking.cancellationReason && (
-                        <p className="text-xs sm:text-sm text-red-700 mt-1">
-                          <strong>Reason:</strong> {booking.cancellationReason}
-                        </p>
-                      )}
-                    </div>
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    {getCancelledByIcon(booking.cancelledBy)}
                   </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-red-800">
+                      {getCancelledByText(booking.cancelledBy)}
+                    </p>
+                    {booking.cancellationReason && (
+                      <p className="text-xs sm:text-sm text-red-700 mt-1">
+                        <strong>Reason:</strong> {booking.cancellationReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Seat Hold Status */}
+            {booking.seatsHeld && !booking.seatsConfirmed && (
+              <div className="bg-yellow-50 border-t border-yellow-200 px-6 py-3 mt-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <Clock className="w-4 h-4 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-yellow-800">
+                      🪑 Seats Temporarily Held
+                    </p>
+                    <p className="text-xs sm:text-sm text-yellow-700 mt-1">
+                      {booking.seatsHeldUntil ? (
+                        `Your seats are held until ${new Date(booking.seatsHeldUntil).toLocaleTimeString()}. 
+                        Please wait for frontdesk verification to confirm your booking.`
+                      ) : (
+                        "Your seats are temporarily held. Please wait for frontdesk verification to confirm your booking."
+                      )}
+                    </p>
+                    {booking.shuttle && (
+                      <p className="text-xs sm:text-sm text-yellow-700 mt-1">
+                        🚐 Assigned to shuttle: {booking.shuttle.vehicleNumber}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {booking.seatsConfirmed && (
+              <div className="bg-green-50 border-t border-green-200 px-6 py-3 mt-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-green-800">
+                      ✅ Seats Confirmed
+                    </p>
+                    <p className="text-xs sm:text-sm text-green-700 mt-1">
+                      Your seats have been confirmed by the frontdesk.
+                      {booking.seatsConfirmedAt && (
+                        ` Confirmed at ${new Date(booking.seatsConfirmedAt).toLocaleTimeString()}.`
+                      )}
+                    </p>
+                    {booking.shuttle && (
+                      <p className="text-xs sm:text-sm text-green-700 mt-1">
+                        🚐 Confirmed on shuttle: {booking.shuttle.vehicleNumber}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </CardHeader>

@@ -2591,7 +2591,7 @@ const getSchedule21DayWindow = async (req: Request, res: Response) => {
     let dateFilter = {};
     if (start && end) {
       dateFilter = {
-        scheduleDate: {
+        startTime: {
           gte: new Date(start as string),
           lte: new Date(end as string),
         },

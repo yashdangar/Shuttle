@@ -173,9 +173,11 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
     const schedules = await prisma.schedule.findMany({
       where: {
         shuttleId,
-        scheduleDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+        startTime: {
+          lte: new Date(), // Schedules that have started
+        },
+        endTime: {
+          gte: new Date(), // Schedules that haven't ended
         },
       },
       include: {
@@ -183,13 +185,12 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
       },
     });
 
-    console.log(`Found ${schedules.length} schedules for shuttle ${shuttleId} today`);
-    console.log(`Date range query: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    console.log(`Found ${schedules.length} active schedules for shuttle ${shuttleId}`);
     console.log(`Shuttle ID being searched: ${shuttleId}`);
     
     // Log all schedules found
     schedules.forEach((schedule, index) => {
-      console.log(`Schedule ${index + 1}: ID=${schedule.id}, Date=${schedule.scheduleDate.toISOString()}, Driver=${schedule.driver.name}`);
+      console.log(`Schedule ${index + 1}: ID=${schedule.id}, Start=${schedule.startTime.toISOString()}, End=${schedule.endTime.toISOString()}, Driver=${schedule.driver.name}`);
     });
 
     // Find the currently active schedule
@@ -378,9 +379,9 @@ export const checkShuttleCapacity = async (
 
     // Use direction-specific capacity if provided, otherwise fall back to general seats
     let capacity = shuttle.seats;
-    if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity > 0) {
+    if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
       capacity = shuttle.airportToHotelCapacity;
-    } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity > 0) {
+    } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
       capacity = shuttle.hotelToAirportCapacity;
     }
     
@@ -435,9 +436,11 @@ export const findAvailableShuttleWithCapacity = async (
         hotelId: hotelId,
         schedules: {
           some: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
+            startTime: {
+              lte: new Date(), // Schedules that have started
+            },
+            endTime: {
+              gte: new Date(), // Schedules that haven't ended
             },
           },
         },
@@ -445,9 +448,11 @@ export const findAvailableShuttleWithCapacity = async (
       include: {
         schedules: {
           where: {
-            scheduleDate: {
-              gte: startOfDay,
-              lte: endOfDay,
+            startTime: {
+              lte: new Date(), // Schedules that have started
+            },
+            endTime: {
+              gte: new Date(), // Schedules that haven't ended
             },
           },
           include: {
@@ -509,7 +514,7 @@ export const findAvailableShuttleWithCapacity = async (
         continue;
       }
 
-      const currentPassengers = shuttle.bookings.reduce((sum, booking) => {
+      const currentPassengers = shuttle.bookings.reduce((sum: number, booking: any) => {
         console.log(
           `  Booking ${booking.id}: ${booking.numberOfPersons} persons (TripID: ${booking.tripId})`
         );
@@ -518,9 +523,9 @@ export const findAvailableShuttleWithCapacity = async (
 
       // Use direction-specific capacity if provided, otherwise fall back to general seats
       let capacity = shuttle.seats;
-      if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity > 0) {
+      if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
         capacity = shuttle.airportToHotelCapacity;
-      } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity > 0) {
+      } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
         capacity = shuttle.hotelToAirportCapacity;
       }
       
@@ -541,7 +546,7 @@ export const findAvailableShuttleWithCapacity = async (
         console.log(`✅ Selected shuttle ${shuttle.id} (${shuttle.vehicleNumber}) for booking`);
         console.log(`✅ This shuttle has active schedule and sufficient capacity`);
         console.log(`✅ Shuttle ID: ${shuttle.id}, Vehicle: ${shuttle.vehicleNumber}`);
-        console.log(`✅ Active schedules for this shuttle: ${shuttle.schedules.filter(s => {
+        console.log(`✅ Active schedules for this shuttle: ${shuttle.schedules.filter((s: any) => {
           const scheduleStartTime = new Date(s.startTime);
           const scheduleEndTime = new Date(s.endTime);
           const currentTime = new Date();
