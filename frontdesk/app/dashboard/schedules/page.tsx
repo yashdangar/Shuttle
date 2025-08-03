@@ -55,12 +55,11 @@ import { EmptyState } from "../../../components/ui/empty-state";
 import { toast } from "sonner";
 import { withAuth } from "@/components/withAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, getUserTimeZone, getTimeZoneAbbr, formatTimeForDisplay } from "@/lib/utils";
 import { format } from "date-fns";
 
 interface Schedule {
   id: string;
-  scheduleDate: string;
   startTime: string;
   endTime: string;
   driver: {
@@ -115,7 +114,6 @@ function SchedulesPage() {
   const [formData, setFormData] = useState({
     driverId: "",
     shuttleId: "",
-    scheduleDate: new Date().toISOString().split("T")[0], // Default to today
     startTime: "",
     endTime: "",
   });
@@ -177,29 +175,9 @@ function SchedulesPage() {
     return { startUtc, endUtc };
   };
 
-  // Get user's timezone info
-  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const getTimeZoneAbbr = (date: Date) => {
-    // Try to get abbreviation (e.g., 'EDT')
-    return date
-      .toLocaleTimeString([], { timeZoneName: "short" })
-      .split(" ")
-      .pop();
-  };
 
-  // Update formatTimeForDisplay to show local time with timezone abbreviation
-  const formatTimeForDisplay = (isoString: string | null | undefined) => {
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    // Show local time in HH:mm AM/PM (TZ)
-    const time = date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const abbr = getTimeZoneAbbr(date);
-    return `${time} (${abbr})`;
-  };
+
+
 
   // Generate colors for different shuttles
   const getShuttleColor = (shuttleId: string | number) => {
@@ -306,8 +284,8 @@ function SchedulesPage() {
     } = {};
 
     schedules.forEach((schedule) => {
-      // Parse the date more carefully to avoid timezone issues
-      const scheduleDate = new Date(schedule.scheduleDate);
+      // Parse the date from startTime to avoid timezone issues
+      const scheduleDate = new Date(schedule.startTime);
 
       // Use UTC to avoid timezone issues - stay in UTC throughout
       const year = scheduleDate.getUTCFullYear();
@@ -319,7 +297,7 @@ function SchedulesPage() {
       const dayIndex = (dayOfWeekUTC + 6) % 7; // Convert Sunday=0 to Monday=0
 
       console.log("📅 Timeline mapping:", {
-        originalDate: schedule.scheduleDate,
+        originalDate: schedule.startTime,
         parsedDate: scheduleDate,
         utcDate: `${year}-${String(month + 1).padStart(2, "0")}-${String(
           day
@@ -398,7 +376,7 @@ function SchedulesPage() {
   // --- Filter schedules for the current week view ---
   const getSchedulesForCurrentWeek = (weekStart: Date, weekEnd: Date) => {
     return scheduleWindow.filter((sch) => {
-      const schDate = new Date(sch.scheduleDate);
+      const schDate = new Date(sch.startTime);
       return schDate >= weekStart && schDate <= weekEnd;
     });
   };
@@ -582,12 +560,9 @@ function SchedulesPage() {
     setSubmitting(true);
 
     try {
-      // Get UTC times for start and end
-      const { startUtc, endUtc } = getStartEndUtc(
-        formData.scheduleDate,
-        formData.startTime,
-        formData.endTime
-      );
+      // Convert local datetime to UTC
+      const startUtc = new Date(formData.startTime).toISOString();
+      const endUtc = new Date(formData.endTime).toISOString();
 
       if (editingSchedule) {
         const response = await api.put(
@@ -595,7 +570,6 @@ function SchedulesPage() {
           {
             driverId: parseInt(formData.driverId),
             shuttleId: parseInt(formData.shuttleId),
-            scheduleDate: new Date(formData.scheduleDate).toISOString(),
             startTime: startUtc,
             endTime: endUtc,
           }
@@ -612,7 +586,6 @@ function SchedulesPage() {
         const response = await api.post("/frontdesk/add/schedule", {
           driverId: parseInt(formData.driverId),
           shuttleId: parseInt(formData.shuttleId),
-          scheduleDate: new Date(formData.scheduleDate).toISOString(),
           startTime: startUtc,
           endTime: endUtc,
         });
@@ -638,30 +611,14 @@ function SchedulesPage() {
         const existingSchedule = error.response.data.existingSchedule;
         setEditingSchedule(existingSchedule);
 
-        // Parse the existing schedule date
-        const scheduleDate = new Date(existingSchedule.scheduleDate);
-        const year = scheduleDate.getUTCFullYear();
-        const month = String(scheduleDate.getUTCMonth() + 1).padStart(2, "0");
-        const day = String(scheduleDate.getUTCDate()).padStart(2, "0");
-        const scheduleDateOnly = `${year}-${month}-${day}`;
-
         setFormData({
           driverId: String(existingSchedule.driver.id),
           shuttleId: String(existingSchedule.shuttle.id),
-          scheduleDate: scheduleDateOnly,
-          startTime: formatTimeForDisplay(existingSchedule.startTime),
-          endTime: formatTimeForDisplay(existingSchedule.endTime),
+          startTime: existingSchedule.startTime,
+          endTime: existingSchedule.endTime,
         });
 
-        setSelectedDate(
-          new Date(
-            Date.UTC(
-              year,
-              scheduleDate.getUTCMonth(),
-              scheduleDate.getUTCDate()
-            )
-          )
-        );
+        setSelectedDate(new Date(existingSchedule.startTime));
         setIsAddDialogOpen(true);
       }
     } finally {
@@ -672,34 +629,14 @@ function SchedulesPage() {
   const handleEdit = (schedule: Schedule) => {
     setEditingSchedule(schedule);
 
-    // Parse the schedule date properly - handle timezone consistently
-    const scheduleDate = new Date(schedule.scheduleDate);
-    // Use UTC to avoid timezone shifts
-    const year = scheduleDate.getUTCFullYear();
-    const month = String(scheduleDate.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(scheduleDate.getUTCDate()).padStart(2, "0");
-    const scheduleDateOnly = `${year}-${month}-${day}`;
-
-    // Parse start/end as 'HH:mm' for <input type='time'>
-    const start = new Date(schedule.startTime);
-    const end = new Date(schedule.endTime);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const startTime = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
-    const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
-
     setFormData({
       driverId: String(schedule.driver.id),
       shuttleId: String(schedule.shuttle.id),
-      scheduleDate: scheduleDateOnly,
-      startTime,
-      endTime,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
     });
 
-    setSelectedDate(
-      new Date(
-        Date.UTC(year, scheduleDate.getUTCMonth(), scheduleDate.getUTCDate())
-      )
-    );
+    setSelectedDate(new Date(schedule.startTime));
     setIsAddDialogOpen(true);
   };
 
@@ -718,15 +655,13 @@ function SchedulesPage() {
   };
 
   const resetForm = () => {
-    const today = new Date();
     setFormData({
       driverId: "",
       shuttleId: "",
-      scheduleDate: today.toISOString().split("T")[0], // Default to today
       startTime: "",
       endTime: "",
     });
-    setSelectedDate(today); // Reset calendar to today
+    setSelectedDate(new Date()); // Reset calendar to today
     setEditingSchedule(null);
   };
 
@@ -850,8 +785,7 @@ function SchedulesPage() {
   return (
     <>
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
-        All times shown in your local timezone: <b>{userTimeZone}</b> (
-        {getTimeZoneAbbr(new Date())})
+        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
       </div>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -939,81 +873,10 @@ function SchedulesPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="scheduleDate">Schedule Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={`w-full justify-start text-left font-normal ${
-                            !selectedDate ? "text-muted-foreground" : ""
-                          }`}
-                          disabled={submitting}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {selectedDate ? (
-                            selectedDate.toLocaleDateString("en-US", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => {
-                            setSelectedDate(date);
-                            if (date) {
-                              // Use local date parts to prevent timezone shift from toISOString()
-                              const year = date.getFullYear();
-                              const month = String(
-                                date.getMonth() + 1
-                              ).padStart(2, "0");
-                              const day = String(date.getDate()).padStart(
-                                2,
-                                "0"
-                              );
-                              const dateString = `${year}-${month}-${day}`;
-                              setFormData({
-                                ...formData,
-                                scheduleDate: dateString,
-                              });
-                            }
-                          }}
-                          disabled={(date) =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    {selectedDate && (
-                      <div className="text-sm text-slate-600 mt-2 p-2 bg-blue-50 rounded-md border border-blue-200">
-                        <div className="flex items-center gap-2">
-                          <CalendarIcon className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium">Selected:</span>
-                          <span>
-                            {selectedDate.toLocaleDateString("en-US", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <Label htmlFor="startTime">Start Time</Label>
+                    <Label htmlFor="startTime">Start Date & Time</Label>
                     <Input
                       id="startTime"
-                      type="time"
+                      type="datetime-local"
                       value={formData.startTime}
                       onChange={(e) =>
                         setFormData({ ...formData, startTime: e.target.value })
@@ -1024,10 +887,10 @@ function SchedulesPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="endTime">End Time</Label>
+                    <Label htmlFor="endTime">End Date & Time</Label>
                     <Input
                       id="endTime"
-                      type="time"
+                      type="datetime-local"
                       value={formData.endTime}
                       onChange={(e) =>
                         setFormData({ ...formData, endTime: e.target.value })
@@ -1198,7 +1061,7 @@ function SchedulesPage() {
                     </h3>
                     <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 mb-2">
                       All times below are in your local timezone:{" "}
-                      <b>{userTimeZone}</b> ({getTimeZoneAbbr(new Date())})
+                      <b>{getUserTimeZone()}</b>
                     </div>
                     <div className="grid gap-4">
                       {daysOfWeek.map((day) => {
@@ -1618,8 +1481,8 @@ function SchedulesPage() {
                         currentWeekSchedules
                           .sort(
                             (a, b) =>
-                              new Date(a.scheduleDate).getTime() -
-                              new Date(b.scheduleDate).getTime()
+                              new Date(a.startTime).getTime() -
+                              new Date(b.startTime).getTime()
                           )
                           .map((schedule) => {
                             // Use UTC times for duration calculation to avoid timezone issues
@@ -1655,7 +1518,7 @@ function SchedulesPage() {
                                 <TableCell className="font-medium">
                                   <div className="font-semibold">
                                     {formatDateForDisplay(
-                                      schedule.scheduleDate
+                                      schedule.startTime
                                     )}
                                   </div>
                                 </TableCell>
