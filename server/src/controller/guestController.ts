@@ -11,6 +11,7 @@ import { getBookingDataForWebSocket } from "../utils/bookingUtils";
 import {
   holdSeatsForBooking,
   getSeatHoldStatus,
+  releaseHeldSeats,
 } from "../utils/seatHoldingUtils";
 
 const getGuest = (req: Request, res: Response) => {
@@ -701,6 +702,14 @@ const cancelBooking = async (req: Request, res: Response) => {
       return res
         .status(404)
         .json({ error: "Booking not found or access denied" });
+    }
+
+    // Release held seats if any
+    const seatsReleased = await releaseHeldSeats(id);
+    if (!seatsReleased) {
+      console.warn(`Failed to release held seats for booking ${id}`);
+      // Note: We continue with cancellation even if seat release fails
+      // The booking can still be cancelled
     }
 
     const updatedBooking = await prisma.booking.update({

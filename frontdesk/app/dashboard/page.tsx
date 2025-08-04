@@ -98,8 +98,13 @@ interface Schedule {
 }
 
 export default function DashboardPage() {
-  const { isConnected, socket, markUserInteraction, connectWebSocket, stopNotificationSound } =
-    useWebSocket();
+  const {
+    isConnected,
+    socket,
+    markUserInteraction,
+    connectWebSocket,
+    stopNotificationSound,
+  } = useWebSocket();
   const [liveShuttles, setLiveShuttles] = useState<LiveShuttle[]>([]);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<Schedule[]>([]);
@@ -360,17 +365,7 @@ export default function DashboardPage() {
     fetchTodaySchedules();
   };
 
-  const testNotificationSound = () => {
-    console.log("Testing notification sound...");
-    markUserInteraction();
-    // Simulate a new booking notification
-    if (socket) {
-      socket.emit("test_notification", {
-        title: "Test Notification",
-        message: "This is a test notification sound"
-      });
-    }
-  };
+
 
   const scheduleBlocks = getTodayScheduleBlocks();
 
@@ -443,14 +438,7 @@ export default function DashboardPage() {
             />
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
-          <Button
-            onClick={testNotificationSound}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <Bell className="h-4 w-4" />
-            Test Sound
-          </Button>
+
         </div>
       </div>
 
@@ -465,6 +453,27 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Pending Bookings Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Pending Bookings (Last Hour)
+          </h2>
+          <Badge className="bg-orange-100 text-orange-800">
+            {stats.totalPendingBookings} Pending
+          </Badge>
+        </div>
+
+        <PendingBookingsCard
+          bookings={pendingBookings}
+          totalPendingBookings={stats.totalPendingBookings}
+          timeRange={{
+            from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+            to: new Date().toISOString(),
+          }}
+        />
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -702,27 +711,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-
-      {/* Pending Bookings Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Pending Bookings (Last Hour)
-          </h2>
-          <Badge className="bg-orange-100 text-orange-800">
-            {stats.totalPendingBookings} Pending
-          </Badge>
-        </div>
-
-        <PendingBookingsCard
-          bookings={pendingBookings}
-          totalPendingBookings={stats.totalPendingBookings}
-          timeRange={{
-            from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-            to: new Date().toISOString(),
-          }}
-        />
       </div>
     </div>
   );

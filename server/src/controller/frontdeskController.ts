@@ -20,7 +20,7 @@ import {
   findAvailableShuttleWithCapacity,
   getISTDateRange,
 } from "../utils/bookingUtils";
-import { confirmHeldSeats, getSeatHoldStatus } from "../utils/seatHoldingUtils";
+import { confirmHeldSeats, getSeatHoldStatus, releaseHeldSeats } from "../utils/seatHoldingUtils";
 import { getShuttleAvailability } from "../utils/shuttleSeatUtils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
@@ -990,6 +990,14 @@ const cancelBooking = async (req: Request, res: Response) => {
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Release held seats if any
+    const seatsReleased = await releaseHeldSeats(bookingId);
+    if (!seatsReleased) {
+      console.warn(`Failed to release held seats for booking ${bookingId}`);
+      // Note: We continue with cancellation even if seat release fails
+      // The booking can still be cancelled
     }
 
     const updatedBooking = await prisma.booking.update({
@@ -1962,6 +1970,14 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
       return res.status(404).json({
         message: "Booking not found or already verified/cancelled",
       });
+    }
+
+    // Release held seats if any
+    const seatsReleased = await releaseHeldSeats(bookingId);
+    if (!seatsReleased) {
+      console.warn(`Failed to release held seats for booking ${bookingId}`);
+      // Note: We continue with rejection even if seat release fails
+      // The booking can still be rejected
     }
 
     // Cancel the booking

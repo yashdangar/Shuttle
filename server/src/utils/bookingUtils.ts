@@ -356,7 +356,9 @@ export const checkShuttleCapacity = async (
           where: {
             isCompleted: false,
             isCancelled: false,
-            // Include all bookings assigned to this shuttle, whether they have a tripId or not
+            // Only count bookings that are NOT assigned to an active trip
+            // This allows new bookings to use full capacity regardless of current trip usage
+            tripId: null,
           },
         },
       },
@@ -368,7 +370,7 @@ export const checkShuttleCapacity = async (
     }
 
     console.log(`Shuttle found: ${shuttle.vehicleNumber} with ${shuttle.seats} seats`);
-    console.log(`Total bookings found: ${shuttle.bookings.length}`);
+    console.log(`Total unassigned bookings found: ${shuttle.bookings.length}`);
 
     // Log each booking being counted
     let currentPassengers = 0;
@@ -385,7 +387,8 @@ export const checkShuttleCapacity = async (
       capacity = shuttle.hotelToAirportCapacity;
     }
     
-    // Include held and confirmed seats in capacity calculation
+    // Only count held and confirmed seats for unassigned bookings
+    // This ensures that seats used in active trips don't affect new booking capacity
     const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
     const availableSeats = capacity - totalOccupiedSeats;
     const hasCapacity = availableSeats >= numberOfPersons;
@@ -396,14 +399,14 @@ export const checkShuttleCapacity = async (
     console.log(`  - Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
     console.log(`  - Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
     console.log(`  - Used capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
-    console.log(`  - Current passengers (confirmed bookings): ${currentPassengers}`);
+    console.log(`  - Current passengers (unassigned bookings only): ${currentPassengers}`);
     console.log(`  - Seats held: ${shuttle.seatsHeld}`);
     console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
     console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);
     console.log(`  - Available seats: ${availableSeats}`);
     console.log(`  - New passengers: ${numberOfPersons}`);
     console.log(`  - Has capacity: ${hasCapacity}`);
-    console.log(`  - Bookings count: ${shuttle.bookings.length}`);
+    console.log(`  - Unassigned bookings count: ${shuttle.bookings.length}`);
     console.log(`=== END CAPACITY CHECK ===`);
 
     return hasCapacity;
@@ -463,7 +466,9 @@ export const findAvailableShuttleWithCapacity = async (
           where: {
             isCompleted: false,
             isCancelled: false,
-            // Include all bookings assigned to this shuttle, whether they have a tripId or not
+            // Only count bookings that are NOT assigned to an active trip
+            // This allows new bookings to use full capacity regardless of current trip usage
+            tripId: null,
           },
         },
       },
@@ -481,7 +486,7 @@ export const findAvailableShuttleWithCapacity = async (
       console.log(`Total seats: ${shuttle.seats}`);
       console.log(`Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
       console.log(`Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
-      console.log(`Total bookings: ${shuttle.bookings.length}`);
+      console.log(`Total unassigned bookings: ${shuttle.bookings.length}`);
       
       // Check if any schedule is currently active
       let hasActiveSchedule = false;
@@ -529,13 +534,14 @@ export const findAvailableShuttleWithCapacity = async (
         capacity = shuttle.hotelToAirportCapacity;
       }
       
-      // Include held and confirmed seats in capacity calculation
+      // Only count held and confirmed seats for unassigned bookings
+      // This ensures that seats used in active trips don't affect new booking capacity
       const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
       const availableSeats = capacity - totalOccupiedSeats;
 
       console.log(`Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}):`);
       console.log(`  - Total seats: ${shuttle.seats}`);
-      console.log(`  - Current passengers (confirmed bookings): ${currentPassengers}`);
+      console.log(`  - Current passengers (unassigned bookings only): ${currentPassengers}`);
       console.log(`  - Seats held: ${shuttle.seatsHeld}`);
       console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
       console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);

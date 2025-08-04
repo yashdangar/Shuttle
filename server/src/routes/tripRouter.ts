@@ -11,6 +11,7 @@ import {
   debugDriverBookings,
   debugDriverSchedule,
   testCurrentTime,
+  debugStartTripBookings,
 } from "../controller/tripController";
 
 const router = express.Router();
@@ -77,6 +78,12 @@ router.get(
   "/debug/time",
   driverAuthMiddleware as RequestHandler,
   testCurrentTime as RequestHandler
+);
+
+router.get(
+  "/debug/start-trip-bookings",
+  driverAuthMiddleware as RequestHandler,
+  debugStartTripBookings as RequestHandler
 );
 
 export default router; 

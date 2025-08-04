@@ -422,6 +422,63 @@ export const getShuttleAvailability = async (
 };
 
 /**
+ * Reset seat capacity for new bookings when a trip starts
+ * This ensures that new bookings can use the full capacity regardless of seats used in the current trip
+ * @param shuttleId - The shuttle ID
+ * @param direction - Direction of the trip (AIRPORT_TO_HOTEL or HOTEL_TO_AIRPORT)
+ * @returns Promise<boolean> - Whether seats were successfully reset
+ */
+export const resetSeatCapacityForNewBookings = async (
+  shuttleId: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+): Promise<boolean> => {
+  try {
+    console.log(`=== RESETTING SEAT CAPACITY FOR NEW BOOKINGS ===`);
+    console.log(`Shuttle ID: ${shuttleId}, Direction: ${direction || 'Not specified'}`);
+
+    // Get current shuttle state
+    const shuttle = await prisma.shuttle.findUnique({
+      where: { id: shuttleId },
+    });
+
+    if (!shuttle) {
+      console.log(`❌ Shuttle ${shuttleId} not found`);
+      return false;
+    }
+
+    // Reset the held and confirmed seats for the specified direction
+    // This allows new bookings to use the full capacity
+    const updateData: any = {};
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      updateData.airportToHotelSeatsHeld = 0;
+      updateData.airportToHotelSeatsConfirmed = 0;
+      console.log(`✅ Reset AIRPORT_TO_HOTEL seat capacity for shuttle ${shuttleId}`);
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      updateData.hotelToAirportSeatsHeld = 0;
+      updateData.hotelToAirportSeatsConfirmed = 0;
+      console.log(`✅ Reset HOTEL_TO_AIRPORT seat capacity for shuttle ${shuttleId}`);
+    } else {
+      // Reset general seats for backward compatibility
+      updateData.seatsHeld = 0;
+      updateData.seatsConfirmed = 0;
+      console.log(`✅ Reset general seat capacity for shuttle ${shuttleId}`);
+    }
+
+    await prisma.shuttle.update({
+      where: { id: shuttleId },
+      data: updateData,
+    });
+
+    console.log(`=== END SEAT CAPACITY RESET ===`);
+    return true;
+  } catch (error) {
+    console.error("Error resetting seat capacity:", error);
+    return false;
+  }
+};
+
+/**
  * Clean up expired seat holds across all shuttles
  * This should be called periodically (e.g., via cron job)
  */

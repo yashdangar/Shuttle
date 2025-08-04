@@ -4,6 +4,7 @@ import { TripDirection, TripStatus, TripPhase } from "@prisma/client";
 import { sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { getISTDateRange } from "../utils/bookingUtils";
+import { resetSeatCapacityForNewBookings } from "../utils/shuttleSeatUtils";
 
 // Start a new round trip (includes both outbound and return)
 const startTrip = async (req: Request, res: Response) => {
@@ -148,6 +149,11 @@ const startTrip = async (req: Request, res: Response) => {
         tripId: newTrip.id,
       },
     });
+
+    // Reset seat capacity for new bookings for both directions
+    // This ensures that new bookings can use the full capacity regardless of seats used in the current trip
+    await resetSeatCapacityForNewBookings(currentSchedule.shuttleId, 'HOTEL_TO_AIRPORT');
+    await resetSeatCapacityForNewBookings(currentSchedule.shuttleId, 'AIRPORT_TO_HOTEL');
 
     // Get updated bookings with trip assignment
     const assignedBookings = await prisma.booking.findMany({
@@ -317,8 +323,56 @@ const transitionTripPhase = async (req: Request, res: Response) => {
 
     let updatedTrip;
     const now = new Date();
+    let newAirportToHotelBookings: any[] = [];
 
     if (phase === "RETURN" && trip.phase === TripPhase.OUTBOUND) {
+      // Find new Airport to Hotel bookings that should be assigned to this trip
+      const hotelId = (req as any).user.hotelId;
+      newAirportToHotelBookings = await prisma.booking.findMany({
+        where: {
+          shuttleId: trip.shuttleId,
+          tripId: null, // Not already assigned to a trip
+          bookingType: "AIRPORT_TO_HOTEL",
+          isCompleted: false,
+          isCancelled: false,
+          needsFrontdeskVerification: false, // Frontdesk has verified this booking
+          seatsConfirmed: true, // Only confirmed bookings
+          guest: {
+            hotelId: hotelId,
+          },
+        },
+        include: {
+          guest: {
+            select: {
+              firstName: true,
+              lastName: true,
+              phoneNumber: true,
+            },
+          },
+          pickupLocation: true,
+          dropoffLocation: true,
+        },
+        orderBy: {
+          preferredTime: "asc",
+        },
+      });
+
+      console.log(`Found ${newAirportToHotelBookings.length} new Airport to Hotel bookings to assign to return trip`);
+
+      // Assign new bookings to the trip
+      if (newAirportToHotelBookings.length > 0) {
+        const bookingIds = newAirportToHotelBookings.map((booking) => booking.id);
+        await prisma.booking.updateMany({
+          where: {
+            id: { in: bookingIds },
+          },
+          data: {
+            tripId: tripId,
+          },
+        });
+        console.log(`Assigned ${bookingIds.length} new bookings to trip ${tripId}`);
+      }
+
       // Transition from outbound to return phase
       updatedTrip = await prisma.trip.update({
         where: { id: tripId },
@@ -357,12 +411,12 @@ const transitionTripPhase = async (req: Request, res: Response) => {
           WsEvents.TRIP_UPDATED,
           {
             title: "Trip Updated",
-            message: `Trip ${tripId} transitioned to ${phase} phase`,
+            message: `Trip ${tripId} transitioned to ${phase} phase with ${newAirportToHotelBookings.length} new bookings`,
             trip: {
               id: tripId,
               phase: phase,
               direction: trip.direction,
-              totalBookings: trip.bookings.length,
+              totalBookings: trip.bookings.length + newAirportToHotelBookings.length,
             },
           }
         );
@@ -374,7 +428,7 @@ const transitionTripPhase = async (req: Request, res: Response) => {
 
     res.json({
       trip: updatedTrip,
-      message: `Trip transitioned to ${phase} phase successfully`,
+      message: `Trip transitioned to ${phase} phase successfully with ${newAirportToHotelBookings.length} new bookings assigned`,
     });
   } catch (error) {
     console.error("Transition trip phase error:", error);
@@ -561,8 +615,24 @@ const getCurrentTrip = async (req: Request, res: Response) => {
       });
     }
 
+    // Filter bookings based on trip phase
+    let relevantBookings = activeTrip.bookings;
+    if (activeTrip.phase === TripPhase.OUTBOUND) {
+      // During outbound phase, only show Hotel to Airport bookings
+      relevantBookings = activeTrip.bookings.filter(
+        (booking) => booking.bookingType === "HOTEL_TO_AIRPORT"
+      );
+    } else if (activeTrip.phase === TripPhase.RETURN) {
+      // During return phase, only show Airport to Hotel bookings
+      relevantBookings = activeTrip.bookings.filter(
+        (booking) => booking.bookingType === "AIRPORT_TO_HOTEL"
+      );
+    }
+
+    console.log(`Trip phase: ${activeTrip.phase}, Total bookings: ${activeTrip.bookings.length}, Relevant bookings: ${relevantBookings.length}`);
+
     // Transform bookings to passenger format
-    const passengers = activeTrip.bookings.map((booking, index) => ({
+    const passengers = relevantBookings.map((booking, index) => ({
       id: booking.id,
       name: `${booking.guest.firstName} ${booking.guest.lastName}`,
       persons: booking.numberOfPersons,
@@ -580,6 +650,7 @@ const getCurrentTrip = async (req: Request, res: Response) => {
       preferredTime: booking.preferredTime,
       isVerified: booking.isVerified,
       verifiedAt: booking.verifiedAt,
+      bookingType: booking.bookingType,
       // Include actual location coordinates
       pickupLocation: booking.pickupLocation
         ? {
@@ -597,18 +668,18 @@ const getCurrentTrip = async (req: Request, res: Response) => {
         : null,
     }));
 
-    const totalPeople = activeTrip.bookings.reduce(
+    const totalPeople = relevantBookings.reduce(
       (sum, booking) => sum + booking.numberOfPersons,
       0
     );
-    const checkedInPeople = activeTrip.bookings
+    const checkedInPeople = relevantBookings
       .filter((booking) => booking.isVerified)
       .reduce((sum, booking) => sum + booking.numberOfPersons, 0);
-    const totalBookings = activeTrip.bookings.length;
-    const checkedInBookings = activeTrip.bookings.filter(
+    const totalBookings = relevantBookings.length;
+    const checkedInBookings = relevantBookings.filter(
       (b) => b.isVerified
     ).length;
-    const totalBags = activeTrip.bookings.reduce(
+    const totalBags = relevantBookings.reduce(
       (sum, booking) => sum + booking.numberOfBags,
       0
     );
@@ -812,7 +883,7 @@ const getCurrentTripBookings = async (req: Request, res: Response) => {
     }
 
     // Get all bookings for this trip (excluding held bookings)
-    const bookings = await prisma.booking.findMany({
+    const allBookings = await prisma.booking.findMany({
       where: {
         tripId: currentTrip.id,
         isCancelled: false,
@@ -836,8 +907,24 @@ const getCurrentTripBookings = async (req: Request, res: Response) => {
       },
     });
 
+    // Filter bookings based on trip phase
+    let relevantBookings = allBookings;
+    if (currentTrip.phase === TripPhase.OUTBOUND) {
+      // During outbound phase, only show Hotel to Airport bookings
+      relevantBookings = allBookings.filter(
+        (booking) => booking.bookingType === "HOTEL_TO_AIRPORT"
+      );
+    } else if (currentTrip.phase === TripPhase.RETURN) {
+      // During return phase, only show Airport to Hotel bookings
+      relevantBookings = allBookings.filter(
+        (booking) => booking.bookingType === "AIRPORT_TO_HOTEL"
+      );
+    }
+
+    console.log(`Trip phase: ${currentTrip.phase}, Total bookings: ${allBookings.length}, Relevant bookings: ${relevantBookings.length}`);
+
     // Transform bookings to live booking format
-    const liveBookings = bookings.map((booking) => ({
+    const liveBookings = relevantBookings.map((booking) => ({
       id: booking.id,
       guest: booking.guest,
       numberOfPersons: booking.numberOfPersons,
@@ -855,6 +942,7 @@ const getCurrentTripBookings = async (req: Request, res: Response) => {
       bookings: liveBookings,
       tripId: currentTrip.id,
       direction: currentTrip.direction,
+      phase: currentTrip.phase,
     });
   } catch (error) {
     console.error("Get current trip bookings error:", error);
@@ -1405,6 +1493,167 @@ const testCurrentTime = async (req: Request, res: Response) => {
   }
 };
 
+// Debug endpoint to check why no bookings are found for starting trip
+const debugStartTripBookings = async (req: Request, res: Response) => {
+  try {
+    const driverId = (req as any).user.userId;
+    const hotelId = (req as any).user.hotelId;
+
+    console.log(`=== DEBUG START TRIP BOOKINGS ===`);
+    console.log(`Driver ID: ${driverId}, Hotel ID: ${hotelId}`);
+
+    // Check if driver has an active schedule
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        driverId,
+        startTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      include: {
+        shuttle: true,
+      },
+    });
+
+    console.log(`Found ${schedules.length} schedules for driver today`);
+
+    // Find the currently active schedule
+    let currentSchedule = null;
+    for (const schedule of schedules) {
+      const currentTimeUTC = new Date();
+      if (
+        currentTimeUTC >= schedule.startTime &&
+        currentTimeUTC <= schedule.endTime
+      ) {
+        console.log(`✅ Schedule ${schedule.id} is currently active`);
+        currentSchedule = schedule;
+        break;
+      } else {
+        console.log(`❌ Schedule ${schedule.id} is not active`);
+      }
+    }
+
+    if (!currentSchedule) {
+      return res.json({
+        message: "No active schedule found",
+        currentSchedule: null,
+        allBookings: [],
+        filteredBookings: [],
+      });
+    }
+
+    console.log(`✅ Found active schedule: Driver ${driverId}, Shuttle ${currentSchedule.shuttleId}`);
+
+    // Get ALL bookings for this shuttle and hotel
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        shuttleId: currentSchedule.shuttleId,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    console.log(`Total bookings for shuttle ${currentSchedule.shuttleId}: ${allBookings.length}`);
+
+    // Check each filter criteria step by step
+    const step1 = allBookings.filter(b => b.tripId === null);
+    console.log(`Step 1 - Not assigned to trip: ${step1.length} bookings`);
+
+    const step2 = step1.filter(b => !b.isCompleted);
+    console.log(`Step 2 - Not completed: ${step2.length} bookings`);
+
+    const step3 = step2.filter(b => !b.isCancelled);
+    console.log(`Step 3 - Not cancelled: ${step3.length} bookings`);
+
+    const step4 = step3.filter(b => !b.needsFrontdeskVerification);
+    console.log(`Step 4 - Frontdesk verified: ${step4.length} bookings`);
+
+    const step5 = step4.filter(b => b.seatsConfirmed);
+    console.log(`Step 5 - Seats confirmed: ${step5.length} bookings`);
+
+    // This should be the final result
+    const finalBookings = step5;
+    console.log(`Final result - All criteria met: ${finalBookings.length} bookings`);
+
+    // Show details of bookings that failed each step
+    const failedStep1 = allBookings.filter(b => b.tripId !== null);
+    const failedStep2 = step1.filter(b => b.isCompleted);
+    const failedStep3 = step2.filter(b => b.isCancelled);
+    const failedStep4 = step3.filter(b => b.needsFrontdeskVerification);
+    const failedStep5 = step4.filter(b => !b.seatsConfirmed);
+
+    res.json({
+      currentSchedule: {
+        id: currentSchedule.id,
+        shuttleId: currentSchedule.shuttleId,
+        shuttle: currentSchedule.shuttle,
+        startTime: currentSchedule.startTime,
+        endTime: currentSchedule.endTime,
+      },
+      allBookings: allBookings.map(b => ({
+        id: b.id,
+        numberOfPersons: b.numberOfPersons,
+        bookingType: b.bookingType,
+        isCompleted: b.isCompleted,
+        isCancelled: b.isCancelled,
+        needsFrontdeskVerification: b.needsFrontdeskVerification,
+        seatsConfirmed: b.seatsConfirmed,
+        tripId: b.tripId,
+        shuttleId: b.shuttleId,
+        guest: b.guest,
+        createdAt: b.createdAt,
+      })),
+      stepResults: {
+        total: allBookings.length,
+        step1: step1.length,
+        step2: step2.length,
+        step3: step3.length,
+        step4: step4.length,
+        step5: step5.length,
+      },
+      failedBookings: {
+        step1: failedStep1.map(b => ({ id: b.id, reason: "Already assigned to trip", tripId: b.tripId })),
+        step2: failedStep2.map(b => ({ id: b.id, reason: "Already completed" })),
+        step3: failedStep3.map(b => ({ id: b.id, reason: "Already cancelled" })),
+        step4: failedStep4.map(b => ({ id: b.id, reason: "Needs frontdesk verification" })),
+        step5: failedStep5.map(b => ({ id: b.id, reason: "Seats not confirmed" })),
+      },
+      finalBookings: finalBookings.map(b => ({
+        id: b.id,
+        numberOfPersons: b.numberOfPersons,
+        bookingType: b.bookingType,
+        guest: b.guest,
+        pickupLocation: b.pickupLocation,
+        dropoffLocation: b.dropoffLocation,
+      })),
+    });
+  } catch (error) {
+    console.error("Debug start trip bookings error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export {
   startTrip,
   transitionTripPhase,
@@ -1416,4 +1665,5 @@ export {
   debugDriverBookings,
   debugDriverSchedule,
   testCurrentTime,
+  debugStartTripBookings,
 };

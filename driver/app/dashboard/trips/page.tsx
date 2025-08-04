@@ -686,20 +686,23 @@ export default function TripsPage() {
                 Start a round trip to begin serving passengers
               </p>
               {availableTrips.length > 0 ? (
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <Button
-                    onClick={() => handleStartTrip("HOTEL_TO_AIRPORT")}
-                    disabled={startingTrip}
-                    className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-200"
-                    size="default"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <Play className="h-4 w-4" />
-                      <span className="font-medium">
-                        {startingTrip ? "Starting Trip..." : "Start Round Trip"}
-                      </span>
-                    </div>
-                  </Button>
+                <div className="space-y-3 pt-2">
+                  {availableTrips.map((trip, index) => (
+                    <Button
+                      key={index}
+                      onClick={() => handleStartTrip(trip.direction)}
+                      disabled={startingTrip}
+                      className="w-full h-12 sm:h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                      size="default"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Play className="h-4 w-4" />
+                        <span className="font-medium">
+                          {startingTrip ? "Starting Trip..." : `Start ${getDirectionLabel(trip.direction)}`}
+                        </span>
+                      </div>
+                    </Button>
+                  ))}
                 </div>
               ) : (
                 <div className="text-gray-500 text-center py-4 text-sm sm:text-base">
@@ -800,7 +803,7 @@ export default function TripsPage() {
                       <div className="text-xl sm:text-2xl">🏨↔️✈️</div>
                       <div className="min-w-0 flex-1">
                         <h4 className="font-medium text-sm sm:text-base">
-                          Round Trip (Hotel ↔ Airport)
+                          {getDirectionLabel(trip.direction)}
                         </h4>
                         <p className="text-xs sm:text-sm text-gray-600">
                           {trip.bookingCount} bookings • {trip.totalPersons}{" "}

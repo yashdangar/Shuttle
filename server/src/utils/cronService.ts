@@ -2,7 +2,7 @@ import { CronJob } from 'cron';
 import prisma from '../db/prisma';
 import { sendToUser, sendToRoleInHotel } from '../ws/index';
 import { WsEvents } from '../ws/events';
-import { cleanupExpiredSeatHolds } from "./seatHoldingUtils";
+import { cleanupExpiredSeatHolds, releaseHeldSeats } from "./seatHoldingUtils";
 
 // Function to cancel bookings that haven't been verified by frontdesk for 6+ hours
 const cancelUnverifiedBookings = async () => {
@@ -41,6 +41,14 @@ const cancelUnverifiedBookings = async () => {
     for (const booking of unverifiedBookings) {
       try {
         console.log(`Processing booking ${booking.id} (created at ${booking.createdAt})`);
+        
+        // Release held seats if any
+        const seatsReleased = await releaseHeldSeats(booking.id);
+        if (!seatsReleased) {
+          console.warn(`Failed to release held seats for booking ${booking.id}`);
+          // Note: We continue with cancellation even if seat release fails
+          // The booking can still be cancelled
+        }
         
         // Cancel the booking
         const updatedBooking = await prisma.booking.update({
