@@ -1,5 +1,5 @@
 import prisma from "../db/prisma";
-import { findAvailableShuttle, holdSeatsInShuttle } from "./shuttleSeatUtils";
+import { findAvailableShuttle, holdSeatsInShuttle, confirmSeatsInShuttle, releaseSeatsInShuttle, cleanupExpiredShuttleSeatHolds, getShuttleAvailability } from "./shuttleSeatUtils";
 
 // Configuration for seat holding
 const SEAT_HOLD_DURATION_MINUTES = 5; // Hold seats for 5 minutes
@@ -64,8 +64,6 @@ export const holdSeatsForBooking = async (
     return false;
   }
 };
-
-import { confirmSeatsInShuttle } from "./shuttleSeatUtils";
 
 /**
  * Confirm held seats for a booking
@@ -147,8 +145,6 @@ export const confirmHeldSeats = async (bookingId: string): Promise<boolean> => {
   }
 };
 
-import { releaseSeatsInShuttle } from "./shuttleSeatUtils";
-
 /**
  * Release held seats for a booking
  * @param bookingId - The booking ID
@@ -165,6 +161,8 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
       select: {
         shuttleId: true,
         numberOfPersons: true,
+        seatsHeld: true,
+        seatsConfirmed: true,
       },
     });
 
@@ -189,21 +187,35 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
         direction = 'HOTEL_TO_AIRPORT';
       }
 
-      const seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
-      
-      if (!seatsReleased) {
-        console.log(`❌ Failed to release seats in shuttle ${booking.shuttleId}`);
-        return false;
+      // If seats are confirmed, we need to release confirmed seats
+      if (booking.seatsConfirmed) {
+        console.log(`Releasing confirmed seats for booking ${bookingId}`);
+        const confirmedSeatsReleased = await releaseConfirmedSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        if (!confirmedSeatsReleased) {
+          console.log(`❌ Failed to release confirmed seats in shuttle ${booking.shuttleId}`);
+          return false;
+        }
+      }
+      // If seats are held but not confirmed, release held seats
+      else if (booking.seatsHeld) {
+        console.log(`Releasing held seats for booking ${bookingId}`);
+        const seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        if (!seatsReleased) {
+          console.log(`❌ Failed to release held seats in shuttle ${booking.shuttleId}`);
+          return false;
+        }
       }
     }
 
-    // Update booking to clear seat hold
+    // Update booking to clear seat hold and confirmation
     await prisma.booking.update({
       where: { id: bookingId },
       data: {
         seatsHeld: false,
         seatsHeldAt: null,
         seatsHeldUntil: null,
+        seatsConfirmed: false,
+        seatsConfirmedAt: null,
         shuttleId: null, // Remove shuttle assignment
       },
     });
@@ -214,6 +226,160 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error("Error releasing held seats:", error);
+    return false;
+  }
+};
+
+/**
+ * Release confirmed seats in a shuttle
+ * @param shuttleId - The shuttle ID
+ * @param numberOfPersons - Number of persons to release
+ * @param direction - Direction of the trip (AIRPORT_TO_HOTEL or HOTEL_TO_AIRPORT)
+ * @returns Promise<boolean> - Whether seats were successfully released
+ */
+export const releaseConfirmedSeatsInShuttle = async (
+  shuttleId: number,
+  numberOfPersons: number,
+  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+): Promise<boolean> => {
+  try {
+    console.log(`=== RELEASING CONFIRMED SEATS IN SHUTTLE ===`);
+    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || 'Not specified'}`);
+
+    // Get current shuttle state
+    const shuttle = await prisma.shuttle.findUnique({
+      where: { id: shuttleId },
+    });
+
+    if (!shuttle) {
+      console.log(`❌ Shuttle ${shuttleId} not found`);
+      return false;
+    }
+
+    // Log current state based on direction
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.airportToHotelSeatsHeld} held, ${shuttle.airportToHotelSeatsConfirmed} confirmed`);
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.hotelToAirportSeatsHeld} held, ${shuttle.hotelToAirportSeatsConfirmed} confirmed`);
+    } else {
+      console.log(`Shuttle ${shuttleId} current state: ${shuttle.seatsHeld} held, ${shuttle.seatsConfirmed} confirmed, ${shuttle.seats} total`);
+    }
+
+    // Release the exact number of confirmed seats
+    const seatsToRelease = numberOfPersons;
+
+    // Update shuttle: reduce confirmed seats based on direction
+    const updateData: any = {};
+    
+    if (direction === 'AIRPORT_TO_HOTEL') {
+      const newConfirmedSeats = Math.max(0, shuttle.airportToHotelSeatsConfirmed - seatsToRelease);
+      updateData.airportToHotelSeatsConfirmed = newConfirmedSeats;
+      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for AIRPORT_TO_HOTEL (${shuttle.airportToHotelSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
+    } else if (direction === 'HOTEL_TO_AIRPORT') {
+      const newConfirmedSeats = Math.max(0, shuttle.hotelToAirportSeatsConfirmed - seatsToRelease);
+      updateData.hotelToAirportSeatsConfirmed = newConfirmedSeats;
+      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for HOTEL_TO_AIRPORT (${shuttle.hotelToAirportSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
+    } else {
+      // Fallback to general seats for backward compatibility
+      const newConfirmedSeats = Math.max(0, shuttle.seatsConfirmed - seatsToRelease);
+      updateData.seatsConfirmed = newConfirmedSeats;
+      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for General (${shuttle.seatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
+    }
+    
+    await prisma.shuttle.update({
+      where: { id: shuttleId },
+      data: updateData,
+    });
+
+    console.log(`=== END CONFIRMED SEAT RELEASE ===`);
+    return true;
+  } catch (error) {
+    console.error("Error releasing confirmed seats in shuttle:", error);
+    return false;
+  }
+};
+
+/**
+ * Release all seats (both held and confirmed) for a booking
+ * This is used when a booking is cancelled or rejected
+ * @param bookingId - The booking ID
+ * @returns Promise<boolean> - Whether seats were successfully released
+ */
+export const releaseAllSeatsForBooking = async (bookingId: string): Promise<boolean> => {
+  try {
+    console.log(`=== RELEASING ALL SEATS FOR BOOKING ===`);
+    console.log(`Booking ID: ${bookingId}`);
+
+    // Get the booking to check if it has a shuttle assignment
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        shuttleId: true,
+        numberOfPersons: true,
+        seatsHeld: true,
+        seatsConfirmed: true,
+        bookingType: true,
+      },
+    });
+
+    if (!booking) {
+      console.log(`❌ Booking ${bookingId} not found`);
+      return false;
+    }
+
+    // Release seats in the shuttle if assigned
+    if (booking.shuttleId) {
+      let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
+      
+      if (booking.bookingType === 'AIRPORT_TO_HOTEL') {
+        direction = 'AIRPORT_TO_HOTEL';
+      } else if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
+        direction = 'HOTEL_TO_AIRPORT';
+      }
+
+      let seatsReleased = false;
+
+      // If seats are confirmed, release confirmed seats
+      if (booking.seatsConfirmed) {
+        console.log(`Releasing confirmed seats for booking ${bookingId}`);
+        seatsReleased = await releaseConfirmedSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+      }
+      // If seats are held but not confirmed, release held seats
+      else if (booking.seatsHeld) {
+        console.log(`Releasing held seats for booking ${bookingId}`);
+        seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+      }
+      // If no seats are held or confirmed, nothing to release
+      else {
+        console.log(`No seats to release for booking ${bookingId}`);
+        seatsReleased = true;
+      }
+
+      if (!seatsReleased) {
+        console.log(`❌ Failed to release seats in shuttle ${booking.shuttleId}`);
+        return false;
+      }
+    }
+
+    // Update booking to clear all seat-related fields
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        seatsHeld: false,
+        seatsHeldAt: null,
+        seatsHeldUntil: null,
+        seatsConfirmed: false,
+        seatsConfirmedAt: null,
+        shuttleId: null, // Remove shuttle assignment
+      },
+    });
+
+    console.log(`✅ All seats released for booking ${bookingId}`);
+    console.log(`=== END ALL SEAT RELEASE ===`);
+
+    return true;
+  } catch (error) {
+    console.error("Error releasing all seats for booking:", error);
     return false;
   }
 };
@@ -245,8 +411,6 @@ export const hasHeldSeats = async (bookingId: string): Promise<boolean> => {
   }
 };
 
-import { cleanupExpiredShuttleSeatHolds } from "./shuttleSeatUtils";
-
 /**
  * Clean up expired seat holds
  * This should be called periodically (e.g., via cron job)
@@ -263,8 +427,6 @@ export const cleanupExpiredSeatHolds = async (): Promise<void> => {
     console.error("Error cleaning up expired seat holds:", error);
   }
 };
-
-import { getShuttleAvailability } from "./shuttleSeatUtils";
 
 /**
  * Get seat hold status for a booking

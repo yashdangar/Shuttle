@@ -20,7 +20,7 @@ import {
   findAvailableShuttleWithCapacity,
   getISTDateRange,
 } from "../utils/bookingUtils";
-import { confirmHeldSeats, getSeatHoldStatus, releaseHeldSeats } from "../utils/seatHoldingUtils";
+import { confirmHeldSeats, getSeatHoldStatus, releaseHeldSeats, releaseAllSeatsForBooking } from "../utils/seatHoldingUtils";
 import { getShuttleAvailability } from "../utils/shuttleSeatUtils";
 
 const getFrontdesk = async (req: Request, res: Response) => {
@@ -992,10 +992,10 @@ const cancelBooking = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Release held seats if any
-    const seatsReleased = await releaseHeldSeats(bookingId);
+    // Release all seats (both held and confirmed) if any
+    const seatsReleased = await releaseAllSeatsForBooking(bookingId);
     if (!seatsReleased) {
-      console.warn(`Failed to release held seats for booking ${bookingId}`);
+      console.warn(`Failed to release seats for booking ${bookingId}`);
       // Note: We continue with cancellation even if seat release fails
       // The booking can still be cancelled
     }
@@ -1972,10 +1972,10 @@ const rejectGuestBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Release held seats if any
-    const seatsReleased = await releaseHeldSeats(bookingId);
+    // Release all seats (both held and confirmed) if any
+    const seatsReleased = await releaseAllSeatsForBooking(bookingId);
     if (!seatsReleased) {
-      console.warn(`Failed to release held seats for booking ${bookingId}`);
+      console.warn(`Failed to release seats for booking ${bookingId}`);
       // Note: We continue with rejection even if seat release fails
       // The booking can still be rejected
     }

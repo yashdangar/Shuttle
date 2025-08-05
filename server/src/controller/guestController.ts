@@ -12,6 +12,7 @@ import {
   holdSeatsForBooking,
   getSeatHoldStatus,
   releaseHeldSeats,
+  releaseAllSeatsForBooking,
 } from "../utils/seatHoldingUtils";
 
 const getGuest = (req: Request, res: Response) => {
@@ -704,10 +705,10 @@ const cancelBooking = async (req: Request, res: Response) => {
         .json({ error: "Booking not found or access denied" });
     }
 
-    // Release held seats if any
-    const seatsReleased = await releaseHeldSeats(id);
+    // Release all seats (both held and confirmed) if any
+    const seatsReleased = await releaseAllSeatsForBooking(id);
     if (!seatsReleased) {
-      console.warn(`Failed to release held seats for booking ${id}`);
+      console.warn(`Failed to release seats for booking ${id}`);
       // Note: We continue with cancellation even if seat release fails
       // The booking can still be cancelled
     }

@@ -85,6 +85,20 @@ const startTrip = async (req: Request, res: Response) => {
       });
     }
 
+    // Check for and cleanup any overlapping trips
+    console.log(`Checking for overlapping trips before starting new trip`);
+    const cleanupResult = await checkAndCleanupOverlappingTrips(driverId);
+    if (!cleanupResult.success) {
+      console.error(`Failed to cleanup overlapping trips: ${cleanupResult.message}`);
+      return res.status(500).json({
+        message: "Failed to cleanup overlapping trips. Please try again.",
+      });
+    }
+    
+    if (cleanupResult.cleanedTrips && cleanupResult.cleanedTrips.length > 0) {
+      console.log(`Cleaned up ${cleanupResult.cleanedTrips.length} overlapping trips`);
+    }
+
     // Get unassigned bookings for both directions (excluding held bookings)
     const hotelId = (req as any).user.hotelId;
     const unassignedBookings = await prisma.booking.findMany({
@@ -460,6 +474,8 @@ const endTrip = async (req: Request, res: Response) => {
             },
           },
         },
+        shuttle: true,
+        driver: true,
       },
     });
 
@@ -502,6 +518,21 @@ const endTrip = async (req: Request, res: Response) => {
           driver: true,
         },
       });
+    }
+
+    // Reset shuttle capacity after trip completion
+    // This ensures the shuttle is ready for the next trip
+    console.log(`=== RESETTING SHUTTLE CAPACITY AFTER TRIP COMPLETION ===`);
+    console.log(`Trip ID: ${tripId}, Shuttle ID: ${trip.shuttleId}`);
+    
+    try {
+      // Reset capacity for both directions to ensure clean state for next trip
+      await resetSeatCapacityForNewBookings(trip.shuttleId, 'HOTEL_TO_AIRPORT');
+      await resetSeatCapacityForNewBookings(trip.shuttleId, 'AIRPORT_TO_HOTEL');
+      console.log(`✅ Successfully reset shuttle capacity for next trip`);
+    } catch (resetError) {
+      console.error(`❌ Error resetting shuttle capacity:`, resetError);
+      // Don't fail the trip completion if reset fails
     }
 
     // Mark verified bookings as completed
@@ -558,6 +589,41 @@ const endTrip = async (req: Request, res: Response) => {
           "Your shuttle trip has been cancelled as you were not checked in.",
         booking: booking,
       });
+    }
+
+    // Send WebSocket notification to frontdesk about trip completion
+    try {
+      const { sendToRoleInHotel } = await import("../ws/index");
+      const { WsEvents } = await import("../ws/events");
+
+      // Get hotel ID from the driver
+      const driverWithHotel = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { hotelId: true },
+      });
+
+      if (driverWithHotel) {
+        // Send to all frontdesk users of this hotel
+        sendToRoleInHotel(
+          Number(driverWithHotel.hotelId),
+          "frontdesk",
+          WsEvents.TRIP_COMPLETED,
+          {
+            title: "Trip Completed",
+            message: `Trip ${tripId} has been completed successfully`,
+            trip: {
+              id: tripId,
+              driver: trip.driver,
+              shuttle: trip.shuttle,
+              verifiedBookings: verifiedBookings.length,
+              unverifiedBookings: unverifiedBookings.length,
+            },
+          }
+        );
+      }
+    } catch (wsError) {
+      console.error("WebSocket notification error:", wsError);
+      // Don't fail the request if WebSocket fails
     }
 
     res.json({
@@ -1201,6 +1267,469 @@ const shouldAssignBookingToCurrentTrip = (
   return false;
 };
 
+/**
+ * Prepare next trip and transition from current trip
+ * This function ensures proper separation between current and next trips
+ * @param driverId - The driver ID
+ * @param currentTripId - The current trip ID to complete
+ * @returns Promise<object> - Information about the transition
+ */
+const prepareNextTrip = async (driverId: number, currentTripId?: string) => {
+  try {
+    console.log(`=== PREPARING NEXT TRIP ===`);
+    console.log(`Driver ID: ${driverId}, Current Trip ID: ${currentTripId || 'None'}`);
+
+    // Get current active trip if not provided
+    let currentTrip = null;
+    if (currentTripId) {
+      currentTrip = await prisma.trip.findFirst({
+        where: {
+          id: currentTripId,
+          driverId,
+          status: TripStatus.ACTIVE,
+        },
+        include: {
+          shuttle: true,
+          driver: true,
+        },
+      });
+    } else {
+      currentTrip = await prisma.trip.findFirst({
+        where: {
+          driverId,
+          status: TripStatus.ACTIVE,
+        },
+        include: {
+          shuttle: true,
+          driver: true,
+        },
+      });
+    }
+
+    // If there's a current trip, complete it first
+    if (currentTrip) {
+      console.log(`Completing current trip ${currentTrip.id}`);
+      
+      const now = new Date();
+      
+      // Complete the current trip
+      await prisma.trip.update({
+        where: { id: currentTrip.id },
+        data: {
+          phase: TripPhase.COMPLETED,
+          status: TripStatus.COMPLETED,
+          endTime: now,
+        },
+      });
+
+      // Reset shuttle capacity for the next trip
+      console.log(`Resetting shuttle capacity for next trip`);
+      await resetSeatCapacityForNewBookings(currentTrip.shuttleId, 'HOTEL_TO_AIRPORT');
+      await resetSeatCapacityForNewBookings(currentTrip.shuttleId, 'AIRPORT_TO_HOTEL');
+
+      // Mark verified bookings as completed
+      await prisma.booking.updateMany({
+        where: {
+          tripId: currentTrip.id,
+          isVerified: true,
+        },
+        data: {
+          isCompleted: true,
+        },
+      });
+    }
+
+    // Get the driver's active schedule for the next trip
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        driverId,
+        startTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      include: {
+        shuttle: true,
+      },
+    });
+
+    // Find the currently active schedule
+    let currentSchedule = null;
+    for (const schedule of schedules) {
+      const currentTimeUTC = new Date();
+      if (
+        currentTimeUTC >= schedule.startTime &&
+        currentTimeUTC <= schedule.endTime
+      ) {
+        currentSchedule = schedule;
+        break;
+      }
+    }
+
+    if (!currentSchedule) {
+      console.log(`No active schedule found for driver ${driverId}`);
+      return {
+        success: false,
+        message: "No active schedule found",
+        currentTrip: currentTrip,
+        nextTrip: null,
+      };
+    }
+
+    // Get unassigned bookings for the next trip
+    const hotelId = currentTrip?.driver?.hotelId || (await prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { hotelId: true },
+    }))?.hotelId;
+
+    if (!hotelId) {
+      console.log(`No hotel ID found for driver ${driverId}`);
+      return {
+        success: false,
+        message: "No hotel ID found for driver",
+        currentTrip: currentTrip,
+        nextTrip: null,
+      };
+    }
+
+    const unassignedBookings = await prisma.booking.findMany({
+      where: {
+        shuttleId: currentSchedule.shuttleId,
+        tripId: null,
+        isCompleted: false,
+        isCancelled: false,
+        needsFrontdeskVerification: false,
+        seatsConfirmed: true,
+        guest: {
+          hotelId: hotelId,
+        },
+      },
+      include: {
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phoneNumber: true,
+          },
+        },
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
+      orderBy: {
+        preferredTime: "asc",
+      },
+    });
+
+    if (unassignedBookings.length === 0) {
+      console.log(`No unassigned bookings found for next trip`);
+      return {
+        success: true,
+        message: "Current trip completed, no bookings available for next trip",
+        currentTrip: currentTrip,
+        nextTrip: null,
+      };
+    }
+
+    // Create new trip for the next round
+    const nextTrip = await prisma.trip.create({
+      data: {
+        scheduleId: currentSchedule.id,
+        driverId,
+        shuttleId: currentSchedule.shuttleId,
+        direction: TripDirection.HOTEL_TO_AIRPORT,
+        status: TripStatus.ACTIVE,
+        phase: TripPhase.OUTBOUND,
+        startTime: new Date(),
+      },
+      include: {
+        shuttle: true,
+        driver: true,
+      },
+    });
+
+    // Assign bookings to the new trip
+    const bookingIds = unassignedBookings.map((booking) => booking.id);
+    await prisma.booking.updateMany({
+      where: {
+        id: { in: bookingIds },
+      },
+      data: {
+        tripId: nextTrip.id,
+      },
+    });
+
+    console.log(`✅ Successfully prepared next trip ${nextTrip.id} with ${unassignedBookings.length} bookings`);
+
+    return {
+      success: true,
+      message: "Successfully transitioned to next trip",
+      currentTrip: currentTrip,
+      nextTrip: nextTrip,
+      assignedBookings: unassignedBookings.length,
+    };
+  } catch (error) {
+    console.error("Error preparing next trip:", error);
+    return {
+      success: false,
+      message: "Error preparing next trip",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
+/**
+ * Check for and clean up overlapping trips
+ * This function ensures only one active trip per driver at a time
+ * @param driverId - The driver ID
+ * @returns Promise<object> - Information about the cleanup
+ */
+const checkAndCleanupOverlappingTrips = async (driverId: number) => {
+  try {
+    console.log(`=== CHECKING FOR OVERLAPPING TRIPS ===`);
+    console.log(`Driver ID: ${driverId}`);
+
+    // Get all active trips for this driver
+    const activeTrips = await prisma.trip.findMany({
+      where: {
+        driverId,
+        status: TripStatus.ACTIVE,
+      },
+      include: {
+        shuttle: true,
+        driver: true,
+        bookings: {
+          where: {
+            isCompleted: false,
+            isCancelled: false,
+          },
+        },
+      },
+      orderBy: {
+        startTime: 'desc',
+      },
+    });
+
+    console.log(`Found ${activeTrips.length} active trips for driver ${driverId}`);
+
+    if (activeTrips.length <= 1) {
+      console.log(`No overlapping trips found`);
+      return {
+        success: true,
+        message: "No overlapping trips found",
+        cleanedTrips: [],
+        remainingTrip: activeTrips[0] || null,
+      };
+    }
+
+    // If there are multiple active trips, keep only the most recent one
+    const tripsToCleanup = activeTrips.slice(1); // All except the first (most recent)
+    const keepTrip = activeTrips[0]; // Keep the most recent trip
+
+    console.log(`Found ${tripsToCleanup.length} overlapping trips to cleanup`);
+    console.log(`Keeping trip ${keepTrip.id} (most recent)`);
+
+    const cleanedTrips = [];
+
+    for (const trip of tripsToCleanup) {
+      console.log(`Cleaning up overlapping trip ${trip.id}`);
+
+      // Complete the overlapping trip
+      await prisma.trip.update({
+        where: { id: trip.id },
+        data: {
+          phase: TripPhase.COMPLETED,
+          status: TripStatus.COMPLETED,
+          endTime: new Date(),
+        },
+      });
+
+      // Reset shuttle capacity for this trip
+      await resetSeatCapacityForNewBookings(trip.shuttleId, 'HOTEL_TO_AIRPORT');
+      await resetSeatCapacityForNewBookings(trip.shuttleId, 'AIRPORT_TO_HOTEL');
+
+      // Mark verified bookings as completed
+      await prisma.booking.updateMany({
+        where: {
+          tripId: trip.id,
+          isVerified: true,
+        },
+        data: {
+          isCompleted: true,
+        },
+      });
+
+      // Unassign unverified bookings from this trip
+      await prisma.booking.updateMany({
+        where: {
+          tripId: trip.id,
+          isVerified: false,
+        },
+        data: {
+          tripId: null, // Make them available for the current trip
+        },
+      });
+
+      cleanedTrips.push({
+        id: trip.id,
+        startTime: trip.startTime,
+        endTime: new Date(),
+        bookingsCount: trip.bookings.length,
+      });
+
+      console.log(`✅ Cleaned up overlapping trip ${trip.id}`);
+    }
+
+    console.log(`=== END OVERLAPPING TRIPS CLEANUP ===`);
+
+    return {
+      success: true,
+      message: `Cleaned up ${cleanedTrips.length} overlapping trips`,
+      cleanedTrips,
+      remainingTrip: keepTrip,
+    };
+  } catch (error) {
+    console.error("Error checking and cleaning up overlapping trips:", error);
+    return {
+      success: false,
+      message: "Error cleaning up overlapping trips",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
+/**
+ * Debug function to check shuttle capacity state
+ * @param shuttleId - The shuttle ID to check
+ * @returns Promise<object> - Shuttle capacity information
+ */
+const debugShuttleCapacity = async (shuttleId: number) => {
+  try {
+    console.log(`=== DEBUG SHUTTLE CAPACITY ===`);
+    console.log(`Shuttle ID: ${shuttleId}`);
+
+    const shuttle = await prisma.shuttle.findUnique({
+      where: { id: shuttleId },
+      select: {
+        id: true,
+        vehicleNumber: true,
+        seats: true,
+        seatsHeld: true,
+        seatsConfirmed: true,
+        airportToHotelSeatsHeld: true,
+        airportToHotelSeatsConfirmed: true,
+        hotelToAirportSeatsHeld: true,
+        hotelToAirportSeatsConfirmed: true,
+        airportToHotelCapacity: true,
+        hotelToAirportCapacity: true,
+      },
+    });
+
+    if (!shuttle) {
+      return {
+        success: false,
+        message: "Shuttle not found",
+      };
+    }
+
+    // Get active trips for this shuttle
+    const activeTrips = await prisma.trip.findMany({
+      where: {
+        shuttleId,
+        status: TripStatus.ACTIVE,
+      },
+      include: {
+        bookings: {
+          where: {
+            isCompleted: false,
+            isCancelled: false,
+          },
+        },
+      },
+    });
+
+    // Get bookings assigned to this shuttle
+    const assignedBookings = await prisma.booking.findMany({
+      where: {
+        shuttleId,
+        tripId: {
+          not: null,
+        },
+        isCompleted: false,
+        isCancelled: false,
+      },
+      include: {
+        trip: {
+          select: {
+            id: true,
+            status: true,
+            phase: true,
+          },
+        },
+      },
+    });
+
+    const capacityInfo = {
+      shuttleId: shuttle.id,
+      vehicleNumber: shuttle.vehicleNumber,
+      totalSeats: shuttle.seats,
+      generalCapacity: {
+        seatsHeld: shuttle.seatsHeld,
+        seatsConfirmed: shuttle.seatsConfirmed,
+        available: shuttle.seats - shuttle.seatsHeld - shuttle.seatsConfirmed,
+      },
+      airportToHotelCapacity: {
+        capacity: shuttle.airportToHotelCapacity || shuttle.seats,
+        seatsHeld: shuttle.airportToHotelSeatsHeld,
+        seatsConfirmed: shuttle.airportToHotelSeatsConfirmed,
+        available: (shuttle.airportToHotelCapacity || shuttle.seats) - shuttle.airportToHotelSeatsHeld - shuttle.airportToHotelSeatsConfirmed,
+      },
+      hotelToAirportCapacity: {
+        capacity: shuttle.hotelToAirportCapacity || shuttle.seats,
+        seatsHeld: shuttle.hotelToAirportSeatsHeld,
+        seatsConfirmed: shuttle.hotelToAirportSeatsConfirmed,
+        available: (shuttle.hotelToAirportCapacity || shuttle.seats) - shuttle.hotelToAirportSeatsHeld - shuttle.hotelToAirportSeatsConfirmed,
+      },
+      activeTrips: activeTrips.map(trip => ({
+        id: trip.id,
+        status: trip.status,
+        phase: trip.phase,
+        bookingsCount: trip.bookings.length,
+      })),
+      assignedBookings: assignedBookings.map(booking => ({
+        id: booking.id,
+        bookingType: booking.bookingType,
+        numberOfPersons: booking.numberOfPersons,
+        isVerified: booking.isVerified,
+        tripId: booking.tripId,
+        tripStatus: booking.trip?.status,
+        tripPhase: booking.trip?.phase,
+      })),
+    };
+
+    console.log(`Shuttle capacity info:`, capacityInfo);
+    console.log(`=== END SHUTTLE CAPACITY DEBUG ===`);
+
+    return {
+      success: true,
+      message: "Shuttle capacity information retrieved",
+      capacityInfo,
+    };
+  } catch (error) {
+    console.error("Error debugging shuttle capacity:", error);
+    return {
+      success: false,
+      message: "Error debugging shuttle capacity",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
 // Debug endpoint to check driver's available bookings
 const debugDriverBookings = async (req: Request, res: Response) => {
   try {
@@ -1662,8 +2191,11 @@ export {
   getAvailableTrips,
   getCurrentTripBookings,
   addBookingToActiveTrip,
+  prepareNextTrip,
   debugDriverBookings,
   debugDriverSchedule,
   testCurrentTime,
   debugStartTripBookings,
+  checkAndCleanupOverlappingTrips,
+  debugShuttleCapacity,
 };
