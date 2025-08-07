@@ -834,6 +834,15 @@ function SchedulesPage() {
     });
   };
 
+  // --- Helper: check if a given day (Date) is in the past (local time) ---
+  const isDayInPast = (dayDate: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const compare = new Date(dayDate);
+    compare.setHours(0, 0, 0, 0);
+    return compare < today;
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -1278,11 +1287,18 @@ function SchedulesPage() {
                       <b>{userTimeZone}</b> ({getTimeZoneAbbr(new Date())})
                     </div>
                     <div className="grid gap-4">
-                      {daysOfWeek.map((day) => {
+                      {daysOfWeek.map((day, idx) => {
                         const dayData =
                           weeklySchedule[
                             day.key as keyof typeof weeklySchedule
                           ];
+                        // Calculate the date for this day in the current week
+                        const weekStart = new Date(weeklySchedule.startDate);
+                        weekStart.setHours(0, 0, 0, 0);
+                        const dayDate = new Date(weekStart);
+                        dayDate.setDate(weekStart.getDate() + idx);
+                        // Check if this day is in the past
+                        const isPast = isDayInPast(dayDate);
                         if (
                           typeof dayData === "object" &&
                           dayData !== null &&
@@ -1295,6 +1311,8 @@ function SchedulesPage() {
                                 dayData.enabled
                                   ? "border-blue-200 bg-blue-50/50"
                                   : "border-slate-200 bg-slate-50/50"
+                              } ${
+                                isPast ? "opacity-50 pointer-events-none" : ""
                               }`}
                             >
                               <div className="flex items-center space-x-4">
@@ -1311,6 +1329,7 @@ function SchedulesPage() {
                                         )
                                       }
                                       className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                      disabled={isPast}
                                     />
                                     <label className="font-medium text-slate-900">
                                       {day.label}
@@ -1337,7 +1356,7 @@ function SchedulesPage() {
                                           e.target.value
                                         )
                                       }
-                                      disabled={!dayData.enabled}
+                                      disabled={!dayData.enabled || isPast}
                                       className="mt-1"
                                     />
                                   </div>
@@ -1359,7 +1378,7 @@ function SchedulesPage() {
                                           e.target.value
                                         )
                                       }
-                                      disabled={!dayData.enabled}
+                                      disabled={!dayData.enabled || isPast}
                                       className="mt-1"
                                     />
                                   </div>
@@ -1369,7 +1388,7 @@ function SchedulesPage() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => copyTimeToAll(day.key)}
-                                      disabled={!dayData.enabled}
+                                      disabled={!dayData.enabled || isPast}
                                       className="w-full"
                                     >
                                       <Copy className="w-3 h-3 mr-1" />
