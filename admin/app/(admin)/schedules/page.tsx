@@ -100,6 +100,33 @@ interface WeeklySchedule {
   saturday: { startTime: string; endTime: string; enabled: boolean };
 }
 
+// --- Helper: format ISO string to 'YYYY-MM-DDTHH:MM' for datetime-local input in user's local time ---
+function toDateTimeLocal(isoString: string) {
+  if (!isoString) return "";
+  const date = new Date(isoString); // This will be in user's local time
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// --- Helper: Convert UTC ISO string to local datetime-local input value ---
+function utcToLocalInput(utcIsoString: string) {
+  if (!utcIsoString) return "";
+  const date = new Date(utcIsoString);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// --- Helper: Convert local datetime-local input value to UTC ISO string ---
+function localInputToUtcIso(localDateTimeStr: string) {
+  if (!localDateTimeStr) return "";
+  const localDate = new Date(localDateTimeStr);
+  return localDate.toISOString();
+}
+
 function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>();
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -118,6 +145,11 @@ function SchedulesPage() {
     startTime: "",
     endTime: "",
   });
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  // For shadcn calendar
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date()
   ); // For shadcn calendar
@@ -149,14 +181,31 @@ function SchedulesPage() {
     { key: "saturday", label: "Saturday", short: "Sat" },
   ];
 
-  // Converts local date+time to UTC ISO string
-  const toUtcIso = (dateStr: string, timeStr: string) => {
-    if (!dateStr || !timeStr) return null;
-    const [year, month, day] = dateStr.split("-").map(Number);
-    const [hour, minute] = timeStr.split(":").map(Number);
-    const localDate = new Date(year, month - 1, day, hour, minute, 0, 0);
-    return localDate.toISOString();
-  };
+  // --- Helper: get EST offset in minutes (EST is UTC-5, EDT is UTC-4) ---
+  function getESTOffset(date = new Date()) {
+    // EST is UTC-5, EDT is UTC-4 (daylight savings)
+    // Use New York as reference
+    const ny = new Date(
+      date.toLocaleString("en-US", { timeZone: "America/New_York" })
+    );
+    return (ny.getTime() - date.getTime()) / (60 * 1000);
+  }
+  // --- Convert local datetime string to EST, then to UTC ISO ---
+  function localToEstIso(localDateTimeStr: string) {
+    const localDate = new Date(localDateTimeStr);
+    // Get the equivalent EST time
+    const estDate = new Date(
+      localDate.getTime() - getESTOffset(localDate) * 60 * 1000
+    );
+    return estDate.toISOString();
+  }
+  // --- Convert EST/DB time to local time for display ---
+  function estIsoToLocalDisplay(isoString: string) {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    // This will show in user's local time
+    return format(date, "yyyy-MM-dd HH:mm");
+  }
 
   // Handles overnight shifts (end time < start time)
   const getStartEndUtc = (
@@ -164,7 +213,7 @@ function SchedulesPage() {
     startTime: string,
     endTime: string
   ) => {
-    const startUtc = toUtcIso(dateStr, startTime);
+    const startUtc = localToEstIso(dateStr);
     let endDate = dateStr;
     if (endTime < startTime) {
       // Crosses midnight, increment date
@@ -172,7 +221,7 @@ function SchedulesPage() {
       d.setDate(d.getDate() + 1);
       endDate = d.toISOString().split("T")[0];
     }
-    const endUtc = toUtcIso(endDate, endTime);
+    const endUtc = localToEstIso(endDate);
     return { startUtc, endUtc };
   };
 
@@ -196,7 +245,10 @@ function SchedulesPage() {
       minute: "2-digit",
       hour12: true,
     });
-    const abbr = getTimeZoneAbbr(date);
+    const abbr = date
+      .toLocaleTimeString([], { timeZoneName: "short" })
+      .split(" ")
+      .pop();
     return `${time} (${abbr})`;
   };
 
@@ -576,15 +628,93 @@ function SchedulesPage() {
     initializeData();
   }, []);
 
+  // --- Helper: check if date is in the past ---
+  const isDateInPast = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+  };
+
+  // --- Helper: validate if end datetime is after start datetime ---
+  const isFormValid = () => {
+    if (
+      !formData.driverId ||
+      !formData.shuttleId ||
+      !startDate ||
+      !endDate ||
+      !startTime ||
+      !endTime
+    ) {
+      return false;
+    }
+
+    // Check if dates are in the past
+    if (isDateInPast(startDate) || isDateInPast(endDate)) {
+      return false;
+    }
+
+    // Create full datetime objects
+    const startDateTime = new Date(startDate);
+    const [startHour, startMinute] = startTime.split(":").map(Number);
+    startDateTime.setHours(startHour, startMinute, 0, 0);
+
+    const endDateTime = new Date(endDate);
+    const [endHour, endMinute] = endTime.split(":").map(Number);
+    endDateTime.setHours(endHour, endMinute, 0, 0);
+
+    return endDateTime > startDateTime;
+  };
+
+  // --- Helper: combine date and time into datetime-local format ---
+  const combineDateTime = (date: Date | null, time: string) => {
+    if (!date || !time) return "";
+    const [hours, minutes] = time.split(":").map(Number);
+    const combined = new Date(date);
+    combined.setHours(hours, minutes, 0, 0);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${combined.getFullYear()}-${pad(combined.getMonth() + 1)}-${pad(
+      combined.getDate()
+    )}T${pad(combined.getHours())}:${pad(combined.getMinutes())}`;
+  };
+
+  // --- Helper: split datetime-local into date and time ---
+  const splitDateTime = (dateTimeStr: string) => {
+    if (!dateTimeStr) return { date: null, time: "" };
+    const date = new Date(dateTimeStr);
+    const time = `${date.getHours().toString().padStart(2, "0")}:${date
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}`;
+    return { date, time };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
-      // Convert local datetime to UTC
-      const startUtc = new Date(formData.startTime).toISOString();
-      const endUtc = new Date(formData.endTime).toISOString();
-
+      if (
+        !formData.driverId ||
+        !formData.shuttleId ||
+        !startDate ||
+        !endDate ||
+        !startTime ||
+        !endTime
+      ) {
+        toast.error("Please fill in all required fields");
+        setSubmitting(false);
+        return;
+      }
+      if (!isFormValid()) {
+        toast.error("End date/time must be after start date/time");
+        setSubmitting(false);
+        return;
+      }
+      // Combine date and time into datetime-local format
+      const startDateTimeStr = combineDateTime(startDate, startTime);
+      const endDateTimeStr = combineDateTime(endDate, endTime);
+      // Convert local input to UTC ISO for backend
+      const startUtc = localInputToUtcIso(startDateTimeStr);
+      const endUtc = localInputToUtcIso(endDateTimeStr);
       if (editingSchedule) {
         const response = await api.put(
           `/admin/edit/schedule/${editingSchedule.id}`,
@@ -595,7 +725,6 @@ function SchedulesPage() {
             endTime: endUtc,
           }
         );
-
         setSchedules(
           schedules?.map((schedule) =>
             schedule.id === editingSchedule.id ? response.schedule : schedule
@@ -610,36 +739,36 @@ function SchedulesPage() {
           startTime: startUtc,
           endTime: endUtc,
         });
-
         setSchedules([...(schedules || []), response.schedule]);
         toast.success("Schedule added successfully");
       }
       resetForm();
       setIsAddDialogOpen(false);
-
-      // Refresh current week data since we added/updated a schedule
       fetchSchedulesForWeek(currentWeekOffset);
     } catch (error: any) {
       console.error("Error submitting schedule:", error);
-
-      // Show specific error message from backend if available
       const errorMessage =
         error.response?.data?.message || "Failed to save schedule";
       toast.error(errorMessage);
-
-      // If there's an existing schedule, show it in the form
       if (error.response?.data?.existingSchedule) {
         const existingSchedule = error.response.data.existingSchedule;
         setEditingSchedule(existingSchedule);
-
+        const startSplit = splitDateTime(
+          utcToLocalInput(existingSchedule.startTime)
+        );
+        const endSplit = splitDateTime(
+          utcToLocalInput(existingSchedule.endTime)
+        );
+        setStartDate(startSplit.date);
+        setEndDate(endSplit.date);
+        setStartTime(startSplit.time);
+        setEndTime(endSplit.time);
         setFormData({
           driverId: String(existingSchedule.driver.id),
           shuttleId: String(existingSchedule.shuttle.id),
-          startTime: existingSchedule.startTime,
-          endTime: existingSchedule.endTime,
+          startTime: utcToLocalInput(existingSchedule.startTime),
+          endTime: utcToLocalInput(existingSchedule.endTime),
         });
-
-        setSelectedDate(new Date(existingSchedule.startTime));
         setIsAddDialogOpen(true);
       }
     } finally {
@@ -649,15 +778,19 @@ function SchedulesPage() {
 
   const handleEdit = (schedule: Schedule) => {
     setEditingSchedule(schedule);
-
+    // Use utcToLocalInput to convert UTC from DB to local input value
+    const startSplit = splitDateTime(utcToLocalInput(schedule.startTime));
+    const endSplit = splitDateTime(utcToLocalInput(schedule.endTime));
+    setStartDate(startSplit.date);
+    setEndDate(endSplit.date);
+    setStartTime(startSplit.time);
+    setEndTime(endSplit.time);
     setFormData({
       driverId: String(schedule.driver.id),
       shuttleId: String(schedule.shuttle.id),
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
+      startTime: utcToLocalInput(schedule.startTime),
+      endTime: utcToLocalInput(schedule.endTime),
     });
-
-    setSelectedDate(new Date(schedule.startTime));
     setIsAddDialogOpen(true);
   };
 
@@ -682,7 +815,10 @@ function SchedulesPage() {
       startTime: "",
       endTime: "",
     });
-    setSelectedDate(new Date()); // Reset calendar to today
+    setStartDate(null);
+    setEndDate(null);
+    setStartTime("");
+    setEndTime("");
     setEditingSchedule(null);
   };
 
@@ -893,34 +1029,91 @@ function SchedulesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="startTime">Start Date & Time</Label>
-                    <Input
-                      id="startTime"
-                      type="datetime-local"
-                      value={formData.startTime}
-                      onChange={(e) =>
-                        setFormData({ ...formData, startTime: e.target.value })
-                      }
-                      required
-                      className="w-full"
-                      disabled={submitting}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="startDate">Start Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !startDate && "text-muted-foreground"
+                            )}
+                            disabled={submitting}
+                          >
+                            {startDate
+                              ? format(startDate, "PPP")
+                              : "Pick start date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={startDate || undefined}
+                            onSelect={(date) => setStartDate(date || null)}
+                            disabled={(date) => isDateInPast(date)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <Label htmlFor="startTime">Start Time</Label>
+                      <Input
+                        id="startTime"
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        required
+                        className="w-full"
+                        disabled={submitting}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="endTime">End Date & Time</Label>
-                    <Input
-                      id="endTime"
-                      type="datetime-local"
-                      value={formData.endTime}
-                      onChange={(e) =>
-                        setFormData({ ...formData, endTime: e.target.value })
-                      }
-                      required
-                      className="w-full"
-                      disabled={submitting}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="endDate">End Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !endDate && "text-muted-foreground"
+                            )}
+                            disabled={submitting}
+                          >
+                            {endDate ? format(endDate, "PPP") : "Pick end date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={endDate || undefined}
+                            onSelect={(date) => setEndDate(date || null)}
+                            disabled={(date) => isDateInPast(date)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <Label htmlFor="endTime">End Time</Label>
+                      <Input
+                        id="endTime"
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        required
+                        className="w-full"
+                        disabled={submitting}
+                      />
+                    </div>
                   </div>
+
                   <div className="flex justify-end space-x-2">
                     <Button
                       type="button"
@@ -936,7 +1129,7 @@ function SchedulesPage() {
                     <Button
                       type="submit"
                       className="bg-blue-600 hover:bg-blue-700"
-                      disabled={submitting}
+                      disabled={submitting || !isFormValid()}
                     >
                       {submitting ? (
                         <>
