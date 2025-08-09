@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,10 @@ import {
   Eye,
   EyeOff,
   MapPin,
+  ExternalLink,
+  Copy,
+  LocateFixed,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Loader } from "@/components/ui/loader";
@@ -66,6 +70,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { AddPrivateLocationModal } from "@/components/add-private-location-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Hotel {
   id: string;
@@ -216,6 +221,13 @@ function HotelsPage() {
     lng: number;
   } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  
+  const handleCopy = useCallback((text: string, label?: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success(`${label ? label + " " : ""}Copied`))
+      .catch(() => toast.error("Failed to copy"));
+  }, []);
 
   // Add inside HotelsPage function, after hotel state ...
   const [globalLocations, setGlobalLocations] = useState<Location[]>([]);
@@ -230,6 +242,7 @@ function HotelsPage() {
   );
   const [editingPrice, setEditingPrice] = useState<string>("");
   const [locationLoading, setLocationLoading] = useState(false);
+  const [locationsFilter, setLocationsFilter] = useState("");
 
   // Per-row loading state for edit and delete
   const [rowEditLoading, setRowEditLoading] = useState<number | null>(null);
@@ -911,39 +924,197 @@ function HotelsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Hotels Management
-            </h1>
-            <p className="text-slate-600">
-              Manage hotel partners and their information
-            </p>
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-80" />
           </div>
+          <Skeleton className="h-10 w-40" />
         </div>
+
+        {/* Hotel Profile Card */}
         <Card className="border-slate-200">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Building2 className="w-5 h-5 text-blue-600" />
-              <span>Hotels List</span>
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="h-5 w-40" />
+            </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hotel Name</TableHead>
-                  <TableHead>Latitude</TableHead>
-                  <TableHead>Longitude</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead>Updated At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableLoader columns={6} />
-              </TableBody>
-            </Table>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-1">
+                <Skeleton className="h-48 w-full rounded-lg" />
+              </div>
+              <div className="md:col-span-2 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-64" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-56" />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Skeleton className="h-9 w-28" />
+                  <Skeleton className="h-9 w-28" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Hotels List Card */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-20" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-20" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Skeleton className="h-4 w-24 ml-auto" />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(2)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-40" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Skeleton className="h-8 w-8 rounded" />
+                          <Skeleton className="h-8 w-8 rounded" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Shuttle Locations Card */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <Skeleton className="h-5 w-56" />
+          </CardHeader>
+          <CardContent>
+            <div className="bg-slate-50 rounded-lg p-4 mb-6 border grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-2 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="flex items-end gap-2">
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-40" />
+              </div>
+              <div className="space-y-2 md:ml-auto">
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-20" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-20" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-16" />
+                    </TableHead>
+                    <TableHead>
+                      <Skeleton className="h-4 w-24" />
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Skeleton className="h-4 w-24 ml-auto" />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-40" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-56" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center gap-2">
+                          <Skeleton className="h-8 w-8 rounded" />
+                          <Skeleton className="h-8 w-8 rounded" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-8 w-8 rounded ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -1120,6 +1291,12 @@ function HotelsPage() {
                   placeholder="Search for a location, address, or place..."
                   disabled={submitting || !isGoogleMapsLoaded || searching}
                   className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSearchClick();
+                    }
+                  }}
                 />
                 <Button
                   type="button"
@@ -1191,6 +1368,86 @@ function HotelsPage() {
                         : 1,
                   }}
                 />
+                {/* Live coordinates chip */}
+                <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur px-2 py-1 rounded shadow text-[11px] font-mono flex items-center gap-2">
+                  <span>Lat: {formData.latitude || 0}</span>
+                  <span>Lng: {formData.longitude || 0}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() =>
+                      handleCopy(
+                        `${formData.latitude}, ${formData.longitude}`,
+                        "Coordinates"
+                      )
+                    }
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                {/* Map quick actions */}
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={!userLocation}
+                            onClick={() => {
+                              if (!userLocation || !mapInstanceRef.current) return;
+                              const { lat, lng } = userLocation;
+                              if (markerRef.current) markerRef.current.setMap(null);
+                              setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+                              markerRef.current = new window.google.maps.Marker({
+                                position: { lat, lng },
+                                map: mapInstanceRef.current,
+                                draggable: true,
+                              });
+                              mapInstanceRef.current.setCenter({ lat, lng });
+                              mapInstanceRef.current.setZoom(15);
+                              markerRef.current.addListener("dragend", (e: any) => {
+                                const newLat = e.latLng.lat();
+                                const newLng = e.latLng.lng();
+                                setFormData((prev) => ({ ...prev, latitude: newLat, longitude: newLng }));
+                              });
+                            }}
+                          >
+                            <LocateFixed className="h-4 w-4 mr-1" />
+                            Use my location
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Center to your current location</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (markerRef.current) {
+                              markerRef.current.setMap(null);
+                              markerRef.current = null;
+                            }
+                            setFormData((prev) => ({ ...prev, latitude: 0, longitude: 0 }));
+                          }}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Clear pin
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Remove marker and reset coordinates</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
               <div className="flex space-x-2">
                 <div className="flex-1">
@@ -1484,15 +1741,62 @@ function HotelsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <Label className="text-xs text-gray-500">Latitude</Label>
-                      <p className="text-sm font-mono">{hotel.latitude}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-mono">{hotel.latitude}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleCopy(String(hotel.latitude), "Latitude:")}
+                          aria-label="Copy latitude"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">Longitude</Label>
-                      <p className="text-sm font-mono">{hotel.longitude}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-mono">{hotel.longitude}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleCopy(String(hotel.longitude), "Longitude:")}
+                          aria-label="Copy longitude"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">Hotel ID</Label>
-                      <p className="text-sm font-mono">{hotel.id}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-mono truncate" title={hotel.id}>{hotel.id}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleCopy(hotel.id, "Hotel ID:")}
+                          aria-label="Copy hotel ID"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() =>
+                            window.open(
+                              `https://www.google.com/maps?q=${hotel.latitude},${hotel.longitude}`,
+                              "_blank"
+                            )
+                          }
+                          aria-label="Open in Google Maps"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex space-x-2 pt-2">
@@ -1571,31 +1875,52 @@ function HotelsPage() {
                       {new Date(hotel.updatedAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                setMapModal({
-                                  open: true,
-                                  location: {
-                                    id: 0,
-                                    name: hotel.name,
-                                    latitude: hotel.latitude,
-                                    longitude: hotel.longitude,
-                                    address: hotel.address,
-                                  },
-                                })
-                              }
-                            >
-                              <MapPin className="w-5 h-5 text-blue-600" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View on Map</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <div className="flex items-center justify-center gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  setMapModal({
+                                    open: true,
+                                    location: {
+                                      id: 0,
+                                      name: hotel.name,
+                                      latitude: hotel.latitude,
+                                      longitude: hotel.longitude,
+                                      address: hotel.address,
+                                    },
+                                  })
+                                }
+                              >
+                                <MapPin className="w-5 h-5 text-blue-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View on Map</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  window.open(
+                                    `https://www.google.com/maps?q=${hotel.latitude},${hotel.longitude}`,
+                                    "_blank"
+                                  )
+                                }
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Open Google Maps</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
@@ -1742,6 +2067,15 @@ function HotelsPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <div className="flex-1 md:ml-auto w-full">
+              <Label htmlFor="locations-filter">Filter</Label>
+              <Input
+                id="locations-filter"
+                placeholder="Search locations by name"
+                value={locationsFilter}
+                onChange={(e) => setLocationsFilter(e.target.value)}
+              />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -1773,7 +2107,13 @@ function HotelsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  hotelLocations.map((hotelLoc) => (
+                  hotelLocations
+                    .filter((hl) =>
+                      hl.location.name
+                        .toLowerCase()
+                        .includes(locationsFilter.toLowerCase())
+                    )
+                    .map((hotelLoc) => (
                     <TableRow key={hotelLoc.id} className="hover:bg-slate-50">
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -1874,26 +2214,47 @@ function HotelsPage() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                  setMapModal({
-                                    open: true,
-                                    location: hotelLoc.location,
-                                  })
-                                }
-                              >
-                                <MapPin className="w-5 h-5 text-blue-600" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>View on Map</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                       <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setMapModal({
+                                      open: true,
+                                      location: hotelLoc.location,
+                                    })
+                                  }
+                                >
+                                  <MapPin className="w-5 h-5 text-blue-600" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View on Map</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    window.open(
+                                      `https://www.google.com/maps?q=${hotelLoc.location.latitude},${hotelLoc.location.longitude}`,
+                                      "_blank"
+                                    )
+                                  }
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Open Google Maps</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <TooltipProvider>
