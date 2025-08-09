@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   MapPin,
   Users,
@@ -17,6 +24,11 @@ import {
   ClipboardList,
   Bell,
   QrCode,
+  WifiOff,
+  ChevronDown,
+  ChevronUp,
+  Map as MapIcon,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -99,10 +111,76 @@ export default function TripsPage() {
     useState<LiveBooking | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [connectionRetryCount, setConnectionRetryCount] = useState(0);
+  const [timezoneBannerDismissed, setTimezoneBannerDismissed] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const [liveCollapsed, setLiveCollapsed] = useState(false);
+  const [availableCollapsed, setAvailableCollapsed] = useState(false);
+  const [liveSortKey, setLiveSortKey] = useState<string>("time-asc");
+  const [availableSortKey, setAvailableSortKey] = useState<string>("bookings-desc");
   const { toast } = useToast();
   const { socket, isConnected, onBookingUpdate, connectWebSocket } =
     useWebSocket();
   const isMobile = useIsMobile();
+  useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem("driver_trips_tz_banner_dismissed");
+      setTimezoneBannerDismissed(dismissed === "1");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    setShowMap(!isMobile);
+  }, [isMobile]);
+
+  const sortedLiveBookings = useMemo(() => {
+    const copy = [...liveBookings];
+    switch (liveSortKey) {
+      case "time-desc":
+        return copy.sort(
+          (a, b) =>
+            new Date(b.preferredTime).getTime() -
+            new Date(a.preferredTime).getTime()
+        );
+      case "name":
+        return copy.sort((a, b) =>
+          `${a.guest.firstName} ${a.guest.lastName}`.localeCompare(
+            `${b.guest.firstName} ${b.guest.lastName}`
+          )
+        );
+      case "persons-desc":
+        return copy.sort(
+          (a, b) => (b.numberOfPersons || 0) - (a.numberOfPersons || 0)
+        );
+      case "time-asc":
+      default:
+        return copy.sort(
+          (a, b) =>
+            new Date(a.preferredTime).getTime() -
+            new Date(b.preferredTime).getTime()
+        );
+    }
+  }, [liveBookings, liveSortKey]);
+
+  const sortedAvailableTrips = useMemo(() => {
+    const copy = [...availableTrips];
+    switch (availableSortKey) {
+      case "persons-desc":
+        return copy.sort(
+          (a, b) => (b.totalPersons || 0) - (a.totalPersons || 0)
+        );
+      case "time-asc":
+        return copy.sort(
+          (a, b) =>
+            new Date(a.earliestTime).getTime() -
+            new Date(b.earliestTime).getTime()
+        );
+      case "bookings-desc":
+      default:
+        return copy.sort(
+          (a, b) => (b.bookingCount || 0) - (a.bookingCount || 0)
+        );
+    }
+  }, [availableTrips, availableSortKey]);
 
   const fetchTripData = useCallback(async (options?: { silent?: boolean }) => {
     try {
@@ -474,81 +552,104 @@ export default function TripsPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Trip Management
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-            Manage your shuttle trips and passengers
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isConnected && (
-            <Badge
-              variant="destructive"
-              className="flex items-center gap-1 text-xs"
-            >
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              Offline
-            </Badge>
-          )}
-          {!isConnected && connectionRetryCount < 3 && (
-            <Button
-              onClick={connectWebSocket}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-            >
-              Retry Connection
-            </Button>
-          )}
-          {!isConnected && connectionRetryCount >= 3 && (
-            <span className="text-xs text-red-600">
-              Connection failed. Please refresh the page.
-            </span>
-          )}
-          {/* QR Scanner Button - Only show when trip is active */}
-          {currentTrip && currentTrip.status === "ACTIVE" && (
-            <Button
-              onClick={() => setShowQRScanner(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
-              size={isMobile ? "sm" : "default"}
-            >
-              <QrCode className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              {isMobile ? "Scan" : "Scan QR"}
-            </Button>
-          )}
-          <Button
-            onClick={fetchTripData}
-            variant="outline"
-            size={isMobile ? "sm" : "default"}
-            disabled={loading}
-            className="text-xs sm:text-sm"
-          >
-            <div
-              className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${
-                loading ? "animate-spin" : ""
-              }`}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+      <div className="rounded-lg border bg-white dark:bg-slate-900/50 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Trip Management
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Manage your shuttle trips and passengers
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {isConnected ? (
+              <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-green-100 text-green-800 border-green-200">
+                <span className="w-2 h-2 bg-green-500 rounded-full" />
+                Online
+              </Badge>
+            ) : (
+              <Badge
+                variant="destructive"
+                className="flex items-center gap-1 text-xs"
               >
-                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
-              </svg>
-            </div>
-            Refresh
-          </Button>
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                Offline
+              </Badge>
+            )}
+            {!isConnected && connectionRetryCount < 3 && (
+              <Button
+                onClick={connectWebSocket}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                Retry Connection
+              </Button>
+            )}
+            {!isConnected && connectionRetryCount >= 3 && (
+              <span className="text-xs text-red-600">
+                Connection failed. Please refresh the page.
+              </span>
+            )}
+            {/* QR Scanner Button - Only show when trip is active */}
+            {currentTrip && currentTrip.status === "ACTIVE" && (
+              <Button
+                onClick={() => setShowQRScanner(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
+                size={isMobile ? "sm" : "default"}
+              >
+                <QrCode className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                {isMobile ? "Scan" : "Scan QR"}
+              </Button>
+            )}
+            <Button
+              onClick={() => fetchTripData()}
+              variant="outline"
+              size={isMobile ? "sm" : "default"}
+              disabled={loading}
+              className="text-xs sm:text-sm"
+            >
+              <div
+                className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${
+                  loading ? "animate-spin" : ""
+                }`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+              </div>
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Timezone Info */}
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-xs sm:text-sm">
-        All times shown in your local timezone: <b>{getUserTimeZone()}</b>
-      </div>
+      {/* Timezone Info (dismissible) */}
+      {!timezoneBannerDismissed && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-xs sm:text-sm flex items-center justify-between">
+          <div>
+            All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+          </div>
+          <button
+            aria-label="Dismiss timezone banner"
+            className="text-blue-700 hover:text-blue-900"
+            onClick={() => {
+              setTimezoneBannerDismissed(true);
+              try {
+                localStorage.setItem("driver_trips_tz_banner_dismissed", "1");
+              } catch {}
+            }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Location Tracker - Only active when trip is active */}
       {currentTrip && currentTrip.status === "ACTIVE" && (
@@ -719,7 +820,7 @@ export default function TripsPage() {
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-gray-500" />
                 <span className="text-xs sm:text-sm text-gray-600">
-                  Started:{" "}
+                  Started: {" "}
                   {new Date(currentTrip.startTime).toLocaleTimeString()}
                 </span>
               </div>
@@ -743,7 +844,7 @@ export default function TripsPage() {
                   <Button
                     onClick={() => handleTransitionPhase("RETURN")}
                     variant="outline"
-                    className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100 hover:border-blue-300 transition-all duration-200"
+                    className="flex-1 h-12 sm:h-11 border-blue-200 hover:bg-blue-50 transition-colors"
                     size="default"
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -762,7 +863,7 @@ export default function TripsPage() {
                   onClick={handleEndTrip}
                   disabled={endingTrip}
                   variant="destructive"
-                  className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="flex-1 h-12 sm:h-11 bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-colors"
                   size="default"
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -796,7 +897,7 @@ export default function TripsPage() {
                       key={index}
                       onClick={() => handleStartTrip(trip.direction)}
                       disabled={startingTrip}
-                      className="w-full h-12 sm:h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                      className="w-full h-12 sm:h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-colors"
                       size="default"
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -818,42 +919,95 @@ export default function TripsPage() {
         </>
       )}
 
-      {/* Route Map */}
+      {/* Route Map (card with toggle) */}
       {currentTrip && liveBookings.length > 0 && (
-        <DriverRouteMap
-          passengers={liveBookings.map((booking) => ({
-            id: booking.id,
-            name: `${booking.guest.firstName} ${booking.guest.lastName}`,
-            pickup: booking.pickupLocation?.name || "Hotel Lobby",
-            dropoff: booking.dropoffLocation?.name || "Airport",
-            persons: booking.numberOfPersons,
-            bags: booking.numberOfBags,
-            isVerified: false, // This will be updated based on actual verification status
-            pickupLocation: undefined, // Let the map component handle coordinate resolution
-            dropoffLocation: undefined, // Let the map component handle coordinate resolution
-          }))}
-          currentTrip={currentTrip}
-          height={isMobile ? "300px" : "500px"}
-          onRefreshTripData={() => fetchTripData({ silent: true })}
-        />
+        <Card>
+          <CardHeader className="pb-3 sm:pb-4">
+            <CardTitle className="flex items-center justify-between text-base sm:text-lg">
+              <span className="flex items-center gap-2">
+                <MapIcon className="h-4 w-4 sm:h-5 sm:w-5" /> Route Map
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMap((v) => !v)}
+                className="text-xs"
+              >
+                {showMap ? (
+                  <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Hide</span>
+                ) : (
+                  <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Show</span>
+                )}
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          {showMap && (
+            <CardContent>
+              <DriverRouteMap
+                passengers={liveBookings.map((booking) => ({
+                  id: booking.id,
+                  name: `${booking.guest.firstName} ${booking.guest.lastName}`,
+                  pickup: booking.pickupLocation?.name || "Hotel Lobby",
+                  dropoff: booking.dropoffLocation?.name || "Airport",
+                  persons: booking.numberOfPersons,
+                  bags: booking.numberOfBags,
+                  isVerified: false,
+                  pickupLocation: undefined,
+                  dropoffLocation: undefined,
+                }))}
+                currentTrip={currentTrip}
+                height={isMobile ? "300px" : "500px"}
+                onRefreshTripData={() => fetchTripData({ silent: true })}
+              />
+            </CardContent>
+          )}
+        </Card>
       )}
 
       {/* Live Bookings */}
       {currentTrip && liveBookings.length > 0 && (
         <Card>
-          <CardHeader className="pb-3 sm:pb-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
-              Live Bookings ({liveBookings.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {liveBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-blue-50 gap-3"
+          <CardHeader className="pb-3 sm:pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
+                Live Bookings ({liveBookings.length})
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={liveSortKey} onValueChange={setLiveSortKey}>
+                  <SelectTrigger className="h-8 w-[180px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="time-asc">Time (earliest)</SelectItem>
+                    <SelectItem value="time-desc">Time (latest)</SelectItem>
+                    <SelectItem value="name">Guest name</SelectItem>
+                    <SelectItem value="persons-desc">Persons (desc)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setLiveCollapsed((v) => !v)}
                 >
+                  {liveCollapsed ? (
+                    <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Expand</span>
+                  ) : (
+                    <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Collapse</span>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          {!liveCollapsed && (
+            <CardContent>
+                <div className="space-y-3">
+                  {sortedLiveBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-lg border bg-white dark:bg-slate-900/40 gap-3 hover:shadow-sm transition-shadow"
+                  >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                       <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
@@ -880,10 +1034,11 @@ export default function TripsPage() {
                       Assigned {formatTimeForDisplay(booking.assignedAt)}
                     </p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
@@ -891,18 +1046,45 @@ export default function TripsPage() {
       {availableTrips.length > 0 && (
         <>
           <Card>
-            <CardHeader className="pb-3 sm:pb-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                Available Round Trips
-              </CardTitle>
+            <CardHeader className="pb-3 sm:pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Available Round Trips
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={availableSortKey} onValueChange={setAvailableSortKey}>
+                    <SelectTrigger className="h-8 w-[190px]">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bookings-desc">Bookings (desc)</SelectItem>
+                      <SelectItem value="persons-desc">Passengers (desc)</SelectItem>
+                      <SelectItem value="time-asc">Earliest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setAvailableCollapsed((v) => !v)}
+                  >
+                    {availableCollapsed ? (
+                      <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Expand</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Collapse</span>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {availableTrips.map((trip, index) => (
+            {!availableCollapsed && (
+              <CardContent>
+                <div className="grid gap-4">
+                  {sortedAvailableTrips.map((trip, index) => (
                   <div
                     key={index}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-white dark:bg-slate-900/40 gap-4 hover:shadow-sm transition-shadow"
                   >
                     <div className="flex items-center gap-3">
                       <div className="text-xl sm:text-2xl">🏨↔️✈️</div>
@@ -924,7 +1106,7 @@ export default function TripsPage() {
                       onClick={() => handleStartTrip(trip.direction)}
                       disabled={startingTrip}
                       size="default"
-                      className="h-10 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-200 self-start sm:self-center"
+                      className="h-10 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-colors self-start sm:self-center"
                     >
                       <div className="flex items-center gap-2">
                         <Play className="h-4 w-4" />
@@ -935,8 +1117,9 @@ export default function TripsPage() {
                     </Button>
                   </div>
                 ))}
-              </div>
-            </CardContent>
+                </div>
+              </CardContent>
+            )}
           </Card>
         </>
       )}
@@ -973,6 +1156,17 @@ export default function TripsPage() {
         onSuccess={handleQRScanSuccess}
         passengerList={liveBookings}
       />
+
+      {/* Floating QR button (mobile) */}
+      {isMobile && currentTrip && currentTrip.status === "ACTIVE" && (
+        <Button
+          onClick={() => setShowQRScanner(true)}
+          className="fixed bottom-20 right-4 h-12 w-12 rounded-full p-0 bg-blue-600 hover:bg-blue-700 shadow-lg"
+          aria-label="Scan passenger QR"
+        >
+          <QrCode className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }
