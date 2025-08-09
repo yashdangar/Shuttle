@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useRef,
+  useCallback,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ export const WebSocketProvider = ({
   const [isConnected, setIsConnected] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const bookingUpdateCallbacksRef = useRef<((booking: any) => void)[]>([]);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
@@ -68,7 +70,7 @@ export const WebSocketProvider = ({
     };
   };
 
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
     const token = localStorage.getItem("driverToken");
 
     if (!token) {
@@ -79,15 +81,15 @@ export const WebSocketProvider = ({
     console.log("Token found, attempting WebSocket connection...");
 
     // If socket already exists and is connected, don't create a new one
-    if (socket && socket.connected) {
+    if (socketRef.current && socketRef.current.connected) {
       console.log("WebSocket already connected.");
       return;
     }
 
     // If socket exists but is disconnected, try to reconnect
-    if (socket && socket.disconnected) {
+    if (socketRef.current && socketRef.current.disconnected) {
       console.log("Attempting to reconnect existing WebSocket...");
-      socket.connect();
+      socketRef.current.connect();
       return;
     }
 
@@ -111,6 +113,7 @@ export const WebSocketProvider = ({
     });
 
     setSocket(socketInstance);
+    socketRef.current = socketInstance;
 
     // Set up connection event handlers
     const handleConnect = () => {
@@ -186,7 +189,7 @@ export const WebSocketProvider = ({
     return () => {
       socketInstance.disconnect();
     };
-  };
+  }, []);
 
   useEffect(() => {
     if (!hasMounted) return;

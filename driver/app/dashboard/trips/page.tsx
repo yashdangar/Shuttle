@@ -104,9 +104,10 @@ export default function TripsPage() {
     useWebSocket();
   const isMobile = useIsMobile();
 
-  const fetchTripData = useCallback(async () => {
+  const fetchTripData = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      const silent = options?.silent === true;
+      if (!silent) setLoading(true);
 
       // Fetch current trip
       const currentTripResponse = await api.get("/trips/current");
@@ -139,7 +140,8 @@ export default function TripsPage() {
         });
       }, 100);
     } finally {
-      setLoading(false);
+      // Avoid forcing a full page skeleton when doing silent refreshes
+      if (!(options?.silent === true)) setLoading(false);
     }
   }, [toast]);
 
@@ -179,7 +181,10 @@ export default function TripsPage() {
         assignedAt: new Date().toISOString(),
       };
 
-      setLiveBookings((prev) => [...prev, newBooking]);
+      setLiveBookings((prev) => {
+        const exists = prev.some((b) => b.id === newBooking.id);
+        return exists ? prev : [...prev, newBooking];
+      });
       setNewBookingNotification(newBooking);
 
       toast({
@@ -187,8 +192,59 @@ export default function TripsPage() {
         description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
       });
 
-      // Refresh trip data
-      fetchTripData();
+      // Optimistically update current trip counters without refetching
+      setCurrentTrip((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          totalPeople: (prev.totalPeople || 0) + (newBooking.numberOfPersons || 0),
+          totalBookings: (prev.totalBookings || 0) + 1,
+          totalBags: (prev.totalBags || 0) + (newBooking.numberOfBags || 0),
+        } as any;
+      });
+
+      // Keep Available Trips aggregate in sync for drivers not yet in an active trip
+      setAvailableTrips((prev) => {
+        const direction = (updatedBooking.bookingType === "HOTEL_TO_AIRPORT" || updatedBooking.bookingType === "AIRPORT_TO_HOTEL")
+          ? updatedBooking.bookingType
+          : (updatedBooking.direction || "HOTEL_TO_AIRPORT");
+
+        const preferredTime = updatedBooking.preferredTime || new Date().toISOString();
+
+        let found = false;
+        const updatedList = prev.map((trip) => {
+          if (trip.direction === direction) {
+            found = true;
+            const earliest = new Date(trip.earliestTime) < new Date(preferredTime) ? trip.earliestTime : preferredTime;
+            const latest = new Date(trip.latestTime) > new Date(preferredTime) ? trip.latestTime : preferredTime;
+            return {
+              ...trip,
+              bookingCount: (trip.bookingCount || 0) + 1,
+              totalPersons: (trip.totalPersons || 0) + (updatedBooking.numberOfPersons || 0),
+              totalBags: (trip.totalBags || 0) + (updatedBooking.numberOfBags || 0),
+              earliestTime: earliest,
+              latestTime: latest,
+            };
+          }
+          return trip;
+        });
+
+        if (!found) {
+          return [
+            ...prev,
+            {
+              direction,
+              bookingCount: 1,
+              totalPersons: updatedBooking.numberOfPersons || 0,
+              totalBags: updatedBooking.numberOfBags || 0,
+              earliestTime: preferredTime,
+              latestTime: preferredTime,
+            },
+          ];
+        }
+
+        return updatedList;
+      });
     });
 
     return cleanup;
@@ -730,6 +786,7 @@ export default function TripsPage() {
           }))}
           currentTrip={currentTrip}
           height={isMobile ? "300px" : "500px"}
+          onRefreshTripData={() => fetchTripData({ silent: true })}
         />
       )}
 

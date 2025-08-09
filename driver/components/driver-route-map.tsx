@@ -43,6 +43,7 @@ interface DriverRouteMapProps {
   passengers: Passenger[];
   currentTrip: any;
   height?: string;
+  onRefreshTripData?: () => void | Promise<void>;
 }
 
 const containerStyle = {
@@ -59,7 +60,8 @@ const defaultCenter = {
 export default function DriverRouteMap({ 
   passengers, 
   currentTrip, 
-  height = "400px" 
+  height = "400px",
+  onRefreshTripData,
 }: DriverRouteMapProps) {
   const [driverLocation, setDriverLocation] = useState<Location | null>(null);
   const [pickupLocations, setPickupLocations] = useState<Array<Location & { passenger: Passenger }>>([]);
@@ -97,6 +99,7 @@ export default function DriverRouteMap({
 
   // Load Google Maps JS API
   const { isLoaded, loadError } = useJsApiLoader({
+    id: "google-map-script", // stable id
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });
 
@@ -393,10 +396,12 @@ export default function DriverRouteMap({
             description: "Return trip has started automatically (driver left circle after pickup)",
           });
           
-          // Refresh trip data
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+          // Ask parent to refresh trip data without full reload
+          if (onRefreshTripData) {
+            setTimeout(() => {
+              onRefreshTripData();
+            }, 500);
+          }
         } catch (error) {
           console.error('Error transitioning trip phase:', error);
           toast.error("Failed to transition trip phase", {
@@ -778,10 +783,11 @@ export default function DriverRouteMap({
               description: "Return trip has started automatically (driver outside circle after pickup)",
             });
             
-            // Refresh trip data
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
+            if (onRefreshTripData) {
+              setTimeout(() => {
+                onRefreshTripData();
+              }, 500);
+            }
           } catch (error) {
             console.error('Error transitioning trip phase:', error);
             toast.error("Failed to transition trip phase", {
@@ -897,7 +903,10 @@ export default function DriverRouteMap({
               <p className="text-xs sm:text-sm text-gray-600 mt-2">Failed to load Google Maps API</p>
               <p className="text-xs text-gray-500 mt-1">Please check your API key configuration</p>
               <Button 
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  // Try to re-fetch map-related data without reloading the page
+                  fetchMapData();
+                }}
                 className="mt-4 text-xs sm:text-sm"
                 variant="outline"
               >
@@ -1457,9 +1466,11 @@ export default function DriverRouteMap({
                     console.log('🔄 Manual transition to RETURN phase');
                     await api.post(`/trips/${currentTrip.id}/transition`, { phase: 'RETURN' });
                     toast.success("Manual transition to RETURN phase successful");
-                    setTimeout(() => {
-                      window.location.reload();
-                    }, 2000);
+                    if (onRefreshTripData) {
+                      setTimeout(() => {
+                        onRefreshTripData();
+                      }, 500);
+                    }
                   } catch (error) {
                     console.error('Error in manual transition:', error);
                     toast.error("Manual transition failed");
@@ -1518,8 +1529,12 @@ export default function DriverRouteMap({
                   console.log('🔍 Force initial circle boundary check');
                   setHasAttemptedTransition(false); // Reset flag
                   setHasEnteredCircleDuringTrip(false); // Reset circle entry flag
-                  // Force a re-render to trigger the useEffect
-                  window.location.reload();
+                  // Manually trigger a boundary re-check without full reload
+                  if (driverLocation) {
+                    checkCircleBoundary(driverLocation);
+                  } else {
+                    fetchMapData();
+                  }
                 }}
                 title="Force initial circle boundary check"
               >

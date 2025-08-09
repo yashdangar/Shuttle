@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
@@ -21,6 +22,9 @@ interface WebSocketContextType {
   stopNotificationSound: () => void;
   markUserInteraction: () => void;
   connectWebSocket: () => void;
+  onScheduleEvent?: (
+    callback: (evt: { type: "new" | "updated" | "deleted"; schedule: any }) => void
+  ) => () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -42,6 +46,7 @@ export const WebSocketProvider = ({
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
+  const scheduleListenersRef = useRef<((evt: { type: "new" | "updated" | "deleted"; schedule: any }) => void)[]>([]);
   const [notificationModal, setNotificationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -83,6 +88,17 @@ export const WebSocketProvider = ({
   const markUserInteraction = useCallback(() => {
     markInteraction();
   }, [markInteraction]);
+
+  const onScheduleEvent = useCallback(
+    (callback: (evt: { type: "new" | "updated" | "deleted"; schedule: any }) => void) => {
+      scheduleListenersRef.current.push(callback);
+      return () => {
+        const idx = scheduleListenersRef.current.indexOf(callback);
+        if (idx !== -1) scheduleListenersRef.current.splice(idx, 1);
+      };
+    },
+    []
+  );
 
   const connectWebSocket = useCallback(() => {
     const token = localStorage.getItem("frontdeskToken");
@@ -283,6 +299,29 @@ export const WebSocketProvider = ({
       }
     });
 
+    // Schedules live updates (if server emits to frontdesk namespace)
+    socketInstance.on("new_schedule", (data: any) => {
+      try {
+        scheduleListenersRef.current.forEach((cb) => cb({ type: "new", schedule: data.schedule || data }));
+      } catch (err) {
+        console.error("Error dispatching new_schedule:", err);
+      }
+    });
+    socketInstance.on("updated_schedule", (data: any) => {
+      try {
+        scheduleListenersRef.current.forEach((cb) => cb({ type: "updated", schedule: data.schedule || data }));
+      } catch (err) {
+        console.error("Error dispatching updated_schedule:", err);
+      }
+    });
+    socketInstance.on("deleted_schedule", (data: any) => {
+      try {
+        scheduleListenersRef.current.forEach((cb) => cb({ type: "deleted", schedule: data.schedule || data }));
+      } catch (err) {
+        console.error("Error dispatching deleted_schedule:", err);
+      }
+    });
+
     // Initial load of notifications
     refreshNotifications();
 
@@ -317,6 +356,7 @@ export const WebSocketProvider = ({
         stopNotificationSound,
         markUserInteraction,
         connectWebSocket,
+        onScheduleEvent,
       }}
     >
       {children}
