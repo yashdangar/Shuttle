@@ -94,8 +94,46 @@ const getShuttle = async (req: Request, res: Response) => {
 const getDriver = async (req: Request, res: Response) => {
   try {
     const hotelId = (req as any).user.hotelId;
+    const { scheduleDate } = req.query as { scheduleDate?: string };
+
+    // Optional: filter schedules by a specific UTC date (YYYY-MM-DD)
+    let scheduleWhere: any | undefined = undefined;
+    if (scheduleDate && typeof scheduleDate === "string") {
+      const startUtc = new Date(`${scheduleDate}T00:00:00.000Z`);
+      const endUtc = new Date(startUtc);
+      endUtc.setUTCDate(endUtc.getUTCDate() + 1);
+      scheduleWhere = {
+        startTime: {
+          gte: startUtc,
+          lt: endUtc,
+        },
+      };
+    }
     const drivers = await prisma.driver.findMany({
       where: { hotelId: hotelId },
+      select: {
+        id: true,
+        name: true,
+        phoneNumber: true,
+        email: true,
+        createdAt: true,
+        schedules: {
+          where: scheduleWhere,
+          select: {
+            id: true,
+            startTime: true,
+            endTime: true,
+            shuttle: {
+              select: {
+                id: true,
+                vehicleNumber: true,
+              },
+            },
+          },
+          orderBy: { startTime: "asc" },
+        },
+      },
+      orderBy: { id: "asc" },
     });
     res.json({ drivers });
   } catch (error) {

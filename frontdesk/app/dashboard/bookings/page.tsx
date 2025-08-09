@@ -838,25 +838,10 @@ export default function BookingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-3 md:col-span-2">
+              <div className="flex items-center justify-end md:col-span-2">
                 <div className="flex items-center gap-2">
                   <Switch id="psf-only" checked={psfOnly} onCheckedChange={setPsfOnly} />
-                  <Label htmlFor="psf-only">PSF only</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm text-gray-600">Page size</Label>
-                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[10, 25, 50, 100].map((n) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="psf-only" className="whitespace-nowrap">PSF only</Label>
                 </div>
               </div>
             </div>
@@ -1083,11 +1068,27 @@ export default function BookingsPage() {
             </Table>
           </div>
 
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600">
             <div>
               Showing {pagedBookings.length} of {sortedBookings.length} filtered bookings (total {bookings.length})
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-gray-600 whitespace-nowrap">Page size</Label>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 25, 50, 100].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -1107,6 +1108,7 @@ export default function BookingsPage() {
               >
                 Next
               </Button>
+              </div>
             </div>
           </div>
         </CardContent>
