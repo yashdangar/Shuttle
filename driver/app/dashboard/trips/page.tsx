@@ -169,39 +169,87 @@ export default function TripsPage() {
       console.log("Booking update received via WebSocket:", updatedBooking);
 
       // Create a new booking notification
+      const safeGuest = updatedBooking.guest || {
+        firstName: "Guest",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+      };
       const newBooking: LiveBooking = {
         id: updatedBooking.id,
-        guest: updatedBooking.guest,
-        numberOfPersons: updatedBooking.numberOfPersons,
-        numberOfBags: updatedBooking.numberOfBags,
+        guest: safeGuest,
+        numberOfPersons: updatedBooking.numberOfPersons || 0,
+        numberOfBags: updatedBooking.numberOfBags || 0,
         preferredTime: updatedBooking.preferredTime,
-        pickupLocation: updatedBooking.pickupLocation,
-        dropoffLocation: updatedBooking.dropoffLocation,
+        pickupLocation: updatedBooking.pickupLocation || null,
+        dropoffLocation: updatedBooking.dropoffLocation || null,
         bookingType: updatedBooking.bookingType,
         assignedAt: new Date().toISOString(),
       };
 
-      setLiveBookings((prev) => {
-        const exists = prev.some((b) => b.id === newBooking.id);
-        return exists ? prev : [...prev, newBooking];
-      });
-      setNewBookingNotification(newBooking);
+      const isForCurrentTrip = Boolean(
+        currentTrip && updatedBooking.tripId && updatedBooking.tripId === currentTrip.id
+      );
 
+      const guestName = `${newBooking.guest.firstName || "Guest"} ${newBooking.guest.lastName || ""}`.trim();
       toast({
-        title: "🚗 New Booking Assigned!",
-        description: `${newBooking.guest.firstName} ${newBooking.guest.lastName} - ${newBooking.numberOfPersons} person(s)`,
+        title: isForCurrentTrip ? "🚗 New Booking Assigned!" : "🕒 Booking Added To Next Trip",
+        description: `${guestName} - ${newBooking.numberOfPersons} person(s)`,
       });
 
-      // Optimistically update current trip counters without refetching
-      setCurrentTrip((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          totalPeople: (prev.totalPeople || 0) + (newBooking.numberOfPersons || 0),
-          totalBookings: (prev.totalBookings || 0) + 1,
-          totalBags: (prev.totalBags || 0) + (newBooking.numberOfBags || 0),
-        } as any;
-      });
+      if (isForCurrentTrip) {
+        setLiveBookings((prev) => {
+          const exists = prev.some((b) => b.id === newBooking.id);
+          const next = exists ? prev : [...prev, newBooking];
+          // Recalculate current trip aggregates from next live bookings
+          setCurrentTrip((prevTrip) => {
+            if (!prevTrip) return prevTrip;
+            const totals = next.reduce(
+              (acc, b) => {
+                acc.people += b.numberOfPersons || 0;
+                acc.bookings += 1;
+                acc.bags += b.numberOfBags || 0;
+                return acc;
+              },
+              { people: 0, bookings: 0, bags: 0 }
+            );
+            return {
+              ...prevTrip,
+              totalPeople: totals.people,
+              totalBookings: totals.bookings,
+              totalBags: totals.bags,
+            } as any;
+          });
+          return next;
+        });
+        setNewBookingNotification(newBooking);
+      } else {
+        // If the booking was previously in the live list (e.g., moved to next trip), remove and recalc counters
+        setLiveBookings((prev) => {
+          const exists = prev.find((b) => b.id === newBooking.id);
+          if (!exists) return prev;
+          const next = prev.filter((b) => b.id !== newBooking.id);
+          setCurrentTrip((prevTrip) => {
+            if (!prevTrip) return prevTrip;
+            const totals = next.reduce(
+              (acc, b) => {
+                acc.people += b.numberOfPersons || 0;
+                acc.bookings += 1;
+                acc.bags += b.numberOfBags || 0;
+                return acc;
+              },
+              { people: 0, bookings: 0, bags: 0 }
+            );
+            return {
+              ...prevTrip,
+              totalPeople: totals.people,
+              totalBookings: totals.bookings,
+              totalBags: totals.bags,
+            } as any;
+          });
+          return next;
+        });
+      }
 
       // Keep Available Trips aggregate in sync for drivers not yet in an active trip
       setAvailableTrips((prev) => {

@@ -17,6 +17,7 @@ interface RescheduleModalProps {
   onSuccess: () => void
 }
 
+// Deprecated and unused
 export function RescheduleModal({ isOpen, onClose, bookingId, currentTime, onSuccess }: RescheduleModalProps) {
   const [newTime, setNewTime] = useState("")
   const [isLoading, setIsLoading] = useState(false)

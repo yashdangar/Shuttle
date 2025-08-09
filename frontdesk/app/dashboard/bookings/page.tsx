@@ -34,7 +34,6 @@ import {
   Hash,
 } from "lucide-react";
 import Link from "next/link";
-import { RescheduleModal } from "@/components/reschedule-modal";
 import { CancelBookingModal } from "@/components/cancel-booking-modal";
 import { RejectBookingModal } from "@/components/reject-booking-modal";
 import { useWebSocket } from "@/context/WebSocketContext";
@@ -164,10 +163,7 @@ export default function BookingsPage() {
   const { socket, isConnected, markUserInteraction } = useWebSocket();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
-    null
-  );
+  // Reschedule removed; replaced with assign-to-next-trip
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -460,21 +456,15 @@ export default function BookingsPage() {
     setShowRejectModal(true);
   };
 
-  const handleRescheduleBooking = (booking: Booking) => {
-    setRescheduleBooking(booking);
-    setShowReschedule(true);
-  };
-
-  const handleRescheduleSuccess = async () => {
-    setShowReschedule(false);
-    setRescheduleBooking(null);
-
-    // Refresh the bookings list
+  const handleAssignToNextTrip = async (bookingId: string) => {
     try {
+      await api.post(`/frontdesk/bookings/${bookingId}/assign-next-trip`, {});
+      toast.success("Assigned to next trip");
       const data = await api.get("/frontdesk/bookings");
       setBookings(data.bookings);
-    } catch (error) {
-      console.error("Error refreshing bookings:", error);
+    } catch (error: any) {
+      console.error("Error assigning to next trip:", error);
+      toast.error(error.message || "Failed to assign to next trip");
     }
   };
 
@@ -712,13 +702,11 @@ export default function BookingsPage() {
                             !booking.needsFrontdeskVerification && (
                               <>
                                 <DropdownMenuItem
-                                  onClick={() =>
-                                    handleRescheduleBooking(booking)
-                                  }
+                                  onClick={() => handleAssignToNextTrip(booking.id)}
                                   className="cursor-pointer"
                                 >
                                   <Clock className="w-4 h-4 mr-2" />
-                                  Reschedule
+                                  Assign to next trip
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() =>
@@ -755,19 +743,7 @@ export default function BookingsPage() {
         </CardContent>
       </Card>
 
-      {/* Reschedule Modal */}
-      {rescheduleBooking && (
-        <RescheduleModal
-          isOpen={showReschedule}
-          onClose={() => {
-            setShowReschedule(false);
-            setRescheduleBooking(null);
-          }}
-          bookingId={rescheduleBooking.id}
-          currentTime={rescheduleBooking.preferredTime}
-          onSuccess={handleRescheduleSuccess}
-        />
-      )}
+      {/* Reschedule removed */}
 
       {/* Cancel Booking Modal */}
       {cancelBookingId && (

@@ -762,89 +762,7 @@ const cancelBooking = async (req: Request, res: Response) => {
   }
 };
 
-const rescheduleBooking = async (req: Request, res: Response) => {
-  try {
-    const { bookingId } = req.params;
-    const { preferredTime } = req.body;
-    const userId = (req as any).user.userId;
-
-    console.log("Reschedule request:", { bookingId, preferredTime, userId });
-
-    // Validate that booking ID is provided
-    if (!bookingId) {
-      return res.status(400).json({ error: "Booking ID is required" });
-    }
-
-    // Check if booking exists and belongs to the user
-    const booking = await prisma.booking.findFirst({
-      where: {
-        id: bookingId,
-        guestId: userId,
-      },
-    });
-
-    if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
-    }
-
-    // Check if booking can be rescheduled (not completed, not cancelled)
-    if (booking.isCompleted) {
-      return res
-        .status(400)
-        .json({ error: "Cannot reschedule a completed booking" });
-    }
-
-    if (booking.isCancelled) {
-      return res
-        .status(400)
-        .json({ error: "Cannot reschedule a cancelled booking" });
-    }
-
-    // Validate the new preferred time
-    if (!preferredTime) {
-      return res.status(400).json({ error: "Preferred time is required" });
-    }
-
-    const newPreferredTime = new Date(preferredTime);
-    if (isNaN(newPreferredTime.getTime())) {
-      return res.status(400).json({ error: "Invalid date format" });
-    }
-
-    const now = new Date();
-    console.log("Time comparison:", {
-      newPreferredTime: newPreferredTime.toISOString(),
-      now: now.toISOString(),
-      difference: newPreferredTime.getTime() - now.getTime(),
-    });
-
-    // Check if the new time is in the future (allow 1 minute buffer)
-    const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute
-    if (newPreferredTime <= oneMinuteFromNow) {
-      return res.status(400).json({
-        error: "Preferred time must be at least 1 minute in the future",
-        newTime: newPreferredTime.toISOString(),
-        currentTime: now.toISOString(),
-      });
-    }
-
-    // Update the booking with new preferred time
-    const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        preferredTime: newPreferredTime,
-        updatedAt: new Date(),
-      },
-    });
-
-    res.json({
-      message: "Booking rescheduled successfully",
-      booking: updatedBooking,
-    });
-  } catch (error) {
-    console.error("Error rescheduling booking:", error);
-    res.status(500).json({ error: "Failed to reschedule booking" });
-  }
-};
+// Reschedule removed for guest
 
 const getBookingETA = async (req: Request, res: Response) => {
   try {
@@ -1886,7 +1804,7 @@ export default {
   getSignedUrl,
   getProfile,
   cancelBooking,
-  rescheduleBooking,
+  // rescheduleBooking removed
   getBookingETA,
   getBookingTracking,
   getCurrentBookings,

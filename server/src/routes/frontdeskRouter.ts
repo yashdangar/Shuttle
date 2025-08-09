@@ -132,10 +132,13 @@ router.post(
   frontdeskController.cancelBooking as RequestHandler
 );
 
+// Reschedule removed
+
+// Assign booking to next trip
 router.post(
-  "/bookings/:bookingId/reschedule",
+  "/bookings/:bookingId/assign-next-trip",
   frontdeskAuthMiddleware as RequestHandler,
-  frontdeskController.rescheduleBooking as RequestHandler
+  frontdeskController.assignBookingToNextTrip as RequestHandler
 );
 
 // Guest booking verification routes

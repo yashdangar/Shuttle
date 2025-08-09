@@ -91,11 +91,7 @@ router.put(
   controller.cancelBooking as RequestHandler
 );
 
-router.put(
-  "/bookings/:bookingId/reschedule",
-  guestAuthMiddleware as RequestHandler,
-  controller.rescheduleBooking as RequestHandler
-);
+// Reschedule removed for guest
 
 // ETA and tracking routes
 router.get(

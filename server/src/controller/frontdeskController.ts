@@ -19,6 +19,7 @@ import {
   assignBookingToTrip,
   findAvailableShuttleWithCapacity,
   getISTDateRange,
+  checkShuttleCapacity,
 } from "../utils/bookingUtils";
 import { confirmHeldSeats, getSeatHoldStatus, releaseHeldSeats, releaseAllSeatsForBooking } from "../utils/seatHoldingUtils";
 import { getShuttleAvailability } from "../utils/shuttleSeatUtils";
@@ -1097,6 +1098,7 @@ const cancelBooking = async (req: Request, res: Response) => {
   }
 };
 
+// Deprecated: rescheduleBooking removed in favor of assign-to-next-trip
 const rescheduleBooking = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
@@ -1208,6 +1210,135 @@ const rescheduleBooking = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error rescheduling booking:", error);
     res.status(500).json({ error: "Failed to reschedule booking" });
+  }
+};
+
+// New: Assign a booking to the next trip by assigning it to a shuttle and clearing tripId
+const assignBookingToNextTrip = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const hotelId = (req as any).user.hotelId;
+
+    if (!bookingId) {
+      res.status(400).json({ error: "Booking ID is required" });
+      return;
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        isCancelled: false,
+        isCompleted: false,
+        guest: { hotelId },
+      },
+      include: { guest: true },
+    });
+
+    if (!booking) {
+      res.status(404).json({ error: "Booking not found" });
+      return;
+    }
+
+    const direction = booking.bookingType as any;
+  let availableShuttle = await findAvailableShuttleWithCapacity(
+      hotelId,
+      booking.numberOfPersons,
+      direction
+    );
+
+    if (!availableShuttle) {
+      // Fallback: try to find any shuttle in the hotel with capacity, even if no active schedule
+      const shuttles = await prisma.shuttle.findMany({
+        where: { hotelId },
+        orderBy: { id: 'asc' },
+      });
+
+      for (const shuttle of shuttles) {
+        const hasCapacity = await checkShuttleCapacity(
+          shuttle.id,
+          booking.numberOfPersons,
+          direction
+        );
+        if (hasCapacity) {
+          availableShuttle = shuttle as any;
+          break;
+        }
+      }
+    }
+
+    if (!availableShuttle) {
+      res
+        .status(400)
+        .json({ error: "No shuttle with capacity available for next trip" });
+      return;
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { shuttleId: availableShuttle.id, tripId: null },
+      include: { shuttle: true },
+    });
+
+    // Try to notify the driver tied to this shuttle
+    let targetDriverId: number | null = null;
+    // Prefer an active schedule's driver if present on the included shuttle
+    const activeSchedule = availableShuttle?.schedules?.[0];
+    if (activeSchedule?.driverId) {
+      targetDriverId = activeSchedule.driverId;
+    } else {
+      // Fallback: next upcoming schedule's driver
+      const nextSchedule = await prisma.schedule.findFirst({
+        where: {
+          shuttleId: availableShuttle.id,
+          startTime: { gte: new Date() },
+        },
+        orderBy: { startTime: 'asc' },
+        include: { driver: true },
+      });
+      targetDriverId = nextSchedule?.driverId || null;
+    }
+
+    if (targetDriverId) {
+      const completeForDriver = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
+      sendToUser(targetDriverId, 'driver', WsEvents.BOOKING_ASSIGNED, {
+        title: 'New Booking Assigned',
+        message: `A booking has been assigned to your shuttle ${availableShuttle.vehicleNumber}. It will be included in your next trip.`,
+        booking: completeForDriver,
+        tripId: '',
+      });
+    }
+
+    if (booking.guest.hotelId) {
+      const complete = await getBookingDataForWebSocket(
+        updatedBooking.id,
+        updatedBooking
+      );
+      sendToRoleInHotel(
+        booking.guest.hotelId,
+        "frontdesk",
+        WsEvents.BOOKING_UPDATED,
+        {
+          title: "Booking assigned to next trip",
+          message: `Booking #${booking.id.substring(0, 8)} will be included in the next trip for shuttle ${availableShuttle.vehicleNumber}.`,
+          booking: complete,
+        }
+      );
+    }
+
+    res.json({
+      message: "Booking assigned to next trip",
+      booking: updatedBooking,
+      assignedShuttle: {
+        id: availableShuttle.id,
+        vehicleNumber: availableShuttle.vehicleNumber,
+      },
+    });
+  } catch (error) {
+    console.error("Assign to next trip error:", error);
+    res.status(500).json({ error: "Failed to assign to next trip" });
   }
 };
 
@@ -3129,7 +3260,8 @@ export default {
   getBookingDetails,
   getBookings,
   cancelBooking,
-  rescheduleBooking,
+  // rescheduleBooking removed
+  assignBookingToNextTrip,
   assignUnassignedBookings,
   verifyGuestBooking,
   rejectGuestBooking,

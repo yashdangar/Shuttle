@@ -14,7 +14,7 @@ import {
 import { MapPin, Clock, Users, MoreHorizontal, QrCode, X, Calendar, UserX, Building, AlertCircle } from "lucide-react"
 import { api } from "@/lib/api"
 import { QRCodeDisplay } from "./qr-code-display"
-import { RescheduleModal } from "./reschedule-modal"
+// Reschedule removed
 import { toast } from "sonner"
 import { useWebSocket } from "@/context/WebSocketContext"
 import { formatDateTimeForDisplay, getUserTimeZone } from "@/lib/utils"
@@ -24,8 +24,7 @@ export default function BookingHistory() {
   const [showQR, setShowQR] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [showReschedule, setShowReschedule] = useState(false)
-  const [rescheduleBooking, setRescheduleBooking] = useState<any>(null)
+  // Reschedule removed
   const { onBookingUpdate } = useWebSocket()
 
   useEffect(() => {
@@ -114,20 +113,7 @@ export default function BookingHistory() {
     }
   }
 
-  const handleRescheduleBooking = (booking: any) => {
-    setRescheduleBooking(booking)
-    setShowReschedule(true)
-  }
-
-  const handleRescheduleSuccess = async () => {
-    // Refresh the bookings list
-    try {
-      const response = await api.get("/guest/get-trips")
-      setBookings(response.trips)
-    } catch (error) {
-      console.error("Error refreshing bookings:", error)
-    }
-  }
+  // Reschedule removed
 
   const canModifyBooking = (booking: any) => {
     return !booking.isCompleted && !booking.isCancelled
@@ -276,13 +262,7 @@ export default function BookingHistory() {
                   <DropdownMenuContent align="end">
                     {canModifyBooking(booking) && (
                       <>
-                        <DropdownMenuItem 
-                          onClick={() => handleRescheduleBooking(booking)}
-                          className="cursor-pointer"
-                        >
-                          <Calendar className="w-4 h-4 mr-2" />
-                          Reschedule
-                        </DropdownMenuItem>
+                        {/* Reschedule removed */}
                         <DropdownMenuItem 
                           onClick={() => handleCancelBooking(booking.id)}
                           className="cursor-pointer text-red-600"
@@ -465,19 +445,7 @@ export default function BookingHistory() {
         />
       )}
 
-      {/* Reschedule Modal */}
-      {rescheduleBooking && (
-        <RescheduleModal
-          isOpen={showReschedule}
-          onClose={() => {
-            setShowReschedule(false)
-            setRescheduleBooking(null)
-          }}
-          bookingId={rescheduleBooking.id}
-          currentTime={rescheduleBooking.preferredTime}
-          onSuccess={handleRescheduleSuccess}
-        />
-      )}
+      {/* Reschedule removed */}
     </div>
   )
 }
