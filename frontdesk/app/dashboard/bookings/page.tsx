@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -12,6 +12,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -32,6 +37,11 @@ import {
   CheckCircle,
   User,
   Hash,
+  ChevronUp,
+  ChevronDown,
+  RefreshCw,
+  Download,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { CancelBookingModal } from "@/components/cancel-booking-modal";
@@ -172,6 +182,22 @@ export default function BookingsPage() {
   const [verifyingBookings, setVerifyingBookings] = useState<Set<string>>(
     new Set()
   );
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Filters, sorting, pagination
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [tripTypeFilter, setTripTypeFilter] = useState<string>("ALL");
+  const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
+  const [psfOnly, setPsfOnly] = useState<boolean>(false);
+
+  const [sortBy, setSortBy] = useState<"time" | "price" | "guest" | "status">(
+    "time"
+  );
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Function to fetch bookings
   const fetchBookings = async () => {
@@ -182,6 +208,15 @@ export default function BookingsPage() {
       toast.error("Failed to fetch bookings. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refresh = async () => {
+    try {
+      setRefreshing(true);
+      await fetchBookings();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -383,6 +418,164 @@ export default function BookingsPage() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
+  const getStatusLabel = (booking: Booking): string => {
+    if (booking.isCancelled) return "Cancelled";
+    if (booking.isCompleted) return "Completed";
+    if (booking.isVerified) return "Driver Checked In";
+    if (!booking.needsFrontdeskVerification && !booking.isVerified)
+      return "Frontdesk Verified";
+    if (booking.needsFrontdeskVerification) {
+      if (booking.seatsHeld && !booking.seatsConfirmed) return "Seats Held";
+      return "Pending Verification";
+    }
+    if (booking.isPaid) return "Paid";
+    return "Pending";
+  };
+
+  const currency = useMemo(
+    () =>
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+      }),
+    []
+  );
+
+  const paymentMethods = useMemo(() => {
+    const set = new Set<string>();
+    bookings.forEach((b) => b.paymentMethod && set.add(b.paymentMethod));
+    return Array.from(set).sort();
+  }, [bookings]);
+
+  const filteredBookings = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return bookings.filter((b) => {
+      if (psfOnly && !b.isParkSleepFly) return false;
+      if (statusFilter !== "ALL" && getStatusLabel(b) !== statusFilter)
+        return false;
+      if (tripTypeFilter !== "ALL" && b.bookingType !== tripTypeFilter)
+        return false;
+      if (paymentFilter !== "ALL" && b.paymentMethod !== paymentFilter)
+        return false;
+
+      if (!term) return true;
+      const guestName = `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`.toLowerCase();
+      const email = (b.guest?.email || "").toLowerCase();
+      const conf = (b.confirmationNum || "").toLowerCase();
+      const pickup = (b.pickupLocation?.name || "").toLowerCase();
+      const dropoff = (b.dropoffLocation?.name || "").toLowerCase();
+      return (
+        guestName.includes(term) ||
+        email.includes(term) ||
+        conf.includes(term) ||
+        pickup.includes(term) ||
+        dropoff.includes(term)
+      );
+    });
+  }, [bookings, psfOnly, statusFilter, tripTypeFilter, paymentFilter, search]);
+
+  const sortedBookings = useMemo(() => {
+    const arr = [...filteredBookings];
+    const dir = sortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (sortBy) {
+        case "price": {
+          const pa = a.pricing?.totalPrice ?? 0;
+          const pb = b.pricing?.totalPrice ?? 0;
+          return (pa - pb) * dir;
+        }
+        case "guest": {
+          const ga = `${a.guest?.firstName || ""} ${a.guest?.lastName || ""}`.trim().toLowerCase();
+          const gb = `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`.trim().toLowerCase();
+          return (ga > gb ? 1 : ga < gb ? -1 : 0) * dir;
+        }
+        case "status": {
+          const sa = getStatusLabel(a);
+          const sb = getStatusLabel(b);
+          return (sa > sb ? 1 : sa < sb ? -1 : 0) * dir;
+        }
+        case "time":
+        default: {
+          const ta = new Date(a.preferredTime).getTime();
+          const tb = new Date(b.preferredTime).getTime();
+          return (ta - tb) * dir;
+        }
+      }
+    });
+    return arr;
+  }, [filteredBookings, sortBy, sortDir]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(sortedBookings.length / pageSize)),
+    [sortedBookings.length, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, tripTypeFilter, paymentFilter, psfOnly, pageSize]);
+
+  const pagedBookings = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedBookings.slice(start, start + pageSize);
+  }, [sortedBookings, page, pageSize]);
+
+  const toggleSort = (key: typeof sortBy) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir("asc");
+    }
+  };
+
+  const exportCsv = () => {
+    const rows = [
+      [
+        "Guest",
+        "Email",
+        "Confirmation",
+        "Trip Type",
+        "Preferred Time",
+        "Status",
+        "Payment Method",
+        "Price Per Person",
+        "Total Price",
+        "Persons",
+        "Bags",
+        "Pickup",
+        "Dropoff",
+        "PSF",
+      ],
+      ...sortedBookings.map((b) => [
+        `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`.trim() || "",
+        b.guest?.email || "",
+        b.confirmationNum || "",
+        b.bookingType,
+        format(new Date(b.preferredTime), "PPpp"),
+        getStatusLabel(b),
+        b.paymentMethod,
+        b.pricing ? String(b.pricing.pricePerPerson) : "",
+        b.pricing ? String(b.pricing.totalPrice) : "",
+        String(b.numberOfPersons ?? b.pricing?.numberOfPersons ?? ""),
+        String(b.numberOfBags ?? ""),
+        b.pickupLocation?.name || "",
+        b.dropoffLocation?.name || "",
+        b.isParkSleepFly ? "Yes" : "No",
+      ]),
+    ];
+    const csv = rows
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bookings_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleCancelBooking = async (bookingId: string, reason: string) => {
     try {
       await api.post(`/frontdesk/bookings/${bookingId}/cancel`, {
@@ -518,7 +711,7 @@ export default function BookingsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
           <p className="text-gray-600">View and manage all shuttle bookings</p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           <div
             className={`w-3 h-3 rounded-full ${
               isConnected ? "bg-green-500" : "bg-red-500"
@@ -527,48 +720,184 @@ export default function BookingsPage() {
           <span className="text-sm text-gray-600">
             {isConnected ? "Live updates active" : "Live updates disconnected"}
           </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={refresh} disabled={refreshing}>
+                  {refreshing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={exportCsv}>
+                  <Download className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export CSV</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>All Bookings</CardTitle>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600">Total:</span>
-                <Badge variant="outline">{bookings.length}</Badge>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <CardTitle>All Bookings</CardTitle>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">Total:</span>
+                  <Badge variant="outline">{bookings.length}</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">Park, Sleep & Fly:</span>
+                  <Badge className="bg-blue-100 text-blue-800">
+                    {bookings.filter((b) => b.isParkSleepFly).length}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">Regular:</span>
+                  <Badge variant="outline">
+                    {bookings.filter((b) => !b.isParkSleepFly).length}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600">Park, Sleep & Fly:</span>
-                <Badge className="bg-blue-100 text-blue-800">
-                  {bookings.filter((b) => b.isParkSleepFly).length}
-                </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+              <div className="md:col-span-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search guest, email, confirmation, pickup/dropoff"
+                    className="pl-9"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600">Regular:</span>
-                <Badge variant="outline">
-                  {bookings.filter((b) => !b.isParkSleepFly).length}
-                </Badge>
+              <div className="md:col-span-2">
+                <Label className="sr-only">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      "ALL",
+                      "Pending Verification",
+                      "Seats Held",
+                      "Frontdesk Verified",
+                      "Driver Checked In",
+                      "Paid",
+                      "Completed",
+                      "Cancelled",
+                      "Pending",
+                    ].map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label className="sr-only">Trip Type</Label>
+                <Select value={tripTypeFilter} onValueChange={setTripTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Trip Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Trip Types</SelectItem>
+                    <SelectItem value="HOTEL_TO_AIRPORT">Hotel to Airport</SelectItem>
+                    <SelectItem value="AIRPORT_TO_HOTEL">Airport to Hotel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label className="sr-only">Payment</Label>
+                <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Payments</SelectItem>
+                    {paymentMethods.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-3 md:col-span-2">
+                <div className="flex items-center gap-2">
+                  <Switch id="psf-only" checked={psfOnly} onCheckedChange={setPsfOnly} />
+                  <Label htmlFor="psf-only">PSF only</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-gray-600">Page size</Label>
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 25, 50, 100].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Guest</TableHead>
-                <TableHead>Trip Type</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bookings.map((booking) => (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="sticky top-0 bg-white z-10">
+                  <TableHead className="min-w-[280px] cursor-pointer" onClick={() => toggleSort("guest")}>
+                    <div className="inline-flex items-center gap-1">
+                      Guest
+                      {sortBy === "guest" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </div>
+                  </TableHead>
+                  <TableHead className="min-w-[160px]">Trip Type</TableHead>
+                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("time")}>
+                    <div className="inline-flex items-center gap-1">
+                      Time
+                      {sortBy === "time" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </div>
+                  </TableHead>
+                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("status")}>
+                    <div className="inline-flex items-center gap-1">
+                      Status
+                      {sortBy === "status" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </div>
+                  </TableHead>
+                  <TableHead className="min-w-[160px] hidden lg:table-cell">Payment</TableHead>
+                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("price")}>
+                    <div className="inline-flex items-center gap-1">
+                      Price
+                      {sortBy === "price" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </div>
+                  </TableHead>
+                  <TableHead className="min-w-[140px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedBookings.map((booking) => (
                 <TableRow
                   key={booking.id}
                   className={`${
@@ -589,9 +918,9 @@ export default function BookingsPage() {
                         const guestInfo = getGuestDisplayName(booking);
                         const IconComponent = guestInfo.icon;
                         return (
-                          <div className="flex items-center space-x-2">
-                            <IconComponent className="w-4 h-4 text-gray-400" />
-                            <div>
+                          <div className="flex items-start gap-3">
+                            <IconComponent className="w-4 h-4 mt-1 text-gray-400" />
+                            <div className="space-y-1">
                               <p className="font-medium">
                                 {guestInfo.display}
                                 {booking.isParkSleepFly && (
@@ -606,6 +935,18 @@ export default function BookingsPage() {
                                     ? `Confirmation: ${booking.confirmationNum}`
                                     : "No email provided")}
                               </p>
+                              <div className="flex flex-wrap gap-2 text-xs">
+                                <Badge variant="outline">👥 {booking.pricing?.numberOfPersons ?? booking.numberOfPersons} pax</Badge>
+                                {typeof booking.numberOfBags === "number" && (
+                                  <Badge variant="outline">🧳 {booking.numberOfBags} bags</Badge>
+                                )}
+                                {booking.pickupLocation?.name && (
+                                  <Badge variant="secondary">Pickup: {booking.pickupLocation.name}</Badge>
+                                )}
+                                {booking.dropoffLocation?.name && (
+                                  <Badge variant="secondary">Dropoff: {booking.dropoffLocation.name}</Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -626,7 +967,7 @@ export default function BookingsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {format(new Date(booking.preferredTime), "PPp")}
+                      {format(new Date(booking.preferredTime), "PPp")}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -636,24 +977,24 @@ export default function BookingsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                     <div className="flex items-center space-x-2">
                       <CreditCard className="w-4 h-4" />
                       <span>{booking.paymentMethod}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {booking.pricing ? (
-                      <span>
-                        ${booking.pricing.pricePerPerson.toFixed(2)} per person
-                        <br />
-                        <span className="font-semibold text-green-700">
-                          Total: ${booking.pricing.totalPrice.toFixed(2)}
+                      {booking.pricing ? (
+                        <span>
+                          {currency.format(booking.pricing.pricePerPerson)} per person
+                          <br />
+                          <span className="font-semibold text-green-700">
+                            Total: {currency.format(booking.pricing.totalPrice)}
+                          </span>
                         </span>
-                      </span>
-                    ) : (
-                      <span>-</span>
-                    )}
+                      ) : (
+                        <span>-</span>
+                      )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -730,16 +1071,44 @@ export default function BookingsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
-              {bookings.length === 0 && (
+                ))}
+                {sortedBookings.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                     <p className="text-gray-500">No bookings found</p>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+            <div>
+              Showing {pagedBookings.length} of {sortedBookings.length} filtered bookings (total {bookings.length})
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Prev
+              </Button>
+              <span>
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

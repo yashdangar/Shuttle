@@ -809,6 +809,34 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
     const schedules = [];
     const weekStart = new Date(startDate);
     weekStart.setUTCHours(0, 0, 0, 0);
+
+    // Pre-check: if any schedules already exist for this driver in the target week, abort early
+    const weekEnd = new Date(weekStart);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+    weekEnd.setUTCHours(23, 59, 59, 999);
+
+    const existingSchedules = await prisma.schedule.findMany({
+      where: {
+        driverId: parseInt(driverId),
+        startTime: {
+          gte: weekStart,
+          lte: weekEnd,
+        },
+      },
+      include: {
+        driver: true,
+      },
+    });
+
+    if (existingSchedules.length > 0) {
+      const existingDates = existingSchedules
+        .map((s) => new Date(s.startTime).toDateString())
+        .join(", ");
+      return res.status(400).json({
+        message: `Driver ${existingSchedules[0].driver.name} already has schedules for the following dates: ${existingDates}. Please edit existing schedules or choose a different week.`,
+        existingSchedules,
+      });
+    }
     const dayKeys = [
       "monday",
       "tuesday",
@@ -832,6 +860,9 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
         // But for consistency, expect UTC ISO from frontend
         const startTime = dayData.startUtc || dayData.startTime; // prefer startUtc if provided
         const endTime = dayData.endUtc || dayData.endTime;
+        if (!startTime || !endTime) {
+          continue;
+        }
         const schedule = await prisma.schedule.create({
           data: {
             driverId: parseInt(driverId),

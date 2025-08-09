@@ -207,13 +207,22 @@ function SchedulesPage() {
     return format(date, "yyyy-MM-dd HH:mm");
   }
 
+  // Converts local date+time to UTC ISO string
+  const toUtcIso = (dateStr: string, timeStr: string) => {
+    if (!dateStr || !timeStr) return null;
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const [hour, minute] = timeStr.split(":").map(Number);
+    const localDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+    return localDate.toISOString();
+  };
+
   // Handles overnight shifts (end time < start time)
   const getStartEndUtc = (
     dateStr: string,
     startTime: string,
     endTime: string
   ) => {
-    const startUtc = localToEstIso(dateStr);
+    const startUtc = toUtcIso(dateStr, startTime);
     let endDate = dateStr;
     if (endTime < startTime) {
       // Crosses midnight, increment date
@@ -221,7 +230,7 @@ function SchedulesPage() {
       d.setDate(d.getDate() + 1);
       endDate = d.toISOString().split("T")[0];
     }
-    const endUtc = localToEstIso(endDate);
+    const endUtc = toUtcIso(endDate, endTime);
     return { startUtc, endUtc };
   };
 
@@ -569,19 +578,52 @@ function SchedulesPage() {
 
     setSubmitting(true);
     try {
+      // Build per-day UTC ISO times so backend doesn't receive raw HH:mm
+      const dayOffsets: Record<string, number> = {
+        sunday: 0,
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+      };
+
+      const buildDateStrForOffset = (startDateStr: string, offset: number) => {
+        const base = new Date(startDateStr);
+        base.setDate(base.getDate() + offset);
+        return base.toISOString().split("T")[0];
+      };
+
+      const payloadWeekSchedule: any = {};
+      Object.entries(dayOffsets).forEach(([dayKey, offset]) => {
+        const dayData: any = (weeklySchedule as any)[dayKey];
+        if (!dayData) return;
+        if (dayData.enabled && weeklySchedule.startDate) {
+          const dateStr = buildDateStrForOffset(
+            weeklySchedule.startDate,
+            offset
+          );
+          const { startUtc, endUtc } = getStartEndUtc(
+            dateStr,
+            dayData.startTime,
+            dayData.endTime
+          );
+          payloadWeekSchedule[dayKey] = {
+            ...dayData,
+            startUtc,
+            endUtc,
+          };
+        } else {
+          payloadWeekSchedule[dayKey] = { ...dayData };
+        }
+      });
+
       const response = await api.post("/admin/add/weekly-schedule", {
         driverId: weeklySchedule.driverId,
         shuttleId: weeklySchedule.shuttleId,
         startDate: weeklySchedule.startDate,
-        weekSchedule: {
-          sunday: weeklySchedule.sunday,
-          monday: weeklySchedule.monday,
-          tuesday: weeklySchedule.tuesday,
-          wednesday: weeklySchedule.wednesday,
-          thursday: weeklySchedule.thursday,
-          friday: weeklySchedule.friday,
-          saturday: weeklySchedule.saturday,
-        },
+        weekSchedule: payloadWeekSchedule,
       });
 
       toast.success(response.message || "Weekly schedule created successfully");

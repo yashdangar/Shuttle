@@ -590,19 +590,52 @@ function SchedulesPage() {
 
     setSubmitting(true);
     try {
+      // Build per-day UTC ISO times expected by backend
+      const dayOffsets: Record<string, number> = {
+        sunday: 0,
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+      };
+
+      const buildDateStrForOffset = (startDateStr: string, offset: number) => {
+        const base = new Date(startDateStr);
+        base.setDate(base.getDate() + offset);
+        return base.toISOString().split("T")[0];
+      };
+
+      const payloadWeekSchedule: any = {};
+      Object.entries(dayOffsets).forEach(([dayKey, offset]) => {
+        const dayData: any = (weeklySchedule as any)[dayKey];
+        if (!dayData) return;
+        if (dayData.enabled && weeklySchedule.startDate) {
+          const dateStr = buildDateStrForOffset(
+            weeklySchedule.startDate,
+            offset
+          );
+          const { startUtc, endUtc } = getStartEndUtc(
+            dateStr,
+            dayData.startTime,
+            dayData.endTime
+          );
+          payloadWeekSchedule[dayKey] = {
+            ...dayData,
+            startUtc,
+            endUtc,
+          };
+        } else {
+          payloadWeekSchedule[dayKey] = { ...dayData };
+        }
+      });
+
       const response = await api.post("/frontdesk/add/weekly-schedule", {
         driverId: weeklySchedule.driverId,
         shuttleId: weeklySchedule.shuttleId,
         startDate: weeklySchedule.startDate,
-        weekSchedule: {
-          sunday: weeklySchedule.sunday,
-          monday: weeklySchedule.monday,
-          tuesday: weeklySchedule.tuesday,
-          wednesday: weeklySchedule.wednesday,
-          thursday: weeklySchedule.thursday,
-          friday: weeklySchedule.friday,
-          saturday: weeklySchedule.saturday,
-        },
+        weekSchedule: payloadWeekSchedule,
       });
 
       toast.success(response.message || "Weekly schedule created successfully");

@@ -4,12 +4,28 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 import { fetchWithAuth } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, User, Hash } from "lucide-react";
+import {
+  Loader2,
+  User,
+  Hash,
+  Calendar,
+  Clock,
+  CreditCard,
+  MapPin,
+  Bus,
+  Info,
+  QrCode,
+  XCircle,
+  Users,
+  Briefcase,
+  Copy
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,6 +89,15 @@ export default function BookingDetailsPage() {
   const [showQRCode, setShowQRCode] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+
+  const copyToClipboard = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error(`Failed to copy ${label}`);
+    }
+  };
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
@@ -173,29 +198,93 @@ export default function BookingDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
-          <p className="text-gray-600">View booking information and status</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="rounded-xl border bg-gradient-to-r from-indigo-50 via-white to-blue-50 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
+              <div>{getStatusBadge()}</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {format(new Date(booking.preferredTime), "PPp")}
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <Users className="h-3.5 w-3.5" />
+                {booking.numberOfPersons} guests
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <Briefcase className="h-3.5 w-3.5" />
+                {booking.numberOfBags} bags
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <CreditCard className="h-3.5 w-3.5" />
+                {booking.paymentMethod}
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                {booking.bookingType === "HOTEL_TO_AIRPORT" ? "Hotel → Airport" : "Airport → Hotel"}
+              </Badge>
+              {booking.isParkSleepFly && (
+                <Badge className="bg-blue-100 text-blue-800 border border-blue-200">🏨✈️ PSF</Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {(booking.qrCodePath || booking.qrCodeUrl) && (
+              <Button onClick={() => setShowQRCode(true)} className="gap-2">
+                <QrCode className="h-4 w-4" /> View QR Code
+              </Button>
+            )}
             {!booking.isCancelled && !booking.isCompleted && (
-              <Button variant="destructive" onClick={() => setShowCancelDialog(true)}>
-                Cancel Booking
+              <Button variant="destructive" onClick={() => setShowCancelDialog(true)} className="gap-2">
+                <XCircle className="h-4 w-4" /> Cancel Booking
               </Button>
             )}
-            {booking.qrCodePath && (
-              <Button onClick={() => setShowQRCode(true)}>
-                View QR Code
-              </Button>
-            )}
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-lg border bg-white p-3">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Guests</span>
+              <Users className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="mt-1 text-xl font-semibold">{booking.numberOfPersons}</div>
+          </div>
+          <div className="rounded-lg border bg-white p-3">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Bags</span>
+              <Briefcase className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="mt-1 text-xl font-semibold">{booking.numberOfBags}</div>
+          </div>
+          <div className="rounded-lg border bg-white p-3">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Preferred</span>
+              <Clock className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="mt-1 text-sm font-medium">{format(new Date(booking.preferredTime), "PPp")}</div>
+          </div>
+          <div className="rounded-lg border bg-white p-3">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Shuttle</span>
+              <Bus className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="mt-1 text-sm font-medium">{booking.shuttle?.vehicleNumber || "—"}</div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Guest Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-indigo-500" /> Guest Information
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -216,9 +305,19 @@ export default function BookingDetailsPage() {
             {booking.confirmationNum && (
               <div>
                 <p className="text-sm text-gray-500">Confirmation Number</p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <Hash className="w-4 h-4 text-gray-400" />
                   <p className="font-medium">{booking.confirmationNum}</p>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label="Copy confirmation number"
+                    onClick={() => copyToClipboard(booking.confirmationNum!, "Confirmation number")}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             )}
@@ -246,9 +345,11 @@ export default function BookingDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Trip Details</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-indigo-500" /> Trip Details
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -306,9 +407,11 @@ export default function BookingDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Location Details</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-indigo-500" /> Location Details
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -326,9 +429,11 @@ export default function BookingDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Additional Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-indigo-500" /> Additional Information
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -368,7 +473,7 @@ export default function BookingDetailsPage() {
         </Card>
       </div>
 
-      {booking.qrCodePath && (
+      {(booking.qrCodePath || booking.qrCodeUrl) && (
         <QRCodeDisplay
           qrCodePath={booking.qrCodeUrl!}
           bookingId={booking.id}
