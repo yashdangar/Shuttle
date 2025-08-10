@@ -3,15 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { X, Truck, ChevronRight } from "lucide-react";
+import { X, Home, Car, Users, Calendar, Plus, User, Truck, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { adminNavigation } from "@/config/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSidebar } from "@/components/ui/sidebar";
 
-export function AdminSidebar({
-  collapsed = false,
-  isMobile = false,
+type NavItem = {
+  name: string;
+  href: string;
+  icon: any;
+  description?: string;
+  badge?: string;
+  disabled?: boolean;
+};
+
+const frontdeskNavigation: NavItem[] = [
+  { name: "Dashboard", href: "/dashboard", icon: Home, description: "Overview & metrics" },
+  { name: "Shuttles", href: "/dashboard/shuttles", icon: Truck, description: "Manage shuttles" },
+  { name: "Drivers", href: "/dashboard/drivers", icon: Users, description: "Manage drivers" },
+  { name: "Schedules", href: "/dashboard/schedules", icon: Calendar, description: "Plan schedules" },
+  { name: "New Booking", href: "/dashboard/new-booking", icon: Plus, description: "Create booking" },
+  { name: "Bookings", href: "/dashboard/bookings", icon: Calendar, description: "All bookings" },
+  { name: "Profile", href: "/dashboard/profile", icon: User, description: "Account settings" },
+];
+
+export function FrontdeskSidebar({
+  collapsed,
+  isMobile,
   onClose,
 }: {
   collapsed?: boolean;
@@ -19,36 +38,52 @@ export function AdminSidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const sidebar = (() => {
+    try {
+      return useSidebar();
+    } catch {
+      return null;
+    }
+  })();
+  const effectiveCollapsed =
+    typeof collapsed === "boolean"
+      ? collapsed
+      : sidebar
+      ? sidebar.state === "collapsed"
+      : false;
+  const effectiveIsMobile =
+    typeof isMobile === "boolean" ? isMobile : sidebar ? sidebar.isMobile : false;
+
+  const targetWidth = effectiveCollapsed ? 64 : 256;
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8, width: collapsed ? 64 : 256 }}
-      animate={{ opacity: 1, x: 0, width: collapsed ? 64 : 256 }}
+      initial={{ opacity: 0, x: -8, width: targetWidth }}
+      animate={{ opacity: 1, x: 0, width: targetWidth }}
       transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
       className={cn(
         "h-full flex flex-col overflow-hidden",
-        // Subtle glass & premium gradient backdrop
         "bg-gradient-to-b from-white/80 to-slate-50/60 supports-[backdrop-filter]:bg-white/60 backdrop-blur border-r border-slate-200/60",
-        isMobile && "shadow-xl"
+        effectiveIsMobile && "shadow-xl"
       )}
     >
       <div
         className={cn(
           "relative flex items-center border-b border-slate-200/60",
-          collapsed ? "justify-center px-6 py-5" : "px-6 py-5 gap-2.5"
+          effectiveCollapsed ? "justify-center px-6 py-4" : "px-6 py-4 gap-2.5"
         )}
       >
         <div className="h-8 w-8 shrink-0 rounded-lg bg-blue-600 text-white flex items-center justify-center">
-          <Truck className="h-4 w-4" />
+          <Home className="h-4 w-4" />
         </div>
         <motion.div
           initial={false}
-          animate={{ width: collapsed ? 0 : 180, opacity: collapsed ? 0 : 1 }}
-          transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
+          animate={{ width: effectiveCollapsed ? 0 : 180, opacity: effectiveCollapsed ? 0 : 1 }}
+          transition={{ duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
           className="min-w-0 overflow-hidden"
-          aria-hidden={collapsed}
+          aria-hidden={effectiveCollapsed}
         >
-          <h1 className="text-sm font-semibold text-slate-800 tracking-tight whitespace-nowrap">Shuttle Admin</h1>
+          <h1 className="text-sm font-semibold text-slate-800 tracking-tight whitespace-nowrap">Frontdesk</h1>
         </motion.div>
         {isMobile && onClose && (
           <Button
@@ -64,11 +99,10 @@ export function AdminSidebar({
 
       <TooltipProvider delayDuration={200}>
         <nav className="flex-1 p-2 space-y-1">
-          {adminNavigation
+          {frontdeskNavigation
             .filter((item) => !item.disabled)
             .map((item) => {
               const isActive = pathname === item.href;
-
               const link = (
                 <Link
                   key={item.name}
@@ -80,18 +114,16 @@ export function AdminSidebar({
                     isActive
                       ? "text-slate-900 bg-blue-50/60 ring-1 ring-blue-200/60"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
-                    collapsed && "justify-center px-0"
+                    effectiveCollapsed && "justify-center px-0"
                   )}
                 >
-                  {/* Accent bar */}
                   <span
                     className={cn(
                       "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-gradient-to-b from-blue-600 to-indigo-600 transition-opacity",
                       isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-                      collapsed && "hidden"
+                      effectiveCollapsed && "hidden"
                     )}
                   />
-                  {/* Icon container */}
                   <span
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,transform] duration-200 shrink-0 ring-1 ring-inset ring-slate-200 group-hover:scale-[1.04]",
@@ -102,9 +134,8 @@ export function AdminSidebar({
                   >
                     <item.icon className={cn("h-4 w-4")} />
                   </span>
-
                   <AnimatePresence initial={false} mode="popLayout">
-                    {!collapsed && (
+                    {!effectiveCollapsed && (
                       <motion.div
                         key={`label-${item.name}`}
                         initial={{ opacity: 0, x: -6 }}
@@ -126,7 +157,7 @@ export function AdminSidebar({
                   </AnimatePresence>
 
                   <AnimatePresence initial={false}>
-                    {!collapsed && (
+                    {!effectiveCollapsed && (
                       <motion.div
                         key={`chev-${item.name}`}
                         initial={{ opacity: 0, x: -4 }}
@@ -141,9 +172,9 @@ export function AdminSidebar({
                 </Link>
               );
 
-              if (collapsed) {
+              if (effectiveCollapsed) {
                 return (
-                  <motion.div key={item.name} layout whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
+                  <motion.div key={item.name} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
                     <Tooltip>
                       <TooltipTrigger asChild>{link}</TooltipTrigger>
                       <TooltipContent side="right" align="center">
@@ -170,3 +201,5 @@ export function AdminSidebar({
     </motion.div>
   );
 }
+
+

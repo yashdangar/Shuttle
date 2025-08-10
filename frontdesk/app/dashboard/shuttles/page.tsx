@@ -36,6 +36,7 @@ import { fetchWithAuth } from "@/lib/api";
 import { withAuth } from "@/components/withAuth";
 import { TableLoader } from "@/components/ui/table-loader";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Shuttle {
   id: string;
@@ -194,11 +195,17 @@ function ShuttlesPage() {
           <p className="text-slate-600">View shuttle fleet information</p>
         </div>
         <Card className="border-slate-200">
-          <CardHeader>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center space-x-2">
               <Truck className="w-5 h-5 text-orange-600" />
               <span>Shuttles Fleet</span>
             </CardTitle>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <Skeleton className="h-9 w-full sm:w-64" />
+              <Skeleton className="h-9 sm:w-[160px]" />
+              <Skeleton className="h-9 sm:w-[170px]" />
+              <Skeleton className="h-9 sm:w-[110px]" />
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -208,12 +215,11 @@ function ShuttlesPage() {
                   <TableHead>Seats</TableHead>
                   <TableHead>Capacity Status</TableHead>
                   <TableHead>Assigned Schedules</TableHead>
-                  <TableHead>Created At</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableLoader columns={6} />
+                <TableLoader columns={5} />
               </TableBody>
             </Table>
           </CardContent>

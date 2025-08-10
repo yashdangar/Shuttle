@@ -32,6 +32,7 @@ import {
   Hash,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 
 import { toast } from "sonner";
@@ -365,52 +366,70 @@ export default function NewBooking({
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl sm:text-2xl">Book a Shuttle</CardTitle>
-          <CardDescription>
+    <motion.div
+      className="max-w-2xl mx-auto px-4 py-6"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <Card className="rounded-2xl shadow-xl border-gray-200/70 dark:border-gray-700/60 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-gray-900/60">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-2xl sm:text-3xl font-semibold">
+            Book a Shuttle
+          </CardTitle>
+          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
             Fill in the details below to book your shuttle ride
           </CardDescription>
-          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+          <motion.div
+            className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+          >
             All times will be in your local timezone: <b>{getUserTimeZone()}</b>
-          </div>
+          </motion.div>
         </CardHeader>
         <CardContent>
                     {/* Custom Mobile-Friendly Tabs */}
           <div className="mb-6">
             {/* Mobile: Vertical Stack */}
             <div className="block sm:hidden space-y-2">
-              <button
+              <motion.button
                 onClick={() => handleTripDirectionChange("hotel-to-airport")}
                 className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
                   tripDirection === "hotel-to-airport"
                     ? "border-blue-500 bg-blue-50 text-blue-700"
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                 }`}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <div className="font-medium">Hotel → Airport</div>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 onClick={() => handleTripDirectionChange("airport-to-hotel")}
                 className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
                   tripDirection === "airport-to-hotel"
                     ? "border-blue-500 bg-blue-50 text-blue-700"
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                 }`}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <div className="font-medium">Airport → Hotel</div>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 onClick={() => handleTripDirectionChange("park-sleep-fly")}
                 className={`w-full p-3 text-left rounded-lg border-2 transition-all ${
                   tripDirection === "park-sleep-fly"
                     ? "border-blue-500 bg-blue-50 text-blue-700"
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                 }`}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <div className="font-medium">Park, Sleep & Fly</div>
-              </button>
+              </motion.button>
             </div>
 
             {/* Desktop: Horizontal Tabs */}
@@ -420,14 +439,23 @@ export default function NewBooking({
                 value={tripDirection}
                 onValueChange={handleTripDirectionChange}
               >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="hotel-to-airport">
+                <TabsList className="grid w-full grid-cols-3 bg-gray-100/60 dark:bg-gray-800/50 rounded-lg p-1">
+                  <TabsTrigger
+                    value="hotel-to-airport"
+                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm rounded-md transition-colors"
+                  >
                     Hotel to Airport 
                   </TabsTrigger>
-                  <TabsTrigger value="airport-to-hotel">
+                  <TabsTrigger
+                    value="airport-to-hotel"
+                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm rounded-md transition-colors"
+                  >
                     Airport to Hotel 
                   </TabsTrigger>
-                  <TabsTrigger value="park-sleep-fly">
+                  <TabsTrigger
+                    value="park-sleep-fly"
+                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm rounded-md transition-colors"
+                  >
                     Park, Sleep & Fly
                   </TabsTrigger>
                 </TabsList>
@@ -442,9 +470,16 @@ export default function NewBooking({
             onValueChange={handleTripDirectionChange}
           >
             <TabsContent value="hotel-to-airport">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <motion.form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                key={`form-${tripDirection}-hta`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+              >
                 {/* Guest Information Section */}
-                <div className="space-y-4">
+                <motion.div className="space-y-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -558,10 +593,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Pickup Location */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="pickup">Pickup Location</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -572,10 +607,10 @@ export default function NewBooking({
                       disabled
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Destination */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="destination">Destination</Label>
                   <Select
                     value={formData.destination}
@@ -598,10 +633,10 @@ export default function NewBooking({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </motion.div>
 
                 {/* Date and Time */}
-                <div className="grid md:grid-cols-2 gap-4">
+                <motion.div className="grid md:grid-cols-2 gap-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <div className="space-y-2">
                     <Label htmlFor="date">Date</Label>
                     <Input
@@ -625,10 +660,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Passengers */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="passengers">Number of Passengers</Label>
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 mr-2 text-gray-400" />
@@ -653,10 +688,10 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Bags */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="bags">Number of Bags</Label>
                   <div className="flex items-center space-x-2">
                     <Briefcase className="w-4 h-4 mr-2 text-gray-400" />
@@ -681,53 +716,64 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Pricing Information */}
-                {(pricing || isLoadingPricing) && (
-                  <div className="space-y-2">
-                    <Label>Pricing</Label>
-                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
-                      isLoadingPricing 
-                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
-                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                    }`}>
-                      {isLoadingPricing ? (
-                        <div className="flex items-center justify-center py-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Calculating pricing...
-                            </span>
+                <AnimatePresence mode="wait">
+                  {(pricing || isLoadingPricing) && (
+                    <motion.div
+                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      className="space-y-2"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Label>Pricing</Label>
+                      <motion.div
+                        layout
+                        className={`p-4 border rounded-lg transition-all duration-300 ${
+                          isLoadingPricing
+                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                        }`}
+                      >
+                        {isLoadingPricing ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                Calculating pricing...
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ) : pricing ? (
-                        <>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              {pricing.locationName} - {formData.numberOfPersons}{" "}
-                              person(s)
-                            </span>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                              ${pricing.pricePerPerson.toFixed(2)} per person
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                              Total Price
-                            </span>
-                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                              ${pricing.totalPrice.toFixed(2)}
-                            </span>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
+                        ) : pricing ? (
+                          <>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {pricing.locationName} - {formData.numberOfPersons} person(s)
+                              </span>
+                              <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                                ${pricing.pricePerPerson.toFixed(2)} per person
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Total Price
+                              </span>
+                              <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                                ${pricing.totalPrice.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Notes Section */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
@@ -742,10 +788,10 @@ export default function NewBooking({
                     Add any special requirements, accessibility needs, or other
                     important information for the driver.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Payment Method */}
-                <div className="space-y-3">
+                <motion.div className="space-y-3" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label>Payment Method</Label>
                   <RadioGroup
                     value={formData.paymentMethod}
@@ -764,30 +810,39 @@ export default function NewBooking({
                       </Label>
                     </div>
                   </RadioGroup>
-                </div>
+                </motion.div>
 
                 {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Creating Booking...</span>
-                    </div>
-                  ) : (
-                    "Confirm Booking"
-                  )}
-                </Button>
-              </form>
+                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Creating Booking...</span>
+                      </div>
+                    ) : (
+                      "Confirm Booking"
+                    )}
+                  </Button>
+                </motion.div>
+              </motion.form>
             </TabsContent>
             <TabsContent value="airport-to-hotel">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <motion.form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                key={`form-${tripDirection}-ath`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+              >
                 {/* Guest Information Section */}
-                <div className="space-y-4">
+                <motion.div className="space-y-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -901,10 +956,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Pickup Location */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="pickup">Pickup Location</Label>
                   <Select
                     value={formData.pickup}
@@ -926,10 +981,10 @@ export default function NewBooking({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </motion.div>
 
                 {/* Destination */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="destination">Destination</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
@@ -941,10 +996,10 @@ export default function NewBooking({
                       disabled
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Date and Time */}
-                <div className="grid md:grid-cols-2 gap-4">
+                <motion.div className="grid md:grid-cols-2 gap-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <div className="space-y-2">
                     <Label htmlFor="date">Date</Label>
                     <Input
@@ -968,10 +1023,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Passengers */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="passengers">Number of Passengers</Label>
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 mr-2 text-gray-400" />
@@ -996,10 +1051,10 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Bags */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="bags">Number of Bags</Label>
                   <div className="flex items-center space-x-2">
                     <Briefcase className="w-4 h-4 mr-2 text-gray-400" />
@@ -1024,53 +1079,64 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Pricing Information */}
-                {(pricing || isLoadingPricing) && (
-                  <div className="space-y-2">
-                    <Label>Pricing</Label>
-                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
-                      isLoadingPricing 
-                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
-                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                    }`}>
-                      {isLoadingPricing ? (
-                        <div className="flex items-center justify-center py-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Calculating pricing...
-                            </span>
+                <AnimatePresence mode="wait">
+                  {(pricing || isLoadingPricing) && (
+                    <motion.div
+                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      className="space-y-2"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Label>Pricing</Label>
+                      <motion.div
+                        layout
+                        className={`p-4 border rounded-lg transition-all duration-300 ${
+                          isLoadingPricing
+                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                        }`}
+                      >
+                        {isLoadingPricing ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                Calculating pricing...
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ) : pricing ? (
-                        <>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              {pricing.locationName} - {formData.numberOfPersons}{" "}
-                              person(s)
-                            </span>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                              ${pricing.pricePerPerson.toFixed(2)} per person
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                              Total Price
-                            </span>
-                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                              ${pricing.totalPrice.toFixed(2)}
-                            </span>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
+                        ) : pricing ? (
+                          <>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {pricing.locationName} - {formData.numberOfPersons} person(s)
+                              </span>
+                              <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                                ${pricing.pricePerPerson.toFixed(2)} per person
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Total Price
+                              </span>
+                              <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                                ${pricing.totalPrice.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Notes Section */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
@@ -1085,10 +1151,10 @@ export default function NewBooking({
                     Add any special requirements, accessibility needs, or other
                     important information for the driver.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Payment Method */}
-                <div className="space-y-3">
+                <motion.div className="space-y-3" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label>Payment Method</Label>
                   <RadioGroup
                     value={formData.paymentMethod}
@@ -1107,30 +1173,39 @@ export default function NewBooking({
                       </Label>
                     </div>
                   </RadioGroup>
-                </div>
+                </motion.div>
 
                 {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Creating Booking...</span>
-                    </div>
-                  ) : (
-                    "Confirm Booking"
-                  )}
-                </Button>
-              </form>
+                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Creating Booking...</span>
+                      </div>
+                    ) : (
+                      "Confirm Booking"
+                    )}
+                  </Button>
+                </motion.div>
+              </motion.form>
             </TabsContent>
             <TabsContent value="park-sleep-fly">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <motion.form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                key={`form-${tripDirection}-psf`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+              >
                 {/* Guest Information Section */}
-                <div className="space-y-4">
+                <motion.div className="space-y-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <h3 className="text-base sm:text-lg font-semibold">Guest Information</h3>
                   <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -1244,10 +1319,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Trip Type Selection for Park Sleep Fly */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="tripType">Trip Direction *</Label>
                   <Select
                     value={formData.tripType}
@@ -1271,10 +1346,10 @@ export default function NewBooking({
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                </motion.div>
 
                 {/* Pickup Location for Park Sleep Fly */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="pickup">Pickup Location *</Label>
                   {formData.tripType === "HOTEL_TO_AIRPORT" ? (
                     <div className="relative">
@@ -1314,10 +1389,10 @@ export default function NewBooking({
                       ? "Pickup will be from the hotel lobby."
                       : ""}
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Destination */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="destination">Destination</Label>
                   {formData.tripType === "AIRPORT_TO_HOTEL" ? (
                     <div className="relative">
@@ -1357,10 +1432,10 @@ export default function NewBooking({
                       ? "Destination will be the hotel lobby."
                       : "Please select your airport terminal destination."}
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Date and Time */}
-                <div className="grid md:grid-cols-2 gap-4">
+                <motion.div className="grid md:grid-cols-2 gap-4" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <div className="space-y-2">
                     <Label htmlFor="date">Date</Label>
                     <Input
@@ -1384,10 +1459,10 @@ export default function NewBooking({
                       />
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Passengers */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="passengers">Number of Passengers</Label>
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 mr-2 text-gray-400" />
@@ -1412,10 +1487,10 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Number of Bags */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="bags">Number of Bags</Label>
                   <div className="flex items-center space-x-2">
                     <Briefcase className="w-4 h-4 mr-2 text-gray-400" />
@@ -1440,53 +1515,64 @@ export default function NewBooking({
                       }}
                     />
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Pricing Information */}
-                {(pricing || isLoadingPricing) && (
-                  <div className="space-y-2">
-                    <Label>Pricing</Label>
-                    <div className={`p-4 border rounded-lg transition-all duration-300 ${
-                      isLoadingPricing 
-                        ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700" 
-                        : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                    }`}>
-                      {isLoadingPricing ? (
-                        <div className="flex items-center justify-center py-4">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              Calculating pricing...
-                            </span>
+                <AnimatePresence mode="wait">
+                  {(pricing || isLoadingPricing) && (
+                    <motion.div
+                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      className="space-y-2"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Label>Pricing</Label>
+                      <motion.div
+                        layout
+                        className={`p-4 border rounded-lg transition-all duration-300 ${
+                          isLoadingPricing
+                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                        }`}
+                      >
+                        {isLoadingPricing ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                Calculating pricing...
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ) : pricing ? (
-                        <>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              {pricing.locationName} - {formData.numberOfPersons}{" "}
-                              person(s)
-                            </span>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                              ${pricing.pricePerPerson.toFixed(2)} per person
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                              Total Price
-                            </span>
-                            <span className="text-xl font-bold text-green-700 dark:text-green-300">
-                              ${pricing.totalPrice.toFixed(2)}
-                            </span>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
+                        ) : pricing ? (
+                          <>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {pricing.locationName} - {formData.numberOfPersons} person(s)
+                              </span>
+                              <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                                ${pricing.pricePerPerson.toFixed(2)} per person
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Total Price
+                              </span>
+                              <span className="text-xl font-bold text-green-700 dark:text-green-300">
+                                ${pricing.totalPrice.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Notes Section */}
-                <div className="space-y-2">
+                <motion.div className="space-y-2" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
@@ -1501,10 +1587,10 @@ export default function NewBooking({
                     Add any special requirements, accessibility needs, or other
                     important information for the driver.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Payment Method for Park Sleep Fly */}
-                <div className="space-y-3">
+                <motion.div className="space-y-3" initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.25 }}>
                   <Label>Payment Method</Label>
                   <RadioGroup
                     value={formData.paymentMethod}
@@ -1526,31 +1612,33 @@ export default function NewBooking({
                       </Label>
                     </div>
                   </RadioGroup>
-                </div>
+                </motion.div>
 
                 {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Creating Booking...</span>
-                    </div>
-                  ) : (
-                    "Confirm Park, Sleep & Fly Booking"
-                  )}
-                </Button>
-              </form>
+                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Creating Booking...</span>
+                      </div>
+                    ) : (
+                      "Confirm Park, Sleep & Fly Booking"
+                    )}
+                  </Button>
+                </motion.div>
+              </motion.form>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
       {/* QR Code will be displayed after frontdesk verification */}
-    </div>
+    </motion.div>
   );
 }

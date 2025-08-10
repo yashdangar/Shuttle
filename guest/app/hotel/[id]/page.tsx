@@ -18,7 +18,7 @@ import BookingHistory from "@/components/booking-history";
 import NewBooking from "@/components/new-booking";
 import { NotificationDrawer } from "@/components/notification-drawer";
 import { ChatSheet } from "@/components/chat-sheet";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { ChatProvider } from "@/context/ChatContext";
@@ -88,6 +88,7 @@ function HotelPageSkeleton() {
 export default function HotelPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { onBookingUpdate } = useWebSocket();
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeTab, setActiveTab] = useState("current");
@@ -253,6 +254,14 @@ export default function HotelPage() {
     fetchCurrentBookings();
     fetchGuestData();
   }, [params.id, router, fetchCurrentBookings, fetchGuestData]);
+
+  // Sync tab from query param (?tab=current|new|history)
+  useEffect(() => {
+    const tab = (searchParams?.get("tab") || "").toLowerCase();
+    if (tab === "current" || tab === "new" || tab === "history") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // Listen for booking updates via WebSocket
   useEffect(() => {
@@ -432,6 +441,7 @@ export default function HotelPage() {
           <CurrentBookings
             bookings={currentBookings}
             onNewBooking={() => setActiveTab("new")}
+            onViewHistory={() => setActiveTab("history")}
             isLoading={isLoadingBookings}
           />
         )}

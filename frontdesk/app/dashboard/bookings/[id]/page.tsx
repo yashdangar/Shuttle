@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
+import { CancelBookingModal } from "@/components/cancel-booking-modal";
 import { fetchWithAuth } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -26,18 +27,7 @@ import {
   Briefcase,
   Copy
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// Removed inline AlertDialog in favor of shared CancelBookingModal
 
 interface BookingDetails {
   id: string;
@@ -88,7 +78,6 @@ export default function BookingDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [cancellationReason, setCancellationReason] = useState("");
 
   const copyToClipboard = async (value: string, label: string) => {
     try {
@@ -115,29 +104,25 @@ export default function BookingDetailsPage() {
     fetchBookingDetails();
   }, [params.id]);
 
-  const handleCancelBooking = async () => {
-    if (!cancellationReason) {
-      toast.error("Please provide a reason for the cancellation.");
-      return;
-    }
-
+  const handleCancelConfirm = async (reason: string) => {
     try {
       await fetchWithAuth(`/frontdesk/bookings/${params.id}/cancel`, {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ reason: cancellationReason }),
+        body: JSON.stringify({ reason }),
       });
 
       toast.success("Booking has been cancelled.");
-      
-      setBooking(prev => prev ? { ...prev, isCancelled: true, cancelledBy: 'FRONTDESK', cancellationReason } : null);
-      setShowCancelDialog(false);
-      setCancellationReason("");
 
+      setBooking((prev) =>
+        prev ? { ...prev, isCancelled: true, cancelledBy: 'FRONTDESK', cancellationReason: reason } : prev
+      );
+      setShowCancelDialog(false);
     } catch (error) {
       toast.error("Failed to cancel the booking. Please try again.");
+      throw error as Error;
     }
   };
 
@@ -482,36 +467,14 @@ export default function BookingDetailsPage() {
         />
       )}
 
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. Please provide a reason for the cancellation.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reason" className="text-right">
-                Reason
-              </Label>
-              <Input
-                id="reason"
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                className="col-span-3"
-                placeholder="e.g., Guest requested cancellation"
-              />
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancelBooking}>
-              Confirm Cancellation
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showCancelDialog && booking && (
+        <CancelBookingModal
+          isOpen={showCancelDialog}
+          onClose={() => setShowCancelDialog(false)}
+          onConfirm={handleCancelConfirm}
+          bookingId={booking.id}
+        />
+      )}
     </div>
   );
 } 

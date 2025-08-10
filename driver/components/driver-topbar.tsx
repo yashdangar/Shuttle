@@ -66,7 +66,7 @@ export function DriverTopbar({
 
           <div className="flex items-center space-x-4">
             {/* Chat Button */}
-            {hotelId && <ChatSheet hotelId={hotelId} />}
+            {hotelId && <ChatSheet />}
 
             <div className="relative">
               <Button

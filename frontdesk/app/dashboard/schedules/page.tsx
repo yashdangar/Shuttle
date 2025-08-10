@@ -58,6 +58,8 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, getUserTimeZone, getTimeZoneAbbr, formatTimeForDisplay } from "@/lib/utils";
 import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Schedule {
   id: string;
@@ -154,6 +156,27 @@ function SchedulesPage() {
     { key: "friday", label: "Friday", short: "Fri" },
     { key: "saturday", label: "Saturday", short: "Sat" },
   ];
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.06, when: "beforeChildren" },
+    },
+  };
+  const itemVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
+  };
+  const fadeIn = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.25 } },
+  };
+  const scaleIn = {
+    hidden: { opacity: 0, scale: 0.96 },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: "easeOut" } },
+  };
 
   // --- Helper: Convert UTC ISO string to local datetime-local input value ---
   function utcToLocalInput(utcIsoString: string) {
@@ -831,46 +854,94 @@ function SchedulesPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
+        <motion.div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm" variants={itemVariants}>
+          All times shown in your local timezone: <b>{getUserTimeZone()}</b>
+        </motion.div>
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Schedules Management
-            </h1>
-            <p className="text-slate-600">
-              Manage driver and shuttle schedules
-            </p>
-          </div>
+          <motion.div className="space-y-1" variants={itemVariants}>
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-80" />
+          </motion.div>
+          <motion.div className="flex gap-3" variants={itemVariants}>
+            <Skeleton className="h-9 w-40" />
+            <Skeleton className="h-9 w-40" />
+          </motion.div>
         </div>
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <>
-                <CalendarIcon className="w-5 h-5 text-purple-600" />
-                <span>Schedules Overview</span>
-              </>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Shuttle</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableLoader columns={7} />
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+        <motion.div variants={scaleIn}>
+          <Card className="border-slate-200">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <>
+                  <CalendarIcon className="w-5 h-5 text-purple-600" />
+                  <span>Schedules Overview</span>
+                </>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <Skeleton className="h-9" />
+                  <Skeleton className="h-9" />
+                </div>
+                <div className="grid gap-2 p-3 bg-slate-50 rounded-lg">
+                  <Skeleton className="h-4 w-40" />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex">
+                  <div className="w-12 flex-shrink-0">
+                    <div className="h-12 border-b border-slate-200"></div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-l-lg">
+                      {[...Array(24)].map((_, hour) => (
+                        <div
+                          key={hour}
+                          className="h-12 flex items-center justify-end pr-2 text-xs text-slate-400 border-b border-slate-100 last:border-b-0"
+                        >
+                          <Skeleton className="h-3 w-10" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex-1 bg-white border border-slate-200 rounded-r-lg overflow-hidden">
+                    <div className="min-w-[1050px]">
+                      <div className="grid grid-cols-7 border-b border-slate-200 h-12">
+                        {[...Array(7)].map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 px-2"
+                          >
+                            <Skeleton className="h-4 w-16 mb-1" />
+                            <Skeleton className="h-3 w-12" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="relative">
+                        <Skeleton className="w-full" style={{ height: 24 * 48 + 1 }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                  <Skeleton className="h-4 w-64" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-9 w-36" />
+                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="h-9 w-36" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
     );
   }
 
@@ -936,18 +1007,19 @@ function SchedulesPage() {
 
   return (
     <>
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm">
+      <motion.div
+        className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-900 text-sm"
+        variants={fadeIn}
+        initial="hidden"
+        animate="visible"
+      >
         All times shown in your local timezone: <b>{getUserTimeZone()}</b>
-      </div>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      </motion.div>
+      <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
+        <motion.div className="flex items-center justify-between" variants={itemVariants}>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Schedules Management
-            </h1>
-            <p className="text-slate-600">
-              Manage driver and shuttle schedules
-            </p>
+            <h1 className="text-2xl font-bold text-slate-900">Schedules Management</h1>
+            <p className="text-slate-600">Manage driver and shuttle schedules</p>
           </div>
           <div className="flex space-x-3">
             <Button
@@ -976,7 +1048,7 @@ function SchedulesPage() {
                     {editingSchedule ? "Edit Schedule" : "Add New Schedule"}
                   </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <motion.form onSubmit={handleSubmit} className="space-y-4" variants={containerVariants} initial="hidden" animate="visible">
                   <div>
                     <Label htmlFor="driver">Driver</Label>
                     <Select
@@ -1133,7 +1205,7 @@ function SchedulesPage() {
                       )}
                     </Button>
                   </div>
-                </form>
+                </motion.form>
               </DialogContent>
             </Dialog>
 
@@ -1158,9 +1230,9 @@ function SchedulesPage() {
                   </div>
                 </DialogHeader>
 
-                <div className="space-y-6">
+                <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
                   {/* Shuttle and Driver Selection */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-4" variants={itemVariants}>
                     <div>
                       <Label htmlFor="shuttle">Select Shuttle</Label>
                       <Select
@@ -1215,10 +1287,10 @@ function SchedulesPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Week start date */}
-                  <div>
+                  <motion.div variants={itemVariants}>
                     <Label htmlFor="startDate">Week Start Date (Sunday)</Label>
                     <Input
                       id="startDate"
@@ -1256,10 +1328,10 @@ function SchedulesPage() {
                         })}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
 
                   {/* Weekly Schedule Grid */}
-                  <div className="space-y-4">
+                  <motion.div className="space-y-4" variants={itemVariants}>
                     <h3 className="text-lg font-semibold text-slate-900">
                       Weekly Schedule
                     </h3>
@@ -1279,13 +1351,14 @@ function SchedulesPage() {
                           "enabled" in dayData
                         ) {
                           return (
-                            <div
+                            <motion.div
                               key={day.key}
                               className={`p-4 border rounded-lg transition-all ${
                                 dayData.enabled
                                   ? "border-blue-200 bg-blue-50/50"
                                   : "border-slate-200 bg-slate-50/50"
                               }`}
+                              variants={itemVariants}
                             >
                               <div className="flex items-center space-x-4">
                                 <div className="w-20">
@@ -1386,16 +1459,16 @@ function SchedulesPage() {
                                   })()}
                                 </div>
                               )}
-                            </div>
+                            </motion.div>
                           );
                         }
                         return null;
                       })}
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Action Buttons */}
-                  <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <motion.div className="flex justify-end space-x-3 pt-4 border-t" variants={itemVariants}>
                     <Button
                       type="button"
                       variant="outline"
@@ -1429,14 +1502,15 @@ function SchedulesPage() {
                         </>
                       )}
                     </Button>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               </DialogContent>
             </Dialog>
           </div>
-        </div>
+        </motion.div>
 
-        <Card className="border-slate-200">
+        <motion.div variants={scaleIn}>
+          <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <CalendarIcon className="w-5 h-5 text-purple-600" />
@@ -1465,16 +1539,17 @@ function SchedulesPage() {
               </TabsList>
 
               <TabsContent value="timeline" className="mt-6">
-                <div className="space-y-4 lg:space-y-6">
+                <motion.div className="space-y-4 lg:space-y-6" variants={containerVariants} initial="hidden" animate="visible">
                   {/* Legend */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 lg:gap-4 p-3 lg:p-4 bg-slate-50 rounded-lg">
+                  <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 lg:gap-4 p-3 lg:p-4 bg-slate-50 rounded-lg" variants={itemVariants}>
                     <h3 className="font-semibold text-slate-900 col-span-full lg:w-full mb-1 lg:mb-2 text-sm lg:text-base">
                       Shuttles Legend:
                     </h3>
                     {shuttles.map((shuttle) => (
-                      <div
+                      <motion.div
                         key={shuttle.id}
                         className="flex items-center gap-2 min-w-0"
+                        variants={itemVariants}
                       >
                         <div
                           className={`w-3 h-3 lg:w-4 lg:h-4 rounded border-2 flex-shrink-0 ${getShuttleColor(
@@ -1487,13 +1562,13 @@ function SchedulesPage() {
                         <span className="text-xs text-slate-500 flex-shrink-0">
                           ({shuttle.seats} seats)
                         </span>
-                      </div>
+                      </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                   <div className="block xl:hidden text-xs text-slate-500 text-center py-2 bg-blue-50 rounded border border-blue-200">
                     👈 Scroll horizontally to view the full weekly calendar
                   </div>
-                  <div className="flex">
+                  <motion.div className="flex" variants={itemVariants}>
                     {/* Hour labels column */}
                     <div className="w-12 flex-shrink-0">
                       {/* Empty header to align with day headers */}
@@ -1521,11 +1596,12 @@ function SchedulesPage() {
                     <div className="flex-1 bg-white border border-slate-200 rounded-r-lg overflow-x-auto">
                       <div className="min-w-[1050px]">
                         {/* Header: Days of week, perfectly aligned with columns */}
-                        <div className="grid grid-cols-7 border-b border-slate-200 h-12">
+                        <motion.div className="grid grid-cols-7 border-b border-slate-200 h-12" variants={containerVariants}>
                           {weekDays.map((day, idx) => (
-                            <div
+                            <motion.div
                               key={idx}
                               className="flex flex-col items-center justify-center border-r border-slate-200 last:border-r-0 text-slate-600"
+                              variants={itemVariants}
                             >
                               <div className="text-xs lg:text-sm font-semibold w-full text-center">
                                 {day.dayName}
@@ -1536,9 +1612,9 @@ function SchedulesPage() {
                               {day.isToday && (
                                 <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 mx-auto"></div>
                               )}
-                            </div>
+                            </motion.div>
                           ))}
-                        </div>
+                        </motion.div>
                         {/* Body: 24-hour grid, columns perfectly aligned */}
                         <div
                           className="relative grid grid-cols-7"
@@ -1549,10 +1625,13 @@ function SchedulesPage() {
                               colIdx
                             ).filter((sch) => sch !== null) as Array<any>;
                             return (
-                              <div
+                              <motion.div
                                 key={colIdx}
                                 className="relative border-r border-slate-100 last:border-r-0 h-full"
                                 style={{ overflow: "visible" }}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25, delay: colIdx * 0.04 }}
                               >
                                 {[...Array(24)].map((_, hour) => (
                                   <div
@@ -1583,7 +1662,7 @@ function SchedulesPage() {
                                     (overlapIdx / overlapTotal) * 100;
                                   const widthPercent = 100 / overlapTotal;
                                   return (
-                                    <div
+                                    <motion.div
                                       key={sch.id + "-" + i}
                                       className={`absolute rounded-md shadow-md cursor-pointer ${getShuttleColor(
                                         sch.shuttle.id
@@ -1596,6 +1675,9 @@ function SchedulesPage() {
                                         minWidth: 60,
                                         zIndex: 20 + i,
                                       }}
+                                      initial={{ opacity: 0, scale: 0.96 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      transition={{ duration: 0.2, ease: "easeOut", delay: i * 0.02 }}
                                       onClick={() => handleEdit(sch)}
                                       title={`${sch.driver.name} - ${sch.shuttle.vehicleNumber}`}
                                     >
@@ -1609,17 +1691,17 @@ function SchedulesPage() {
                                         {formatTimeForDisplay(sch.startTime)} -{" "}
                                         {formatTimeForDisplay(sch.endTime)}
                                       </div>
-                                    </div>
+                                    </motion.div>
                                   );
                                 })}
-                              </div>
+                              </motion.div>
                             );
                           })}
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
                 <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
                   <div className="text-sm text-slate-600">
                     Week of {weekDays[0]?.date.toLocaleDateString()} -{" "}
@@ -1666,7 +1748,7 @@ function SchedulesPage() {
               </TabsContent>
 
               <TabsContent value="table" className="mt-6">
-                <div className="space-y-4">
+                <motion.div className="space-y-4" variants={containerVariants} initial="hidden" animate="visible">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1718,7 +1800,7 @@ function SchedulesPage() {
                               duration < 0 ? duration + 24 : duration;
 
                             return (
-                              <TableRow key={schedule.id}>
+                              <motion.tr key={schedule.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
                                 <TableCell className="font-medium">
                                   <div className="font-semibold">
                                     {formatDateForDisplay(
@@ -1799,7 +1881,7 @@ function SchedulesPage() {
                                     </Button>
                                   </div>
                                 </TableCell>
-                              </TableRow>
+                              </motion.tr>
                             );
                           })
                       ) : (
@@ -1872,12 +1954,13 @@ function SchedulesPage() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </TabsContent>
             </Tabs>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </motion.div>
+      </motion.div>
     </>
   );
 }
