@@ -26,7 +26,7 @@ function NotificationsPage() {
   const { notifications, refreshNotifications, markUserInteraction } = useWebSocket();
 
   useEffect(() => {
-    refreshNotifications().finally(() => setLoading(false));
+    Promise.resolve(refreshNotifications()).finally(() => setLoading(false));
   }, [refreshNotifications]);
 
   // Mark user interaction on component mount to enable audio
@@ -175,22 +175,22 @@ function NotificationsPage() {
         )}
       </div>
 
-      <div className="space-y-4">
-        {notifications.length === 0 ? (
-          <Card>
-            <CardContent>
-              <EmptyState
-                icon={Bell}
-                title="No notifications"
-                description="You're all caught up! New notifications will appear here."
-              />
-            </CardContent>
-          </Card>
-        ) : (
-          notifications.map((notification) => (
+      {notifications.length === 0 ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              icon={Bell}
+              title="No notifications"
+              description="You're all caught up! New notifications will appear here."
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4 w-full max-w-none">
+          {notifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all hover:shadow-md ${
+              className={`w-full max-w-none transition-all hover:shadow-md ${
                 !notification.isRead
                   ? "border-l-4 border-l-blue-500 bg-blue-50/30"
                   : ""
@@ -245,9 +245,9 @@ function NotificationsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

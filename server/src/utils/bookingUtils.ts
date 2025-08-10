@@ -170,19 +170,12 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
     console.log(`Looking for active schedule for shuttle ${shuttleId}...`);
     console.log(`Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
 
+    // Do not pre-filter by current time at DB layer to avoid timezone edge cases.
+    // Fetch today's schedules for the shuttle and filter in code using UTC comparison.
     const schedules = await prisma.schedule.findMany({
-      where: {
-        shuttleId,
-        startTime: {
-          lte: new Date(), // Schedules that have started
-        },
-        endTime: {
-          gte: new Date(), // Schedules that haven't ended
-        },
-      },
-      include: {
-        driver: true,
-      },
+      where: { shuttleId },
+      include: { driver: true },
+      orderBy: { startTime: 'asc' },
     });
 
     console.log(`Found ${schedules.length} active schedules for shuttle ${shuttleId}`);
@@ -193,29 +186,23 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
       console.log(`Schedule ${index + 1}: ID=${schedule.id}, Start=${schedule.startTime.toISOString()}, End=${schedule.endTime.toISOString()}, Driver=${schedule.driver.name}`);
     });
 
-    // Find the currently active schedule
+    // Find the currently active schedule using the preferredTime if available; otherwise now
+    // Use the booking's preferredTime if available; otherwise fallback to now
+    const comparisonTimeUTC = new Date(booking.preferredTime || new Date());
     let currentSchedule = null;
     for (const schedule of schedules) {
-      // The schedule times are stored as UTC, so we need to compare with current UTC time
       const scheduleStartTime = new Date(schedule.startTime);
       const scheduleEndTime = new Date(schedule.endTime);
-      const currentTime = new Date(); // Current time in server timezone (IST)
-      
-      // Current time is already UTC-based in Node.js
-      const currentTimeUTC = new Date();
-      
       console.log(`Schedule ${schedule.id}:`);
       console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
       console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
-      console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
-      console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
-      
-      if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
-        console.log(`✅ Schedule ${schedule.id} is currently active`);
+      console.log(`  Compare time (UTC): ${comparisonTimeUTC.toISOString()}`);
+      if (comparisonTimeUTC >= scheduleStartTime && comparisonTimeUTC <= scheduleEndTime) {
+        console.log(`✅ Schedule ${schedule.id} is active for compare time`);
         currentSchedule = schedule;
         break;
       } else {
-        console.log(`❌ Schedule ${schedule.id} is not active`);
+        console.log(`❌ Schedule ${schedule.id} is not active for compare time`);
       }
     }
 
@@ -433,48 +420,23 @@ export const findAvailableShuttleWithCapacity = async (
     console.log(`Date range (IST): ${startOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} to ${endOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
     console.log(`Current time in IST: ${istTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
 
-    // Get all shuttles for this hotel with schedules for today
+    // Get all shuttles for this hotel with schedules, do not filter by time in DB
     const availableShuttles = await prisma.shuttle.findMany({
-      where: {
-        hotelId: hotelId,
-        schedules: {
-          some: {
-            startTime: {
-              lte: new Date(), // Schedules that have started
-            },
-            endTime: {
-              gte: new Date(), // Schedules that haven't ended
-            },
-          },
-        },
-      },
+      where: { hotelId: hotelId },
       include: {
         schedules: {
-          where: {
-            startTime: {
-              lte: new Date(), // Schedules that have started
-            },
-            endTime: {
-              gte: new Date(), // Schedules that haven't ended
-            },
-          },
-          include: {
-            driver: true,
-          },
+          include: { driver: true },
+          orderBy: { startTime: 'asc' },
         },
         bookings: {
           where: {
             isCompleted: false,
             isCancelled: false,
-            // Only count bookings that are NOT assigned to an active trip
-            // This allows new bookings to use full capacity regardless of current trip usage
             tripId: null,
           },
         },
       },
-      orderBy: {
-        id: 'asc', // Consistent ordering
-      },
+      orderBy: { id: 'asc' },
     });
 
     console.log(`Found ${availableShuttles.length} shuttles with schedules for today`);
@@ -488,24 +450,17 @@ export const findAvailableShuttleWithCapacity = async (
       console.log(`Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
       console.log(`Total unassigned bookings: ${shuttle.bookings.length}`);
       
-      // Check if any schedule is currently active
+      // Check if any schedule is active at comparison time (use IST range helper only for logging)
+      const comparisonTimeUTC = new Date();
       let hasActiveSchedule = false;
       for (const schedule of shuttle.schedules) {
-        // The schedule times are stored as UTC, so we need to compare with current UTC time
         const scheduleStartTime = new Date(schedule.startTime);
         const scheduleEndTime = new Date(schedule.endTime);
-        const currentTime = new Date(); // Current time in server timezone (IST)
-        
-        // Current time is already UTC-based in Node.js
-        const currentTimeUTC = new Date();
-        
         console.log(`Schedule ${schedule.id}:`);
         console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
         console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
-        console.log(`  Current time (UTC): ${currentTimeUTC.toISOString()}`);
-        console.log(`  Current time (IST): ${currentTime.toLocaleString()}`);
-        
-        if (currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime) {
+        console.log(`  Compare time (UTC): ${comparisonTimeUTC.toISOString()}`);
+        if (comparisonTimeUTC >= scheduleStartTime && comparisonTimeUTC <= scheduleEndTime) {
           console.log(`✅ Schedule ${schedule.id} is currently active`);
           hasActiveSchedule = true;
           break;

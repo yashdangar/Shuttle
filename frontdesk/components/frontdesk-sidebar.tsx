@@ -191,7 +191,7 @@ export function FrontdeskSidebar({
               }
 
               return (
-                <motion.div whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
+                <motion.div key={item.name} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
                   {link}
                 </motion.div>
               );

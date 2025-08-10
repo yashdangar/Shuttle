@@ -6,7 +6,6 @@ import {
   Car,
   Users,
   MapPin,
-  Bell,
   RefreshCw,
   AlertCircle,
   Clock,
@@ -17,7 +16,7 @@ import { api } from "@/lib/api";
 import { useEffect, useState, useCallback } from "react";
 import LiveShuttleCard from "@/components/live-shuttle-card";
 import PendingBookingsCard from "@/components/pending-bookings-card";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface LiveShuttle {
   tripId: string;
@@ -103,7 +102,6 @@ export default function DashboardPage() {
     socket,
     markUserInteraction,
     connectWebSocket,
-    stopNotificationSound,
   } = useWebSocket();
   const [liveShuttles, setLiveShuttles] = useState<LiveShuttle[]>([]);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
@@ -465,32 +463,66 @@ export default function DashboardPage() {
           </Badge>
         </div>
 
-        <PendingBookingsCard
-          bookings={pendingBookings}
-          totalPendingBookings={stats.totalPendingBookings}
-          timeRange={{
-            from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-            to: new Date().toISOString(),
-          }}
-        />
+        {refreshing && pendingBookings.length === 0 ? (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-1/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="h-3 w-1/4" />
+                  </div>
+                  <Skeleton className="h-8 w-20 rounded-md" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <PendingBookingsCard
+            bookings={pendingBookings}
+            totalPendingBookings={stats.totalPendingBookings}
+            timeRange={{
+              from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+              to: new Date().toISOString(),
+            }}
+          />
+        )}
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {dashboardStats.map((stat) => (
-          <Card key={stat.name} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {stat.name}
-              </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {refreshing ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-5 w-5 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-7 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {dashboardStats.map((stat) => (
+            <Card key={stat.name} className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  {stat.name}
+                </CardTitle>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Today's Schedule Timeline */}
       <Card className="border-slate-200">
@@ -506,9 +538,47 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {schedulesLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Loading schedules...</span>
+            <div className="space-y-4 p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="overflow-x-auto scrollbar-thin">
+                <div className="w-[1200px]">
+                  <div className="flex text-xs text-gray-400 mb-2">
+                    {Array.from({ length: 24 }).map((_, hour) => (
+                      <div
+                        key={hour}
+                        className="text-center border-l border-gray-200 first:border-l-0"
+                        style={{ width: "50px" }}
+                      >
+                        <Skeleton className="mx-auto h-3 w-8" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="relative h-20 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="absolute inset-0 flex">
+                      {Array.from({ length: 24 }).map((_, hour) => (
+                        <div
+                          key={hour}
+                          className="border-r border-gray-200 last:border-r-0"
+                          style={{ width: "50px" }}
+                        />
+                      ))}
+                    </div>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className="absolute top-2 h-[calc(100%-16px)] min-w-[80px]"
+                        style={{
+                          left: `${(i * 6 + 2) * 50}px`,
+                          width: `${(2 + i) * 25}px`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : scheduleBlocks.length === 0 ? (
             <div className="text-center py-8">
@@ -681,16 +751,30 @@ export default function DashboardPage() {
         </div>
 
         {loading ? (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-center">
-                <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600">
-                  Loading live shuttle data...
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Card key={index}>
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-6 w-16" />
+                  </div>
+                  <Skeleton className="h-32 w-full rounded-md" />
+                  <div className="grid grid-cols-3 gap-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : liveShuttles.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {liveShuttles.map((shuttle) => (

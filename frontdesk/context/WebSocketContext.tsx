@@ -18,7 +18,7 @@ interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   notifications: any[];
-  refreshNotifications: () => void;
+  refreshNotifications: () => Promise<void>;
   stopNotificationSound: () => void;
   markUserInteraction: () => void;
   connectWebSocket: () => void;

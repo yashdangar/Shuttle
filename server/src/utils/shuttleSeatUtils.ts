@@ -23,32 +23,17 @@ export const findAvailableShuttle = async (
     console.log(`Preferred time: ${preferredTime ? preferredTime.toISOString() : 'Not specified'}`);
 
     // Get all shuttles for the hotel with their schedules
+    // IMPORTANT: Do NOT filter schedules at the DB level by preferredTime/now,
+    // because timezone conversions (IST vs UTC) can cause valid schedules to be excluded.
+    // Instead, fetch schedules and compare times in application code.
     const shuttles = await prisma.shuttle.findMany({
       where: { hotelId },
       include: {
         schedules: {
-          where: {
-            // Only consider schedules that are active for the preferred time
-            ...(preferredTime ? {
-              startTime: {
-                lte: preferredTime,
-              },
-              endTime: {
-                gte: preferredTime,
-              },
-            } : {
-              // If no preferred time, consider schedules active today
-              startTime: {
-                lte: new Date(), // Schedules that have started
-              },
-              endTime: {
-                gte: new Date(), // Schedules that haven't ended
-              },
-            }),
-          },
           include: {
             driver: true,
           },
+          orderBy: { startTime: 'asc' },
         },
       },
     });
@@ -77,18 +62,47 @@ export const findAvailableShuttle = async (
         continue;
       }
 
-      // Check if any schedule is currently active
-      const now = new Date();
-      const hasActiveSchedule = shuttle.schedules.some((schedule: any) => {
-        const isActive = now >= schedule.startTime && now <= schedule.endTime;
-        console.log(`  Schedule ${schedule.id}: ${schedule.startTime.toISOString()} - ${schedule.endTime.toISOString()} (Active: ${isActive})`);
-        return isActive;
+      // Determine if the shuttle has a schedule covering the intended IST day
+      // Compute IST day range robustly without relying on server local timezone
+      const istOffsetMs = 5.5 * 60 * 60 * 1000; // UTC+05:30
+      const dayMs = 24 * 60 * 60 * 1000;
+      const baseUtcMs = preferredTime ? new Date(preferredTime).getTime() : Date.now();
+      const startOfIstDayUtcMs = Math.floor((baseUtcMs + istOffsetMs) / dayMs) * dayMs - istOffsetMs;
+      const endOfIstDayUtcMs = startOfIstDayUtcMs + dayMs - 1;
+      const startOfDayUTC = new Date(startOfIstDayUtcMs);
+      const endOfDayUTC = new Date(endOfIstDayUtcMs);
+
+      // Also compute IST range for CURRENT time as fallback when preferredTime is from a different day than current IST
+      const nowUtcMs = Date.now();
+      const startOfCurrentIstDayUtcMs = Math.floor((nowUtcMs + istOffsetMs) / dayMs) * dayMs - istOffsetMs;
+      const endOfCurrentIstDayUtcMs = startOfCurrentIstDayUtcMs + dayMs - 1;
+      const startOfCurrentDayUTC = new Date(startOfCurrentIstDayUtcMs);
+      const endOfCurrentDayUTC = new Date(endOfCurrentIstDayUtcMs);
+
+      // A schedule is considered valid if it overlaps the IST day range OR, if preferredTime is provided,
+      // the preferredTime (UTC) falls within the schedule window.
+      const comparisonTimeUTC = preferredTime ? new Date(preferredTime) : null;
+      const hasScheduleForISTDay = shuttle.schedules.some((schedule: any) => {
+        const overlapsIstDay = schedule.startTime <= endOfDayUTC && schedule.endTime >= startOfDayUTC;
+        const overlapsCurrentIstDay = schedule.startTime <= endOfCurrentDayUTC && schedule.endTime >= startOfCurrentDayUTC;
+        const coversPreferredTime = comparisonTimeUTC
+          ? (comparisonTimeUTC >= schedule.startTime && comparisonTimeUTC <= schedule.endTime)
+          : false;
+        console.log(
+          `  Schedule ${schedule.id}: ${schedule.startTime.toISOString()} - ${schedule.endTime.toISOString()} | ` +
+          `Preferred IST day UTC range: ${startOfDayUTC.toISOString()} - ${endOfDayUTC.toISOString()} | ` +
+          `Current IST day UTC range: ${startOfCurrentDayUTC.toISOString()} - ${endOfCurrentDayUTC.toISOString()} ` +
+          `(Overlaps preferred IST day: ${overlapsIstDay}, Overlaps current IST day: ${overlapsCurrentIstDay}, Covers preferredTime: ${coversPreferredTime})`
+        );
+        return overlapsIstDay || overlapsCurrentIstDay || coversPreferredTime;
       });
 
-      if (!hasActiveSchedule) {
-        console.log(`  ❌ No currently active schedules for this shuttle`);
+      if (!hasScheduleForISTDay) {
+        console.log(`  ❌ No schedules overlapping the intended IST day for this shuttle`);
         continue;
       }
+
+      // We already ensured a schedule overlaps the intended IST day; proceed to capacity checks
 
       // Use direction-specific capacity and seat counts
       let capacity = shuttle.seats;
