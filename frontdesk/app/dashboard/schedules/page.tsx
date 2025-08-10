@@ -158,6 +158,7 @@ function SchedulesPage() {
   ];
 
   // Animation variants
+  const easeOutBezier: [number, number, number, number] = [0.16, 1, 0.3, 1];
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -167,7 +168,7 @@ function SchedulesPage() {
   };
   const itemVariants = {
     hidden: { opacity: 0, y: 8 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: easeOutBezier } },
   };
   const fadeIn = {
     hidden: { opacity: 0 },
@@ -175,7 +176,7 @@ function SchedulesPage() {
   };
   const scaleIn = {
     hidden: { opacity: 0, scale: 0.96 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: "easeOut" } },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: easeOutBezier } },
   };
 
   // --- Helper: Convert UTC ISO string to local datetime-local input value ---

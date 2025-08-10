@@ -7,9 +7,9 @@ import { X, Truck, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { adminNavigation } from "@/config/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { memo } from "react";
 
-export function AdminSidebar({
+export const AdminSidebar = memo(function AdminSidebar({
   collapsed = false,
   isMobile = false,
   onClose,
@@ -21,14 +21,12 @@ export function AdminSidebar({
   const pathname = usePathname();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -8, width: collapsed ? 64 : 256 }}
-      animate={{ opacity: 1, x: 0, width: collapsed ? 64 : 256 }}
-      transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+    <div
       className={cn(
         "h-full flex flex-col overflow-hidden",
-        // Subtle glass & premium gradient backdrop
-        "bg-gradient-to-b from-white/80 to-slate-50/60 supports-[backdrop-filter]:bg-white/60 backdrop-blur border-r border-slate-200/60",
+        // Subtle gradient backdrop (remove heavy backdrop blur for faster paint)
+        "bg-gradient-to-b from-white/80 to-slate-50/60 supports-[backdrop-filter]:bg-white/70 border-r border-slate-200/60",
+        collapsed ? "w-16" : "w-64",
         isMobile && "shadow-xl"
       )}
     >
@@ -41,15 +39,9 @@ export function AdminSidebar({
         <div className="h-8 w-8 shrink-0 rounded-lg bg-blue-600 text-white flex items-center justify-center">
           <Truck className="h-4 w-4" />
         </div>
-        <motion.div
-          initial={false}
-          animate={{ width: collapsed ? 0 : 180, opacity: collapsed ? 0 : 1 }}
-          transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
-          className="min-w-0 overflow-hidden"
-          aria-hidden={collapsed}
-        >
+        <div className={cn("min-w-0 overflow-hidden", collapsed && "opacity-0 w-0")} aria-hidden={collapsed}>
           <h1 className="text-sm font-semibold text-slate-800 tracking-tight whitespace-nowrap">Shuttle Admin</h1>
-        </motion.div>
+        </div>
         {isMobile && onClose && (
           <Button
             variant="ghost"
@@ -73,6 +65,7 @@ export function AdminSidebar({
                 <Link
                   key={item.name}
                   href={item.href}
+                  prefetch={false}
                   className={cn(
                     "relative group flex items-center rounded-lg text-[13px] font-medium",
                     "px-2.5 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
@@ -102,48 +95,28 @@ export function AdminSidebar({
                   >
                     <item.icon className={cn("h-4 w-4")} />
                   </span>
+                  {!collapsed && (
+                    <div className="ml-2.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate leading-5">{item.name}</span>
+                        {item.badge && (
+                          <span className="inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-gradient-to-b from-slate-100 to-white ring-1 ring-slate-200 text-slate-700">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                  <AnimatePresence initial={false} mode="popLayout">
-                    {!collapsed && (
-                      <motion.div
-                        key={`label-${item.name}`}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -6 }}
-                        transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
-                        className="ml-2.5 min-w-0 flex-1"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate leading-5">{item.name}</span>
-                          {item.badge && (
-                            <span className="inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-gradient-to-b from-slate-100 to-white ring-1 ring-slate-200 text-slate-700">
-                              {item.badge}
-                            </span>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <AnimatePresence initial={false}>
-                    {!collapsed && (
-                      <motion.div
-                        key={`chev-${item.name}`}
-                        initial={{ opacity: 0, x: -4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -4 }}
-                        transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
-                      >
-                        <ChevronRight className="ml-2 h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {!collapsed && (
+                    <ChevronRight className="ml-2 h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5" />
+                  )}
                 </Link>
               );
 
               if (collapsed) {
                 return (
-                  <motion.div key={item.name} layout whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
+                  <div key={item.name}>
                     <Tooltip>
                       <TooltipTrigger asChild>{link}</TooltipTrigger>
                       <TooltipContent side="right" align="center">
@@ -155,18 +128,16 @@ export function AdminSidebar({
                         </div>
                       </TooltipContent>
                     </Tooltip>
-                  </motion.div>
+                  </div>
                 );
               }
 
               return (
-                <motion.div whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}>
-                  {link}
-                </motion.div>
+                <div>{link}</div>
               );
             })}
         </nav>
       </TooltipProvider>
-    </motion.div>
+    </div>
   );
-}
+});

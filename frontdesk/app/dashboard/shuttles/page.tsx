@@ -326,7 +326,21 @@ function ShuttlesPage() {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400">No capacity data</span>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-gray-300" />
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  0/{shuttle.seats} passengers
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-500">0%</span>
+                            </div>
+                            <Progress value={0} />
+                            <div className="text-xs text-gray-500">
+                              {shuttle.seats} seats available
+                            </div>
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>
