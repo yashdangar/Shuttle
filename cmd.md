@@ -1,6 +1,6 @@
 pm2 start npm --name zero -- run start 
  
-ssh -i shuttle.pem ubuntu@52.87.156.59
+ssh -i shuttle.pem ubuntu@43.205.237.195
 
 pm2 start npm --name admin -- run start -- -p 3001
 pm2 start npm --name guest -- run start -- -p 3002
@@ -12,6 +12,8 @@ pm2 start npm --name server -- run start
 
 pm2 stop admin driver frontdesk guest superadmin server
 pm2 delete admin driver frontdesk guest superadmin server
+
+chmod +x *.sh  
 
 NEXT_PUBLIC_API_URL="https://server.devitaliya.me"
 NEXT_PUBLIC_WEBSOCKET_URL="wss://server.devitaliya.me"

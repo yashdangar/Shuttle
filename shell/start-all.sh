@@ -39,7 +39,7 @@ start_app() {
 start_server() {
     local app_name="Server"
     local app_dir="server"
-    local port="5000"
+    local port="8080"
     local color=$CYAN
     
     echo -e "${color}🌐 Starting ${app_name} on port ${port}...${NC}"
@@ -99,7 +99,7 @@ echo -e "${YELLOW}   • Driver App:    http://localhost:3001${NC}"
 echo -e "${PURPLE}   • Frontdesk App: http://localhost:3002${NC}"
 echo -e "${GREEN}   • Admin App:      http://localhost:3003${NC}"
 echo -e "${RED}   • Super Admin:     http://localhost:3004${NC}"
-echo -e "${CYAN}   • Server API:      http://localhost:5000${NC}"
+echo -e "${CYAN}   • Server API:      http://localhost:8080${NC}"
 echo ""
 echo -e "${BLUE}📋 To stop all applications, run: ./stop-all.sh${NC}"
 echo -e "${BLUE}📋 To view logs, check the .log files in each directory${NC}"

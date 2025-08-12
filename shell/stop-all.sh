@@ -47,7 +47,7 @@ echo ""
 echo -e "${BLUE}Killing any remaining processes on application ports...${NC}"
 
 # Kill processes on specific ports
-for port in 3000 3001 3002 3003 3004 5000; do
+for port in 3000 3001 3002 3003 3004 8080; do
     pid=$(lsof -ti:$port 2>/dev/null)
     if [ ! -z "$pid" ]; then
         echo -e "${YELLOW}Killing process on port $port (PID: $pid)...${NC}"
