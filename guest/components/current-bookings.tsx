@@ -30,7 +30,7 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
   const [collapsedBookingIds, setCollapsedBookingIds] = useState<Record<string, boolean>>({})
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const { onBookingUpdate } = useWebSocket()
+  const { onBookingUpdate, onDriverLocationUpdate } = useWebSocket()
 
   // Load Google Maps API
   const { isLoaded, loadError } = useJsApiLoader({
@@ -202,10 +202,37 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
           booking.id === updatedBooking.id ? { ...booking, ...updatedBooking } : booking
         )
       )
+
+      // When a booking gets assigned, refresh its tracking locations and ETA
+      fetchLocationData(updatedBooking)
+      if (realTimeEtas[updatedBooking.id]) {
+        calculateRealTimeETA(updatedBooking.id)
+      }
     })
 
     return cleanup
   }, [onBookingUpdate])
+
+  // Listen for live driver location updates and update ETAs in-place
+  useEffect(() => {
+    if (!onDriverLocationUpdate) return
+    const cleanup = onDriverLocationUpdate((data: any) => {
+      if (!data?.bookingId || !data?.location) return
+      const bookingId = String(data.bookingId)
+      setDriverLocations(prev => ({
+        ...prev,
+        [bookingId]: {
+          latitude: data.location.latitude,
+          longitude: data.location.longitude,
+          name: 'Driver Location',
+        }
+      }))
+      if (pickupLocations[bookingId]) {
+        calculateRealTimeETA(bookingId)
+      }
+    })
+    return cleanup
+  }, [onDriverLocationUpdate, pickupLocations, calculateRealTimeETA])
 
   // Show skeleton while loading
   if (isLoading) {

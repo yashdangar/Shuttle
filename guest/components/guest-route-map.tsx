@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Navigation, Users, CheckCircle, Clock, Car } from "lucide-react";
 import { useJsApiLoader, GoogleMap, Marker, InfoWindow, Polyline } from "@react-google-maps/api";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/context/WebSocketContext";
 
 interface Location {
   latitude: number;
@@ -51,6 +52,7 @@ export default function GuestRouteMap({
   const mapRef = useRef<google.maps.Map | null>(null);
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { onDriverLocationUpdate, onBookingUpdate } = useWebSocket();
 
   const containerStyle = {
     width: '100%',
@@ -238,6 +240,34 @@ export default function GuestRouteMap({
       fetchMapData();
     }
   }, [booking.id]);
+
+  // Subscribe to real-time driver location updates for this booking
+  useEffect(() => {
+    if (!onDriverLocationUpdate) return;
+    const cleanup = onDriverLocationUpdate((data: any) => {
+      if (data?.bookingId === booking.id && data?.location) {
+        setDriverLocation({
+          latitude: data.location.latitude,
+          longitude: data.location.longitude,
+          name: "Driver Location",
+        });
+        // Recalculate ETA on live updates
+        calculateRealTimeETA();
+      }
+    });
+    return cleanup;
+  }, [onDriverLocationUpdate, booking.id, calculateRealTimeETA]);
+
+  // Refresh map data when booking is updated (e.g., assigned to a shuttle/driver)
+  useEffect(() => {
+    if (!onBookingUpdate) return;
+    const cleanup = onBookingUpdate((updatedBooking: any) => {
+      if (updatedBooking?.id === booking.id) {
+        fetchMapData();
+      }
+    });
+    return cleanup;
+  }, [onBookingUpdate, booking.id]);
 
   // Center map on driver or pickup location
   const center = driverLocation

@@ -213,9 +213,9 @@ export default function HotelPage() {
   const handleBookingCreated = useCallback(
     async (booking: any) => {
       console.log("New booking created:", booking);
-      // Refresh current bookings from API
-      await fetchCurrentBookings();
+      // Immediately switch to Current tab, then fetch in the background
       setActiveTab("current");
+      fetchCurrentBookings();
     },
     [fetchCurrentBookings]
   );

@@ -107,6 +107,19 @@ export const WebSocketProvider = ({
       });
     });
 
+    // Booking added to active trip (guest-specific event)
+    socketInstance.on("booking_added_to_trip", async (data: any) => {
+      toast.info("Your booking has been added to the current trip!");
+
+      // Notify all registered callbacks so UI can refresh ETA/tracking
+      bookingUpdateCallbacksRef.current.forEach(callback => {
+        callback(data.booking || data);
+      });
+
+      // Also refresh notifications
+      await refreshNotifications();
+    });
+
     socketInstance.on("booking_cancelled", async (data: any) => {
       toast.error("Your booking has been cancelled.");
       
