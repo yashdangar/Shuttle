@@ -20,7 +20,7 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { ChatSheet } from "@/components/chat-sheet";
 import NotificationDropdownRenderer from "@/components/notification-dropdown";
 import { useHotelId } from "@/hooks/use-hotel-id";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { FrontdeskSidebar } from "@/components/frontdesk-sidebar";
 
 const navigation = [
@@ -66,12 +66,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="lg:grid lg:grid-cols-[auto,1fr] h-screen overflow-hidden">
-        <div className="hidden lg:block sticky top-0 h-[100dvh]">
-          <FrontdeskSidebar />
-        </div>
+      <Sidebar collapsible="icon">
+        <FrontdeskSidebar />
+      </Sidebar>
 
-        <SidebarInset className="w-full overflow-x-hidden">
+      <SidebarInset className="w-full overflow-x-hidden">
           {/* Top navigation */}
           <div className="sticky top-0 z-40 w-full">
             <div className="relative">
@@ -170,7 +169,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="px-4 sm:px-6 lg:px-8">{children}</div>
           </main>
         </SidebarInset>
-      </div>
     </SidebarProvider>
   );
 }

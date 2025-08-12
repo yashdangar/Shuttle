@@ -62,7 +62,7 @@ export function FrontdeskSidebar({
       animate={{ opacity: 1, x: 0, width: targetWidth }}
       transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
       className={cn(
-        "h-full flex flex-col overflow-hidden",
+        "h-full flex flex-col overflow-hidden w-full",
         "bg-gradient-to-b from-white/80 to-slate-50/60 supports-[backdrop-filter]:bg-white/60 backdrop-blur border-r border-slate-200/60",
         effectiveIsMobile && "shadow-xl"
       )}

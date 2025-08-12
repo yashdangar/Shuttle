@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Skeleton } from "@/components/ui/skeleton"
 import { 
   Bell, 
   Check, 
@@ -16,12 +18,14 @@ import {
   XCircle,
   Info,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  X
 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useWebSocket } from "@/context/WebSocketContext"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface Notification {
   id: number
@@ -164,70 +168,108 @@ export function NotificationDrawer() {
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={`relative transition-all duration-200 hover:bg-blue-50 dark:hover:bg-blue-950 ${
-            hasNewNotifications ? 'notification-pulse notification-button-glow' : ''
-          }`}
-        >
-          <Bell 
-            className={`w-5 h-5 transition-all duration-200 ${
-              hasNewNotifications 
-                ? 'text-blue-600 bell-shake' 
-                : 'text-gray-600'
-            }`}
-          />
-          {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
-              className={`absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs font-bold transition-all duration-200 ${
-                hasNewNotifications 
-                  ? 'notification-badge-glow' 
-                  : ''
-              }`}
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-96 sm:w-[400px]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Bell className="w-5 h-5" />
-              <span>Notifications</span>
-              {unreadCount > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {unreadCount} new
-                </Badge>
-              )}
-            </div>
-            {unreadCount > 0 && (
+      <TooltipProvider>
+        <Tooltip delayDuration={200}>
+          <TooltipTrigger asChild>
+            <SheetTrigger asChild>
               <Button
-                onClick={markAllAsRead}
-                disabled={isMarkingAllRead}
+                aria-label="Open notifications"
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2"
+                className={`relative transition-all duration-200 hover:bg-blue-50 dark:hover:bg-blue-950 ${
+                  hasNewNotifications ? 'notification-pulse notification-button-glow' : ''
+                }`}
               >
-                {isMarkingAllRead ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCheck className="w-4 h-4" />
+                <Bell
+                  className={`w-5 h-5 transition-all duration-200 ${
+                    hasNewNotifications ? 'text-blue-600 bell-shake' : 'text-gray-600'
+                  }`}
+                />
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className={`absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs font-bold transition-all duration-200 ${
+                      hasNewNotifications ? 'notification-badge-glow' : ''
+                    }`}
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Badge>
                 )}
               </Button>
-            )}
-          </SheetTitle>
-        </SheetHeader>
-        
-        <ScrollArea className="h-[calc(100vh-120px)] mt-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin" />
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6}>Notifications</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <SheetContent side="right" className="w-[380px] sm:w-[420px] p-0">
+        <div className="relative flex h-full flex-col">
+          <div className="sticky top-0 z-10 border-b backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-gray-900/60">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  <Bell className="h-4 w-4" />
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Notifications</span>
+                  {unreadCount > 0 && (
+                    <Badge variant="secondary" className="text-xs">{unreadCount} new</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                {unreadCount > 0 && (
+                  <TooltipProvider>
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label="Mark all as read"
+                          onClick={markAllAsRead}
+                          disabled={isMarkingAllRead}
+                          variant="ghost"
+                          size="sm"
+                          className="hidden h-8 px-2 sm:flex"
+                        >
+                          {isMarkingAllRead ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CheckCheck className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>Mark all as read</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                <SheetClose asChild>
+                  <Button
+                    aria-label="Close notifications"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 sm:hidden"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </SheetClose>
+              </div>
             </div>
+          </div>
+
+          <ScrollArea className="flex-1 px-4 py-4">
+          {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border p-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-4 w-4 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
           ) : displayNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Bell className="w-12 h-12 text-gray-300 mb-4" />
@@ -237,75 +279,107 @@ export function NotificationDrawer() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+              <div className="space-y-3">
               {displayNotifications.slice(0, 5).map((notification, index) => (
                 <div key={notification.id}>
-                  <div className={`p-4 rounded-lg transition-all duration-200 ${
-                    !notification.isRead 
-                      ? 'bg-blue-50 border-l-4 border-l-blue-500' 
-                      : 'bg-gray-50'
-                  }`}>
-                    <div className="flex items-start space-x-3">
-                      {getNotificationIcon(notification.title)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm text-gray-900 mb-1">
-                              {notification.title}
-                            </h4>
-                            <p className="text-xs text-gray-600 mb-2">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatTimeAgo(notification.createdAt)}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-1 ml-2">
-                            {!notification.isRead && (
-                              <Button
-                                onClick={() => markAsRead(notification.id)}
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                              >
-                                <Check className="w-3 h-3" />
-                              </Button>
-                            )}
-                            <Button
-                              onClick={() => deleteNotification(notification.id)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                    <div
+                      className={cn(
+                        "group relative overflow-hidden rounded-xl border p-4 transition-all",
+                        "bg-white/70 dark:bg-gray-900/50 backdrop-blur-sm shadow-sm hover:shadow-md",
+                        !notification.isRead
+                          ? "border-blue-200 ring-1 ring-blue-100"
+                          : "border-gray-200/60"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "absolute left-0 top-0 h-full w-1",
+                          !notification.isRead
+                            ? "bg-gradient-to-b from-blue-500 to-blue-300"
+                            : "bg-gray-200"
+                        )}
+                      />
+                      <div className="flex items-start gap-3">
+                        {getNotificationIcon(notification.title)}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="mb-1 line-clamp-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                {notification.title}
+                              </h4>
+                              <p className="mb-2 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">
+                                {notification.message}
+                              </p>
+                              <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                                <Clock className="h-3 w-3" />
+                                <span>{formatTimeAgo(notification.createdAt)}</span>
+                              </div>
+                            </div>
+                            <div className="ml-2 flex items-center gap-1">
+                              {!notification.isRead && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        aria-label="Mark as read"
+                                        onClick={() => markAsRead(notification.id)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 hover:bg-blue-50 dark:hover:bg-blue-950"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={6}>Mark as read</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      aria-label="Delete notification"
+                                      onClick={() => deleteNotification(notification.id)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent sideOffset={6}>Delete</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
                           </div>
                         </div>
+                        {!notification.isRead && (
+                          <span className="ml-1 mt-1 inline-flex h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                        )}
                       </div>
                     </div>
-                  </div>
-                  {index < Math.min(displayNotifications.length, 5) - 1 && (
-                    <Separator className="my-2" />
-                  )}
+                    {index < Math.min(displayNotifications.length, 5) - 1 && (
+                      <Separator className="my-2 opacity-50" />
+                    )}
                 </div>
               ))}
-              
-              {/* View All Notifications Button */}
-              {displayNotifications.length > 0 && (
-                <div className="pt-4 border-t border-gray-200">
-                  <Button
-                    variant="outline"
-                    className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-                    onClick={handleViewAllNotifications}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    View All Notifications ({displayNotifications.length})
-                  </Button>
-                </div>
-              )}
             </div>
           )}
-        </ScrollArea>
+          </ScrollArea>
+
+          {displayNotifications.length > 0 && (
+            <div className="sticky bottom-0 z-10 border-t bg-gradient-to-t from-white/80 to-white/40 px-4 py-3 backdrop-blur dark:from-gray-900/80 dark:to-gray-900/40">
+              <Button
+                variant="outline"
+                className="w-full border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                onClick={handleViewAllNotifications}
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View All Notifications ({displayNotifications.length})
+              </Button>
+            </div>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   )

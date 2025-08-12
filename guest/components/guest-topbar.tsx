@@ -56,14 +56,16 @@ export function GuestTopbar({
   const fetchGuestData = useCallback(async () => {
     try {
       // Get guest profile
-      const profileResponse = await api.get('/guest/profile');
+      const profileResponse = await api.get("/guest/profile");
       if (profileResponse.guest) {
         const email = profileResponse.guest.email || "guest@example.com";
         setGuestEmail(email);
-        
+
         // Use actual firstName and lastName if available, otherwise fallback to email-based name
         if (profileResponse.guest.firstName && profileResponse.guest.lastName) {
-          setGuestName(`${profileResponse.guest.firstName} ${profileResponse.guest.lastName}`);
+          setGuestName(
+            `${profileResponse.guest.firstName} ${profileResponse.guest.lastName}`
+          );
         } else if (profileResponse.guest.firstName) {
           setGuestName(profileResponse.guest.firstName);
         } else if (profileResponse.guest.lastName) {
@@ -71,13 +73,16 @@ export function GuestTopbar({
         } else {
           setGuestName(createGuestName(email));
         }
-        
+
         setHotelId(profileResponse.guest.hotelId || null);
       }
 
       // Get current bookings
-      const bookingResponse = await api.get('/guest/current-booking');
-      if (bookingResponse.currentBookings && bookingResponse.currentBookings.length > 0) {
+      const bookingResponse = await api.get("/guest/current-booking");
+      if (
+        bookingResponse.currentBookings &&
+        bookingResponse.currentBookings.length > 0
+      ) {
         setCurrentBookings(bookingResponse.currentBookings);
         // Update hotelId from first current booking if available
         if (bookingResponse.currentBookings[0].hotelId) {
@@ -201,4 +206,4 @@ export function GuestTopbar({
       </header>
     </>
   );
-} 
+}
