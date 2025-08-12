@@ -1,6 +1,6 @@
 pm2 start npm --name zero -- run start 
  
-ssh -i vm2.pem azureuser@98.70.34.79 
+ssh -i shuttle.pem ubuntu@52.87.156.59
 
 pm2 start npm --name admin -- run start -- -p 3001
 pm2 start npm --name guest -- run start -- -p 3002
