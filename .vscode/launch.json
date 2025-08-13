@@ -1,0 +1,99 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Server",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/dist/index.js",
+            "cwd": "${workspaceFolder}/server",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug Guest App",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/next",
+            "args": [
+                "dev",
+                "-p",
+                "3000"
+            ],
+            "cwd": "${workspaceFolder}/guest",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug Driver App",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/next",
+            "args": [
+                "dev",
+                "-p",
+                "3001"
+            ],
+            "cwd": "${workspaceFolder}/driver",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug Frontdesk App",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/next",
+            "args": [
+                "dev",
+                "-p",
+                "3002"
+            ],
+            "cwd": "${workspaceFolder}/frontdesk",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug Admin App",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/next",
+            "args": [
+                "dev",
+                "-p",
+                "3003"
+            ],
+            "cwd": "${workspaceFolder}/admin",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug Super Admin App",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/next",
+            "args": [
+                "dev",
+                "-p",
+                "3004"
+            ],
+            "cwd": "${workspaceFolder}/super-admin",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        }
+    ]
+}

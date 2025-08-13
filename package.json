@@ -1,0 +1,37 @@
+{
+  "name": "shuttle-launcher",
+  "version": "1.0.0",
+  "description": "Cursor IDE integration for Shuttle application suite - Start all projects in separate terminal panels",
+  "main": "cursor-launcher.js",
+  "scripts": {
+    "setup": "node cursor-launcher.js",
+    "cursor:setup": "node cursor-launcher.js",
+    "stop": "node stop-launcher.js",
+    "stop:all": "node stop-launcher.js",
+    "ports": "node stop-launcher.js --ports",
+    "help": "node stop-launcher.js --help"
+  },
+  "bin": {
+    "shuttle-launcher": "./cursor-launcher.js"
+  },
+  "keywords": [
+    "shuttle",
+    "multi-project",
+    "launcher",
+    "development",
+    "nextjs",
+    "nodejs",
+    "cursor",
+    "vscode",
+    "ide"
+  ],
+  "author": "Shuttle Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "."
+  }
+}
