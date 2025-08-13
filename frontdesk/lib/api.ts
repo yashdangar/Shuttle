@@ -110,3 +110,53 @@ export const api = {
     );
   },
 };
+
+// Public API (no auth header, for routes like login/forgot-password)
+export const apiPublic = {
+  async fetch(endpoint: string, options: RequestInit = {}) {
+    const headers = {
+      "Content-Type": "application/json",
+      ...options.headers,
+    };
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(
+        (errorData as any).error || (errorData as any).message || "API request failed"
+      );
+      (error as any).response = { data: errorData, status: response.status };
+      throw error;
+    }
+
+    return response.json();
+  },
+
+  async get(endpoint: string) {
+    return this.fetch(endpoint);
+  },
+
+  async post(endpoint: string, data: any) {
+    return this.fetch(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async put(endpoint: string, data: any) {
+    return this.fetch(endpoint, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(endpoint: string) {
+    return this.fetch(endpoint, {
+      method: "DELETE",
+    });
+  },
+};

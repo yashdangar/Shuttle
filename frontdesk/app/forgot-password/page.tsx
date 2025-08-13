@@ -13,8 +13,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, Building2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { Eye, EyeOff, Loader2, Building2, Mail, Lock } from "lucide-react";
+import { apiPublic } from "@/lib/api";
 
 const OTP_LENGTH = 6;
 
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
     setBackendError("");
     setIsLoading(true);
     try {
-      const data = await api.post("/frontdesk/forgot-password", { email });
+      const data = await apiPublic.post("/frontdesk/forgot-password", { email });
       setBackendMsg(data.message);
       setStep(2);
     } catch (err: any) {
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
         setIsLoading(false);
         return;
       }
-      const data = await api.post("/frontdesk/verify-otp", {
+      const data = await apiPublic.post("/frontdesk/verify-otp", {
         email,
         otp: otpValue,
       });
@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
     }
     setIsLoading(true);
     try {
-      const data = await api.post("/frontdesk/reset-password", {
+      const data = await apiPublic.post("/frontdesk/reset-password", {
         email,
         newPassword,
       });
@@ -137,11 +137,11 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-green-50 dark:bg-green-950 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-green-200 dark:border-green-800">
-        <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-green-600 dark:bg-green-500">
-            <Building2 className="h-10 w-10 text-white" />
+    <div className="min-h-screen grid place-items-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 p-6">
+      <Card className="w-full max-w-md border-0 shadow-xl bg-white/80 dark:bg-slate-900/70 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <CardHeader className="text-center pb-8 space-y-1">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md">
+            <Building2 className="h-7 w-7 text-white" />
           </div>
           <CardTitle className="text-3xl font-bold text-black dark:text-white">
             Forgot Password
@@ -172,19 +172,22 @@ export default function ForgotPasswordPage() {
                 >
                   Email
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="frontdesk@hotel.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-base bg-white dark:bg-green-900 text-black dark:text-white border-green-200 dark:border-green-700"
-                  required
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="frontdesk@hotel.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 text-base pl-10 bg-white dark:bg-slate-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
+                    required
+                  />
+                </div>
               </div>
               <Button
                 type="submit"
-                className="w-full h-12 text-base bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600"
+                className="w-full h-12 text-base bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -218,14 +221,14 @@ export default function ForgotPasswordPage() {
                       ref={(el) => {
                         if (el) otpRefs.current[idx] = el;
                       }}
-                      className="w-12 h-12 text-center text-lg bg-white dark:bg-green-900 text-black dark:text-white border-green-200 dark:border-green-700"
+                      className="w-12 h-12 text-center text-lg bg-white dark:bg-slate-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                     />
                   ))}
                 </div>
               </div>
               <Button
                 type="submit"
-                className="w-full h-12 text-base bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600"
+                className="w-full h-12 text-base bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -248,13 +251,16 @@ export default function ForgotPasswordPage() {
                 >
                   Email
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  disabled
-                  className="h-12 text-base bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-green-200 dark:border-green-700"
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    disabled
+                    className="h-12 text-base pl-10 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-blue-200 dark:border-blue-700"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label
@@ -264,19 +270,20 @@ export default function ForgotPasswordPage() {
                   New Password
                 </Label>
                 <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     id="newPassword"
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-12 text-base pr-12 bg-white dark:bg-green-900 text-black dark:text-white border-green-200 dark:border-green-700"
+                    className="h-12 text-base pl-10 pr-12 bg-white dark:bg-slate-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                     required
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent text-green-600 dark:text-green-400"
+                    className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent text-blue-600 dark:text-blue-400"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -295,19 +302,20 @@ export default function ForgotPasswordPage() {
                   Confirm Password
                 </Label>
                 <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     id="confirmPassword"
                     type={showConfirm ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-12 text-base pr-12 bg-white dark:bg-green-900 text-black dark:text-white border-green-200 dark:border-green-700"
+                    className="h-12 text-base pl-10 pr-12 bg-white dark:bg-slate-900 text-black dark:text-white border-blue-200 dark:border-blue-700"
                     required
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent text-green-600 dark:text-green-400"
+                    className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent text-blue-600 dark:text-blue-400"
                     onClick={() => setShowConfirm(!showConfirm)}
                   >
                     {showConfirm ? (
@@ -320,7 +328,7 @@ export default function ForgotPasswordPage() {
               </div>
               <Button
                 type="submit"
-                className="w-full h-12 text-base bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600"
+                className="w-full h-12 text-base bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -339,7 +347,7 @@ export default function ForgotPasswordPage() {
               Remember your password?{" "}
               <Link
                 href="/login"
-                className="font-medium text-green-600 dark:text-green-400 hover:underline"
+                className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Sign in here
               </Link>
