@@ -37,8 +37,28 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   })
 
-  // Calculate real-time ETA using Google Maps Directions API for a specific booking
-  const calculateRealTimeETA = useCallback(async (bookingId: string) => {
+  // Fetch real-time ETA from server (preferred method)
+  const fetchServerETA = useCallback(async (bookingId: string) => {
+    try {
+      const response = await api.get(`/guest/booking/${bookingId}/eta`);
+      if (response.eta && response.distance) {
+        setRealTimeEtas(prev => ({
+          ...prev,
+          [bookingId]: {
+            eta: response.eta,
+            distance: response.distance
+          }
+        }));
+        return true; // Successfully fetched from server
+      }
+    } catch (error) {
+      console.error('Error fetching server ETA for booking', bookingId, ':', error);
+    }
+    return false; // Failed to fetch from server
+  }, []);
+
+  // Calculate real-time ETA using Google Maps Directions API as fallback
+  const calculateClientETA = useCallback(async (bookingId: string) => {
     const driverLocation = driverLocations[bookingId];
     const pickupLocation = pickupLocations[bookingId];
     
@@ -70,7 +90,7 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
         }
       }
     } catch (error) {
-      console.error('Error calculating real-time ETA for booking', bookingId, ':', error);
+      console.error('Error calculating client ETA for booking', bookingId, ':', error);
       setRealTimeEtas(prev => ({
         ...prev,
         [bookingId]: {
@@ -80,6 +100,17 @@ export default function CurrentBookings({ bookings, onNewBooking, isLoading = fa
       }));
     }
   }, [driverLocations, pickupLocations]);
+
+  // Combined ETA calculation: try server first, fall back to client
+  const calculateRealTimeETA = useCallback(async (bookingId: string) => {
+    // First try to get ETA from server (includes next trip logic)
+    const serverSuccess = await fetchServerETA(bookingId);
+    
+    // If server ETA failed and we have location data, fall back to client calculation
+    if (!serverSuccess && driverLocations[bookingId] && pickupLocations[bookingId]) {
+      await calculateClientETA(bookingId);
+    }
+  }, [fetchServerETA, calculateClientETA, driverLocations, pickupLocations]);
 
   // Fetch booking location data for ETA calculation
   const fetchLocationData = async (booking: any) => {

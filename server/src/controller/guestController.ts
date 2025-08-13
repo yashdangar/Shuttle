@@ -4,7 +4,7 @@ import axios from "axios";
 import { PaymentMethod, BookingType } from "@prisma/client";
 import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
-import { googleMapsService, type Location } from "../utils/googleMapsUtils";
+import { googleMapsService, calculateNextTripETA, type Location } from "../utils/googleMapsUtils";
 import { sendToRoleInHotel, sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
@@ -468,11 +468,12 @@ const getTrips = async (req: Request, res: Response) => {
         if (driverLocation) {
           let destination: Location | null = null;
 
+          // Determine pickup location for ETA calculation
           if (trip.bookingType === "HOTEL_TO_AIRPORT") {
-            destination = trip.dropoffLocation
+            destination = trip.pickupLocation
               ? {
-                  latitude: trip.dropoffLocation.latitude,
-                  longitude: trip.dropoffLocation.longitude,
+                  latitude: trip.pickupLocation.latitude,
+                  longitude: trip.pickupLocation.longitude,
                 }
               : null;
           } else {
@@ -485,16 +486,54 @@ const getTrips = async (req: Request, res: Response) => {
           }
 
           if (destination) {
-            const origin: Location = {
-              latitude: driverLocation.latitude,
-              longitude: driverLocation.longitude,
-            };
-
             try {
-              const etaResult = await googleMapsService.calculateETA(
-                origin,
-                destination
-              );
+              let etaResult;
+              
+              // Check if this booking is part of the current active trip
+              if (trip.tripId) {
+                // This is a current trip booking - calculate direct ETA from driver to pickup
+                const origin: Location = {
+                  latitude: driverLocation.latitude,
+                  longitude: driverLocation.longitude,
+                };
+                etaResult = await googleMapsService.calculateETA(origin, destination);
+              } else {
+                // This is a next trip booking - need to find current active trip
+                const currentActiveTrip = await prisma.trip.findFirst({
+                  where: {
+                    shuttle: {
+                      schedules: {
+                        some: {
+                          driver: {
+                            currentLocation: {
+                              latitude: driverLocation.latitude,
+                              longitude: driverLocation.longitude,
+                            },
+                          },
+                        },
+                      },
+                    },
+                    status: "ACTIVE",
+                  },
+                });
+
+                if (currentActiveTrip) {
+                  // Calculate next trip ETA including current trip completion time
+                  etaResult = await calculateNextTripETA(
+                    driverLocation,
+                    currentActiveTrip.id,
+                    destination
+                  );
+                } else {
+                  // No active trip, calculate direct ETA
+                  const origin: Location = {
+                    latitude: driverLocation.latitude,
+                    longitude: driverLocation.longitude,
+                  };
+                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                }
+              }
+
               eta = etaResult.duration;
               distance = etaResult.distance;
 
@@ -880,7 +919,44 @@ const getBookingETA = async (req: Request, res: Response) => {
       longitude: driverLocation.longitude,
     };
 
-    const etaResult = await googleMapsService.calculateETA(origin, destination);
+    let etaResult;
+    
+    // Check if this booking is part of the current active trip
+    if (booking.tripId) {
+      // This is a current trip booking - calculate direct ETA from driver to pickup
+      etaResult = await googleMapsService.calculateETA(origin, destination);
+    } else {
+      // This is a next trip booking - need to find current active trip
+      const currentActiveTrip = await prisma.trip.findFirst({
+        where: {
+          shuttle: {
+            schedules: {
+              some: {
+                driver: {
+                  currentLocation: {
+                    latitude: driverLocation.latitude,
+                    longitude: driverLocation.longitude,
+                  },
+                },
+              },
+            },
+          },
+          status: "ACTIVE",
+        },
+      });
+
+      if (currentActiveTrip) {
+        // Calculate next trip ETA including current trip completion time
+        etaResult = await calculateNextTripETA(
+          driverLocation,
+          currentActiveTrip.id,
+          destination
+        );
+      } else {
+        // No active trip, calculate direct ETA
+        etaResult = await googleMapsService.calculateETA(origin, destination);
+      }
+    }
 
     // Update booking with new ETA
     await prisma.booking.update({
@@ -1146,10 +1222,45 @@ const getCurrentBookings = async (req: Request, res: Response) => {
             };
 
             try {
-              const etaResult = await googleMapsService.calculateETA(
-                origin,
-                destination
-              );
+              let etaResult;
+              
+              // Check if this booking is part of the current active trip
+              if (currentBooking.tripId) {
+                // This is a current trip booking - calculate direct ETA from driver to pickup
+                etaResult = await googleMapsService.calculateETA(origin, destination);
+              } else {
+                // This is a next trip booking - need to find current active trip
+                const currentActiveTrip = await prisma.trip.findFirst({
+                  where: {
+                    shuttle: {
+                      schedules: {
+                        some: {
+                          driver: {
+                            currentLocation: {
+                              latitude: driverLocation.latitude,
+                              longitude: driverLocation.longitude,
+                            },
+                          },
+                        },
+                      },
+                    },
+                    status: "ACTIVE",
+                  },
+                });
+
+                if (currentActiveTrip) {
+                  // Calculate next trip ETA including current trip completion time
+                  etaResult = await calculateNextTripETA(
+                    driverLocation,
+                    currentActiveTrip.id,
+                    destination
+                  );
+                } else {
+                  // No active trip, calculate direct ETA
+                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                }
+              }
+
               eta = etaResult.duration;
               distance = etaResult.distance;
 
@@ -1317,10 +1428,45 @@ const getCurrentBookingsByHotel = async (req: Request, res: Response) => {
             };
 
             try {
-              const etaResult = await googleMapsService.calculateETA(
-                origin,
-                destination
-              );
+              let etaResult;
+              
+              // Check if this booking is part of the current active trip
+              if (currentBooking.tripId) {
+                // This is a current trip booking - calculate direct ETA from driver to pickup
+                etaResult = await googleMapsService.calculateETA(origin, destination);
+              } else {
+                // This is a next trip booking - need to find current active trip
+                const currentActiveTrip = await prisma.trip.findFirst({
+                  where: {
+                    shuttle: {
+                      schedules: {
+                        some: {
+                          driver: {
+                            currentLocation: {
+                              latitude: driverLocation.latitude,
+                              longitude: driverLocation.longitude,
+                            },
+                          },
+                        },
+                      },
+                    },
+                    status: "ACTIVE",
+                  },
+                });
+
+                if (currentActiveTrip) {
+                  // Calculate next trip ETA including current trip completion time
+                  etaResult = await calculateNextTripETA(
+                    driverLocation,
+                    currentActiveTrip.id,
+                    destination
+                  );
+                } else {
+                  // No active trip, calculate direct ETA
+                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                }
+              }
+
               eta = etaResult.duration;
               distance = etaResult.distance;
 

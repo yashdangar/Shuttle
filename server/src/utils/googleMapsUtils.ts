@@ -236,4 +236,121 @@ class GoogleMapsService {
 }
 
 export const googleMapsService = new GoogleMapsService();
-export type { Location, ETAResponse, DirectionsResponse }; 
+export type { Location, ETAResponse, DirectionsResponse };
+
+/**
+ * Calculate ETA for next trip bookings that includes current trip completion time
+ */
+export async function calculateNextTripETA(
+  driverLocation: Location,
+  currentTripId: string,
+  nextTripPickupLocation: Location
+): Promise<ETAResponse> {
+  try {
+    // Import prisma here to avoid circular dependencies
+    const { default: prisma } = await import('../db/prisma');
+    
+    // Get current trip details to calculate completion time
+    const currentTrip = await prisma.trip.findUnique({
+      where: { id: currentTripId },
+      include: {
+        bookings: {
+          where: {
+            isCompleted: false,
+            isCancelled: false,
+          },
+          include: {
+            pickupLocation: true,
+            dropoffLocation: true,
+          },
+          orderBy: {
+            preferredTime: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!currentTrip || currentTrip.bookings.length === 0) {
+      // No current trip or no bookings, calculate direct ETA
+      return await googleMapsService.calculateETA(driverLocation, nextTripPickupLocation);
+    }
+
+    // Calculate estimated time for current trip to complete
+    let currentTripCompletionTime = 0;
+    let lastLocation = driverLocation;
+
+    for (const booking of currentTrip.bookings) {
+      // Time to pickup location (if not already picked up)
+      if (booking.pickupLocation && !booking.isVerified) {
+        const pickupETA = await googleMapsService.calculateETA(
+          lastLocation,
+          {
+            latitude: booking.pickupLocation.latitude,
+            longitude: booking.pickupLocation.longitude,
+          }
+        );
+        currentTripCompletionTime += pickupETA.durationInSeconds;
+        currentTripCompletionTime += 120; // 2 minutes stop time for pickup
+        
+        lastLocation = {
+          latitude: booking.pickupLocation.latitude,
+          longitude: booking.pickupLocation.longitude,
+        };
+      }
+
+      // Time to dropoff location
+      if (booking.dropoffLocation) {
+        const dropoffETA = await googleMapsService.calculateETA(
+          lastLocation,
+          {
+            latitude: booking.dropoffLocation.latitude,
+            longitude: booking.dropoffLocation.longitude,
+          }
+        );
+        currentTripCompletionTime += dropoffETA.durationInSeconds;
+        currentTripCompletionTime += 120; // 2 minutes stop time for dropoff
+        
+        lastLocation = {
+          latitude: booking.dropoffLocation.latitude,
+          longitude: booking.dropoffLocation.longitude,
+        };
+      }
+    }
+
+    // Calculate time from last dropoff to next trip pickup
+    const nextTripETA = await googleMapsService.calculateETA(
+      lastLocation,
+      nextTripPickupLocation
+    );
+
+    // Total ETA = current trip completion time + travel to next pickup
+    const totalDurationInSeconds = currentTripCompletionTime + nextTripETA.durationInSeconds;
+    
+    // Format the duration
+    const minutes = Math.round(totalDurationInSeconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    let duration = '';
+    if (hours > 0) {
+      duration = `${hours}h ${remainingMinutes}m`;
+    } else {
+      duration = `${minutes}m`;
+    }
+
+    // Calculate total distance (approximate)
+    const totalDistanceInMeters = nextTripETA.distanceInMeters + (currentTripCompletionTime / 60 * 500); // Assume 500m/min average
+    const distance = `${Math.round(totalDistanceInMeters / 1000 * 10) / 10} km`;
+
+    return {
+      duration,
+      durationInSeconds: totalDurationInSeconds,
+      distance,
+      distanceInMeters: totalDistanceInMeters,
+    };
+  } catch (error) {
+    console.error('Error calculating next trip ETA:', error);
+    // Fallback to direct ETA calculation
+    return await googleMapsService.calculateETA(driverLocation, nextTripPickupLocation);
+  }
+} 

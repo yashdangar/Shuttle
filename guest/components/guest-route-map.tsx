@@ -67,8 +67,23 @@ export default function GuestRouteMap({
 
 
 
-  // Calculate real-time ETA using Google Maps Directions API
-  const calculateRealTimeETA = useCallback(async () => {
+  // Fetch real-time ETA from server (preferred method)
+  const fetchServerETA = useCallback(async () => {
+    try {
+      const response = await api.get(`/guest/booking/${booking.id}/eta`);
+      if (response.eta && response.distance) {
+        setRealTimeEta(response.eta);
+        setEtaDistance(response.distance);
+        return true; // Successfully fetched from server
+      }
+    } catch (error) {
+      console.error('Error fetching server ETA:', error);
+    }
+    return false; // Failed to fetch from server
+  }, [booking.id]);
+
+  // Calculate real-time ETA using Google Maps Directions API as fallback
+  const calculateClientETA = useCallback(async () => {
     if (!driverLocation || !pickupLocation || !directionsServiceRef.current) {
       return;
     }
@@ -102,11 +117,22 @@ export default function GuestRouteMap({
         }
       }
     } catch (error) {
-      console.error('Error calculating real-time ETA:', error);
+      console.error('Error calculating client ETA:', error);
       setRealTimeEta('Error calculating ETA');
       setEtaDistance('Error calculating distance');
     }
   }, [driverLocation, pickupLocation]);
+
+  // Combined ETA calculation: try server first, fall back to client
+  const calculateRealTimeETA = useCallback(async () => {
+    // First try to get ETA from server (includes next trip logic)
+    const serverSuccess = await fetchServerETA();
+    
+    // If server ETA failed and we have location data, fall back to client calculation
+    if (!serverSuccess && driverLocation && pickupLocation) {
+      await calculateClientETA();
+    }
+  }, [fetchServerETA, calculateClientETA, driverLocation, pickupLocation]);
 
   // Fetch booking location data
   const fetchMapData = async () => {
