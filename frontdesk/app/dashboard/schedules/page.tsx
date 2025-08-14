@@ -60,6 +60,8 @@ import { cn, getUserTimeZone, getTimeZoneAbbr, formatTimeForDisplay } from "@/li
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface Schedule {
   id: string;
@@ -605,6 +607,93 @@ function SchedulesPage() {
       toast.success(`Time copied to all days`);
     }
   };
+
+  // Copy from previous day helper
+  const copyFromPrevious = (dayKey: string) => {
+    const idx = daysOfWeek.findIndex((d) => d.key === dayKey);
+    if (idx <= 0) return;
+    const prevKey = daysOfWeek[idx - 1].key;
+    const prev = (weeklySchedule as any)[prevKey];
+    if (prev && prev.enabled) {
+      updateScheduleDay(dayKey, "startTime", prev.startTime);
+      updateScheduleDay(dayKey, "endTime", prev.endTime);
+      toast.success(`Copied ${prevKey} time → ${dayKey}`);
+    } else {
+      toast.error("Previous day not enabled");
+    }
+  };
+
+  // Bulk helpers
+  const setAllEnabled = (value: boolean) => {
+    const updated: any = { ...weeklySchedule };
+    daysOfWeek.forEach((d) => {
+      const dayData: any = updated[d.key];
+      if (dayData) dayData.enabled = value;
+    });
+    setWeeklySchedule(updated);
+  };
+  const applyPreset = (type: "weekday" | "weekend" | "standard") => {
+    const updated: any = { ...weeklySchedule };
+    daysOfWeek.forEach((d) => {
+      const dayData: any = updated[d.key];
+      if (!dayData) return;
+      if (type === "weekday") {
+        if (["sunday", "saturday"].includes(d.key)) {
+          dayData.startTime = "10:00";
+          dayData.endTime = "16:00";
+          dayData.enabled = true;
+        } else {
+          dayData.startTime = "09:00";
+          dayData.endTime = "17:00";
+          dayData.enabled = true;
+        }
+      } else if (type === "weekend") {
+        if (["saturday", "sunday"].includes(d.key)) {
+          dayData.startTime = "10:00";
+          dayData.endTime = "16:00";
+          dayData.enabled = true;
+        } else {
+          dayData.enabled = false;
+        }
+      } else if (type === "standard") {
+        // Reapply default template
+        if (d.key === "sunday") {
+          dayData.startTime = "10:00";
+          dayData.endTime = "16:00";
+          dayData.enabled = false;
+        } else if (d.key === "saturday") {
+          dayData.startTime = "10:00";
+          dayData.endTime = "16:00";
+          dayData.enabled = true;
+        } else {
+          dayData.startTime = "09:00";
+          dayData.endTime = "17:00";
+          dayData.enabled = true;
+        }
+      }
+    });
+    setWeeklySchedule(updated);
+    toast.success("Preset applied");
+  };
+
+  const computeDurationHours = (start: string, end: string) => {
+    if (!start || !end) return 0;
+    const [sh, sm] = start.split(":").map(Number);
+    const [eh, em] = end.split(":").map(Number);
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+    let diff = endMinutes - startMinutes;
+    if (diff < 0) diff += 24 * 60; // overnight
+    return diff / 60;
+  };
+
+  const weeklyTotalHours = daysOfWeek.reduce((acc, d) => {
+    const dayData: any = (weeklySchedule as any)[d.key];
+    if (dayData?.enabled) {
+      acc += computeDurationHours(dayData.startTime, dayData.endTime);
+    }
+    return acc;
+  }, 0);
 
   const handleWeeklySubmit = async () => {
     if (!weeklySchedule.driverId || !weeklySchedule.shuttleId) {
@@ -1331,141 +1420,127 @@ function SchedulesPage() {
                     )}
                   </motion.div>
 
-                  {/* Weekly Schedule Grid */}
+                  {/* Weekly Schedule Grid (Enhanced) */}
                   <motion.div className="space-y-4" variants={itemVariants}>
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      Weekly Schedule
-                    </h3>
-                    <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 mb-2">
-                      All times below are in your local timezone:{" "}
-                      <b>{getUserTimeZone()}</b>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        Weekly Schedule
+                      </h3>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="outline" className="bg-white">
+                          Total Hours: {weeklyTotalHours.toFixed(2)}h
+                        </Badge>
+                        {weeklySchedule.driverId && (
+                          <Badge variant="secondary">Driver #{weeklySchedule.driverId}</Badge>
+                        )}
+                        {weeklySchedule.shuttleId && (
+                          <Badge variant="secondary">Shuttle #{weeklySchedule.shuttleId}</Badge>
+                        )}
+                        <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                          TZ: {getTimeZoneAbbr ? getTimeZoneAbbr(new Date()) : getUserTimeZone()}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="grid gap-4">
-                      {daysOfWeek.map((day) => {
-                        const dayData =
-                          weeklySchedule[
-                            day.key as keyof typeof weeklySchedule
-                          ];
-                        if (
-                          typeof dayData === "object" &&
-                          dayData !== null &&
-                          "enabled" in dayData
-                        ) {
+                    <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 flex flex-wrap gap-2 items-center">
+                      <span className="font-medium">Tips:</span>
+                      <span>Use switches to enable a day • Copy times between days • Apply presets.</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setAllEnabled(true)}>Enable All</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setAllEnabled(false)}>Disable All</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("weekday")}>Weekday + Weekend</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("weekend")}>Weekends Only</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("standard")}>Reset Default</Button>
+                    </div>
+                    <TooltipProvider>
+                      <div className="grid gap-4">
+                        {daysOfWeek.map((day) => {
+                          const dayData = (weeklySchedule as any)[day.key];
+                          if (!dayData) return null;
+                          const duration = dayData.enabled ? computeDurationHours(dayData.startTime, dayData.endTime) : 0;
                           return (
                             <motion.div
                               key={day.key}
-                              className={`p-4 border rounded-lg transition-all ${
-                                dayData.enabled
-                                  ? "border-blue-200 bg-blue-50/50"
-                                  : "border-slate-200 bg-slate-50/50"
-                              }`}
+                              className={cn(
+                                "relative flex flex-col md:flex-row gap-4 md:items-center p-4 rounded-lg border transition shadow-sm",
+                                dayData.enabled ? "bg-white border-blue-200 ring-1 ring-blue-100" : "bg-slate-50 border-slate-200 opacity-90"
+                              )}
                               variants={itemVariants}
                             >
-                              <div className="flex items-center space-x-4">
-                                <div className="w-20">
-                                  <div className="flex items-center space-x-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={dayData.enabled}
-                                      onChange={(e) =>
-                                        updateScheduleDay(
-                                          day.key,
-                                          "enabled",
-                                          e.target.checked
-                                        )
-                                      }
-                                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                    />
-                                    <label className="font-medium text-slate-900">
-                                      {day.label}
-                                    </label>
-                                  </div>
+                              <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-gradient-to-b from-blue-400 to-purple-500" />
+                              <div className="flex items-start md:items-center justify-between md:justify-start w-full md:w-40 gap-3">
+                                <div>
+                                  <div className="font-medium text-slate-900 text-sm leading-none mb-1">{day.label}</div>
+                                  <div className="text-[11px] text-slate-500 font-mono tracking-tight">{day.key}</div>
                                 </div>
-
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div>
-                                    <Label
-                                      htmlFor={`${day.key}-start`}
-                                      className="text-sm"
-                                    >
-                                      Start Time
-                                    </Label>
-                                    <Input
-                                      id={`${day.key}-start`}
-                                      type="time"
-                                      value={dayData.startTime}
-                                      onChange={(e) =>
-                                        updateScheduleDay(
-                                          day.key,
-                                          "startTime",
-                                          e.target.value
-                                        )
-                                      }
-                                      disabled={!dayData.enabled}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label
-                                      htmlFor={`${day.key}-end`}
-                                      className="text-sm"
-                                    >
-                                      End Time
-                                    </Label>
-                                    <Input
-                                      id={`${day.key}-end`}
-                                      type="time"
-                                      value={dayData.endTime}
-                                      onChange={(e) =>
-                                        updateScheduleDay(
-                                          day.key,
-                                          "endTime",
-                                          e.target.value
-                                        )
-                                      }
-                                      disabled={!dayData.enabled}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                  <div className="flex items-end">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => copyTimeToAll(day.key)}
-                                      disabled={!dayData.enabled}
-                                      className="w-full"
-                                    >
-                                      <Copy className="w-3 h-3 mr-1" />
-                                      Copy to All
-                                    </Button>
-                                  </div>
-                                </div>
+                                <Switch
+                                  checked={dayData.enabled}
+                                  onCheckedChange={(v) => updateScheduleDay(day.key, "enabled", v)}
+                                  aria-label={`Enable ${day.label}`}
+                                />
                               </div>
-
-                              {dayData.enabled && (
-                                <div className="mt-2 text-sm text-slate-600">
-                                  Duration:{" "}
-                                  {(() => {
-                                    const start = new Date(
-                                      `2000-01-01T${dayData.startTime}`
-                                    );
-                                    const end = new Date(
-                                      `2000-01-01T${dayData.endTime}`
-                                    );
-                                    const diff =
-                                      (end.getTime() - start.getTime()) /
-                                      (1000 * 60 * 60);
-                                    return `${diff} hours`;
-                                  })()}
+                              <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                                <div>
+                                  <Label htmlFor={`${day.key}-start`} className="text-xs">Start</Label>
+                                  <Input
+                                    id={`${day.key}-start`}
+                                    type="time"
+                                    value={dayData.startTime}
+                                    onChange={(e) => updateScheduleDay(day.key, "startTime", e.target.value)}
+                                    disabled={!dayData.enabled}
+                                    className="mt-1 h-9"
+                                  />
                                 </div>
-                              )}
+                                <div>
+                                  <Label htmlFor={`${day.key}-end`} className="text-xs">End</Label>
+                                  <Input
+                                    id={`${day.key}-end`}
+                                    type="time"
+                                    value={dayData.endTime}
+                                    onChange={(e) => updateScheduleDay(day.key, "endTime", e.target.value)}
+                                    disabled={!dayData.enabled}
+                                    className="mt-1 h-9"
+                                  />
+                                </div>
+                                <div className="hidden md:flex flex-col text-xs text-slate-600 justify-center items-start">
+                                  <span className="font-medium">Duration</span>
+                                  <span className="font-mono mt-1">{duration.toFixed(2)}h</span>
+                                </div>
+                                <div className="flex gap-2 md:justify-end md:col-span-2">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => copyTimeToAll(day.key)}
+                                        disabled={!dayData.enabled}
+                                      >
+                                        <Copy className="w-3 h-3 mr-1" /> All
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Copy this day's time to all other enabled days</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => copyFromPrevious(day.key)}
+                                        disabled={daysOfWeek.findIndex(d => d.key === day.key) === 0 || !dayData.enabled}
+                                      >Prev</Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Copy previous day's time</TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="md:hidden -mt-1 text-[11px] text-slate-500">{dayData.enabled ? `${duration.toFixed(2)}h` : ""}</div>
+                              </div>
                             </motion.div>
                           );
-                        }
-                        return null;
-                      })}
-                    </div>
+                        })}
+                      </div>
+                    </TooltipProvider>
                   </motion.div>
 
                   {/* Action Buttons */}

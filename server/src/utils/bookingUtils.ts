@@ -1,4 +1,4 @@
-import prisma from '../db/prisma';
+import prisma from "../db/prisma";
 
 export interface CompleteBookingData {
   id: string;
@@ -27,7 +27,7 @@ export async function fetchCompleteBookingData(
   maxRetries: number = 3
 ): Promise<CompleteBookingData | null> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const booking = await prisma.booking.findUnique({
@@ -48,22 +48,28 @@ export async function fetchCompleteBookingData(
           shuttle: true,
         },
       });
-      
+
       return booking;
     } catch (error) {
       lastError = error as Error;
-      console.error(`Attempt ${attempt} failed to fetch booking ${bookingId}:`, error);
-      
+      console.error(
+        `Attempt ${attempt} failed to fetch booking ${bookingId}:`,
+        error
+      );
+
       // If this is the last attempt, don't wait
       if (attempt < maxRetries) {
         // Wait before retrying (exponential backoff)
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
-  console.error(`Failed to fetch booking ${bookingId} after ${maxRetries} attempts:`, lastError);
+
+  console.error(
+    `Failed to fetch booking ${bookingId} after ${maxRetries} attempts:`,
+    lastError
+  );
   return null;
 }
 
@@ -78,14 +84,14 @@ export async function getBookingDataForWebSocket(
   fallbackData: any
 ): Promise<any> {
   const completeData = await fetchCompleteBookingData(bookingId);
-  
+
   if (completeData) {
     // Add pricing information to the booking data
     try {
       // Get the hotel ID from the guest
       const guest = await prisma.guest.findUnique({
         where: { id: completeData.guestId },
-        select: { hotelId: true }
+        select: { hotelId: true },
       });
 
       if (guest?.hotelId) {
@@ -127,20 +133,29 @@ export async function getBookingDataForWebSocket(
         };
       }
     } catch (error) {
-      console.error("Error calculating pricing for WebSocket booking data:", error);
+      console.error(
+        "Error calculating pricing for WebSocket booking data:",
+        error
+      );
       // Continue without pricing if calculation fails
     }
   }
-  
+
   return completeData || fallbackData;
 }
 
 // Intelligent booking assignment based on current trip status
-export const assignBookingToTrip = async (bookingId: string, shuttleId: number, hotelId: number) => {
+export const assignBookingToTrip = async (
+  bookingId: string,
+  shuttleId: number,
+  hotelId: number
+) => {
   try {
     console.log(`=== ASSIGNING BOOKING TO TRIP ===`);
-    console.log(`Booking ID: ${bookingId}, Shuttle ID: ${shuttleId}, Hotel ID: ${hotelId}`);
-    
+    console.log(
+      `Booking ID: ${bookingId}, Shuttle ID: ${shuttleId}, Hotel ID: ${hotelId}`
+    );
+
     // Get the booking details first
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -151,39 +166,60 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
       return { assigned: false, reason: "Booking not found" };
     }
 
-    console.log(`Booking found: ${booking.numberOfPersons} persons, Type: ${booking.bookingType}`);
+    console.log(
+      `Booking found: ${booking.numberOfPersons} persons, Type: ${booking.bookingType}`
+    );
 
-    // Check shuttle capacity before assignment
+    // Check shuttle capacity before assignment (exclude current booking from count)
     console.log(`Checking capacity before assignment...`);
-    const hasCapacity = await checkShuttleCapacity(shuttleId, booking.numberOfPersons);
+    const hasCapacity = await checkShuttleCapacity(
+      shuttleId,
+      booking.numberOfPersons,
+      booking.bookingType as any,
+      bookingId
+    );
     if (!hasCapacity) {
-      console.log(`❌ Shuttle ${shuttleId} is at capacity, cannot assign booking`);
-      return { assigned: false, reason: "Shuttle is at capacity", shuttleAssigned: false };
+      console.log(
+        `❌ Shuttle ${shuttleId} is at capacity, cannot assign booking`
+      );
+      return {
+        assigned: false,
+        reason: "Shuttle is at capacity",
+        shuttleAssigned: false,
+      };
     }
 
-    console.log(`✅ Shuttle ${shuttleId} has capacity, proceeding with assignment`);
+    console.log(
+      `✅ Shuttle ${shuttleId} has capacity, proceeding with assignment`
+    );
 
     // Find the driver for this shuttle
     // Get current date in Indian Standard Time (IST)
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
 
     console.log(`Looking for active schedule for shuttle ${shuttleId}...`);
-    console.log(`Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+    console.log(
+      `Current IST time: ${istTime.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
 
     // Do not pre-filter by current time at DB layer to avoid timezone edge cases.
     // Fetch today's schedules for the shuttle and filter in code using UTC comparison.
     const schedules = await prisma.schedule.findMany({
       where: { shuttleId },
       include: { driver: true },
-      orderBy: { startTime: 'asc' },
+      orderBy: { startTime: "asc" },
     });
 
-    console.log(`Found ${schedules.length} active schedules for shuttle ${shuttleId}`);
+    console.log(
+      `Found ${schedules.length} active schedules for shuttle ${shuttleId}`
+    );
     console.log(`Shuttle ID being searched: ${shuttleId}`);
-    
+
     // Log all schedules found
     schedules.forEach((schedule, index) => {
-      console.log(`Schedule ${index + 1}: ID=${schedule.id}, Start=${schedule.startTime.toISOString()}, End=${schedule.endTime.toISOString()}, Driver=${schedule.driver.name}`);
+      console.log(
+        `Schedule ${index + 1}: ID=${schedule.id}, Start=${schedule.startTime.toISOString()}, End=${schedule.endTime.toISOString()}, Driver=${schedule.driver.name}`
+      );
     });
 
     // Find the currently active schedule using the preferredTime if available; otherwise now
@@ -197,12 +233,17 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
       console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
       console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
       console.log(`  Compare time (UTC): ${comparisonTimeUTC.toISOString()}`);
-      if (comparisonTimeUTC >= scheduleStartTime && comparisonTimeUTC <= scheduleEndTime) {
+      if (
+        comparisonTimeUTC >= scheduleStartTime &&
+        comparisonTimeUTC <= scheduleEndTime
+      ) {
         console.log(`✅ Schedule ${schedule.id} is active for compare time`);
         currentSchedule = schedule;
         break;
       } else {
-        console.log(`❌ Schedule ${schedule.id} is not active for compare time`);
+        console.log(
+          `❌ Schedule ${schedule.id} is not active for compare time`
+        );
       }
     }
 
@@ -213,11 +254,19 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
         where: { id: bookingId },
         data: { shuttleId },
       });
-      console.log(`✅ Booking ${bookingId} assigned to shuttle ${shuttleId} only (no active schedule)`);
-      return { assigned: false, reason: "No active schedule", shuttleAssigned: true };
+      console.log(
+        `✅ Booking ${bookingId} assigned to shuttle ${shuttleId} only (no active schedule)`
+      );
+      return {
+        assigned: false,
+        reason: "No active schedule",
+        shuttleAssigned: true,
+      };
     }
 
-    console.log(`✅ Found active schedule: Driver ${currentSchedule.driver.name}`);
+    console.log(
+      `✅ Found active schedule: Driver ${currentSchedule.driver.name}`
+    );
 
     const driverId = currentSchedule.driverId;
 
@@ -245,11 +294,19 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
         where: { id: bookingId },
         data: { shuttleId },
       });
-      console.log(`✅ Booking ${bookingId} assigned to shuttle ${shuttleId} only (no active trip)`);
-      return { assigned: false, reason: "No active trip", shuttleAssigned: true };
+      console.log(
+        `✅ Booking ${bookingId} assigned to shuttle ${shuttleId} only (no active trip)`
+      );
+      return {
+        assigned: false,
+        reason: "No active trip",
+        shuttleAssigned: true,
+      };
     }
 
-    console.log(`✅ Found active trip: ${activeTrip.id} (${activeTrip.phase} phase)`);
+    console.log(
+      `✅ Found active trip: ${activeTrip.id} (${activeTrip.phase} phase)`
+    );
 
     // Check if booking should be assigned to current trip based on direction and phase
     const shouldAssignToCurrentTrip = shouldAssignBookingToCurrentTrip(
@@ -262,22 +319,26 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
 
     if (shouldAssignToCurrentTrip) {
       // Assign to current active trip
-      console.log(`Assigning booking ${bookingId} to active trip ${activeTrip.id}...`);
+      console.log(
+        `Assigning booking ${bookingId} to active trip ${activeTrip.id}...`
+      );
       await prisma.booking.update({
         where: { id: bookingId },
-        data: { 
+        data: {
           shuttleId,
-          tripId: activeTrip.id 
+          tripId: activeTrip.id,
         },
       });
 
-      console.log(`✅ Booking ${bookingId} assigned to active trip ${activeTrip.id} (${activeTrip.phase} phase)`);
-      
-      return { 
-        assigned: true, 
-        tripId: activeTrip.id, 
+      console.log(
+        `✅ Booking ${bookingId} assigned to active trip ${activeTrip.id} (${activeTrip.phase} phase)`
+      );
+
+      return {
+        assigned: true,
+        tripId: activeTrip.id,
         phase: activeTrip.phase,
-        reason: `Assigned to active ${activeTrip.phase.toLowerCase()} trip`
+        reason: `Assigned to active ${activeTrip.phase.toLowerCase()} trip`,
       };
     } else {
       // Assign to shuttle only (will be picked up by next trip start)
@@ -286,13 +347,15 @@ export const assignBookingToTrip = async (bookingId: string, shuttleId: number, 
         where: { id: bookingId },
         data: { shuttleId },
       });
-      
-      console.log(`✅ Booking ${bookingId} assigned to shuttle only (will be picked up by next trip)`);
-      
-      return { 
-        assigned: false, 
+
+      console.log(
+        `✅ Booking ${bookingId} assigned to shuttle only (will be picked up by next trip)`
+      );
+
+      return {
+        assigned: false,
         reason: `Will be picked up by next trip (current trip is in ${activeTrip.phase.toLowerCase()} phase)`,
-        shuttleAssigned: true 
+        shuttleAssigned: true,
       };
     }
   } catch (error) {
@@ -313,28 +376,29 @@ const shouldAssignBookingToCurrentTrip = (
     // These will be handled during the return phase
     return bookingType === "AIRPORT_TO_HOTEL";
   }
-  
+
   // If trip is in RETURN phase (airport to hotel)
   if (tripPhase === "RETURN") {
     // During return, don't assign new airport-to-hotel bookings to current trip
     // They should go to a new trip
     return false;
   }
-  
+
   // For any other phase, don't assign to current trip
   return false;
 };
 
 // Helper function to check if shuttle has available capacity
 export const checkShuttleCapacity = async (
-  shuttleId: number, 
-  numberOfPersons: number, 
-  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+  shuttleId: number,
+  numberOfPersons: number,
+  direction?: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT",
+  excludeBookingId?: string
 ): Promise<boolean> => {
   try {
     console.log(`=== CHECKING SHUTTLE CAPACITY ===`);
     console.log(`Shuttle ID: ${shuttleId}, New passengers: ${numberOfPersons}`);
-    
+
     // Get shuttle details
     const shuttle = await prisma.shuttle.findUnique({
       where: { id: shuttleId },
@@ -356,37 +420,66 @@ export const checkShuttleCapacity = async (
       return false;
     }
 
-    console.log(`Shuttle found: ${shuttle.vehicleNumber} with ${shuttle.seats} seats`);
+    console.log(
+      `Shuttle found: ${shuttle.vehicleNumber} with ${shuttle.seats} seats`
+    );
     console.log(`Total unassigned bookings found: ${shuttle.bookings.length}`);
 
-    // Log each booking being counted
+    // Log each booking being counted (exclude the booking being verified)
     let currentPassengers = 0;
     shuttle.bookings.forEach((booking, index) => {
-      console.log(`Booking ${index + 1}: ID=${booking.id}, Persons=${booking.numberOfPersons}, TripID=${booking.tripId}, Completed=${booking.isCompleted}, Cancelled=${booking.isCancelled}`);
+      if (excludeBookingId && booking.id === excludeBookingId) {
+        console.log(
+          `Booking ${index + 1}: ID=${booking.id}, Persons=${booking.numberOfPersons} (EXCLUDED - being verified)`
+        );
+        return; // Skip this booking
+      }
+      console.log(
+        `Booking ${index + 1}: ID=${booking.id}, Persons=${booking.numberOfPersons}, TripID=${booking.tripId}, Completed=${booking.isCompleted}, Cancelled=${booking.isCancelled}`
+      );
       currentPassengers += booking.numberOfPersons;
     });
 
     // Use direction-specific capacity if provided, otherwise fall back to general seats
     let capacity = shuttle.seats;
-    if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+    if (
+      direction === "AIRPORT_TO_HOTEL" &&
+      shuttle.airportToHotelCapacity &&
+      shuttle.airportToHotelCapacity > 0
+    ) {
       capacity = shuttle.airportToHotelCapacity;
-    } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+    } else if (
+      direction === "HOTEL_TO_AIRPORT" &&
+      shuttle.hotelToAirportCapacity &&
+      shuttle.hotelToAirportCapacity > 0
+    ) {
       capacity = shuttle.hotelToAirportCapacity;
     }
-    
+
     // Only count held and confirmed seats for unassigned bookings
     // This ensures that seats used in active trips don't affect new booking capacity
-    const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
+    const totalOccupiedSeats =
+      currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
     const availableSeats = capacity - totalOccupiedSeats;
     const hasCapacity = availableSeats >= numberOfPersons;
-    
-    console.log(`Capacity check for shuttle ${shuttleId} (${shuttle.vehicleNumber}):`);
-    console.log(`  - Direction: ${direction || 'Not specified'}`);
+
+    console.log(
+      `Capacity check for shuttle ${shuttleId} (${shuttle.vehicleNumber}):`
+    );
+    console.log(`  - Direction: ${direction || "Not specified"}`);
     console.log(`  - Total seats: ${shuttle.seats}`);
-    console.log(`  - Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
-    console.log(`  - Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
-    console.log(`  - Used capacity: ${capacity} (${direction === 'AIRPORT_TO_HOTEL' ? 'Airport to Hotel' : direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'General'})`);
-    console.log(`  - Current passengers (unassigned bookings only): ${currentPassengers}`);
+    console.log(
+      `  - Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`
+    );
+    console.log(
+      `  - Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`
+    );
+    console.log(
+      `  - Used capacity: ${capacity} (${direction === "AIRPORT_TO_HOTEL" ? "Airport to Hotel" : direction === "HOTEL_TO_AIRPORT" ? "Hotel to Airport" : "General"})`
+    );
+    console.log(
+      `  - Current passengers (unassigned bookings only): ${currentPassengers}`
+    );
     console.log(`  - Seats held: ${shuttle.seatsHeld}`);
     console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
     console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);
@@ -405,20 +498,27 @@ export const checkShuttleCapacity = async (
 
 // Enhanced function to find available shuttle with capacity
 export const findAvailableShuttleWithCapacity = async (
-  hotelId: number, 
-  numberOfPersons: number, 
-  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+  hotelId: number,
+  numberOfPersons: number,
+  direction?: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT",
+  excludeBookingId?: string
 ): Promise<any> => {
   try {
     console.log(`=== FINDING AVAILABLE SHUTTLE ===`);
     console.log(`Hotel ID: ${hotelId}, Passengers needed: ${numberOfPersons}`);
-    
+
     // Get current date in Indian Standard Time (IST)
     const { istTime, startOfDay, endOfDay } = getISTDateRange();
 
-    console.log(`Current IST time: ${istTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-    console.log(`Date range (IST): ${startOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} to ${endOfDay.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-    console.log(`Current time in IST: ${istTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+    console.log(
+      `Current IST time: ${istTime.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
+    console.log(
+      `Date range (IST): ${startOfDay.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} to ${endOfDay.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
+    console.log(
+      `Current time in IST: ${istTime.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })}`
+    );
 
     // Get all shuttles for this hotel with schedules, do not filter by time in DB
     const availableShuttles = await prisma.shuttle.findMany({
@@ -426,7 +526,7 @@ export const findAvailableShuttleWithCapacity = async (
       include: {
         schedules: {
           include: { driver: true },
-          orderBy: { startTime: 'asc' },
+          orderBy: { startTime: "asc" },
         },
         bookings: {
           where: {
@@ -436,20 +536,28 @@ export const findAvailableShuttleWithCapacity = async (
           },
         },
       },
-      orderBy: { id: 'asc' },
+      orderBy: { id: "asc" },
     });
 
-    console.log(`Found ${availableShuttles.length} shuttles with schedules for today`);
+    console.log(
+      `Found ${availableShuttles.length} shuttles with schedules for today`
+    );
 
     // Find the first shuttle with available capacity and active schedule
     for (const shuttle of availableShuttles) {
-      console.log(`\n--- Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}) ---`);
-      console.log(`Direction: ${direction || 'Not specified'}`);
+      console.log(
+        `\n--- Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}) ---`
+      );
+      console.log(`Direction: ${direction || "Not specified"}`);
       console.log(`Total seats: ${shuttle.seats}`);
-      console.log(`Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`);
-      console.log(`Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`);
+      console.log(
+        `Airport to Hotel capacity: ${shuttle.airportToHotelCapacity}`
+      );
+      console.log(
+        `Hotel to Airport capacity: ${shuttle.hotelToAirportCapacity}`
+      );
       console.log(`Total unassigned bookings: ${shuttle.bookings.length}`);
-      
+
       // Check if any schedule is active at comparison time (use IST range helper only for logging)
       const comparisonTimeUTC = new Date();
       let hasActiveSchedule = false;
@@ -460,7 +568,10 @@ export const findAvailableShuttleWithCapacity = async (
         console.log(`  Start time (UTC): ${scheduleStartTime.toISOString()}`);
         console.log(`  End time (UTC): ${scheduleEndTime.toISOString()}`);
         console.log(`  Compare time (UTC): ${comparisonTimeUTC.toISOString()}`);
-        if (comparisonTimeUTC >= scheduleStartTime && comparisonTimeUTC <= scheduleEndTime) {
+        if (
+          comparisonTimeUTC >= scheduleStartTime &&
+          comparisonTimeUTC <= scheduleEndTime
+        ) {
           console.log(`✅ Schedule ${schedule.id} is currently active`);
           hasActiveSchedule = true;
           break;
@@ -468,60 +579,99 @@ export const findAvailableShuttleWithCapacity = async (
           console.log(`❌ Schedule ${schedule.id} is not active`);
         }
       }
-      
+
       if (!hasActiveSchedule) {
         console.log(`❌ No active schedule found for shuttle ${shuttle.id}`);
         continue;
       }
 
-      const currentPassengers = shuttle.bookings.reduce((sum: number, booking: any) => {
-        console.log(
-          `  Booking ${booking.id}: ${booking.numberOfPersons} persons (TripID: ${booking.tripId})`
-        );
-        return sum + booking.numberOfPersons;
-      }, 0);
+      const currentPassengers = shuttle.bookings.reduce(
+        (sum: number, booking: any) => {
+          if (excludeBookingId && booking.id === excludeBookingId) {
+            console.log(
+              `  Booking ${booking.id}: ${booking.numberOfPersons} persons (EXCLUDED - being verified)`
+            );
+            return sum; // Skip this booking
+          }
+          console.log(
+            `  Booking ${booking.id}: ${booking.numberOfPersons} persons (TripID: ${booking.tripId})`
+          );
+          return sum + booking.numberOfPersons;
+        },
+        0
+      );
 
       // Use direction-specific capacity if provided, otherwise fall back to general seats
       let capacity = shuttle.seats;
-      if (direction === 'AIRPORT_TO_HOTEL' && shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+      if (
+        direction === "AIRPORT_TO_HOTEL" &&
+        shuttle.airportToHotelCapacity &&
+        shuttle.airportToHotelCapacity > 0
+      ) {
         capacity = shuttle.airportToHotelCapacity;
-      } else if (direction === 'HOTEL_TO_AIRPORT' && shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+      } else if (
+        direction === "HOTEL_TO_AIRPORT" &&
+        shuttle.hotelToAirportCapacity &&
+        shuttle.hotelToAirportCapacity > 0
+      ) {
         capacity = shuttle.hotelToAirportCapacity;
       }
-      
+
       // Only count held and confirmed seats for unassigned bookings
       // This ensures that seats used in active trips don't affect new booking capacity
-      const totalOccupiedSeats = currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
+      const totalOccupiedSeats =
+        currentPassengers + shuttle.seatsHeld + shuttle.seatsConfirmed;
       const availableSeats = capacity - totalOccupiedSeats;
 
       console.log(`Checking shuttle ${shuttle.id} (${shuttle.vehicleNumber}):`);
       console.log(`  - Total seats: ${shuttle.seats}`);
-      console.log(`  - Current passengers (unassigned bookings only): ${currentPassengers}`);
+      console.log(
+        `  - Current passengers (unassigned bookings only): ${currentPassengers}`
+      );
       console.log(`  - Seats held: ${shuttle.seatsHeld}`);
       console.log(`  - Seats confirmed: ${shuttle.seatsConfirmed}`);
       console.log(`  - Total occupied seats: ${totalOccupiedSeats}`);
       console.log(`  - Available seats: ${availableSeats}`);
-      console.log(`  - Can accommodate ${numberOfPersons} passengers: ${availableSeats >= numberOfPersons}`);
+      console.log(
+        `  - Can accommodate ${numberOfPersons} passengers: ${availableSeats >= numberOfPersons}`
+      );
 
       if (availableSeats >= numberOfPersons) {
-        console.log(`✅ Selected shuttle ${shuttle.id} (${shuttle.vehicleNumber}) for booking`);
-        console.log(`✅ This shuttle has active schedule and sufficient capacity`);
-        console.log(`✅ Shuttle ID: ${shuttle.id}, Vehicle: ${shuttle.vehicleNumber}`);
-        console.log(`✅ Active schedules for this shuttle: ${shuttle.schedules.filter((s: any) => {
-          const scheduleStartTime = new Date(s.startTime);
-          const scheduleEndTime = new Date(s.endTime);
-          const currentTime = new Date();
-          const currentTimeUTC = new Date();
-          return currentTimeUTC >= scheduleStartTime && currentTimeUTC <= scheduleEndTime;
-        }).length}`);
+        console.log(
+          `✅ Selected shuttle ${shuttle.id} (${shuttle.vehicleNumber}) for booking`
+        );
+        console.log(
+          `✅ This shuttle has active schedule and sufficient capacity`
+        );
+        console.log(
+          `✅ Shuttle ID: ${shuttle.id}, Vehicle: ${shuttle.vehicleNumber}`
+        );
+        console.log(
+          `✅ Active schedules for this shuttle: ${
+            shuttle.schedules.filter((s: any) => {
+              const scheduleStartTime = new Date(s.startTime);
+              const scheduleEndTime = new Date(s.endTime);
+              const currentTime = new Date();
+              const currentTimeUTC = new Date();
+              return (
+                currentTimeUTC >= scheduleStartTime &&
+                currentTimeUTC <= scheduleEndTime
+              );
+            }).length
+          }`
+        );
         console.log(`=== END SHUTTLE SEARCH - FOUND ===`);
         return shuttle;
       } else {
-        console.log(`❌ Shuttle ${shuttle.id} (${shuttle.vehicleNumber}) cannot accommodate ${numberOfPersons} passengers`);
+        console.log(
+          `❌ Shuttle ${shuttle.id} (${shuttle.vehicleNumber}) cannot accommodate ${numberOfPersons} passengers`
+        );
       }
     }
 
-    console.log(`❌ No shuttle found with capacity for ${numberOfPersons} passengers`);
+    console.log(
+      `❌ No shuttle found with capacity for ${numberOfPersons} passengers`
+    );
     console.log(`=== END SHUTTLE SEARCH - NOT FOUND ===`);
     return null; // No shuttle with available capacity
   } catch (error) {
@@ -534,12 +684,14 @@ export const findAvailableShuttleWithCapacity = async (
 export const getISTTime = () => {
   // Server is already running in IST timezone (Asia/Calcutta)
   const now = new Date();
-  
+
   console.log(`=== IST TIME CALCULATION ===`);
   console.log(`Server time (IST): ${now.toLocaleString()}`);
-  console.log(`Server timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
+  console.log(
+    `Server timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`
+  );
   console.log(`=== END IST TIME CALCULATION ===`);
-  
+
   return now;
 };
 
@@ -551,10 +703,10 @@ export const getISTDateRange = () => {
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(today);
   endOfDay.setHours(23, 59, 59, 999);
-  
+
   return {
     istTime,
     startOfDay,
-    endOfDay
+    endOfDay,
   };
-}; 
+};

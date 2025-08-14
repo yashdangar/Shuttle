@@ -1932,10 +1932,12 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Find an available shuttle for this hotel with capacity
+    // Find an available shuttle for this hotel with capacity (exclude current booking)
     const availableShuttle = await findAvailableShuttleWithCapacity(
       hotelId,
-      booking.numberOfPersons
+      booking.numberOfPersons,
+      booking.bookingType as any,
+      bookingId
     );
 
     if (!availableShuttle) {
