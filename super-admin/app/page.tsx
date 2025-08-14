@@ -1,49 +1,44 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
   TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { authApi, hotelsApi, adminsApi, locationsApi } from "@/lib/api";
 import withAuth from "@/components/withAuth";
-import { HotelDetailsModal } from "@/components/hotel-details-modal";
 import { AddAdminModal } from "@/components/add-admin-modal";
 import { AddLocationModal } from "@/components/add-location-modal";
 import { EditLocationModal } from "@/components/edit-location-modal";
+import { HotelDetailsModal } from "@/components/hotel-details-modal";
+import { toast } from "sonner";
 import {
   Building2,
   Users,
   Car,
-  UserCheck,
-  Eye,
+  Shield,
   MapPin,
   Mail,
   Phone,
-  Plus,
+  UserCheck,
+  Eye,
   Trash2,
-  Calendar,
-  Shield,
+  Plus,
   Search,
+  Calendar,
 } from "lucide-react";
-import { toast } from "sonner";
 
 interface Hotel {
   id: number;
@@ -53,12 +48,7 @@ interface Hotel {
   email: string | null;
   status: string;
   createdAt: string;
-  admins: Array<{
-    id: number;
-    name: string;
-    email: string;
-    createdAt: string;
-  }>;
+  admins: Array<{ id: number; name: string; email: string; createdAt: string }>;
   frontDesks: Array<{
     id: number;
     name: string;
@@ -88,16 +78,17 @@ interface Hotel {
   };
 }
 
+interface AdminHotelRef {
+  id: number;
+  name: string;
+}
+
 interface Admin {
   id: number;
   name: string;
   email: string;
+  hotel?: AdminHotelRef | null;
   createdAt: string;
-  hotelId: number | null;
-  hotel: {
-    id: number;
-    name: string;
-  } | null;
 }
 
 interface Location {
@@ -105,9 +96,9 @@ interface Location {
   name: string;
   latitude: number;
   longitude: number;
-  address?: string;
-  createdAt: string;
+  address?: string | null;
   isPrivate?: boolean;
+  createdAt: string;
   createdByAdmin?: {
     id: number;
     name: string;
@@ -121,18 +112,22 @@ function HomePage() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [activeTab, setActiveTab] = useState("hotels");
+
+  // Search state
+  const [hotelSearch, setHotelSearch] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
+
+  // Modals state
   const [hotelModalOpen, setHotelModalOpen] = useState(false);
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
   const [addLocationModalOpen, setAddLocationModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("hotels");
   const [editLocationModalOpen, setEditLocationModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     null
   );
-  const [hotelSearch, setHotelSearch] = useState("");
-  const [adminSearch, setAdminSearch] = useState("");
-  const [locationSearch, setLocationSearch] = useState("");
 
   useEffect(() => {
     fetchAllData();
@@ -303,23 +298,34 @@ function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Building2 className="h-8 w-8" />
-              Super Admin Dashboard
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Manage hotels, admins, locations, and system-wide operations
-            </p>
+      <div className="w-full border-b bg-white">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Building2 className="h-7 w-7 text-blue-600" />
+            <div>
+              <h1 className="text-xl md:text-2xl font-semibold">Super Admin</h1>
+              <p className="text-xs md:text-sm text-gray-500">
+                Manage hotels, admins, locations
+              </p>
+            </div>
           </div>
-          <Button onClick={handleLogout} variant="outline">
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/hotels">
+              <Button variant="ghost">Hotels</Button>
+            </Link>
+            <Link href="/admins">
+              <Button variant="ghost">Admins</Button>
+            </Link>
+            <Link href="/locations">
+              <Button variant="ghost">Locations</Button>
+            </Link>
+            <Button onClick={handleLogout} variant="outline">
+              Logout
+            </Button>
+          </div>
         </div>
-
+      </div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -820,7 +826,17 @@ function HomePage() {
       <EditLocationModal
         open={editLocationModalOpen}
         onOpenChange={setEditLocationModalOpen}
-        location={selectedLocation}
+        location={
+          selectedLocation
+            ? {
+                id: selectedLocation.id,
+                name: selectedLocation.name,
+                latitude: selectedLocation.latitude,
+                longitude: selectedLocation.longitude,
+                address: selectedLocation.address ?? undefined,
+              }
+            : null
+        }
         onLocationUpdated={fetchAllData}
       />
     </div>

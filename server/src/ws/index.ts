@@ -19,7 +19,7 @@ export const initWebSocket = (server: HttpServer) => {
       methods: ["GET", "POST"],
       credentials: true,
     },
-    transports: ["websocket"],
+    transports: ["websocket","polling"],
     allowEIO3: true, // Allow Engine.IO v3 clients
     pingTimeout: 60000, // 60 seconds
     pingInterval: 25000, // 25 seconds

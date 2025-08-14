@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, AlertCircle, CheckCircle, RefreshCw, Users, Shuttle, Building } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle, RefreshCw, Users, Building, Car } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -109,7 +109,7 @@ export default function SeatHoldStatus({ booking, onRefresh, className = "" }: S
               <div className="flex items-center justify-between text-xs">
                 <span className="text-yellow-700">Assigned Shuttle:</span>
                 <span className="font-medium flex items-center space-x-1">
-                  <Shuttle className="w-3 h-3" />
+                  <Car className="w-3 h-3" />
                   {booking.shuttle.vehicleNumber}
                 </span>
               </div>
@@ -217,7 +217,7 @@ export default function SeatHoldStatus({ booking, onRefresh, className = "" }: S
               <div className="flex items-center justify-between text-xs">
                 <span className="text-green-700">Confirmed Shuttle:</span>
                 <span className="font-medium flex items-center space-x-1">
-                  <Shuttle className="w-3 h-3" />
+                  <Car className="w-3 h-3" />
                   {booking.shuttle.vehicleNumber}
                 </span>
               </div>

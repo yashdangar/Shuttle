@@ -1,329 +1,445 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Start Server",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/server"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Server in development mode (Port 8080)"
-        },
-        {
-            "label": "Start Guest App",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/guest"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Guest App in development mode (Port 3000)"
-        },
-        {
-            "label": "Start Driver App",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/driver"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Driver App in development mode (Port 3001)"
-        },
-        {
-            "label": "Start Frontdesk App",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/frontdesk"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Frontdesk App in development mode (Port 3002)"
-        },
-        {
-            "label": "Start Admin App",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/admin"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Admin App in development mode (Port 3003)"
-        },
-        {
-            "label": "Start Super Admin App",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "dev"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/super-admin"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "runOptions": {
-                "runOn": "folderOpen"
-            },
-            "detail": "Start Super Admin App in development mode (Port 3004)"
-        },
-        {
-            "label": "Start All Shuttle Projects",
-            "dependsOrder": "parallel",
-            "dependsOn": [
-                "Start Server",
-                "Start Guest App",
-                "Start Driver App",
-                "Start Frontdesk App",
-                "Start Admin App",
-                "Start Super Admin App"
-            ],
-            "group": "build",
-            "detail": "Start all Shuttle projects in separate terminal panels"
-        },
-        {
-            "label": "Stop All Shuttle Projects",
-            "type": "shell",
-            "command": "node",
-            "args": ["stop-launcher.js"],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [],
-            "detail": "Stop all running Shuttle projects"
-        },
-        {
-            "label": "Build All Shuttle Projects",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Build Server",
-                "Build Guest App",
-                "Build Driver App", 
-                "Build Frontdesk App",
-                "Build Admin App",
-                "Build Super Admin App"
-            ],
-            "group": "build",
-            "detail": "Build all Shuttle projects for production"
-        },
-        {
-            "label": "Build Server",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/server"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Server for production"
-        },
-        {
-            "label": "Build Guest App",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/guest"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Guest App for production"
-        },
-        {
-            "label": "Build Driver App",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/driver"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Driver App for production"
-        },
-        {
-            "label": "Build Frontdesk App",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/frontdesk"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Frontdesk App for production"
-        },
-        {
-            "label": "Build Admin App",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/admin"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Admin App for production"
-        },
-        {
-            "label": "Build Super Admin App",
-            "type": "shell",
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/super-admin"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
-                "clear": true
-            },
-            "problemMatcher": [],
-            "detail": "Build Super Admin App for production"
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Server in development mode (Port 8080)"
+    },
+    {
+      "label": "Start Guest App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/guest"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Guest App in development mode (Port 3000)"
+    },
+    {
+      "label": "Start Driver App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/driver"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Driver App in development mode (Port 3001)"
+    },
+    {
+      "label": "Start Frontdesk App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/frontdesk"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Frontdesk App in development mode (Port 3002)"
+    },
+    {
+      "label": "Start Admin App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Admin App in development mode (Port 3003)"
+    },
+    {
+      "label": "Start Super Admin App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/super-admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start Super Admin App in development mode (Port 3004)"
+    },
+    {
+      "label": "Start All Shuttle Projects",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Start Server",
+        "Start Guest App",
+        "Start Driver App",
+        "Start Frontdesk App",
+        "Start Admin App",
+        "Start Super Admin App"
+      ],
+      "group": "build",
+      "detail": "Start all Shuttle projects in separate terminal panels"
+    },
+    {
+      "label": "Stop All Shuttle Projects",
+      "type": "shell",
+      "command": "node",
+      "args": ["stop-launcher.js"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "Stop all running Shuttle projects"
+    },
+    {
+      "label": "Build All Shuttle Projects",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Build Server",
+        "Build Guest App",
+        "Build Driver App",
+        "Build Frontdesk App",
+        "Build Admin App",
+        "Build Super Admin App"
+      ],
+      "group": "build",
+      "detail": "Build all Shuttle projects for production"
+    },
+    {
+      "label": "Build Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Server for production"
+    },
+    {
+      "label": "Build Guest App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/guest"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Guest App for production"
+    },
+    {
+      "label": "Build Driver App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/driver"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Driver App for production"
+    },
+    {
+      "label": "Build Frontdesk App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/frontdesk"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Frontdesk App for production"
+    },
+    {
+      "label": "Build Admin App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Admin App for production"
+    },
+    {
+      "label": "Build Super Admin App",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "options": {
+        "cwd": "${workspaceFolder}/super-admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Build Super Admin App for production"
+    },
+    {
+      "label": "Start Server (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Server in production mode"
+    },
+    {
+      "label": "Start Guest App (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/guest"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Guest App in production mode"
+    },
+    {
+      "label": "Start Driver App (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/driver"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Driver App in production mode"
+    },
+    {
+      "label": "Start Frontdesk App (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/frontdesk"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Frontdesk App in production mode"
+    },
+    {
+      "label": "Start Admin App (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Admin App in production mode"
+    },
+    {
+      "label": "Start Super Admin App (start)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": {
+        "cwd": "${workspaceFolder}/super-admin"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Start Super Admin App in production mode"
+    },
+    {
+      "label": "Start All Shuttle Projects (start)",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Start Server (start)",
+        "Start Guest App (start)",
+        "Start Driver App (start)",
+        "Start Frontdesk App (start)",
+        "Start Admin App (start)",
+        "Start Super Admin App (start)"
+      ],
+      "group": "build",
+      "detail": "Start all Shuttle projects (npm start) in separate terminal panels"
+    }
+  ]
 }
