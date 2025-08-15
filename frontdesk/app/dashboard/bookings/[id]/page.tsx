@@ -25,9 +25,10 @@ import {
   XCircle,
   Users,
   Briefcase,
-  Copy
+  Copy,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
-// Removed inline AlertDialog in favor of shared CancelBookingModal
 
 interface BookingDetails {
   id: string;
@@ -40,6 +41,8 @@ interface BookingDetails {
   isPaid: boolean;
   isCancelled: boolean;
   isRefunded: boolean;
+  needsFrontdeskVerification: boolean;
+  isVerified: boolean;
   qrCodePath: string | null;
   qrCodeUrl: string | null;
   confirmationNum: string | null;
@@ -78,6 +81,7 @@ export default function BookingDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const copyToClipboard = async (value: string, label: string) => {
     try {
@@ -91,7 +95,9 @@ export default function BookingDetailsPage() {
   useEffect(() => {
     const fetchBookingDetails = async () => {
       try {
-        const response = await fetchWithAuth(`/frontdesk/bookings/${params.id}`);
+        const response = await fetchWithAuth(
+          `/frontdesk/bookings/${params.id}`
+        );
         const data = await response.json();
         setBooking(data.booking);
       } catch (error) {
@@ -109,7 +115,7 @@ export default function BookingDetailsPage() {
       await fetchWithAuth(`/frontdesk/bookings/${params.id}/cancel`, {
         method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ reason }),
       });
@@ -117,12 +123,45 @@ export default function BookingDetailsPage() {
       toast.success("Booking has been cancelled.");
 
       setBooking((prev) =>
-        prev ? { ...prev, isCancelled: true, cancelledBy: 'FRONTDESK', cancellationReason: reason } : prev
+        prev
+          ? {
+              ...prev,
+              isCancelled: true,
+              cancelledBy: "FRONTDESK",
+              cancellationReason: reason,
+            }
+          : prev
       );
       setShowCancelDialog(false);
     } catch (error) {
       toast.error("Failed to cancel the booking. Please try again.");
       throw error as Error;
+    }
+  };
+
+  const handleVerifyBooking = async () => {
+    if (!booking) return;
+
+    try {
+      setVerifying(true);
+      await fetchWithAuth(`/frontdesk/bookings/${booking.id}/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      toast.success("Booking verified and assigned to shuttle successfully");
+
+      // Refresh booking data
+      const response = await fetchWithAuth(`/frontdesk/bookings/${params.id}`);
+      const data = await response.json();
+      setBooking(data.booking);
+    } catch (error) {
+      toast.error("Failed to verify the booking. Please try again.");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -149,6 +188,16 @@ export default function BookingDetailsPage() {
     if (booking.isCompleted) {
       return <Badge variant="default">Completed</Badge>;
     }
+    if (booking.needsFrontdeskVerification) {
+      return (
+        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+          Pending Verification
+        </Badge>
+      );
+    }
+    if (booking.isVerified) {
+      return <Badge variant="default">Verified</Badge>;
+    }
     if (booking.isPaid) {
       return <Badge variant="default">Paid</Badge>;
     }
@@ -157,37 +206,41 @@ export default function BookingDetailsPage() {
 
   // Helper function to get guest display name
   const getGuestDisplayName = (booking: BookingDetails) => {
-    const hasName = booking.guest.firstName?.trim() && booking.guest.lastName?.trim();
+    const hasName =
+      booking.guest.firstName?.trim() && booking.guest.lastName?.trim();
     const hasConfirmation = booking.confirmationNum?.trim();
-    
+
     if (hasName) {
       return {
         display: `${booking.guest.firstName} ${booking.guest.lastName}`,
-        type: 'name' as const,
-        icon: User
+        type: "name" as const,
+        icon: User,
       };
     } else if (hasConfirmation) {
       return {
         display: `Confirmation: ${booking.confirmationNum}`,
-        type: 'confirmation' as const,
-        icon: Hash
+        type: "confirmation" as const,
+        icon: Hash,
       };
     } else {
       return {
-        display: booking.guest.email || 'Unknown Guest',
-        type: 'email' as const,
-        icon: User
+        display: booking.guest.email || "Unknown Guest",
+        type: "email" as const,
+        icon: User,
       };
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Header with status and actions */}
       <div className="rounded-xl border bg-gradient-to-r from-indigo-50 via-white to-blue-50 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Booking Details
+              </h1>
               <div>{getStatusBadge()}</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -208,63 +261,74 @@ export default function BookingDetailsPage() {
                 {booking.paymentMethod}
               </Badge>
               <Badge variant="secondary" className="gap-1">
-                {booking.bookingType === "HOTEL_TO_AIRPORT" ? "Hotel → Airport" : "Airport → Hotel"}
+                {booking.bookingType === "HOTEL_TO_AIRPORT"
+                  ? "Hotel → Airport"
+                  : "Airport → Hotel"}
               </Badge>
               {booking.isParkSleepFly && (
-                <Badge className="bg-blue-100 text-blue-800 border border-blue-200">🏨✈️ PSF</Badge>
+                <Badge className="bg-blue-100 text-blue-800 border border-blue-200">
+                  🏨✈️ PSF
+                </Badge>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Verify Booking Button for unverified bookings */}
+            {booking.needsFrontdeskVerification &&
+              !booking.isCancelled &&
+              !booking.isCompleted && (
+                <Button
+                  onClick={handleVerifyBooking}
+                  disabled={verifying}
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  {verifying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4" />
+                  )}
+                  {verifying ? "Verifying..." : "Verify Booking"}
+                </Button>
+              )}
+
             {(booking.qrCodePath || booking.qrCodeUrl) && (
               <Button onClick={() => setShowQRCode(true)} className="gap-2">
                 <QrCode className="h-4 w-4" /> View QR Code
               </Button>
             )}
             {!booking.isCancelled && !booking.isCompleted && (
-              <Button variant="destructive" onClick={() => setShowCancelDialog(true)} className="gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => setShowCancelDialog(true)}
+                className="gap-2"
+              >
                 <XCircle className="h-4 w-4" /> Cancel Booking
               </Button>
             )}
           </div>
         </div>
-
-        <Separator className="my-4" />
-
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-lg border bg-white p-3">
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Guests</span>
-              <Users className="h-4 w-4 text-indigo-500" />
-            </div>
-            <div className="mt-1 text-xl font-semibold">{booking.numberOfPersons}</div>
-          </div>
-          <div className="rounded-lg border bg-white p-3">
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Bags</span>
-              <Briefcase className="h-4 w-4 text-indigo-500" />
-            </div>
-            <div className="mt-1 text-xl font-semibold">{booking.numberOfBags}</div>
-          </div>
-          <div className="rounded-lg border bg-white p-3">
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Preferred</span>
-              <Clock className="h-4 w-4 text-indigo-500" />
-            </div>
-            <div className="mt-1 text-sm font-medium">{format(new Date(booking.preferredTime), "PPp")}</div>
-          </div>
-          <div className="rounded-lg border bg-white p-3">
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Shuttle</span>
-              <Bus className="h-4 w-4 text-indigo-500" />
-            </div>
-            <div className="mt-1 text-sm font-medium">{booking.shuttle?.vehicleNumber || "—"}</div>
-          </div>
-        </div>
       </div>
 
+      {/* Notes Section - Prominently displayed */}
+      {booking.notes && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-800">
+              <AlertCircle className="h-5 w-5" /> Important Notes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-orange-900 whitespace-pre-wrap font-medium">
+              {booking.notes}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Information Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Guest Information */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -280,9 +344,7 @@ export default function BookingDetailsPage() {
                 return (
                   <div className="flex items-center space-x-2">
                     <IconComponent className="w-4 h-4 text-gray-400" />
-                    <p className="font-medium">
-                      {guestInfo.display}
-                    </p>
+                    <p className="font-medium">{guestInfo.display}</p>
                   </div>
                 );
               })()}
@@ -299,7 +361,12 @@ export default function BookingDetailsPage() {
                     variant="ghost"
                     className="h-7 w-7"
                     aria-label="Copy confirmation number"
-                    onClick={() => copyToClipboard(booking.confirmationNum!, "Confirmation number")}
+                    onClick={() =>
+                      copyToClipboard(
+                        booking.confirmationNum!,
+                        "Confirmation number"
+                      )
+                    }
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -317,7 +384,9 @@ export default function BookingDetailsPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Guest Type</p>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant={booking.guest.isNonResident ? "outline" : "default"}>
+                <Badge
+                  variant={booking.guest.isNonResident ? "outline" : "default"}
+                >
                   {booking.guest.isNonResident ? "Non-Resident" : "Resident"}
                 </Badge>
                 {booking.isParkSleepFly && (
@@ -330,6 +399,7 @@ export default function BookingDetailsPage() {
           </CardContent>
         </Card>
 
+        {/* Trip Details */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -370,28 +440,34 @@ export default function BookingDetailsPage() {
               <p className="text-sm text-gray-500">Price</p>
               {booking.pricing ? (
                 <p className="font-medium">
-                  ${booking.pricing.pricePerPerson.toFixed(2)} per person<br/>
-                  <span className="font-semibold text-green-700">Total: ${booking.pricing.totalPrice.toFixed(2)}</span>
+                  ${booking.pricing.pricePerPerson.toFixed(2)} per person
+                  <br />
+                  <span className="font-semibold text-green-700">
+                    Total: ${booking.pricing.totalPrice.toFixed(2)}
+                  </span>
                 </p>
               ) : (
                 <p className="font-medium">-</p>
               )}
             </div>
             {booking.isCancelled && (
-              <div>
-                <p className="text-sm text-gray-500">Cancelled By</p>
-                <p className="font-medium">{booking.cancelledBy || 'N/A'}</p>
-              </div>
-            )}
-            {booking.isCancelled && booking.cancellationReason && (
-              <div>
-                <p className="text-sm text-gray-500">Cancellation Reason</p>
-                <p className="font-medium">{booking.cancellationReason}</p>
-              </div>
+              <>
+                <div>
+                  <p className="text-sm text-gray-500">Cancelled By</p>
+                  <p className="font-medium">{booking.cancelledBy || "N/A"}</p>
+                </div>
+                {booking.cancellationReason && (
+                  <div>
+                    <p className="text-sm text-gray-500">Cancellation Reason</p>
+                    <p className="font-medium">{booking.cancellationReason}</p>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
 
+        {/* Location Details */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -414,50 +490,48 @@ export default function BookingDetailsPage() {
           </CardContent>
         </Card>
 
+        {/* Shuttle & Assignment Details */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-indigo-500" /> Additional Information
+              <Bus className="h-5 w-5 text-indigo-500" /> Shuttle & Assignment
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-sm text-gray-500">Number of Persons</p>
-              <p className="font-medium">{booking.numberOfPersons}</p>
+              <p className="text-sm text-gray-500">Assigned Shuttle</p>
+              <p className="font-medium">
+                {booking.shuttle?.vehicleNumber || "Not assigned yet"}
+              </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Number of Bags</p>
-              <p className="font-medium">{booking.numberOfBags}</p>
+              <p className="text-sm text-gray-500">Passengers</p>
+              <p className="font-medium">{booking.numberOfPersons} guests</p>
             </div>
-            {booking.notes && (
-              <div>
-                <p className="text-sm text-gray-500">Notes</p>
-                <p className="font-medium whitespace-pre-wrap">{booking.notes}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-sm text-gray-500">Luggage</p>
+              <p className="font-medium">{booking.numberOfBags} bags</p>
+            </div>
             {booking.isParkSleepFly && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">🏨✈️</span>
-                  <p className="text-sm font-medium text-blue-800">Park, Sleep & Fly Package</p>
+                  <p className="text-sm font-medium text-blue-800">
+                    Park, Sleep & Fly Package
+                  </p>
                 </div>
                 <p className="text-sm text-blue-700">
-                  This booking is part of our Park, Sleep & Fly package. 
-                  The guest has pre-paid for their accommodation and shuttle service.
-                  This is a premium service that includes both hotel stay and airport shuttle.
+                  This booking is part of our Park, Sleep & Fly package. The
+                  guest has pre-paid for their accommodation and shuttle
+                  service.
                 </p>
-              </div>
-            )}
-            {booking.shuttle && (
-              <div>
-                <p className="text-sm text-gray-500">Assigned Shuttle</p>
-                <p className="font-medium">{booking.shuttle.vehicleNumber}</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
+      {/* QR Code Modal */}
       {(booking.qrCodePath || booking.qrCodeUrl) && (
         <QRCodeDisplay
           qrCodePath={booking.qrCodeUrl!}
@@ -467,6 +541,7 @@ export default function BookingDetailsPage() {
         />
       )}
 
+      {/* Cancel Booking Modal */}
       {showCancelDialog && booking && (
         <CancelBookingModal
           isOpen={showCancelDialog}
@@ -477,4 +552,4 @@ export default function BookingDetailsPage() {
       )}
     </div>
   );
-} 
+}

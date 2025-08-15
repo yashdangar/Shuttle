@@ -310,7 +310,7 @@ function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/hotels">
+            {/* <Link href="/hotels">
               <Button variant="ghost">Hotels</Button>
             </Link>
             <Link href="/admins">
@@ -318,7 +318,7 @@ function HomePage() {
             </Link>
             <Link href="/locations">
               <Button variant="ghost">Locations</Button>
-            </Link>
+            </Link> */}
             <Button onClick={handleLogout} variant="outline">
               Logout
             </Button>

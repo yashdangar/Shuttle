@@ -1932,34 +1932,70 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Find an available shuttle for this hotel with capacity (exclude current booking)
-    const availableShuttle = await findAvailableShuttleWithCapacity(
-      hotelId,
-      booking.numberOfPersons,
-      booking.bookingType as any,
-      bookingId
-    );
+    let availableShuttle = null;
+    let assignmentResult = null;
 
-    if (!availableShuttle) {
-      return res.status(400).json({
-        message: "No available shuttle with capacity found for this booking",
+    // Check if booking already has held seats
+    if (booking.seatsHeld && booking.shuttleId) {
+      console.log(`Booking ${bookingId} already has held seats in shuttle ${booking.shuttleId}`);
+      
+      // Confirm the held seats for this booking
+      const seatsConfirmed = await confirmHeldSeats(bookingId);
+      if (!seatsConfirmed) {
+        console.warn(`Failed to confirm held seats for booking ${bookingId}`);
+        return res.status(400).json({
+          message: "Failed to confirm held seats. The seats may have expired or been released.",
+        });
+      }
+
+      // Use the existing shuttle assignment
+      availableShuttle = await prisma.shuttle.findUnique({
+        where: { id: booking.shuttleId },
+        include: {
+          schedules: {
+            include: {
+              driver: true,
+            },
+          },
+        },
       });
-    }
 
-    // Confirm held seats for this booking
-    const seatsConfirmed = await confirmHeldSeats(bookingId);
-    if (!seatsConfirmed) {
-      console.warn(`Failed to confirm held seats for booking ${bookingId}`);
-      // Note: We continue with verification even if seat confirmation fails
-      // The booking can still be processed
-    }
+      if (!availableShuttle) {
+        return res.status(400).json({
+          message: "Shuttle not found for this booking",
+        });
+      }
 
-    // Use intelligent booking assignment logic
-    const assignmentResult = await assignBookingToTrip(
-      bookingId,
-      availableShuttle.id,
-      hotelId
-    );
+      // Use intelligent booking assignment logic with existing shuttle
+      assignmentResult = await assignBookingToTrip(
+        bookingId,
+        availableShuttle.id,
+        hotelId
+      );
+    } else {
+      console.log(`Booking ${bookingId} has no held seats, finding available shuttle`);
+      
+      // Find an available shuttle for this hotel with capacity (exclude current booking)
+      availableShuttle = await findAvailableShuttleWithCapacity(
+        hotelId,
+        booking.numberOfPersons,
+        booking.bookingType as any,
+        bookingId
+      );
+
+      if (!availableShuttle) {
+        return res.status(400).json({
+          message: "No available shuttle with capacity found for this booking",
+        });
+      }
+
+      // Use intelligent booking assignment logic
+      assignmentResult = await assignBookingToTrip(
+        bookingId,
+        availableShuttle.id,
+        hotelId
+      );
+    }
 
     // Generate QR code for the verified booking
     const qrCodeData = await generateQRCode({

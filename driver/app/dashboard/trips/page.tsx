@@ -106,6 +106,7 @@ export default function TripsPage() {
   const [loading, setLoading] = useState(true);
   const [startingTrip, setStartingTrip] = useState(false);
   const [endingTrip, setEndingTrip] = useState(false);
+  const [transitioningPhase, setTransitioningPhase] = useState(false);
   const [showEndTripDialog, setShowEndTripDialog] = useState(false);
   const [newBookingNotification, setNewBookingNotification] =
     useState<LiveBooking | null>(null);
@@ -116,14 +117,17 @@ export default function TripsPage() {
   const [liveCollapsed, setLiveCollapsed] = useState(false);
   const [availableCollapsed, setAvailableCollapsed] = useState(false);
   const [liveSortKey, setLiveSortKey] = useState<string>("time-asc");
-  const [availableSortKey, setAvailableSortKey] = useState<string>("bookings-desc");
+  const [availableSortKey, setAvailableSortKey] =
+    useState<string>("bookings-desc");
   const { toast } = useToast();
   const { socket, isConnected, onBookingUpdate, connectWebSocket } =
     useWebSocket();
   const isMobile = useIsMobile();
   useEffect(() => {
     try {
-      const dismissed = localStorage.getItem("driver_trips_tz_banner_dismissed");
+      const dismissed = localStorage.getItem(
+        "driver_trips_tz_banner_dismissed"
+      );
       setTimezoneBannerDismissed(dismissed === "1");
     } catch {}
   }, []);
@@ -182,46 +186,53 @@ export default function TripsPage() {
     }
   }, [availableTrips, availableSortKey]);
 
-  const fetchTripData = useCallback(async (options?: { silent?: boolean }) => {
-    try {
-      const silent = options?.silent === true;
-      if (!silent) setLoading(true);
+  const fetchTripData = useCallback(
+    async (options?: { silent?: boolean }) => {
+      try {
+        const silent = options?.silent === true;
+        if (!silent) setLoading(true);
 
-      // Fetch current trip
-      const currentTripResponse = await api.get("/trips/current");
-      console.log("Current trip response:", currentTripResponse);
-      setCurrentTrip(currentTripResponse.currentTrip);
+        // Fetch current trip
+        const currentTripResponse = await api.get("/trips/current");
+        console.log("Current trip response:", currentTripResponse);
+        setCurrentTrip(currentTripResponse.currentTrip);
 
-      // Fetch available trips
-      const availableTripsResponse = await api.get("/trips/available");
-      console.log("Available trips response:", availableTripsResponse);
-      setAvailableTrips(availableTripsResponse.availableTrips);
+        // Fetch available trips
+        const availableTripsResponse = await api.get("/trips/available");
+        console.log("Available trips response:", availableTripsResponse);
+        setAvailableTrips(availableTripsResponse.availableTrips);
 
-      // Fetch live bookings for current trip
-      if (currentTripResponse.currentTrip) {
-        try {
-          const liveBookingsResponse = await api.get("/trips/current/bookings");
-          console.log("Live bookings response:", liveBookingsResponse);
-          setLiveBookings(liveBookingsResponse.bookings || []);
-        } catch (error) {
-          console.log("No live bookings endpoint available, using empty array");
-          setLiveBookings([]);
+        // Fetch live bookings for current trip
+        if (currentTripResponse.currentTrip) {
+          try {
+            const liveBookingsResponse = await api.get(
+              "/trips/current/bookings"
+            );
+            console.log("Live bookings response:", liveBookingsResponse);
+            setLiveBookings(liveBookingsResponse.bookings || []);
+          } catch (error) {
+            console.log(
+              "No live bookings endpoint available, using empty array"
+            );
+            setLiveBookings([]);
+          }
         }
+      } catch (error) {
+        console.error("Error fetching trip data:", error);
+        setTimeout(() => {
+          toast({
+            title: "Error",
+            description: "Failed to load trip data",
+            variant: "destructive",
+          });
+        }, 100);
+      } finally {
+        // Avoid forcing a full page skeleton when doing silent refreshes
+        if (!(options?.silent === true)) setLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching trip data:", error);
-      setTimeout(() => {
-        toast({
-          title: "Error",
-          description: "Failed to load trip data",
-          variant: "destructive",
-        });
-      }, 100);
-    } finally {
-      // Avoid forcing a full page skeleton when doing silent refreshes
-      if (!(options?.silent === true)) setLoading(false);
-    }
-  }, [toast]);
+    },
+    [toast]
+  );
 
   // Handle WebSocket connection retry
   useEffect(() => {
@@ -266,12 +277,18 @@ export default function TripsPage() {
       };
 
       const isForCurrentTrip = Boolean(
-        currentTrip && updatedBooking.tripId && updatedBooking.tripId === currentTrip.id
+        currentTrip &&
+          updatedBooking.tripId &&
+          updatedBooking.tripId === currentTrip.id
       );
 
-      const guestName = `${newBooking.guest.firstName || "Guest"} ${newBooking.guest.lastName || ""}`.trim();
+      const guestName = `${newBooking.guest.firstName || "Guest"} ${
+        newBooking.guest.lastName || ""
+      }`.trim();
       toast({
-        title: isForCurrentTrip ? "🚗 New Booking Assigned!" : "🕒 Booking Added To Next Trip",
+        title: isForCurrentTrip
+          ? "🚗 New Booking Assigned!"
+          : "🕒 Booking Added To Next Trip",
         description: `${guestName} - ${newBooking.numberOfPersons} person(s)`,
       });
 
@@ -331,23 +348,35 @@ export default function TripsPage() {
 
       // Keep Available Trips aggregate in sync for drivers not yet in an active trip
       setAvailableTrips((prev) => {
-        const direction = (updatedBooking.bookingType === "HOTEL_TO_AIRPORT" || updatedBooking.bookingType === "AIRPORT_TO_HOTEL")
-          ? updatedBooking.bookingType
-          : (updatedBooking.direction || "HOTEL_TO_AIRPORT");
+        const direction =
+          updatedBooking.bookingType === "HOTEL_TO_AIRPORT" ||
+          updatedBooking.bookingType === "AIRPORT_TO_HOTEL"
+            ? updatedBooking.bookingType
+            : updatedBooking.direction || "HOTEL_TO_AIRPORT";
 
-        const preferredTime = updatedBooking.preferredTime || new Date().toISOString();
+        const preferredTime =
+          updatedBooking.preferredTime || new Date().toISOString();
 
         let found = false;
         const updatedList = prev.map((trip) => {
           if (trip.direction === direction) {
             found = true;
-            const earliest = new Date(trip.earliestTime) < new Date(preferredTime) ? trip.earliestTime : preferredTime;
-            const latest = new Date(trip.latestTime) > new Date(preferredTime) ? trip.latestTime : preferredTime;
+            const earliest =
+              new Date(trip.earliestTime) < new Date(preferredTime)
+                ? trip.earliestTime
+                : preferredTime;
+            const latest =
+              new Date(trip.latestTime) > new Date(preferredTime)
+                ? trip.latestTime
+                : preferredTime;
             return {
               ...trip,
               bookingCount: (trip.bookingCount || 0) + 1,
-              totalPersons: (trip.totalPersons || 0) + (updatedBooking.numberOfPersons || 0),
-              totalBags: (trip.totalBags || 0) + (updatedBooking.numberOfBags || 0),
+              totalPersons:
+                (trip.totalPersons || 0) +
+                (updatedBooking.numberOfPersons || 0),
+              totalBags:
+                (trip.totalBags || 0) + (updatedBooking.numberOfBags || 0),
               earliestTime: earliest,
               latestTime: latest,
             };
@@ -467,6 +496,7 @@ export default function TripsPage() {
       if (!currentTrip) return;
 
       try {
+        setTransitioningPhase(true);
         await api.post(`/trips/${currentTrip.id}/transition`, { phase });
 
         toast({
@@ -483,6 +513,8 @@ export default function TripsPage() {
             error.response?.data?.message || "Failed to transition trip phase",
           variant: "destructive",
         });
+      } finally {
+        setTransitioningPhase(false);
       }
     },
     [currentTrip, toast, fetchTripData]
@@ -564,7 +596,10 @@ export default function TripsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isConnected ? (
-              <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-green-100 text-green-800 border-green-200">
+              <Badge
+                variant="secondary"
+                className="flex items-center gap-1 text-xs bg-green-100 text-green-800 border-green-200"
+              >
                 <span className="w-2 h-2 bg-green-500 rounded-full" />
                 Online
               </Badge>
@@ -820,7 +855,7 @@ export default function TripsPage() {
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-gray-500" />
                 <span className="text-xs sm:text-sm text-gray-600">
-                  Started: {" "}
+                  Started:{" "}
                   {new Date(currentTrip.startTime).toLocaleTimeString()}
                 </span>
               </div>
@@ -843,14 +878,25 @@ export default function TripsPage() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => handleTransitionPhase("RETURN")}
+                    disabled={transitioningPhase}
                     variant="outline"
                     className="flex-1 h-12 sm:h-11 border-blue-200 hover:bg-blue-50 transition-colors"
                     size="default"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      <Navigation className="h-4 w-4 text-blue-600" />
+                      {transitioningPhase ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      ) : (
+                        <Navigation className="h-4 w-4 text-blue-600" />
+                      )}
                       <span className="font-medium text-blue-700">
-                        {isMobile ? "Start Return" : "Start Return Journey"}
+                        {transitioningPhase
+                          ? isMobile
+                            ? "Starting..."
+                            : "Starting Return..."
+                          : isMobile
+                          ? "Start Return"
+                          : "Start Return Journey"}
                       </span>
                     </div>
                   </Button>
@@ -903,7 +949,9 @@ export default function TripsPage() {
                       <div className="flex items-center justify-center gap-2">
                         <Play className="h-4 w-4" />
                         <span className="font-medium">
-                          {startingTrip ? "Starting Trip..." : `Start ${getDirectionLabel(trip.direction)}`}
+                          {startingTrip
+                            ? "Starting Trip..."
+                            : `Start ${getDirectionLabel(trip.direction)}`}
                         </span>
                       </div>
                     </Button>
@@ -934,9 +982,13 @@ export default function TripsPage() {
                 className="text-xs"
               >
                 {showMap ? (
-                  <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Hide</span>
+                  <span className="flex items-center gap-1">
+                    <ChevronUp className="h-4 w-4" /> Hide
+                  </span>
                 ) : (
-                  <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Show</span>
+                  <span className="flex items-center gap-1">
+                    <ChevronDown className="h-4 w-4" /> Show
+                  </span>
                 )}
               </Button>
             </CardTitle>
@@ -992,9 +1044,13 @@ export default function TripsPage() {
                   onClick={() => setLiveCollapsed((v) => !v)}
                 >
                   {liveCollapsed ? (
-                    <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Expand</span>
+                    <span className="flex items-center gap-1">
+                      <ChevronDown className="h-4 w-4" /> Expand
+                    </span>
                   ) : (
-                    <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Collapse</span>
+                    <span className="flex items-center gap-1">
+                      <ChevronUp className="h-4 w-4" /> Collapse
+                    </span>
                   )}
                 </Button>
               </div>
@@ -1002,38 +1058,38 @@ export default function TripsPage() {
           </CardHeader>
           {!liveCollapsed && (
             <CardContent>
-                <div className="space-y-3">
-                  {sortedLiveBookings.map((booking) => (
+              <div className="space-y-3">
+                {sortedLiveBookings.map((booking) => (
                   <div
                     key={booking.id}
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-lg border bg-white dark:bg-slate-900/40 gap-3 hover:shadow-sm transition-shadow"
                   >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-sm sm:text-base truncate">
+                          {booking.guest.firstName} {booking.guest.lastName}
+                        </h4>
+                        <p className="text-xs sm:text-sm text-gray-600">
+                          {booking.numberOfPersons} person(s) •{" "}
+                          {booking.numberOfBags} bag(s)
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {booking.pickupLocation?.name || "Hotel Lobby"} →{" "}
+                          {booking.dropoffLocation?.name || "Airport"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-medium text-sm sm:text-base truncate">
-                        {booking.guest.firstName} {booking.guest.lastName}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        {booking.numberOfPersons} person(s) •{" "}
-                        {booking.numberOfBags} bag(s)
+                    <div className="text-right sm:text-left sm:ml-auto">
+                      <p className="text-xs sm:text-sm font-medium">
+                        {formatTimeForDisplay(booking.preferredTime)}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {booking.pickupLocation?.name || "Hotel Lobby"} →{" "}
-                        {booking.dropoffLocation?.name || "Airport"}
+                      <p className="text-xs text-gray-500">
+                        Assigned {formatTimeForDisplay(booking.assignedAt)}
                       </p>
                     </div>
-                  </div>
-                  <div className="text-right sm:text-left sm:ml-auto">
-                    <p className="text-xs sm:text-sm font-medium">
-                      {formatTimeForDisplay(booking.preferredTime)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Assigned {formatTimeForDisplay(booking.assignedAt)}
-                    </p>
-                  </div>
                   </div>
                 ))}
               </div>
@@ -1053,13 +1109,20 @@ export default function TripsPage() {
                   Available Round Trips
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Select value={availableSortKey} onValueChange={setAvailableSortKey}>
+                  <Select
+                    value={availableSortKey}
+                    onValueChange={setAvailableSortKey}
+                  >
                     <SelectTrigger className="h-8 w-[190px]">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bookings-desc">Bookings (desc)</SelectItem>
-                      <SelectItem value="persons-desc">Passengers (desc)</SelectItem>
+                      <SelectItem value="bookings-desc">
+                        Bookings (desc)
+                      </SelectItem>
+                      <SelectItem value="persons-desc">
+                        Passengers (desc)
+                      </SelectItem>
                       <SelectItem value="time-asc">Earliest first</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1070,9 +1133,13 @@ export default function TripsPage() {
                     onClick={() => setAvailableCollapsed((v) => !v)}
                   >
                     {availableCollapsed ? (
-                      <span className="flex items-center gap-1"><ChevronDown className="h-4 w-4" /> Expand</span>
+                      <span className="flex items-center gap-1">
+                        <ChevronDown className="h-4 w-4" /> Expand
+                      </span>
                     ) : (
-                      <span className="flex items-center gap-1"><ChevronUp className="h-4 w-4" /> Collapse</span>
+                      <span className="flex items-center gap-1">
+                        <ChevronUp className="h-4 w-4" /> Collapse
+                      </span>
                     )}
                   </Button>
                 </div>
@@ -1082,41 +1149,41 @@ export default function TripsPage() {
               <CardContent>
                 <div className="grid gap-4">
                   {sortedAvailableTrips.map((trip, index) => (
-                  <div
-                    key={index}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-white dark:bg-slate-900/40 gap-4 hover:shadow-sm transition-shadow"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="text-xl sm:text-2xl">🏨↔️✈️</div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-medium text-sm sm:text-base">
-                          {getDirectionLabel(trip.direction)}
-                        </h4>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          {trip.bookingCount} bookings • {trip.totalPersons}{" "}
-                          passengers • {trip.totalBags} bags
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatTimeForDisplay(trip.earliestTime)} -{" "}
-                          {formatTimeForDisplay(trip.latestTime)}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => handleStartTrip(trip.direction)}
-                      disabled={startingTrip}
-                      size="default"
-                      className="h-10 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-colors self-start sm:self-center"
+                    <div
+                      key={index}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-white dark:bg-slate-900/40 gap-4 hover:shadow-sm transition-shadow"
                     >
-                      <div className="flex items-center gap-2">
-                        <Play className="h-4 w-4" />
-                        <span className="font-medium text-sm">
-                          {startingTrip ? "Starting..." : "Start Trip"}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-xl sm:text-2xl">🏨↔️✈️</div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-sm sm:text-base">
+                            {getDirectionLabel(trip.direction)}
+                          </h4>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            {trip.bookingCount} bookings • {trip.totalPersons}{" "}
+                            passengers • {trip.totalBags} bags
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatTimeForDisplay(trip.earliestTime)} -{" "}
+                            {formatTimeForDisplay(trip.latestTime)}
+                          </p>
+                        </div>
                       </div>
-                    </Button>
-                  </div>
-                ))}
+                      <Button
+                        onClick={() => handleStartTrip(trip.direction)}
+                        disabled={startingTrip}
+                        size="default"
+                        className="h-10 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-colors self-start sm:self-center"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Play className="h-4 w-4" />
+                          <span className="font-medium text-sm">
+                            {startingTrip ? "Starting..." : "Start Trip"}
+                          </span>
+                        </div>
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             )}

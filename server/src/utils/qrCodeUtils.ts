@@ -1,7 +1,7 @@
-import QRCode from 'qrcode';
-import crypto from 'crypto';
-import { uploadToS3 } from './s3Utils';
-import prisma from '../db/prisma';
+import QRCode from "qrcode";
+import crypto from "crypto";
+import { uploadToS3 } from "./s3Utils";
+import prisma from "../db/prisma";
 
 interface QRVerificationData {
   token: string;
@@ -16,19 +16,21 @@ interface BookingQRData {
 }
 
 export const generateEncryptionKey = (): string => {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(32).toString("hex");
 };
 
 export const generateVerificationToken = (): string => {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(32).toString("hex");
 };
 
-export const generateQRCode = async (bookingData: BookingQRData): Promise<string> => {
+export const generateQRCode = async (
+  bookingData: BookingQRData
+): Promise<string> => {
   try {
     // Generate a secure verification token
     const token = generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
-    
+
     // Create verification token in database
     await prisma.qRVerificationToken.create({
       data: {
@@ -37,57 +39,60 @@ export const generateQRCode = async (bookingData: BookingQRData): Promise<string
         expiresAt,
       },
     });
-    
+
     // Create QR data with only the token (no sensitive information)
     const qrData: QRVerificationData = {
       token,
       expiresAt: expiresAt.toISOString(),
     };
-    
+
     // Convert QR data to string
     const qrDataString = JSON.stringify(qrData);
-    
+
     // Generate QR code as buffer
     const qrCodeBuffer = await QRCode.toBuffer(qrDataString, {
-      errorCorrectionLevel: 'H',
+      errorCorrectionLevel: "H",
       margin: 1,
       width: 300,
     });
-    
+
     // Upload to S3 and return the path
     const s3Path = `shuttle/${bookingData.bookingId}/qr.png`;
     await uploadToS3(qrCodeBuffer, s3Path);
-    
+
     return s3Path;
   } catch (error) {
-    console.error('Error generating QR code:', error);
-    throw new Error('Failed to generate QR code');
+    console.error("Error generating QR code:", error);
+    throw new Error("Failed to generate QR code");
   }
 };
 
 export const verifyQRCode = (qrData: string): QRVerificationData => {
   try {
     const verificationData = JSON.parse(qrData) as QRVerificationData;
-    
+
     // Validate required fields
     if (!verificationData.token || !verificationData.expiresAt) {
-      throw new Error('Invalid QR code data');
+      throw new Error("Invalid QR code data");
     }
-    
+
     // Check if token has expired
     const expiresAt = new Date(verificationData.expiresAt);
     if (expiresAt < new Date()) {
-      throw new Error('QR code has expired');
+      throw new Error("QR code has expired");
     }
-    
+
     return verificationData;
   } catch (error) {
-    console.error('Error verifying QR code:', error);
-    throw new Error('Invalid QR code');
+    console.error("Error verifying QR code:", error);
+    throw new Error("Invalid QR code");
   }
 };
 
-export const validateVerificationToken = async (token: string, driverId: number): Promise<any> => {
+export const validateVerificationToken = async (
+  token: string,
+  driverId: number
+): Promise<any> => {
   try {
     // Find the verification token
     const verificationToken = await prisma.qRVerificationToken.findUnique({
@@ -109,17 +114,17 @@ export const validateVerificationToken = async (token: string, driverId: number)
     });
 
     if (!verificationToken) {
-      throw new Error('Invalid verification token');
+      throw new Error("Invalid verification token");
     }
 
     // Check if token has expired
     if (verificationToken.expiresAt < new Date()) {
-      throw new Error('Verification token has expired');
+      throw new Error("Verification token has expired");
     }
 
     // Check if token has already been used
     if (verificationToken.isUsed) {
-      throw new Error('Verification token has already been used');
+      throw new Error("Verification token has already been used");
     }
 
     // Get driver information
@@ -129,49 +134,80 @@ export const validateVerificationToken = async (token: string, driverId: number)
     });
 
     if (!driver) {
-      throw new Error('Driver not found');
+      throw new Error("Driver not found");
     }
 
     // Check if driver can verify this booking (same hotel)
     if (driver.hotelId !== verificationToken.booking.guest.hotelId) {
-      throw new Error('Driver not authorized to verify this booking');
+      throw new Error("Driver not authorized to verify this booking");
     }
 
     // Check if driver has an active trip and verify route direction
     const activeTrip = await prisma.trip.findFirst({
       where: {
         driverId,
-        status: 'ACTIVE',
+        status: "ACTIVE",
       },
     });
 
     if (!activeTrip) {
-      throw new Error('Driver must be on an active trip to verify bookings');
+      throw new Error("Driver must be on an active trip to verify bookings");
     }
 
-    // Check if booking direction matches trip direction
-    if (verificationToken.booking.bookingType !== activeTrip.direction) {
-      const tripDirectionText = activeTrip.direction === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'Airport to Hotel';
-      const bookingDirectionText = verificationToken.booking.bookingType === 'HOTEL_TO_AIRPORT' ? 'Hotel to Airport' : 'Airport to Hotel';
-      throw new Error(`Route mismatch: Driver is currently on a ${tripDirectionText} trip, but this booking is for ${bookingDirectionText}. Please ensure you're on the correct route before scanning QR codes.`);
+    // Check if booking direction matches the current trip phase
+    let expectedBookingType: string;
+    if (activeTrip.phase === "OUTBOUND") {
+      // Outbound phase: expect bookings matching the trip direction
+      expectedBookingType = activeTrip.direction;
+    } else if (activeTrip.phase === "RETURN") {
+      // Return phase: expect bookings with the opposite direction
+      expectedBookingType =
+        activeTrip.direction === "HOTEL_TO_AIRPORT"
+          ? "AIRPORT_TO_HOTEL"
+          : "HOTEL_TO_AIRPORT";
+    } else {
+      // For any other phase, use the trip direction
+      expectedBookingType = activeTrip.direction;
+    }
+
+    if (verificationToken.booking.bookingType !== expectedBookingType) {
+      const tripDirectionText =
+        activeTrip.direction === "HOTEL_TO_AIRPORT"
+          ? "Hotel to Airport"
+          : "Airport to Hotel";
+      const bookingDirectionText =
+        verificationToken.booking.bookingType === "HOTEL_TO_AIRPORT"
+          ? "Hotel to Airport"
+          : "Airport to Hotel";
+      const currentPhaseText =
+        activeTrip.phase === "OUTBOUND"
+          ? "outbound"
+          : activeTrip.phase === "RETURN"
+            ? "return"
+            : activeTrip.phase.toLowerCase();
+      throw new Error(
+        `Route mismatch: Driver is currently on the ${currentPhaseText} phase of a ${tripDirectionText} trip, but this booking is for ${bookingDirectionText}. Please ensure you're on the correct route before scanning QR codes.`
+      );
     }
 
     // Check if booking is assigned to the current trip
     if (verificationToken.booking.tripId !== activeTrip.id) {
-      throw new Error('This booking is not assigned to your current trip. Please contact the frontdesk for assistance.');
+      throw new Error(
+        "This booking is not assigned to your current trip. Please contact the frontdesk for assistance."
+      );
     }
 
     // Check if booking is valid
     if (verificationToken.booking.isCancelled) {
-      throw new Error('Booking is cancelled');
+      throw new Error("Booking is cancelled");
     }
 
     if (verificationToken.booking.isCompleted) {
-      throw new Error('Booking is already completed');
+      throw new Error("Booking is already completed");
     }
 
     if (verificationToken.booking.isVerified) {
-      throw new Error('Booking is already verified');
+      throw new Error("Booking is already verified");
     }
 
     return {
@@ -180,12 +216,17 @@ export const validateVerificationToken = async (token: string, driverId: number)
       driver,
     };
   } catch (error) {
-    console.error('Error validating verification token:', error);
+    console.error("Error validating verification token:", error);
     throw error;
   }
 };
 
-export const markTokenAsUsed = async (token: string, driverId: number, success: boolean, message?: string): Promise<void> => {
+export const markTokenAsUsed = async (
+  token: string,
+  driverId: number,
+  success: boolean,
+  message?: string
+): Promise<void> => {
   try {
     const verificationToken = await prisma.qRVerificationToken.findUnique({
       where: { token },
@@ -193,7 +234,7 @@ export const markTokenAsUsed = async (token: string, driverId: number, success: 
     });
 
     if (!verificationToken) {
-      throw new Error('Verification token not found');
+      throw new Error("Verification token not found");
     }
 
     // Mark token as used
@@ -225,7 +266,7 @@ export const markTokenAsUsed = async (token: string, driverId: number, success: 
       },
     });
   } catch (error) {
-    console.error('Error marking token as used:', error);
+    console.error("Error marking token as used:", error);
     throw error;
   }
-}; 
+};

@@ -1,5 +1,12 @@
 import prisma from "../db/prisma";
-import { findAvailableShuttle, holdSeatsInShuttle, confirmSeatsInShuttle, releaseSeatsInShuttle, cleanupExpiredShuttleSeatHolds, getShuttleAvailability } from "./shuttleSeatUtils";
+import {
+  findAvailableShuttle,
+  holdSeatsInShuttle,
+  confirmSeatsInShuttle,
+  releaseSeatsInShuttle,
+  cleanupExpiredShuttleSeatHolds,
+  getShuttleAvailability,
+} from "./shuttleSeatUtils";
 
 // Configuration for seat holding
 const SEAT_HOLD_DURATION_MINUTES = 5; // Hold seats for 5 minutes
@@ -18,23 +25,34 @@ export const holdSeatsForBooking = async (
   numberOfPersons: number,
   hotelId: number,
   preferredTime?: Date,
-  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+  direction?: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT"
 ): Promise<boolean> => {
   try {
     console.log(`=== HOLDING SEATS FOR BOOKING ===`);
-    console.log(`Booking ID: ${bookingId}, Persons: ${numberOfPersons}, Hotel: ${hotelId}`);
+    console.log(
+      `Booking ID: ${bookingId}, Persons: ${numberOfPersons}, Hotel: ${hotelId}`
+    );
 
     // Find available shuttle
-    const availableShuttle = await findAvailableShuttle(hotelId, numberOfPersons, preferredTime, direction);
-    
+    const availableShuttle = await findAvailableShuttle(
+      hotelId,
+      numberOfPersons,
+      preferredTime,
+      direction
+    );
+
     if (!availableShuttle) {
       console.log(`❌ No available shuttle found for booking ${bookingId}`);
       return false;
     }
 
     // Hold seats in the shuttle
-    const seatsHeld = await holdSeatsInShuttle(availableShuttle.id, numberOfPersons, direction);
-    
+    const seatsHeld = await holdSeatsInShuttle(
+      availableShuttle.id,
+      numberOfPersons,
+      direction
+    );
+
     if (!seatsHeld) {
       console.log(`❌ Failed to hold seats in shuttle ${availableShuttle.id}`);
       return false;
@@ -42,7 +60,9 @@ export const holdSeatsForBooking = async (
 
     // Calculate hold duration
     const now = new Date();
-    const holdUntil = new Date(now.getTime() + SEAT_HOLD_DURATION_MINUTES * 60 * 1000);
+    const holdUntil = new Date(
+      now.getTime() + SEAT_HOLD_DURATION_MINUTES * 60 * 1000
+    );
 
     // Update booking with seat hold information and shuttle assignment - optimized
     await prisma.booking.update({
@@ -55,7 +75,9 @@ export const holdSeatsForBooking = async (
       },
     });
 
-    console.log(`✅ Seats held for booking ${bookingId} in shuttle ${availableShuttle.vehicleNumber} until ${holdUntil.toISOString()}`);
+    console.log(
+      `✅ Seats held for booking ${bookingId} in shuttle ${availableShuttle.vehicleNumber} until ${holdUntil.toISOString()}`
+    );
     console.log(`=== END SEAT HOLDING ===`);
 
     return true;
@@ -106,17 +128,58 @@ export const confirmHeldSeats = async (bookingId: string): Promise<boolean> => {
     }
 
     // Determine direction based on booking type
-    let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
-    
-    if (booking.bookingType === 'AIRPORT_TO_HOTEL') {
-      direction = 'AIRPORT_TO_HOTEL';
-    } else if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-      direction = 'HOTEL_TO_AIRPORT';
+    let direction: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT" | undefined;
+
+    if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+      direction = "AIRPORT_TO_HOTEL";
+    } else if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      direction = "HOTEL_TO_AIRPORT";
+    }
+
+    // Verify that the held seats in the shuttle match this booking's held seats
+    const shuttle = await prisma.shuttle.findUnique({
+      where: { id: booking.shuttleId },
+    });
+
+    if (!shuttle) {
+      console.log(`❌ Shuttle ${booking.shuttleId} not found`);
+      return false;
+    }
+
+    // Check if the shuttle has enough held seats for this booking
+    let shuttleHeldSeats = 0;
+    if (direction === "AIRPORT_TO_HOTEL") {
+      shuttleHeldSeats = shuttle.airportToHotelSeatsHeld;
+    } else if (direction === "HOTEL_TO_AIRPORT") {
+      shuttleHeldSeats = shuttle.hotelToAirportSeatsHeld;
+    } else {
+      shuttleHeldSeats = shuttle.seatsHeld;
+    }
+
+    console.log(
+      `Booking ${bookingId} needs to confirm ${booking.numberOfPersons} seats`
+    );
+    console.log(
+      `Shuttle ${booking.shuttleId} has ${shuttleHeldSeats} held seats for direction: ${direction || "General"}`
+    );
+
+    if (shuttleHeldSeats < booking.numberOfPersons) {
+      console.log(
+        `❌ Shuttle ${booking.shuttleId} doesn't have enough held seats for booking ${bookingId}`
+      );
+      console.log(
+        `  Required: ${booking.numberOfPersons}, Available held: ${shuttleHeldSeats}`
+      );
+      return false;
     }
 
     // Confirm the held seats in the shuttle
-    const seatsConfirmed = await confirmSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
-    
+    const seatsConfirmed = await confirmSeatsInShuttle(
+      booking.shuttleId,
+      booking.numberOfPersons,
+      direction
+    );
+
     if (!seatsConfirmed) {
       console.log(`❌ Failed to confirm seats in shuttle ${booking.shuttleId}`);
       return false;
@@ -135,7 +198,9 @@ export const confirmHeldSeats = async (bookingId: string): Promise<boolean> => {
       },
     });
 
-    console.log(`✅ Seats confirmed for booking ${bookingId} in shuttle ${booking.shuttleId}`);
+    console.log(
+      `✅ Seats confirmed for booking ${bookingId} in shuttle ${booking.shuttleId}`
+    );
     console.log(`=== END SEAT CONFIRMATION ===`);
 
     return true;
@@ -176,32 +241,44 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
       // Get booking details to determine direction
       const bookingDetails = await prisma.booking.findUnique({
         where: { id: bookingId },
-        select: { bookingType: true }
+        select: { bookingType: true },
       });
 
-      let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
-      
-      if (bookingDetails?.bookingType === 'AIRPORT_TO_HOTEL') {
-        direction = 'AIRPORT_TO_HOTEL';
-      } else if (bookingDetails?.bookingType === 'HOTEL_TO_AIRPORT') {
-        direction = 'HOTEL_TO_AIRPORT';
+      let direction: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT" | undefined;
+
+      if (bookingDetails?.bookingType === "AIRPORT_TO_HOTEL") {
+        direction = "AIRPORT_TO_HOTEL";
+      } else if (bookingDetails?.bookingType === "HOTEL_TO_AIRPORT") {
+        direction = "HOTEL_TO_AIRPORT";
       }
 
       // If seats are confirmed, we need to release confirmed seats
       if (booking.seatsConfirmed) {
         console.log(`Releasing confirmed seats for booking ${bookingId}`);
-        const confirmedSeatsReleased = await releaseConfirmedSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        const confirmedSeatsReleased = await releaseConfirmedSeatsInShuttle(
+          booking.shuttleId,
+          booking.numberOfPersons,
+          direction
+        );
         if (!confirmedSeatsReleased) {
-          console.log(`❌ Failed to release confirmed seats in shuttle ${booking.shuttleId}`);
+          console.log(
+            `❌ Failed to release confirmed seats in shuttle ${booking.shuttleId}`
+          );
           return false;
         }
       }
       // If seats are held but not confirmed, release held seats
       else if (booking.seatsHeld) {
         console.log(`Releasing held seats for booking ${bookingId}`);
-        const seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        const seatsReleased = await releaseSeatsInShuttle(
+          booking.shuttleId,
+          booking.numberOfPersons,
+          direction
+        );
         if (!seatsReleased) {
-          console.log(`❌ Failed to release held seats in shuttle ${booking.shuttleId}`);
+          console.log(
+            `❌ Failed to release held seats in shuttle ${booking.shuttleId}`
+          );
           return false;
         }
       }
@@ -240,11 +317,13 @@ export const releaseHeldSeats = async (bookingId: string): Promise<boolean> => {
 export const releaseConfirmedSeatsInShuttle = async (
   shuttleId: number,
   numberOfPersons: number,
-  direction?: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT'
+  direction?: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT"
 ): Promise<boolean> => {
   try {
     console.log(`=== RELEASING CONFIRMED SEATS IN SHUTTLE ===`);
-    console.log(`Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || 'Not specified'}`);
+    console.log(
+      `Shuttle ID: ${shuttleId}, Persons: ${numberOfPersons}, Direction: ${direction || "Not specified"}`
+    );
 
     // Get current shuttle state
     const shuttle = await prisma.shuttle.findUnique({
@@ -257,12 +336,18 @@ export const releaseConfirmedSeatsInShuttle = async (
     }
 
     // Log current state based on direction
-    if (direction === 'AIRPORT_TO_HOTEL') {
-      console.log(`Shuttle ${shuttleId} current state: ${shuttle.airportToHotelSeatsHeld} held, ${shuttle.airportToHotelSeatsConfirmed} confirmed`);
-    } else if (direction === 'HOTEL_TO_AIRPORT') {
-      console.log(`Shuttle ${shuttleId} current state: ${shuttle.hotelToAirportSeatsHeld} held, ${shuttle.hotelToAirportSeatsConfirmed} confirmed`);
+    if (direction === "AIRPORT_TO_HOTEL") {
+      console.log(
+        `Shuttle ${shuttleId} current state: ${shuttle.airportToHotelSeatsHeld} held, ${shuttle.airportToHotelSeatsConfirmed} confirmed`
+      );
+    } else if (direction === "HOTEL_TO_AIRPORT") {
+      console.log(
+        `Shuttle ${shuttleId} current state: ${shuttle.hotelToAirportSeatsHeld} held, ${shuttle.hotelToAirportSeatsConfirmed} confirmed`
+      );
     } else {
-      console.log(`Shuttle ${shuttleId} current state: ${shuttle.seatsHeld} held, ${shuttle.seatsConfirmed} confirmed, ${shuttle.seats} total`);
+      console.log(
+        `Shuttle ${shuttleId} current state: ${shuttle.seatsHeld} held, ${shuttle.seatsConfirmed} confirmed, ${shuttle.seats} total`
+      );
     }
 
     // Release the exact number of confirmed seats
@@ -270,22 +355,37 @@ export const releaseConfirmedSeatsInShuttle = async (
 
     // Update shuttle: reduce confirmed seats based on direction
     const updateData: any = {};
-    
-    if (direction === 'AIRPORT_TO_HOTEL') {
-      const newConfirmedSeats = Math.max(0, shuttle.airportToHotelSeatsConfirmed - seatsToRelease);
+
+    if (direction === "AIRPORT_TO_HOTEL") {
+      const newConfirmedSeats = Math.max(
+        0,
+        shuttle.airportToHotelSeatsConfirmed - seatsToRelease
+      );
       updateData.airportToHotelSeatsConfirmed = newConfirmedSeats;
-      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for AIRPORT_TO_HOTEL (${shuttle.airportToHotelSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
-    } else if (direction === 'HOTEL_TO_AIRPORT') {
-      const newConfirmedSeats = Math.max(0, shuttle.hotelToAirportSeatsConfirmed - seatsToRelease);
+      console.log(
+        `✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for AIRPORT_TO_HOTEL (${shuttle.airportToHotelSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`
+      );
+    } else if (direction === "HOTEL_TO_AIRPORT") {
+      const newConfirmedSeats = Math.max(
+        0,
+        shuttle.hotelToAirportSeatsConfirmed - seatsToRelease
+      );
       updateData.hotelToAirportSeatsConfirmed = newConfirmedSeats;
-      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for HOTEL_TO_AIRPORT (${shuttle.hotelToAirportSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
+      console.log(
+        `✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for HOTEL_TO_AIRPORT (${shuttle.hotelToAirportSeatsConfirmed} -> ${newConfirmedSeats} confirmed)`
+      );
     } else {
       // Fallback to general seats for backward compatibility
-      const newConfirmedSeats = Math.max(0, shuttle.seatsConfirmed - seatsToRelease);
+      const newConfirmedSeats = Math.max(
+        0,
+        shuttle.seatsConfirmed - seatsToRelease
+      );
       updateData.seatsConfirmed = newConfirmedSeats;
-      console.log(`✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for General (${shuttle.seatsConfirmed} -> ${newConfirmedSeats} confirmed)`);
+      console.log(
+        `✅ Released ${seatsToRelease} confirmed seats in shuttle ${shuttleId} for General (${shuttle.seatsConfirmed} -> ${newConfirmedSeats} confirmed)`
+      );
     }
-    
+
     await prisma.shuttle.update({
       where: { id: shuttleId },
       data: updateData,
@@ -305,7 +405,9 @@ export const releaseConfirmedSeatsInShuttle = async (
  * @param bookingId - The booking ID
  * @returns Promise<boolean> - Whether seats were successfully released
  */
-export const releaseAllSeatsForBooking = async (bookingId: string): Promise<boolean> => {
+export const releaseAllSeatsForBooking = async (
+  bookingId: string
+): Promise<boolean> => {
   try {
     console.log(`=== RELEASING ALL SEATS FOR BOOKING ===`);
     console.log(`Booking ID: ${bookingId}`);
@@ -329,12 +431,12 @@ export const releaseAllSeatsForBooking = async (bookingId: string): Promise<bool
 
     // Release seats in the shuttle if assigned
     if (booking.shuttleId) {
-      let direction: 'AIRPORT_TO_HOTEL' | 'HOTEL_TO_AIRPORT' | undefined;
-      
-      if (booking.bookingType === 'AIRPORT_TO_HOTEL') {
-        direction = 'AIRPORT_TO_HOTEL';
-      } else if (booking.bookingType === 'HOTEL_TO_AIRPORT') {
-        direction = 'HOTEL_TO_AIRPORT';
+      let direction: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT" | undefined;
+
+      if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+        direction = "AIRPORT_TO_HOTEL";
+      } else if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+        direction = "HOTEL_TO_AIRPORT";
       }
 
       let seatsReleased = false;
@@ -342,12 +444,20 @@ export const releaseAllSeatsForBooking = async (bookingId: string): Promise<bool
       // If seats are confirmed, release confirmed seats
       if (booking.seatsConfirmed) {
         console.log(`Releasing confirmed seats for booking ${bookingId}`);
-        seatsReleased = await releaseConfirmedSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        seatsReleased = await releaseConfirmedSeatsInShuttle(
+          booking.shuttleId,
+          booking.numberOfPersons,
+          direction
+        );
       }
       // If seats are held but not confirmed, release held seats
       else if (booking.seatsHeld) {
         console.log(`Releasing held seats for booking ${bookingId}`);
-        seatsReleased = await releaseSeatsInShuttle(booking.shuttleId, booking.numberOfPersons, direction);
+        seatsReleased = await releaseSeatsInShuttle(
+          booking.shuttleId,
+          booking.numberOfPersons,
+          direction
+        );
       }
       // If no seats are held or confirmed, nothing to release
       else {
@@ -356,7 +466,9 @@ export const releaseAllSeatsForBooking = async (bookingId: string): Promise<bool
       }
 
       if (!seatsReleased) {
-        console.log(`❌ Failed to release seats in shuttle ${booking.shuttleId}`);
+        console.log(
+          `❌ Failed to release seats in shuttle ${booking.shuttleId}`
+        );
         return false;
       }
     }
@@ -402,9 +514,11 @@ export const hasHeldSeats = async (bookingId: string): Promise<boolean> => {
     if (!booking) return false;
 
     // Check if seats are held and not expired
-    return Boolean(booking.seatsHeld) && 
-           booking.seatsHeldUntil !== null && 
-           new Date() <= booking.seatsHeldUntil;
+    return (
+      Boolean(booking.seatsHeld) &&
+      booking.seatsHeldUntil !== null &&
+      new Date() <= booking.seatsHeldUntil
+    );
   } catch (error) {
     console.error("Error checking held seats:", error);
     return false;
@@ -418,10 +532,10 @@ export const hasHeldSeats = async (bookingId: string): Promise<boolean> => {
 export const cleanupExpiredSeatHolds = async (): Promise<void> => {
   try {
     console.log(`=== CLEANING UP EXPIRED SEAT HOLDS ===`);
-    
+
     // Use the shuttle-based cleanup function
     await cleanupExpiredShuttleSeatHolds();
-    
+
     console.log(`=== END CLEANUP ===`);
   } catch (error) {
     console.error("Error cleaning up expired seat holds:", error);
@@ -465,8 +579,10 @@ export const getSeatHoldStatus = async (bookingId: string) => {
     }
 
     const now = new Date();
-    const isExpired = booking.seatsHeldUntil ? now > booking.seatsHeldUntil : false;
-    const timeRemaining = booking.seatsHeldUntil 
+    const isExpired = booking.seatsHeldUntil
+      ? now > booking.seatsHeldUntil
+      : false;
+    const timeRemaining = booking.seatsHeldUntil
       ? Math.max(0, booking.seatsHeldUntil.getTime() - now.getTime())
       : null;
 
@@ -498,4 +614,4 @@ export const getSeatHoldStatus = async (bookingId: string) => {
       timeRemaining: null,
     };
   }
-}; 
+};

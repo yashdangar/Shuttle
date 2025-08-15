@@ -328,6 +328,8 @@ export const releaseSeatsInShuttle = async (
   }
 };
 
+
+
 /**
  * Get shuttle availability information
  * @param shuttleId - The shuttle ID
