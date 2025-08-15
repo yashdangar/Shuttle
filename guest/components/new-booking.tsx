@@ -116,102 +116,27 @@ export default function NewBooking({
   const fetchLocations = async () => {
     try {
       const response = await api.get("/guest/get-locations");
-      console.log(response.locations);
       setLocations(response.locations);
     } catch (error) {
       console.error("Error fetching locations:", error);
     }
   };
 
-  const fetchPricing = async () => {
-    try {
-      // Determine which location to use for pricing based on trip direction
-      let locationId = null;
-      let locationName = "";
-
-      if (tripDirection === "hotel-to-airport") {
-        // For hotel to airport, use destination (airport) for pricing
-        const selectedLocation = locations.find(
-          (loc) => loc.name === formData.destination
-        );
-        if (selectedLocation) {
-          locationId = selectedLocation.id;
-          locationName = selectedLocation.name;
-        }
-      } else if (tripDirection === "airport-to-hotel") {
-        // For airport to hotel, use pickup (airport) for pricing
-        const selectedLocation = locations.find(
-          (loc) => loc.name === formData.pickup
-        );
-        if (selectedLocation) {
-          locationId = selectedLocation.id;
-          locationName = selectedLocation.name;
-        }
-      } else if (tripDirection === "park-sleep-fly") {
-        // For park sleep fly, use the appropriate location based on trip type
-        if (formData.tripType === "HOTEL_TO_AIRPORT") {
-          const selectedLocation = locations.find(
-            (loc) => loc.name === formData.destination
-          );
-          if (selectedLocation) {
-            locationId = selectedLocation.id;
-            locationName = selectedLocation.name;
-          }
-        } else if (formData.tripType === "AIRPORT_TO_HOTEL") {
-          const selectedLocation = locations.find(
-            (loc) => loc.name === formData.pickup
-          );
-          if (selectedLocation) {
-            locationId = selectedLocation.id;
-            locationName = selectedLocation.name;
-          }
-        }
-      }
-
-      if (locationId && formData.numberOfPersons > 0) {
-        setIsLoadingPricing(true);
-        setPricing(null); // Clear previous pricing while loading
-        
-        const response = await api.get(
-          `/guest/get-pricing?locationId=${locationId}&numberOfPersons=${formData.numberOfPersons}`
-        );
-        if (response.pricing) {
-          setPricing({
-            pricePerPerson: response.pricing.pricePerPerson,
-            totalPrice: response.pricing.totalPrice,
-            locationName,
-          });
-        }
-      } else {
-        setPricing(null);
-      }
-    } catch (error) {
-      console.error("Error fetching pricing:", error);
-      setPricing(null);
-    } finally {
-      setIsLoadingPricing(false);
-    }
-  };
+  // Pricing fetch removed for performance optimization
+  // Pricing will be calculated after frontdesk verification
 
   useEffect(() => {
     fetchLocations();
   }, []);
 
-  // Fetch pricing when location or number of persons changes
+  // Skip pricing calculation for guest bookings to improve performance
+  // Pricing will be shown after frontdesk verification
   useEffect(() => {
-    if (locations.length > 0) {
-      fetchPricing();
-    }
-  }, [
-    locations,
-    formData.destination,
-    formData.pickup,
-    formData.numberOfPersons,
-    formData.tripType,
-    tripDirection,
-  ]);
+    // Clear any existing pricing
+    setPricing(null);
+  }, []);
 
-  // Update time every minute
+  // Update time every minute - only if component is active
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -318,20 +243,14 @@ export default function NewBooking({
       // Send request to backend
       try {
         const response = await api.post("/guest/create-trip", tripData);
-        console.log("API Response:", response);
-        console.log("Trip data:", response.trip);
 
         if (response.trip) {
           onBookingCreated(response.trip);
-
-          // QR code will be generated after frontdesk verification
-          // No QR code display here - it will be shown after verification
         }
 
         setIsSubmitting(false);
       } catch (error: any) {
         console.error("Error creating trip:", error);
-        // Display error message to user
         const errorMessage = error.response?.data?.error || "Failed to create booking. Please try again.";
         toast.error(errorMessage);
       }

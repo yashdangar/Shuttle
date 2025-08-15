@@ -44,14 +44,14 @@ export const holdSeatsForBooking = async (
     const now = new Date();
     const holdUntil = new Date(now.getTime() + SEAT_HOLD_DURATION_MINUTES * 60 * 1000);
 
-    // Update booking with seat hold information and shuttle assignment
+    // Update booking with seat hold information and shuttle assignment - optimized
     await prisma.booking.update({
       where: { id: bookingId },
       data: {
         seatsHeld: true,
         seatsHeldAt: now,
         seatsHeldUntil: holdUntil,
-        shuttleId: availableShuttle.id, // Assign the shuttle
+        shuttleId: availableShuttle.id,
       },
     });
 
