@@ -74,7 +74,7 @@ export async function fetchCompleteBookingData(
 }
 
 /**
- * Get booking data for WebSocket events with fallback
+ * Get booking data for WebSocket events with fallback - optimized for speed
  * @param bookingId - The booking ID to fetch
  * @param fallbackData - Fallback data to use if fetch fails
  * @returns Complete booking data or fallback data
@@ -83,65 +83,45 @@ export async function getBookingDataForWebSocket(
   bookingId: string,
   fallbackData: any
 ): Promise<any> {
-  const completeData = await fetchCompleteBookingData(bookingId);
+  try {
+    // Optimized query to get all needed data in one go
+    const completeData = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            isNonResident: true,
+            hotelId: true,
+          },
+        },
+        pickupLocation: true,
+        dropoffLocation: true,
+        shuttle: true,
+      },
+    });
 
-  if (completeData) {
-    // Add pricing information to the booking data
-    try {
-      // Get the hotel ID from the guest
-      const guest = await prisma.guest.findUnique({
-        where: { id: completeData.guestId },
-        select: { hotelId: true },
-      });
-
-      if (guest?.hotelId) {
-        let pricePerPerson = 0;
-        let totalPrice = 0;
-        let pricingLocationId = null;
-
-        // Determine which location to use for pricing based on booking type
-        if (completeData.bookingType === "HOTEL_TO_AIRPORT") {
-          // For hotel to airport, use dropoff location (airport) for pricing
-          pricingLocationId = completeData.dropoffLocationId;
-        } else if (completeData.bookingType === "AIRPORT_TO_HOTEL") {
-          // For airport to hotel, use pickup location (airport) for pricing
-          pricingLocationId = completeData.pickupLocationId;
-        }
-
-        if (pricingLocationId) {
-          // Get the hotel location price for this location
-          const hotelLocation = await prisma.hotelLocation.findUnique({
-            where: {
-              hotelId_locationId: {
-                hotelId: guest.hotelId,
-                locationId: pricingLocationId,
-              },
-            },
-          });
-
-          if (hotelLocation) {
-            pricePerPerson = hotelLocation.price;
-            totalPrice = hotelLocation.price * completeData.numberOfPersons;
-          }
-        }
-
-        // Add pricing to the booking data
-        completeData.pricing = {
-          pricePerPerson,
-          totalPrice,
+    if (completeData) {
+      // Add basic pricing structure (actual pricing will be calculated by frontend)
+      return {
+        ...completeData,
+        pricing: {
+          pricePerPerson: 0,
+          totalPrice: 0,
           numberOfPersons: completeData.numberOfPersons,
-        };
-      }
-    } catch (error) {
-      console.error(
-        "Error calculating pricing for WebSocket booking data:",
-        error
-      );
-      // Continue without pricing if calculation fails
+        },
+      };
     }
-  }
 
-  return completeData || fallbackData;
+    return completeData || fallbackData;
+  } catch (error) {
+    console.error("Error fetching booking data for WebSocket:", error);
+    return fallbackData;
+  }
 }
 
 // Intelligent booking assignment based on current trip status

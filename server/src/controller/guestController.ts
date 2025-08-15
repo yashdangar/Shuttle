@@ -339,12 +339,18 @@ const createTrip = async (req: Request, res: Response) => {
       // Send notifications asynchronously to avoid blocking the response
       setImmediate(async () => {
         try {
+          // Fetch the complete booking with guest information for the WebSocket event
+          const completeBooking = await getBookingDataForWebSocket(
+            updatedTrip.id,
+            updatedTrip
+          );
+
           const notificationPayload = {
             title: "New Booking Created",
             message: `A new booking has been created by ${
               guestData.firstName || "a guest"
             }.`,
-            bookingId: updatedTrip.id,
+            booking: completeBooking,
           };
 
           // Send WebSocket notification
