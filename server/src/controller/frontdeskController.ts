@@ -1899,7 +1899,7 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
   }
 };
 
-// Verify guest booking and assign to shuttle
+// Verify guest booking by confirming held seats and generating QR (fast path)
 const verifyGuestBooking = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
@@ -1932,70 +1932,30 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       });
     }
 
-    let availableShuttle = null;
-    let assignmentResult = null;
-
-    // Check if booking already has held seats
-    if (booking.seatsHeld && booking.shuttleId) {
-      console.log(`Booking ${bookingId} already has held seats in shuttle ${booking.shuttleId}`);
-      
-      // Confirm the held seats for this booking
-      const seatsConfirmed = await confirmHeldSeats(bookingId);
-      if (!seatsConfirmed) {
-        console.warn(`Failed to confirm held seats for booking ${bookingId}`);
-        return res.status(400).json({
-          message: "Failed to confirm held seats. The seats may have expired or been released.",
-        });
-      }
-
-      // Use the existing shuttle assignment
-      availableShuttle = await prisma.shuttle.findUnique({
-        where: { id: booking.shuttleId },
-        include: {
-          schedules: {
-            include: {
-              driver: true,
-            },
-          },
-        },
+    // Fast path only: require an active seat hold and existing shuttle assignment
+    if (!booking.seatsHeld || !booking.shuttleId) {
+      console.log(`Booking ${bookingId} has no active seat hold or shuttle assignment`);
+      return res.status(400).json({
+        message:
+          "Booking does not have an active seat hold. Please re-initiate the hold before verification.",
       });
-
-      if (!availableShuttle) {
-        return res.status(400).json({
-          message: "Shuttle not found for this booking",
-        });
-      }
-
-      // Use intelligent booking assignment logic with existing shuttle
-      assignmentResult = await assignBookingToTrip(
-        bookingId,
-        availableShuttle.id,
-        hotelId
-      );
-    } else {
-      console.log(`Booking ${bookingId} has no held seats, finding available shuttle`);
-      
-      // Find an available shuttle for this hotel with capacity (exclude current booking)
-      availableShuttle = await findAvailableShuttleWithCapacity(
-        hotelId,
-        booking.numberOfPersons,
-        booking.bookingType as any,
-        bookingId
-      );
-
-      if (!availableShuttle) {
-        return res.status(400).json({
-          message: "No available shuttle with capacity found for this booking",
-        });
-      }
-
-      // Use intelligent booking assignment logic
-      assignmentResult = await assignBookingToTrip(
-        bookingId,
-        availableShuttle.id,
-        hotelId
-      );
     }
+
+    // Confirm the held seats for this booking
+    const seatsConfirmed = await confirmHeldSeats(bookingId);
+    if (!seatsConfirmed) {
+      console.warn(`Failed to confirm held seats for booking ${bookingId}`);
+      return res.status(400).json({
+        message:
+          "Failed to confirm held seats. The hold may have expired or been released.",
+      });
+    }
+
+    // Fetch the assigned shuttle (for response context only)
+    const assignedShuttle = await prisma.shuttle.findUnique({
+      where: { id: booking.shuttleId },
+      select: { id: true, vehicleNumber: true },
+    });
 
     // Generate QR code for the verified booking
     const qrCodeData = await generateQRCode({
@@ -2005,7 +1965,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       encryptionKey: booking.encryptionKey!,
     });
 
-    // Update booking: verify it, mark as verified, and add QR code
+    // Update booking: frontdesk verification complete and add QR code
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -2014,25 +1974,14 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       },
       include: {
         guest: true,
-        shuttle: {
-          include: {
-            schedules: {
-              include: {
-                driver: true,
-              },
-            },
-          },
-        },
+        shuttle: true,
       },
     });
 
-    // Create notification message based on assignment result
-    let notificationMessage = `Your booking has been verified by the frontdesk and assigned to shuttle ${availableShuttle.vehicleNumber}. Your QR code is now available for driver check-in.`;
-    if (assignmentResult.assigned) {
-      notificationMessage += ` It has been added to the current active trip.`;
-    } else if (assignmentResult.shuttleAssigned) {
-      notificationMessage += ` It will be included in the next available trip.`;
-    }
+    // Notify guest
+    const notificationMessage = assignedShuttle
+      ? `Your booking has been verified by the frontdesk for shuttle ${assignedShuttle.vehicleNumber}. Your QR code is now available for driver check-in.`
+      : `Your booking has been verified by the frontdesk. Your QR code is now available for driver check-in.`;
 
     // Notify the guest that their booking has been verified
     await prisma.notification.create({
@@ -2048,7 +1997,6 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       title: "Booking Verified",
       message: notificationMessage,
       booking: updatedBooking,
-      assignmentResult,
     };
     sendToUser(
       booking.guestId,
@@ -2060,14 +2008,10 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     // Notify other frontdesk users about the booking update
     const bookingUpdatePayload = {
       title: "Booking Verified",
-      message: `Booking #${booking.id.substring(
-        0,
-        8
-      )} has been verified and assigned to shuttle ${
-        availableShuttle.vehicleNumber
-      }.`,
+      message: assignedShuttle
+        ? `Booking #${booking.id.substring(0, 8)} has been verified for shuttle ${assignedShuttle.vehicleNumber}.`
+        : `Booking #${booking.id.substring(0, 8)} has been verified.`,
       booking: updatedBooking,
-      assignmentResult,
     };
     if (booking.guest.hotelId) {
       // Fetch the complete booking with guest information for the WebSocket event
@@ -2078,14 +2022,8 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
 
       const completeNotificationPayload = {
         title: "Booking Verified",
-        message: `Booking #${booking.id.substring(
-          0,
-          8
-        )} has been verified and assigned to shuttle ${
-          availableShuttle.vehicleNumber
-        }.`,
+        message: bookingUpdatePayload.message,
         booking: completeBooking,
-        assignmentResult,
       };
 
       sendToRoleInHotel(
@@ -2096,48 +2034,55 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       );
     }
 
-    // Notify the assigned driver about the new booking
-    const driverId = availableShuttle.schedules[0]?.driverId;
-    if (driverId) {
-      let driverMessage = `A new booking has been assigned to your shuttle ${availableShuttle.vehicleNumber}.`;
-      if (assignmentResult.assigned) {
-        driverMessage += ` It has been added to your current active trip.`;
-      } else if (assignmentResult.shuttleAssigned) {
-        driverMessage += ` It will be included in your next trip.`;
-      }
-
-      // Create database notification for the driver
-      await prisma.notification.create({
-        data: {
-          driverId: driverId,
-          title: "New Booking Assigned",
-          message: driverMessage,
+    // Notify the assigned driver (active or next scheduled) about the verified booking
+    if (assignedShuttle) {
+      const now = new Date();
+      // Try active schedule first
+      let targetSchedule = await prisma.schedule.findFirst({
+        where: {
+          shuttleId: assignedShuttle.id,
+          startTime: { lte: now },
+          endTime: { gte: now },
         },
+        include: { driver: true },
+        orderBy: { startTime: "asc" },
       });
 
-      const driverNotificationPayload = {
-        title: "New Booking Assigned",
-        message: driverMessage,
-        booking: updatedBooking,
-        assignmentResult,
-      };
-      sendToUser(
-        driverId,
-        "driver",
-        WsEvents.BOOKING_ASSIGNED,
-        driverNotificationPayload
-      );
+      // Fallback to next upcoming schedule if none active
+      if (!targetSchedule) {
+        targetSchedule = await prisma.schedule.findFirst({
+          where: { shuttleId: assignedShuttle.id, startTime: { gte: now } },
+          include: { driver: true },
+          orderBy: { startTime: "asc" },
+        });
+      }
+
+      const driverId = targetSchedule?.driverId;
+      if (driverId) {
+        const driverMessage = `A booking has been verified for your shuttle ${assignedShuttle.vehicleNumber}.`;
+
+        // Create database notification for the driver
+        await prisma.notification.create({
+          data: {
+            driverId,
+            title: "New Booking Verified",
+            message: driverMessage,
+          },
+        });
+
+        const driverNotificationPayload = {
+          title: "New Booking Assigned",
+          message: driverMessage,
+          booking: updatedBooking,
+        };
+        sendToUser(driverId, "driver", WsEvents.BOOKING_ASSIGNED, driverNotificationPayload);
+      }
     }
 
     res.json({
-      message: "Booking verified and assigned to shuttle successfully",
+      message: "Booking verified successfully. QR code generated.",
       booking: updatedBooking,
-      assignmentResult,
-      assignedShuttle: {
-        id: availableShuttle.id,
-        vehicleNumber: availableShuttle.vehicleNumber,
-        driverName: availableShuttle.schedules[0]?.driver?.name || "Unknown",
-      },
+      assignedShuttle: assignedShuttle || null,
     });
   } catch (error) {
     console.error("Verify guest booking error:", error);
