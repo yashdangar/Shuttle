@@ -79,12 +79,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-hidden">
       <Sidebar collapsible="icon">
         <FrontdeskSidebar />
       </Sidebar>
 
-      <SidebarInset className="w-full overflow-x-hidden">
+      <SidebarInset className="w-full h-svh min-h-0 overflow-y-auto">
         {/* Top navigation */}
         <div className="sticky top-0 z-40 w-full">
           <div className="relative">
@@ -203,7 +203,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto py-6">
+        <main className="flex-1 min-h-0 py-6">
           <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </SidebarInset>

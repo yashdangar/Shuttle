@@ -106,12 +106,46 @@ export async function getBookingDataForWebSocket(
     });
 
     if (completeData) {
-      // Add basic pricing structure (actual pricing will be calculated by frontend)
+      // Compute pricing for the booking so frontdesk receives live price in websocket payloads
+      let pricePerPerson = 0;
+      let totalPrice = 0;
+
+      try {
+        const hotelId = completeData.guest?.hotelId as number | undefined;
+        let pricingLocationId: number | null = null;
+
+        if (completeData.bookingType === "HOTEL_TO_AIRPORT") {
+          pricingLocationId = completeData.dropoffLocationId as number | null;
+        } else if (completeData.bookingType === "AIRPORT_TO_HOTEL") {
+          pricingLocationId = completeData.pickupLocationId as number | null;
+        }
+
+        if (hotelId && pricingLocationId) {
+          const hotelLocation = await prisma.hotelLocation.findUnique({
+            where: {
+              hotelId_locationId: {
+                hotelId,
+                locationId: pricingLocationId,
+              },
+            },
+            select: { price: true },
+          });
+
+          if (hotelLocation) {
+            pricePerPerson = hotelLocation.price;
+            totalPrice = hotelLocation.price * (completeData.numberOfPersons || 0);
+          }
+        }
+      } catch (pricingError) {
+        // Pricing calculation should not block websocket payloads; fallback to zeros
+        console.error("Error calculating pricing for websocket booking:", pricingError);
+      }
+
       return {
         ...completeData,
         pricing: {
-          pricePerPerson: 0,
-          totalPrice: 0,
+          pricePerPerson,
+          totalPrice,
           numberOfPersons: completeData.numberOfPersons,
         },
       };

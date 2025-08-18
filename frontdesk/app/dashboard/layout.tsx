@@ -12,7 +12,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <ChatProvider hotelId={hotelId}>
-      <DashboardLayout>{children}</DashboardLayout>
+      <div className="h-screen overflow-hidden">
+        <DashboardLayout>{children}</DashboardLayout>
+      </div>
     </ChatProvider>
   );
 }

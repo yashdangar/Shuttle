@@ -194,7 +194,7 @@ export default function BookingsPage() {
   const [sortBy, setSortBy] = useState<"time" | "price" | "guest" | "status">(
     "time"
   );
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
