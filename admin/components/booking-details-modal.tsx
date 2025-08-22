@@ -66,6 +66,9 @@ interface Booking {
   updatedAt: string;
   notes?: string;
   isParkSleepFly?: boolean;
+  // Pricing fields (direct access)
+  pricePerPerson: number | null;
+  totalPrice: number | null;
   shuttle?: {
     id: string;
     vehicleNumber: string;
@@ -136,6 +139,23 @@ export function BookingDetailsModal({ booking }: BookingDetailsModalProps) {
   };
 
   const driver = getDriverInfo();
+
+  // Helper function to get correct location display based on trip type
+  const getLocationDisplay = (location: string, bookingType: string, isPickup: boolean) => {
+    if (location) return location;
+
+    // For hotel-to-airport trips
+    if (bookingType === "HOTEL_TO_AIRPORT") {
+      return isPickup ? "Hotel Lobby" : "Not specified";
+    }
+
+    // For airport-to-hotel trips
+    if (bookingType === "AIRPORT_TO_HOTEL") {
+      return isPickup ? "Not specified" : "Hotel Lobby";
+    }
+
+    return "Not specified";
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -232,11 +252,11 @@ export function BookingDetailsModal({ booking }: BookingDetailsModalProps) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pickup Location</p>
-                  <p className="text-base">{booking.pickupLocation?.name || "Not specified"}</p>
+                  <p className="text-base">{getLocationDisplay(booking.pickupLocation?.name || "", booking.bookingType, true)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Dropoff Location</p>
-                  <p className="text-base">{booking.dropoffLocation?.name || "Not specified"}</p>
+                  <p className="text-base">{getLocationDisplay(booking.dropoffLocation?.name || "", booking.bookingType, false)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Passengers</p>
@@ -249,6 +269,25 @@ export function BookingDetailsModal({ booking }: BookingDetailsModalProps) {
                   <p className="text-base">
                     {booking.numberOfBags} bag{booking.numberOfBags !== 1 ? 's' : ''}
                   </p>
+                </div>
+              </div>
+
+              {/* Pricing Information */}
+              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Pricing Details</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Price per person</p>
+                    <p className="text-lg font-semibold text-green-700">
+                      ${booking.pricePerPerson?.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Total price</p>
+                    <p className="text-xl font-bold text-green-700">
+                      ${booking.totalPrice?.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>

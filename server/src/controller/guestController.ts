@@ -4,7 +4,11 @@ import axios from "axios";
 import { PaymentMethod, BookingType } from "@prisma/client";
 import { generateEncryptionKey, generateQRCode } from "../utils/qrCodeUtils";
 import { getSignedUrlFromPath } from "../utils/s3Utils";
-import { googleMapsService, calculateNextTripETA, type Location } from "../utils/googleMapsUtils";
+import {
+  googleMapsService,
+  calculateNextTripETA,
+  type Location,
+} from "../utils/googleMapsUtils";
 import { sendToRoleInHotel, sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
@@ -120,6 +124,7 @@ const getLocations = async (req: Request, res: Response) => {
     const locations = hotelLocations.map((hl) => ({
       id: hl.location.id,
       name: hl.location.name,
+      price: hl.price, // Include pricing information
     }));
     res.json({ locations });
   } catch (error) {
@@ -127,83 +132,7 @@ const getLocations = async (req: Request, res: Response) => {
   }
 };
 
-// Simple in-memory cache for pricing
-const pricingCache = new Map<string, { pricePerPerson: number; totalPrice: number; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const getPricing = async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).user.userId;
-    const { locationId, numberOfPersons } = req.query;
-
-    if (!locationId || !numberOfPersons) {
-      return res
-        .status(400)
-        .json({ error: "Location ID and number of persons are required" });
-    }
-
-    // Check cache first
-    const cacheKey = `${userId}-${locationId}-${numberOfPersons}`;
-    const cached = pricingCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return res.json({
-        pricing: {
-          pricePerPerson: cached.pricePerPerson,
-          totalPrice: cached.totalPrice * parseInt(numberOfPersons as string),
-          numberOfPersons: parseInt(numberOfPersons as string),
-        },
-      });
-    }
-
-    const guest = await prisma.guest.findUnique({
-      where: { id: userId },
-      select: { hotelId: true },
-    });
-
-    if (!guest?.hotelId) {
-      return res
-        .status(400)
-        .json({ error: "Guest must be associated with a hotel" });
-    }
-
-    const hotelLocation = await prisma.hotelLocation.findUnique({
-      where: {
-        hotelId_locationId: {
-          hotelId: guest.hotelId,
-          locationId: parseInt(locationId as string),
-        },
-      },
-      select: { price: true },
-    });
-
-    if (!hotelLocation) {
-      return res
-        .status(404)
-        .json({ error: "Pricing not found for this location" });
-    }
-
-    const pricePerPerson = hotelLocation.price;
-    const totalPrice = hotelLocation.price * parseInt(numberOfPersons as string);
-
-    // Cache the result
-    pricingCache.set(cacheKey, {
-      pricePerPerson,
-      totalPrice: pricePerPerson, // Store per-person price
-      timestamp: Date.now(),
-    });
-
-    res.json({
-      pricing: {
-        pricePerPerson,
-        totalPrice,
-        numberOfPersons: parseInt(numberOfPersons as string),
-      },
-    });
-  } catch (error) {
-    console.error("Get pricing error:", error);
-    res.status(500).json({ error: "Failed to fetch pricing" });
-  }
-};
 
 const createTrip = async (req: Request, res: Response) => {
   const {
@@ -253,17 +182,46 @@ const createTrip = async (req: Request, res: Response) => {
       });
     }
 
-    // Simplified pricing calculation - skip for guest bookings to improve performance
-    // Pricing will be calculated when frontdesk verifies the booking
-    const pricePerPerson = 0;
-    const totalPrice = 0;
+    // Calculate pricing for the booking
+    let pricePerPerson = 0;
+    let totalPrice = 0;
+
+    if (pickupLocationId || dropoffLocationId) {
+      // Determine which location to use for pricing based on trip type
+      let pricingLocationId = null;
+
+      if (tripType === "HOTEL_TO_AIRPORT") {
+        // For hotel to airport, use dropoff location (airport) for pricing
+        pricingLocationId = dropoffLocationId;
+      } else if (tripType === "AIRPORT_TO_HOTEL") {
+        // For airport to hotel, use pickup location (airport) for pricing
+        pricingLocationId = pickupLocationId;
+      }
+
+      if (pricingLocationId) {
+        // Get the hotel location price for this location
+        const hotelLocation = await prisma.hotelLocation.findUnique({
+          where: {
+            hotelId_locationId: {
+              hotelId: guest.hotelId,
+              locationId: parseInt(pricingLocationId),
+            },
+          },
+        });
+
+        if (hotelLocation) {
+          pricePerPerson = hotelLocation.price;
+          totalPrice = hotelLocation.price * numberOfPersons;
+        }
+      }
+    }
 
     // Update guest information if provided - only if different
     if (confirmationNum) {
       await prisma.guest.updateMany({
-        where: { 
+        where: {
           id: userId,
-          confirmationNum: { not: confirmationNum }
+          confirmationNum: { not: confirmationNum },
         },
         data: { confirmationNum },
       });
@@ -293,6 +251,9 @@ const createTrip = async (req: Request, res: Response) => {
         notes: notes || null,
         // TEMP: Use old field until schema migration is done
         isParkSleepFly: isParkSleepFly || false,
+        // Pricing fields for performance optimization
+        pricePerPerson,
+        totalPrice,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -330,11 +291,11 @@ const createTrip = async (req: Request, res: Response) => {
     const updatedTrip = trip;
 
     // Send notification to all frontdesks in the hotel - async to avoid blocking
-    const guestData = await prisma.guest.findUnique({ 
+    const guestData = await prisma.guest.findUnique({
       where: { id: userId },
-      select: { hotelId: true, firstName: true }
+      select: { hotelId: true, firstName: true },
     });
-    
+
     if (guestData?.hotelId) {
       // Send notifications asynchronously to avoid blocking the response
       setImmediate(async () => {
@@ -364,19 +325,19 @@ const createTrip = async (req: Request, res: Response) => {
           // Create database notifications in batch
           const frontdeskUsers = await prisma.frontDesk.findMany({
             where: { hotelId: guestData.hotelId! },
-            select: { id: true }
+            select: { id: true },
           });
 
           if (frontdeskUsers.length > 0) {
             await prisma.notification.createMany({
-              data: frontdeskUsers.map(user => ({
+              data: frontdeskUsers.map((user) => ({
                 frontDeskId: user.id,
                 title: "New Booking Created",
                 message: `A new booking has been created by ${
                   guestData.firstName || "a guest"
                 }.`,
                 isRead: false,
-              }))
+              })),
             });
           }
         } catch (error) {
@@ -440,38 +401,8 @@ const getTrips = async (req: Request, res: Response) => {
       trips.map(async (trip) => {
         let eta = trip.eta;
         let distance = "Unknown";
-        let pricePerPerson = 0;
-        let totalPrice = 0;
-
-        // Calculate pricing
-        if (guest?.hotelId) {
-          let pricingLocationId = null;
-
-          if (trip.bookingType === "HOTEL_TO_AIRPORT") {
-            // For hotel to airport, use dropoff location (airport) for pricing
-            pricingLocationId = trip.dropoffLocationId;
-          } else if (trip.bookingType === "AIRPORT_TO_HOTEL") {
-            // For airport to hotel, use pickup location (airport) for pricing
-            pricingLocationId = trip.pickupLocationId;
-          }
-
-          if (pricingLocationId) {
-            // Get the hotel location price for this location
-            const hotelLocation = await prisma.hotelLocation.findUnique({
-              where: {
-                hotelId_locationId: {
-                  hotelId: guest.hotelId,
-                  locationId: pricingLocationId,
-                },
-              },
-            });
-
-            if (hotelLocation) {
-              pricePerPerson = hotelLocation.price;
-              totalPrice = hotelLocation.price * trip.numberOfPersons;
-            }
-          }
-        }
+        let pricePerPerson = trip.pricePerPerson || 0;
+        let totalPrice = trip.totalPrice || 0;
 
         // If we have driver location and destination, calculate ETA
         const driverLocation =
@@ -499,7 +430,7 @@ const getTrips = async (req: Request, res: Response) => {
           if (destination) {
             try {
               let etaResult;
-              
+
               // Check if this booking is part of the current active trip
               if (trip.tripId) {
                 // This is a current trip booking - calculate direct ETA from driver to pickup
@@ -507,7 +438,10 @@ const getTrips = async (req: Request, res: Response) => {
                   latitude: driverLocation.latitude,
                   longitude: driverLocation.longitude,
                 };
-                etaResult = await googleMapsService.calculateETA(origin, destination);
+                etaResult = await googleMapsService.calculateETA(
+                  origin,
+                  destination
+                );
               } else {
                 // This is a next trip booking - need to find current active trip
                 const currentActiveTrip = await prisma.trip.findFirst({
@@ -541,7 +475,10 @@ const getTrips = async (req: Request, res: Response) => {
                     latitude: driverLocation.latitude,
                     longitude: driverLocation.longitude,
                   };
-                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                  etaResult = await googleMapsService.calculateETA(
+                    origin,
+                    destination
+                  );
                 }
               }
 
@@ -678,16 +615,16 @@ const getProfile = async (req: Request, res: Response) => {
     }
 
     // Get booking statistics
-    const totalBookings = await prisma.booking.count({
-      where: { guestId: userId },
-    });
+    // const totalBookings = await prisma.booking.count({
+    //   where: { guestId: userId },
+    // });
 
-    const completedBookings = await prisma.booking.count({
-      where: {
-        guestId: userId,
-        isCompleted: true,
-      },
-    });
+    // const completedBookings = await prisma.booking.count({
+    //   where: {
+    //     guestId: userId,
+    //     isCompleted: true,
+    //   },
+    // });
 
     const uniqueHotels = await prisma.booking.findMany({
       where: { guestId: userId },
@@ -931,7 +868,7 @@ const getBookingETA = async (req: Request, res: Response) => {
     };
 
     let etaResult;
-    
+
     // Check if this booking is part of the current active trip
     if (booking.tripId) {
       // This is a current trip booking - calculate direct ETA from driver to pickup
@@ -1174,35 +1111,9 @@ const getCurrentBookings = async (req: Request, res: Response) => {
         let pricePerPerson = 0;
         let totalPrice = 0;
 
-        // Calculate pricing
-        if (guest?.hotelId) {
-          let pricingLocationId = null;
-
-          if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
-            // For hotel to airport, use dropoff location (airport) for pricing
-            pricingLocationId = currentBooking.dropoffLocationId;
-          } else if (currentBooking.bookingType === "AIRPORT_TO_HOTEL") {
-            // For airport to hotel, use pickup location (airport) for pricing
-            pricingLocationId = currentBooking.pickupLocationId;
-          }
-
-          if (pricingLocationId) {
-            // Get the hotel location price for this location
-            const hotelLocation = await prisma.hotelLocation.findUnique({
-              where: {
-                hotelId_locationId: {
-                  hotelId: guest.hotelId,
-                  locationId: pricingLocationId,
-                },
-              },
-            });
-
-            if (hotelLocation) {
-              pricePerPerson = hotelLocation.price;
-              totalPrice = hotelLocation.price * currentBooking.numberOfPersons;
-            }
-          }
-        }
+        // Use stored pricing
+        pricePerPerson = currentBooking.pricePerPerson || 0;
+        totalPrice = currentBooking.totalPrice || 0;
 
         const driverLocation =
           currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
@@ -1234,11 +1145,14 @@ const getCurrentBookings = async (req: Request, res: Response) => {
 
             try {
               let etaResult;
-              
+
               // Check if this booking is part of the current active trip
               if (currentBooking.tripId) {
                 // This is a current trip booking - calculate direct ETA from driver to pickup
-                etaResult = await googleMapsService.calculateETA(origin, destination);
+                etaResult = await googleMapsService.calculateETA(
+                  origin,
+                  destination
+                );
               } else {
                 // This is a next trip booking - need to find current active trip
                 const currentActiveTrip = await prisma.trip.findFirst({
@@ -1268,7 +1182,10 @@ const getCurrentBookings = async (req: Request, res: Response) => {
                   );
                 } else {
                   // No active trip, calculate direct ETA
-                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                  etaResult = await googleMapsService.calculateETA(
+                    origin,
+                    destination
+                  );
                 }
               }
 
@@ -1382,33 +1299,9 @@ const getCurrentBookingsByHotel = async (req: Request, res: Response) => {
         let pricePerPerson = 0;
         let totalPrice = 0;
 
-        // Calculate pricing for this specific hotel
-        let pricingLocationId = null;
-
-        if (currentBooking.bookingType === "HOTEL_TO_AIRPORT") {
-          // For hotel to airport, use dropoff location (airport) for pricing
-          pricingLocationId = currentBooking.dropoffLocationId;
-        } else if (currentBooking.bookingType === "AIRPORT_TO_HOTEL") {
-          // For airport to hotel, use pickup location (airport) for pricing
-          pricingLocationId = currentBooking.pickupLocationId;
-        }
-
-        if (pricingLocationId) {
-          // Get the hotel location price for this location
-          const hotelLocation = await prisma.hotelLocation.findUnique({
-            where: {
-              hotelId_locationId: {
-                hotelId: hotelId,
-                locationId: pricingLocationId,
-              },
-            },
-          });
-
-          if (hotelLocation) {
-            pricePerPerson = hotelLocation.price;
-            totalPrice = hotelLocation.price * currentBooking.numberOfPersons;
-          }
-        }
+        // Use stored pricing
+        pricePerPerson = currentBooking.pricePerPerson || 0;
+        totalPrice = currentBooking.totalPrice || 0;
 
         const driverLocation =
           currentBooking.shuttle?.schedules[0]?.driver?.currentLocation;
@@ -1440,11 +1333,14 @@ const getCurrentBookingsByHotel = async (req: Request, res: Response) => {
 
             try {
               let etaResult;
-              
+
               // Check if this booking is part of the current active trip
               if (currentBooking.tripId) {
                 // This is a current trip booking - calculate direct ETA from driver to pickup
-                etaResult = await googleMapsService.calculateETA(origin, destination);
+                etaResult = await googleMapsService.calculateETA(
+                  origin,
+                  destination
+                );
               } else {
                 // This is a next trip booking - need to find current active trip
                 const currentActiveTrip = await prisma.trip.findFirst({
@@ -1474,7 +1370,10 @@ const getCurrentBookingsByHotel = async (req: Request, res: Response) => {
                   );
                 } else {
                   // No active trip, calculate direct ETA
-                  etaResult = await googleMapsService.calculateETA(origin, destination);
+                  etaResult = await googleMapsService.calculateETA(
+                    origin,
+                    destination
+                  );
                 }
               }
 
@@ -1953,7 +1852,7 @@ export default {
   setHotel,
   getHotel,
   getLocations,
-  getPricing,
+
   createTrip,
   getTrips,
   getTrip,

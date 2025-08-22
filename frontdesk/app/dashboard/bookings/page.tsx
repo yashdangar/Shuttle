@@ -14,7 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
@@ -23,7 +29,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -71,6 +82,9 @@ interface Booking {
   seatsConfirmed: boolean;
   seatsConfirmedAt: string | null;
   shuttleId: number | null;
+  // Pricing fields (now returned directly)
+  pricePerPerson: number | null;
+  totalPrice: number | null;
   shuttle?: {
     id: number;
     vehicleNumber: string;
@@ -88,11 +102,6 @@ interface Booking {
   dropoffLocation: {
     name: string;
   } | null;
-  pricing?: {
-    pricePerPerson: number;
-    totalPrice: number;
-    numberOfPersons: number;
-  };
 }
 
 function BookingsSkeleton() {
@@ -258,8 +267,8 @@ export default function BookingsPage() {
           }
         }
 
-        // Calculate pricing for the new booking if not already present
-        if (!completeBooking.pricing) {
+        // Ensure pricing fields are available (they should be included in the booking data)
+        if (!completeBooking.pricePerPerson) {
           try {
             const response = await api.get(
               `/frontdesk/bookings/${completeBooking.id}`
@@ -290,8 +299,8 @@ export default function BookingsPage() {
           ? `Confirmation: ${completeBooking.confirmationNum}`
           : "Guest";
 
-        const pricingInfo = completeBooking.pricing 
-          ? ` - $${completeBooking.pricing.totalPrice.toFixed(2)}`
+        const pricingInfo = completeBooking.totalPrice
+          ? ` - $${completeBooking.totalPrice.toFixed(2)}`
           : "";
 
         toast.success(`${guestName} has made a new booking${pricingInfo}`, {
@@ -316,15 +325,18 @@ export default function BookingsPage() {
       if (data.booking) {
         let updatedBooking = data.booking;
 
-        // Fetch complete booking data with pricing if not already present
-        if (!updatedBooking.pricing) {
+        // Ensure pricing fields are available (they should be included in the booking data)
+        if (!updatedBooking.pricePerPerson) {
           try {
             const response = await api.get(
               `/frontdesk/bookings/${updatedBooking.id}`
             );
             updatedBooking = response.booking;
           } catch (error) {
-            console.error("Error fetching updated booking with pricing:", error);
+            console.error(
+              "Error fetching updated booking with pricing:",
+              error
+            );
             // Continue without pricing if API call fails
           }
         }
@@ -460,7 +472,9 @@ export default function BookingsPage() {
         return false;
 
       if (!term) return true;
-      const guestName = `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`.toLowerCase();
+      const guestName = `${b.guest?.firstName || ""} ${
+        b.guest?.lastName || ""
+      }`.toLowerCase();
       const email = (b.guest?.email || "").toLowerCase();
       const conf = (b.confirmationNum || "").toLowerCase();
       const pickup = (b.pickupLocation?.name || "").toLowerCase();
@@ -481,13 +495,17 @@ export default function BookingsPage() {
     arr.sort((a, b) => {
       switch (sortBy) {
         case "price": {
-          const pa = a.pricing?.totalPrice ?? 0;
-          const pb = b.pricing?.totalPrice ?? 0;
+          const pa = a.totalPrice || 0;
+          const pb = b.totalPrice || 0;
           return (pa - pb) * dir;
         }
         case "guest": {
-          const ga = `${a.guest?.firstName || ""} ${a.guest?.lastName || ""}`.trim().toLowerCase();
-          const gb = `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`.trim().toLowerCase();
+          const ga = `${a.guest?.firstName || ""} ${a.guest?.lastName || ""}`
+            .trim()
+            .toLowerCase();
+          const gb = `${b.guest?.firstName || ""} ${b.guest?.lastName || ""}`
+            .trim()
+            .toLowerCase();
           return (ga > gb ? 1 : ga < gb ? -1 : 0) * dir;
         }
         case "status": {
@@ -555,9 +573,9 @@ export default function BookingsPage() {
         format(new Date(b.preferredTime), "PPpp"),
         getStatusLabel(b),
         b.paymentMethod,
-        b.pricing ? String(b.pricing.pricePerPerson) : "",
-        b.pricing ? String(b.pricing.totalPrice) : "",
-        String(b.numberOfPersons ?? b.pricing?.numberOfPersons ?? ""),
+        String(b.pricePerPerson || ""),
+        String(b.totalPrice || ""),
+        String(b.numberOfPersons),
         String(b.numberOfBags ?? ""),
         b.pickupLocation?.name || "",
         b.dropoffLocation?.name || "",
@@ -723,7 +741,12 @@ export default function BookingsPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={refresh} disabled={refreshing}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={refresh}
+                  disabled={refreshing}
+                >
                   {refreshing ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
@@ -811,14 +834,21 @@ export default function BookingsPage() {
               </div>
               <div className="md:col-span-2">
                 <Label className="sr-only">Trip Type</Label>
-                <Select value={tripTypeFilter} onValueChange={setTripTypeFilter}>
+                <Select
+                  value={tripTypeFilter}
+                  onValueChange={setTripTypeFilter}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Trip Type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Trip Types</SelectItem>
-                    <SelectItem value="HOTEL_TO_AIRPORT">Hotel to Airport</SelectItem>
-                    <SelectItem value="AIRPORT_TO_HOTEL">Airport to Hotel</SelectItem>
+                    <SelectItem value="HOTEL_TO_AIRPORT">
+                      Hotel to Airport
+                    </SelectItem>
+                    <SelectItem value="AIRPORT_TO_HOTEL">
+                      Airport to Hotel
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -840,8 +870,14 @@ export default function BookingsPage() {
               </div>
               <div className="flex items-center justify-end md:col-span-2">
                 <div className="flex items-center gap-2">
-                  <Switch id="psf-only" checked={psfOnly} onCheckedChange={setPsfOnly} />
-                  <Label htmlFor="psf-only" className="whitespace-nowrap">PSF only</Label>
+                  <Switch
+                    id="psf-only"
+                    checked={psfOnly}
+                    onCheckedChange={setPsfOnly}
+                  />
+                  <Label htmlFor="psf-only" className="whitespace-nowrap">
+                    PSF only
+                  </Label>
                 </div>
               </div>
             </div>
@@ -852,30 +888,64 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="sticky top-0 bg-white z-10">
-                  <TableHead className="min-w-[280px] cursor-pointer" onClick={() => toggleSort("guest")}>
+                  <TableHead
+                    className="min-w-[280px] cursor-pointer"
+                    onClick={() => toggleSort("guest")}
+                  >
                     <div className="inline-flex items-center gap-1">
                       Guest
-                      {sortBy === "guest" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                      {sortBy === "guest" &&
+                        (sortDir === "asc" ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        ))}
                     </div>
                   </TableHead>
                   <TableHead className="min-w-[160px]">Trip Type</TableHead>
-                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("time")}>
+                  <TableHead
+                    className="min-w-[180px] cursor-pointer"
+                    onClick={() => toggleSort("time")}
+                  >
                     <div className="inline-flex items-center gap-1">
                       Time
-                      {sortBy === "time" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                      {sortBy === "time" &&
+                        (sortDir === "asc" ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        ))}
                     </div>
                   </TableHead>
-                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("status")}>
+                  <TableHead
+                    className="min-w-[180px] cursor-pointer"
+                    onClick={() => toggleSort("status")}
+                  >
                     <div className="inline-flex items-center gap-1">
                       Status
-                      {sortBy === "status" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                      {sortBy === "status" &&
+                        (sortDir === "asc" ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        ))}
                     </div>
                   </TableHead>
-                  <TableHead className="min-w-[160px] hidden lg:table-cell">Payment</TableHead>
-                  <TableHead className="min-w-[180px] cursor-pointer" onClick={() => toggleSort("price")}>
+                  <TableHead className="min-w-[160px] hidden lg:table-cell">
+                    Payment
+                  </TableHead>
+                  <TableHead
+                    className="min-w-[180px] cursor-pointer"
+                    onClick={() => toggleSort("price")}
+                  >
                     <div className="inline-flex items-center gap-1">
                       Price
-                      {sortBy === "price" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                      {sortBy === "price" &&
+                        (sortDir === "asc" ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        ))}
                     </div>
                   </TableHead>
                   <TableHead className="min-w-[140px]">Actions</TableHead>
@@ -883,186 +953,200 @@ export default function BookingsPage() {
               </TableHeader>
               <TableBody>
                 {pagedBookings.map((booking) => (
-                <TableRow
-                  key={booking.id}
-                  className={`${
-                    newBookingIds.has(booking.id)
-                      ? "animate-pulse bg-green-50 border-l-4 border-l-green-500"
-                      : booking.isParkSleepFly
-                      ? "bg-blue-50 border-l-4 border-l-blue-500"
-                      : ""
-                  } ${
-                    verifyingBookings.has(booking.id)
-                      ? "bg-yellow-50 border-l-4 border-l-yellow-500"
-                      : ""
-                  } transition-all duration-300`}
-                >
-                  <TableCell>
-                    <div>
-                      {(() => {
-                        const guestInfo = getGuestDisplayName(booking);
-                        const IconComponent = guestInfo.icon;
-                        return (
-                          <div className="flex items-start gap-3">
-                            <IconComponent className="w-4 h-4 mt-1 text-gray-400" />
-                            <div className="space-y-1">
-                              <p className="font-medium">
-                                {guestInfo.display}
-                                {booking.isParkSleepFly && (
-                                  <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                    🏨✈️ Park, Sleep & Fly
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {booking.guest?.email ||
-                                  (booking.confirmationNum
-                                    ? `Confirmation: ${booking.confirmationNum}`
-                                    : "No email provided")}
-                              </p>
-                              <div className="flex flex-wrap gap-2 text-xs">
-                                <Badge variant="outline">👥 {booking.pricing?.numberOfPersons ?? booking.numberOfPersons} pax</Badge>
-                                {typeof booking.numberOfBags === "number" && (
-                                  <Badge variant="outline">🧳 {booking.numberOfBags} bags</Badge>
-                                )}
-                                {booking.pickupLocation?.name && (
-                                  <Badge variant="secondary">Pickup: {booking.pickupLocation.name}</Badge>
-                                )}
-                                {booking.dropoffLocation?.name && (
-                                  <Badge variant="secondary">Dropoff: {booking.dropoffLocation.name}</Badge>
-                                )}
+                  <TableRow
+                    key={booking.id}
+                    className={`${
+                      newBookingIds.has(booking.id)
+                        ? "animate-pulse bg-green-50 border-l-4 border-l-green-500"
+                        : booking.isParkSleepFly
+                        ? "bg-blue-50 border-l-4 border-l-blue-500"
+                        : ""
+                    } ${
+                      verifyingBookings.has(booking.id)
+                        ? "bg-yellow-50 border-l-4 border-l-yellow-500"
+                        : ""
+                    } transition-all duration-300`}
+                  >
+                    <TableCell>
+                      <div>
+                        {(() => {
+                          const guestInfo = getGuestDisplayName(booking);
+                          const IconComponent = guestInfo.icon;
+                          return (
+                            <div className="flex items-start gap-3">
+                              <IconComponent className="w-4 h-4 mt-1 text-gray-400" />
+                              <div className="space-y-1">
+                                <p className="font-medium">
+                                  {guestInfo.display}
+                                  {booking.isParkSleepFly && (
+                                    <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                      🏨✈️ Park, Sleep & Fly
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {booking.guest?.email ||
+                                    (booking.confirmationNum
+                                      ? `Confirmation: ${booking.confirmationNum}`
+                                      : "No email provided")}
+                                </p>
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                  <Badge variant="outline">
+                                    👥{" "}
+                                    {booking.numberOfPersons}{" "}
+                                    pax
+                                  </Badge>
+                                  {typeof booking.numberOfBags === "number" && (
+                                    <Badge variant="outline">
+                                      🧳 {booking.numberOfBags} bags
+                                    </Badge>
+                                  )}
+                                  {booking.pickupLocation?.name && (
+                                    <Badge variant="secondary">
+                                      Pickup: {booking.pickupLocation.name}
+                                    </Badge>
+                                  )}
+                                  {booking.dropoffLocation?.name && (
+                                    <Badge variant="secondary">
+                                      Dropoff: {booking.dropoffLocation.name}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {booking.bookingType === "HOTEL_TO_AIRPORT"
-                          ? "Hotel to Airport"
-                          : "Airport to Hotel"}
-                      </span>
-                      {booking.isParkSleepFly && (
-                        <span className="text-blue-600 text-xs">(PSF)</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                      {format(new Date(booking.preferredTime), "PPp")}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      {getStatusBadge(booking)}
-                      {verifyingBookings.has(booking.id) && (
-                        <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
-                      )}
-                    </div>
-                  </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                    <div className="flex items-center space-x-2">
-                      <CreditCard className="w-4 h-4" />
-                      <span>{booking.paymentMethod}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                      {booking.pricing ? (
+                          );
+                        })()}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4" />
                         <span>
-                          {currency.format(booking.pricing.pricePerPerson)} per person
+                          {booking.bookingType === "HOTEL_TO_AIRPORT"
+                            ? "Hotel to Airport"
+                            : "Airport to Hotel"}
+                        </span>
+                        {booking.isParkSleepFly && (
+                          <span className="text-blue-600 text-xs">(PSF)</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(booking.preferredTime), "PPp")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {getStatusBadge(booking)}
+                        {verifyingBookings.has(booking.id) && (
+                          <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <div className="flex items-center space-x-2">
+                        <CreditCard className="w-4 h-4" />
+                        <span>{booking.paymentMethod}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {booking.pricePerPerson ? (
+                        <span>
+                          {currency.format(booking.pricePerPerson)} per person
                           <br />
                           <span className="font-semibold text-green-700">
-                            Total: {currency.format(booking.pricing.totalPrice)}
+                            Total: {currency.format(booking.totalPrice || 0)}
                           </span>
                         </span>
                       ) : (
                         <span>-</span>
                       )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Link
-                        href={`/dashboard/bookings/${booking.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        View Details
-                      </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {booking.needsFrontdeskVerification && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleVerifyBooking(booking.id)}
-                                className="cursor-pointer text-green-600"
-                                disabled={verifyingBookings.has(booking.id)}
-                              >
-                                {verifyingBookings.has(booking.id) ? (
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                  <CheckCircle className="w-4 h-4 mr-2" />
-                                )}
-                                {verifyingBookings.has(booking.id)
-                                  ? "Verifying..."
-                                  : "Verify Booking"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  handleOpenRejectModal(booking.id)
-                                }
-                                className="cursor-pointer text-red-600"
-                                disabled={verifyingBookings.has(booking.id)}
-                              >
-                                <X className="w-4 h-4 mr-2" />
-                                Reject Booking
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {canModifyBooking(booking) &&
-                            !booking.needsFrontdeskVerification && (
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Link
+                          href={`/dashboard/bookings/${booking.id}`}
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          View Details
+                        </Link>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {booking.needsFrontdeskVerification && (
                               <>
                                 <DropdownMenuItem
-                                  onClick={() => handleAssignToNextTrip(booking.id)}
-                                  className="cursor-pointer"
+                                  onClick={() =>
+                                    handleVerifyBooking(booking.id)
+                                  }
+                                  className="cursor-pointer text-green-600"
+                                  disabled={verifyingBookings.has(booking.id)}
                                 >
-                                  <Clock className="w-4 h-4 mr-2" />
-                                  Assign to next trip
+                                  {verifyingBookings.has(booking.id) ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                  )}
+                                  {verifyingBookings.has(booking.id)
+                                    ? "Verifying..."
+                                    : "Verify Booking"}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() =>
-                                    handleOpenCancelModal(booking.id)
+                                    handleOpenRejectModal(booking.id)
                                   }
                                   className="cursor-pointer text-red-600"
+                                  disabled={verifyingBookings.has(booking.id)}
                                 >
                                   <X className="w-4 h-4 mr-2" />
-                                  Cancel Booking
+                                  Reject Booking
                                 </DropdownMenuItem>
                               </>
                             )}
-                          {!canModifyBooking(booking) &&
-                            !booking.needsFrontdeskVerification && (
-                              <DropdownMenuItem disabled>
-                                No actions available
-                              </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                            {canModifyBooking(booking) &&
+                              !booking.needsFrontdeskVerification && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleAssignToNextTrip(booking.id)
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    <Clock className="w-4 h-4 mr-2" />
+                                    Assign to next trip
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleOpenCancelModal(booking.id)
+                                    }
+                                    className="cursor-pointer text-red-600"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Cancel Booking
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            {!canModifyBooking(booking) &&
+                              !booking.needsFrontdeskVerification && (
+                                <DropdownMenuItem disabled>
+                                  No actions available
+                                </DropdownMenuItem>
+                              )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {sortedBookings.length === 0 && (
-                <TableRow>
+                  <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
-                    <p className="text-gray-500">No bookings found</p>
-                  </TableCell>
-                </TableRow>
+                      <p className="text-gray-500">No bookings found</p>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
@@ -1070,12 +1154,18 @@ export default function BookingsPage() {
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600">
             <div>
-              Showing {pagedBookings.length} of {sortedBookings.length} filtered bookings (total {bookings.length})
+              Showing {pagedBookings.length} of {sortedBookings.length} filtered
+              bookings (total {bookings.length})
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:justify-end">
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-600 whitespace-nowrap">Page size</Label>
-                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                <Label className="text-sm text-gray-600 whitespace-nowrap">
+                  Page size
+                </Label>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => setPageSize(Number(v))}
+                >
                   <SelectTrigger className="w-20">
                     <SelectValue />
                   </SelectTrigger>
@@ -1089,25 +1179,25 @@ export default function BookingsPage() {
                 </Select>
               </div>
               <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Prev
-              </Button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Prev
+                </Button>
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           </div>

@@ -72,7 +72,14 @@ interface Booking {
   updatedAt: string;
   notes?: string;
   isParkSleepFly?: boolean;
+  // Pricing fields (direct access)
+  pricePerPerson: number | null;
+  totalPrice: number | null;
   shuttle?: {
+    id: string;
+    vehicleNumber: string;
+    seats: number;
+    createdAt: string;
     schedules: {
       driver: Driver;
     }[];

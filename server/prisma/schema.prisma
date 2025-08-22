@@ -98,6 +98,9 @@ model Booking {
   seatsHeldUntil             DateTime?
   seatsConfirmed             Boolean              @default(false)
   seatsConfirmedAt           DateTime?
+  // Pricing fields for performance optimization
+  pricePerPerson             Float?
+  totalPrice                 Float?
   dropoffLocation            Location?            @relation("dropoff", fields: [dropoffLocationId], references: [id])
   guest                      Guest                @relation(fields: [guestId], references: [id], onDelete: Cascade)
   pickupLocation             Location?            @relation("pickup", fields: [pickupLocationId], references: [id])

@@ -46,8 +46,7 @@ interface NewBookingProps {
 interface Location {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
+  price: number; // Added pricing information
 }
 interface Trip {
   id: string;
@@ -106,7 +105,7 @@ export default function NewBooking({
     totalPrice: number;
     locationName: string;
   } | null>(null);
-  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
+
 
   // Validation state
   const hasName = formData.firstName.trim() && formData.lastName.trim();
@@ -122,19 +121,41 @@ export default function NewBooking({
     }
   };
 
-  // Pricing fetch removed for performance optimization
-  // Pricing will be calculated after frontdesk verification
+  // Calculate pricing locally based on location data
+  const calculatePricing = () => {
+    // Find the relevant location (destination for hotel->airport, pickup for airport->hotel)
+    const locationName = formData.destination || formData.pickup;
+    const location = locations.find(loc => loc.name === locationName);
+
+    if (location && formData.numberOfPersons > 0) {
+      const pricePerPerson = location.price;
+      const totalPrice = pricePerPerson * formData.numberOfPersons;
+
+      setPricing({
+        pricePerPerson,
+        totalPrice,
+        locationName,
+      });
+    } else {
+      setPricing(null);
+    }
+  };
 
   useEffect(() => {
     fetchLocations();
   }, []);
 
-  // Skip pricing calculation for guest bookings to improve performance
-  // Pricing will be shown after frontdesk verification
+  // Calculate pricing when relevant form data changes
   useEffect(() => {
-    // Clear any existing pricing
-    setPricing(null);
-  }, []);
+    calculatePricing();
+  }, [
+    formData.destination,
+    formData.pickup,
+    formData.numberOfPersons,
+    tripDirection,
+    formData.tripType,
+    locations,
+  ]);
 
   // Update time every minute - only if component is active
   useEffect(() => {
@@ -639,9 +660,9 @@ export default function NewBooking({
 
                 {/* Pricing Information */}
                 <AnimatePresence mode="wait">
-                  {(pricing || isLoadingPricing) && (
+                  {pricing && (
                     <motion.div
-                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      key="pricing-ready"
                       className="space-y-2"
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -651,22 +672,9 @@ export default function NewBooking({
                       <Label>Pricing</Label>
                       <motion.div
                         layout
-                        className={`p-4 border rounded-lg transition-all duration-300 ${
-                          isLoadingPricing
-                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                        }`}
+                        className="p-4 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
                       >
-                        {isLoadingPricing ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
-                                Calculating pricing...
-                              </span>
-                            </div>
-                          </div>
-                        ) : pricing ? (
+                        {pricing ? (
                           <>
                             <div className="flex justify-between items-center mb-2">
                               <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -1002,9 +1010,9 @@ export default function NewBooking({
 
                 {/* Pricing Information */}
                 <AnimatePresence mode="wait">
-                  {(pricing || isLoadingPricing) && (
+                  {pricing && (
                     <motion.div
-                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      key="pricing-ready"
                       className="space-y-2"
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1014,22 +1022,9 @@ export default function NewBooking({
                       <Label>Pricing</Label>
                       <motion.div
                         layout
-                        className={`p-4 border rounded-lg transition-all duration-300 ${
-                          isLoadingPricing
-                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                        }`}
+                        className="p-4 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
                       >
-                        {isLoadingPricing ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
-                                Calculating pricing...
-                              </span>
-                            </div>
-                          </div>
-                        ) : pricing ? (
+                        {pricing ? (
                           <>
                             <div className="flex justify-between items-center mb-2">
                               <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -1438,9 +1433,9 @@ export default function NewBooking({
 
                 {/* Pricing Information */}
                 <AnimatePresence mode="wait">
-                  {(pricing || isLoadingPricing) && (
+                  {pricing && (
                     <motion.div
-                      key={isLoadingPricing ? "pricing-loading" : "pricing-ready"}
+                      key="pricing-ready"
                       className="space-y-2"
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1450,22 +1445,9 @@ export default function NewBooking({
                       <Label>Pricing</Label>
                       <motion.div
                         layout
-                        className={`p-4 border rounded-lg transition-all duration-300 ${
-                          isLoadingPricing
-                            ? "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                            : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-                        }`}
+                        className="p-4 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
                       >
-                        {isLoadingPricing ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
-                                Calculating pricing...
-                              </span>
-                            </div>
-                          </div>
-                        ) : pricing ? (
+                        {pricing ? (
                           <>
                             <div className="flex justify-between items-center mb-2">
                               <span className="text-sm text-gray-600 dark:text-gray-400">

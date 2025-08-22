@@ -566,7 +566,45 @@ const createBooking = async (req: Request, res: Response) => {
       bookingData.needsFrontdeskVerification = false; // No admin verification needed for waived bookings
     }
 
-    console.log("Final booking data:", JSON.stringify(bookingData, null, 2));
+    // Calculate pricing for the booking
+    let pricePerPerson = 0;
+    let totalPrice = 0;
+
+    if (pickupLocationId || dropoffLocationId) {
+      // Determine which location to use for pricing based on booking type
+      let pricingLocationId = null;
+
+      if (tripType === "HOTEL_TO_AIRPORT") {
+        // For hotel to airport, use dropoff location (airport) for pricing
+        pricingLocationId = dropoffLocationId;
+      } else if (tripType === "AIRPORT_TO_HOTEL") {
+        // For airport to hotel, use pickup location (airport) for pricing
+        pricingLocationId = pickupLocationId;
+      }
+
+      if (pricingLocationId) {
+        // Get the hotel location price for this location
+        const hotelLocation = await prisma.hotelLocation.findUnique({
+          where: {
+            hotelId_locationId: {
+              hotelId: hotelId,
+              locationId: parseInt(pricingLocationId),
+            },
+          },
+        });
+
+        if (hotelLocation) {
+          pricePerPerson = hotelLocation.price;
+          totalPrice = hotelLocation.price * parseInt(numberOfPersons);
+        }
+      }
+    }
+
+    // Add pricing data to booking data
+    bookingData.pricePerPerson = pricePerPerson;
+    bookingData.totalPrice = totalPrice;
+
+    console.log("Final booking data with pricing:", JSON.stringify(bookingData, null, 2));
 
     // Create the booking
     console.log("Creating booking in database...");
@@ -952,52 +990,7 @@ const getBookings = async (req: Request, res: Response) => {
       },
     });
 
-    // Add pricing information for each booking
-    const bookingsWithPricing = await Promise.all(
-      bookings.map(async (booking) => {
-        let pricePerPerson = 0;
-        let totalPrice = 0;
-
-        // Calculate pricing based on location and number of persons
-        let pricingLocationId = null;
-
-        if (booking.bookingType === "HOTEL_TO_AIRPORT") {
-          // For hotel to airport, use dropoff location (airport) for pricing
-          pricingLocationId = booking.dropoffLocationId;
-        } else if (booking.bookingType === "AIRPORT_TO_HOTEL") {
-          // For airport to hotel, use pickup location (airport) for pricing
-          pricingLocationId = booking.pickupLocationId;
-        }
-
-        if (pricingLocationId) {
-          // Get the hotel location price for this location
-          const hotelLocation = await prisma.hotelLocation.findUnique({
-            where: {
-              hotelId_locationId: {
-                hotelId: hotelId,
-                locationId: pricingLocationId,
-              },
-            },
-          });
-
-          if (hotelLocation) {
-            pricePerPerson = hotelLocation.price;
-            totalPrice = hotelLocation.price * booking.numberOfPersons;
-          }
-        }
-
-        return {
-          ...booking,
-          pricing: {
-            pricePerPerson,
-            totalPrice,
-            numberOfPersons: booking.numberOfPersons,
-          },
-        };
-      })
-    );
-
-    res.json({ bookings: bookingsWithPricing });
+    res.json({ bookings });
   } catch (error) {
     console.error("Get bookings error:", error);
     res.status(500).json({ message: "Internal server error" });

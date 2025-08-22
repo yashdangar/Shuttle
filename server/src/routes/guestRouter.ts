@@ -29,12 +29,7 @@ router.get(
   controller.getLocations as RequestHandler
 );
 
-//pricing routes
-router.get(
-  "/get-pricing",
-  guestAuthMiddleware as RequestHandler,
-  controller.getPricing as RequestHandler
-);
+
 
 //trip routes
 router.post(
