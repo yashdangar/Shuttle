@@ -215,20 +215,17 @@ const createTrip = async (req: Request, res: Response) => {
       }
     }
 
-    // Update guest information if provided - only if different
-    if (confirmationNum) {
-      await prisma.guest.updateMany({
-        where: {
-          id: userId,
-          confirmationNum: { not: confirmationNum },
-        },
-        data: { confirmationNum },
-      });
-    }
-
     // Generate encryption key
     const encryptionKey = generateEncryptionKey();
 
+    // For guest bookings, we don't assign shuttle immediately - wait for frontdesk verification
+    // The shuttle assignment will happen after frontdesk verifies the booking
+
+    // Determine direction for seat holding
+    const direction =
+      tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL";
+
+        // STEP 1: Create the booking first (outside transaction for better performance)
     const trip = await prisma.booking.create({
       data: {
         numberOfPersons,
@@ -258,17 +255,21 @@ const createTrip = async (req: Request, res: Response) => {
       },
     });
 
-    // For guest bookings, we don't assign shuttle immediately - wait for frontdesk verification
-    // The shuttle assignment will happen after frontdesk verifies the booking
+    // Update guest confirmation number after booking creation (only if different)
+    if (confirmationNum) {
+      await prisma.guest.updateMany({
+        where: {
+          id: userId,
+          confirmationNum: { not: confirmationNum },
+        },
+        data: { confirmationNum },
+      });
+    }
 
-    // Determine direction for seat holding
-    const direction =
-      tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL";
-
-    // STEP 1: Use transaction for ALL operations including seat holding
+    // STEP 2: Use transaction for seat holding operations only
     const result = await prisma.$transaction(async (tx) => {
-      // Find available shuttle
-      const shuttles = await tx.shuttle.findMany({
+      // Single optimized query to get shuttles with their schedules
+      const shuttlesWithSchedules = await tx.shuttle.findMany({
         where: { hotelId: guest.hotelId! },
         select: {
           id: true,
@@ -282,33 +283,24 @@ const createTrip = async (req: Request, res: Response) => {
           hotelToAirportCapacity: true,
           hotelToAirportSeatsHeld: true,
           hotelToAirportSeatsConfirmed: true,
-        },
-      });
-
-      // Get schedules for these shuttles
-      const shuttleIds = shuttles.map(s => s.id);
-      const schedules = await tx.schedule.findMany({
-        where: {
-          shuttleId: { in: shuttleIds },
-          startTime: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lte: new Date(new Date().setHours(23, 59, 59, 999)),
+          schedules: {
+            where: {
+              startTime: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                lte: new Date(new Date().setHours(23, 59, 59, 999)),
+              },
+            },
+            orderBy: { startTime: 'asc' },
           },
         },
-        orderBy: { startTime: 'asc' },
       });
 
-      // Combine shuttles with their schedules
-      const shuttlesWithSchedules = shuttles.map(shuttle => ({
-        ...shuttle,
-        schedules: schedules.filter(s => s.shuttleId === shuttle.id),
-      }));
-
-      // Find shuttle with available capacity
+      // Find shuttle with available capacity (optimized logic)
       let availableShuttle = null;
       for (const shuttle of shuttlesWithSchedules) {
         if (shuttle.schedules.length === 0) continue;
 
+        // Calculate available capacity based on direction
         let capacity = shuttle.seats;
         let seatsHeld = 0;
         let seatsConfirmed = 0;
@@ -317,17 +309,17 @@ const createTrip = async (req: Request, res: Response) => {
           if (shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
             capacity = shuttle.hotelToAirportCapacity;
           }
-          seatsHeld = shuttle.hotelToAirportSeatsHeld;
-          seatsConfirmed = shuttle.hotelToAirportSeatsConfirmed;
+          seatsHeld = shuttle.hotelToAirportSeatsHeld || 0;
+          seatsConfirmed = shuttle.hotelToAirportSeatsConfirmed || 0;
         } else if (direction === "AIRPORT_TO_HOTEL") {
           if (shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
             capacity = shuttle.airportToHotelCapacity;
           }
-          seatsHeld = shuttle.airportToHotelSeatsHeld;
-          seatsConfirmed = shuttle.airportToHotelSeatsConfirmed;
+          seatsHeld = shuttle.airportToHotelSeatsHeld || 0;
+          seatsConfirmed = shuttle.airportToHotelSeatsConfirmed || 0;
         } else {
-          seatsHeld = shuttle.seatsHeld;
-          seatsConfirmed = shuttle.seatsConfirmed;
+          seatsHeld = shuttle.seatsHeld || 0;
+          seatsConfirmed = shuttle.seatsConfirmed || 0;
         }
 
         if (seatsHeld + seatsConfirmed + numberOfPersons <= capacity) {
@@ -340,20 +332,15 @@ const createTrip = async (req: Request, res: Response) => {
         throw new Error("NO_SHUTTLE_AVAILABLE");
       }
 
-      // Hold seats in shuttle
-      let shuttleUpdateData: any = {};
+      // Hold seats in shuttle (streamlined logic)
+      const shuttleUpdateData: Record<string, any> = {};
+
       if (direction === "HOTEL_TO_AIRPORT") {
-        shuttleUpdateData = {
-          hotelToAirportSeatsHeld: availableShuttle.hotelToAirportSeatsHeld + numberOfPersons
-        };
+        shuttleUpdateData.hotelToAirportSeatsHeld = (availableShuttle.hotelToAirportSeatsHeld || 0) + numberOfPersons;
       } else if (direction === "AIRPORT_TO_HOTEL") {
-        shuttleUpdateData = {
-          airportToHotelSeatsHeld: availableShuttle.airportToHotelSeatsHeld + numberOfPersons
-        };
+        shuttleUpdateData.airportToHotelSeatsHeld = (availableShuttle.airportToHotelSeatsHeld || 0) + numberOfPersons;
       } else {
-        shuttleUpdateData = {
-          seatsHeld: availableShuttle.seatsHeld + numberOfPersons
-        };
+        shuttleUpdateData.seatsHeld = (availableShuttle.seatsHeld || 0) + numberOfPersons;
       }
 
       await tx.shuttle.update({
@@ -375,11 +362,11 @@ const createTrip = async (req: Request, res: Response) => {
         },
       });
 
-      return { trip, availableShuttle };
+      return { availableShuttle };
     });
 
     // STEP 2: Send immediate response after transaction completes
-    const updatedTrip = result.trip;
+    const updatedTrip = trip;
 
     // STEP 3: Handle notifications asynchronously (background processing)
     setImmediate(async () => {
