@@ -9,8 +9,10 @@ import {
   generateEncryptionKey,
   generateQRCode,
   verifyQRCode,
+  generateVerificationToken,
 } from "../utils/qrCodeUtils";
-import { getSignedUrlFromPath } from "../utils/s3Utils";
+import { getSignedUrlFromPath, uploadToS3 } from "../utils/s3Utils";
+import QRCode from "qrcode";
 import { sendToUser, sendToRoleInHotel } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { googleMapsService } from "../utils/googleMapsUtils";
@@ -1892,19 +1894,71 @@ const addWeeklySchedule = async (req: Request, res: Response) => {
   }
 };
 
+// Helper functions for verifyGuestBooking
+
+const generateQRCodeDataSync = (bookingData: any) => {
+  // Generate a secure verification token
+  const token = generateVerificationToken();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+  // Create QR data with only the token (no sensitive information)
+  const qrData = {
+    token,
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  // Convert QR data to string
+  const qrDataString = JSON.stringify(qrData);
+
+  return {
+    path: `shuttle/${bookingData.bookingId}/qr.png`,
+    fullData: { ...bookingData, token, expiresAt, qrDataString }
+  };
+};
+
+const generateQRCodeBackground = async (bookingData: any) => {
+  try {
+    // Create verification token in database
+    await prisma.qRVerificationToken.create({
+      data: {
+        token: bookingData.token,
+        bookingId: bookingData.bookingId,
+        expiresAt: bookingData.expiresAt,
+      },
+    });
+
+    // Generate QR code as buffer
+    const qrCodeBuffer = await QRCode.toBuffer(bookingData.qrDataString, {
+      errorCorrectionLevel: "H",
+      margin: 1,
+      width: 300,
+    });
+
+    // Upload to S3
+    const s3Path = `shuttle/${bookingData.bookingId}/qr.png`;
+    await uploadToS3(qrCodeBuffer, s3Path);
+
+    console.log(`Background QR code generation completed for booking ${bookingData.bookingId}`);
+  } catch (error) {
+    console.error("Background QR code generation error:", error);
+    throw error;
+  }
+};
+
 // Verify guest booking by confirming held seats and generating QR (fast path)
 const verifyGuestBooking = async (req: Request, res: Response) => {
+  const { bookingId } = req.params;
+  const hotelId = (req as any).user.hotelId;
+  const frontdeskId = (req as any).user.userId;
+
   try {
-    const { bookingId } = req.params;
-    const hotelId = (req as any).user.hotelId;
-    const frontdeskId = (req as any).user.userId;
 
     // Validate that booking ID is provided
     if (!bookingId) {
       return res.status(400).json({ error: "Booking ID is required" });
     }
 
-    // Find the booking
+    // Find the booking first
     const booking = await prisma.booking.findFirst({
       where: {
         id: bookingId,
@@ -1916,6 +1970,7 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       },
       include: {
         guest: true,
+        shuttle: true,
       },
     });
 
@@ -1929,41 +1984,76 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
     if (!booking.seatsHeld || !booking.shuttleId) {
       console.log(`Booking ${bookingId} has no active seat hold or shuttle assignment`);
       return res.status(400).json({
-        message:
-          "Booking does not have an active seat hold. Please re-initiate the hold before verification.",
+        message: "Booking does not have an active seat hold. Please re-initiate the hold before verification.",
       });
     }
 
-    // Confirm the held seats for this booking
-    const seatsConfirmed = await confirmHeldSeats(bookingId);
-    if (!seatsConfirmed) {
-      console.warn(`Failed to confirm held seats for booking ${bookingId}`);
+    // Get shuttle info for response
+    const assignedShuttle = booking.shuttle ? {
+      id: booking.shuttle.id,
+      vehicleNumber: booking.shuttle.vehicleNumber
+    } : null;
+
+    // Check if hold has expired
+    if (booking.seatsHeldUntil && new Date() > booking.seatsHeldUntil) {
+      console.warn(`Seat hold for booking ${bookingId} has expired`);
       return res.status(400).json({
-        message:
-          "Failed to confirm held seats. The hold may have expired or been released.",
+        message: "Failed to confirm held seats. The hold may have expired or been released.",
       });
     }
 
-    // Fetch the assigned shuttle (for response context only)
-    const assignedShuttle = await prisma.shuttle.findUnique({
+    // Determine direction based on booking type
+    let direction: "AIRPORT_TO_HOTEL" | "HOTEL_TO_AIRPORT" | null = null;
+    if (booking.bookingType === "AIRPORT_TO_HOTEL") {
+      direction = "AIRPORT_TO_HOTEL";
+    } else if (booking.bookingType === "HOTEL_TO_AIRPORT") {
+      direction = "HOTEL_TO_AIRPORT";
+    }
+
+    // Confirm seats in shuttle
+    const shuttleUpdateData: any = {};
+    if (direction === "AIRPORT_TO_HOTEL") {
+      shuttleUpdateData.airportToHotelSeatsHeld = booking.shuttle!.airportToHotelSeatsHeld - booking.numberOfPersons;
+      shuttleUpdateData.airportToHotelSeatsConfirmed = booking.shuttle!.airportToHotelSeatsConfirmed + booking.numberOfPersons;
+    } else if (direction === "HOTEL_TO_AIRPORT") {
+      shuttleUpdateData.hotelToAirportSeatsHeld = booking.shuttle!.hotelToAirportSeatsHeld - booking.numberOfPersons;
+      shuttleUpdateData.hotelToAirportSeatsConfirmed = booking.shuttle!.hotelToAirportSeatsConfirmed + booking.numberOfPersons;
+    } else {
+      shuttleUpdateData.seatsHeld = booking.shuttle!.seatsHeld - booking.numberOfPersons;
+      shuttleUpdateData.seatsConfirmed = booking.shuttle!.seatsConfirmed + booking.numberOfPersons;
+    }
+
+    await prisma.shuttle.update({
       where: { id: booking.shuttleId },
-      select: { id: true, vehicleNumber: true },
+      data: shuttleUpdateData,
     });
 
-    // Generate QR code for the verified booking
-    const qrCodeData = await generateQRCode({
+    // Confirm seats in booking
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        seatsConfirmed: true,
+        seatsConfirmedAt: new Date(),
+        seatsHeld: false,
+        seatsHeldAt: null,
+        seatsHeldUntil: null,
+      },
+    });
+
+    // Generate QR code data (without S3 upload - will be done in background)
+    const qrCodeData = generateQRCodeDataSync({
       bookingId: booking.id,
       guestId: booking.guestId,
       preferredTime: booking.preferredTime?.toISOString() || "",
       encryptionKey: booking.encryptionKey!,
     });
 
-    // Update booking: frontdesk verification complete and add QR code
+    // Update booking
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         needsFrontdeskVerification: false,
-        qrCodePath: qrCodeData,
+        qrCodePath: qrCodeData.path,
       },
       include: {
         guest: true,
@@ -1971,112 +2061,118 @@ const verifyGuestBooking = async (req: Request, res: Response) => {
       },
     });
 
-    // Notify guest
-    const notificationMessage = assignedShuttle
+    // Create guest notification
+    const guestNotificationMessage = assignedShuttle
       ? `Your booking has been verified by the frontdesk for shuttle ${assignedShuttle.vehicleNumber}. Your QR code is now available for driver check-in.`
       : `Your booking has been verified by the frontdesk. Your QR code is now available for driver check-in.`;
 
-    // Notify the guest that their booking has been verified
     await prisma.notification.create({
       data: {
         guestId: booking.guestId,
         title: "Booking Verified",
-        message: notificationMessage,
+        message: guestNotificationMessage,
       },
     });
 
-    // Notify the guest via WebSocket
-    const guestNotificationPayload = {
-      title: "Booking Verified",
-      message: notificationMessage,
-      booking: updatedBooking,
-    };
-    sendToUser(
-      booking.guestId,
-      "guest",
-      WsEvents.BOOKING_VERIFIED,
-      guestNotificationPayload
-    );
-
-    // Notify other frontdesk users about the booking update
-    const bookingUpdatePayload = {
-      title: "Booking Verified",
-      message: assignedShuttle
-        ? `Booking #${booking.id.substring(0, 8)} has been verified for shuttle ${assignedShuttle.vehicleNumber}.`
-        : `Booking #${booking.id.substring(0, 8)} has been verified.`,
-      booking: updatedBooking,
-    };
-    if (booking.guest.hotelId) {
-      // Fetch the complete booking with guest information for the WebSocket event
-      const completeBooking = await getBookingDataForWebSocket(
-        updatedBooking.id,
-        updatedBooking
-      );
-
-      const completeNotificationPayload = {
-        title: "Booking Verified",
-        message: bookingUpdatePayload.message,
-        booking: completeBooking,
-      };
-
-      sendToRoleInHotel(
-        booking.guest.hotelId,
-        "frontdesk",
-        WsEvents.BOOKING_UPDATED,
-        completeNotificationPayload
-      );
-    }
-
-    // Notify the assigned driver (active or next scheduled) about the verified booking
-    if (assignedShuttle) {
-      const now = new Date();
-      // Try active schedule first
-      let targetSchedule = await prisma.schedule.findFirst({
-        where: {
-          shuttleId: assignedShuttle.id,
-          startTime: { lte: now },
-          endTime: { gte: now },
-        },
-        include: { driver: true },
-        orderBy: { startTime: "asc" },
-      });
-
-      // Fallback to next upcoming schedule if none active
-      if (!targetSchedule) {
-        targetSchedule = await prisma.schedule.findFirst({
-          where: { shuttleId: assignedShuttle.id, startTime: { gte: now } },
-          include: { driver: true },
-          orderBy: { startTime: "asc" },
-        });
-      }
-
-      const driverId = targetSchedule?.driverId;
-      if (driverId) {
-        const driverMessage = `A booking has been verified for your shuttle ${assignedShuttle.vehicleNumber}.`;
-
-        // Create database notification for the driver
-        await prisma.notification.create({
-          data: {
-            driverId,
-            title: "New Booking Verified",
-            message: driverMessage,
-          },
-        });
-
-        const driverNotificationPayload = {
-          title: "New Booking Assigned",
-          message: driverMessage,
-          booking: updatedBooking,
-        };
-        sendToUser(driverId, "driver", WsEvents.BOOKING_ASSIGNED, driverNotificationPayload);
-      }
-    }
-
+    // Send response immediately - all heavy operations moved to background
     res.json({
       message: "Booking verified successfully. QR code generated.",
       booking: updatedBooking,
-      assignedShuttle: assignedShuttle || null,
+      assignedShuttle: assignedShuttle,
     });
+
+    // Handle async operations (notifications, QR upload) after response is sent
+    setImmediate(async () => {
+      try {
+        // Send WebSocket notifications
+        const guestNotificationPayload = {
+          title: "Booking Verified",
+          message: guestNotificationMessage,
+          booking: updatedBooking,
+        };
+        sendToUser(
+          booking.guestId,
+          "guest",
+          WsEvents.BOOKING_VERIFIED,
+          guestNotificationPayload
+        );
+
+        // Notify frontdesk users
+        if (booking.guest.hotelId) {
+          const completeBooking = await getBookingDataForWebSocket(
+            updatedBooking.id,
+            updatedBooking
+          );
+
+          const frontdeskNotificationPayload = {
+            title: "Booking Verified",
+            message: assignedShuttle
+              ? `Booking #${booking.id.substring(0, 8)} has been verified for shuttle ${assignedShuttle.vehicleNumber}.`
+              : `Booking #${booking.id.substring(0, 8)} has been verified.`,
+            booking: completeBooking,
+          };
+
+          sendToRoleInHotel(
+            booking.guest.hotelId,
+            "frontdesk",
+            WsEvents.BOOKING_UPDATED,
+            frontdeskNotificationPayload
+          );
+        }
+
+        // Find and notify driver (in background)
+        if (assignedShuttle) {
+          setImmediate(async () => {
+            try {
+              const now = new Date();
+              const targetSchedule = await prisma.schedule.findFirst({
+                where: {
+                  shuttleId: assignedShuttle.id,
+                  OR: [
+                    { startTime: { lte: now }, endTime: { gte: now } }, // active
+                    { startTime: { gte: now } } // upcoming
+                  ]
+                },
+                include: { driver: true },
+                orderBy: { startTime: "asc" },
+              });
+
+              if (targetSchedule?.driverId) {
+                // Create driver notification
+                await prisma.notification.create({
+                  data: {
+                    driverId: targetSchedule.driverId,
+                    title: "New Booking Verified",
+                    message: `A booking has been verified for your shuttle ${assignedShuttle.vehicleNumber}.`,
+                  },
+                });
+
+                // Send WebSocket notification to driver
+                const driverNotificationPayload = {
+                  title: "New Booking Assigned",
+                  message: `A booking has been verified for your shuttle ${assignedShuttle.vehicleNumber}.`,
+                  booking: updatedBooking,
+                };
+                sendToUser(targetSchedule.driverId, "driver", WsEvents.BOOKING_ASSIGNED, driverNotificationPayload);
+              }
+            } catch (error) {
+              console.warn("Driver lookup/notification failed (non-critical):", error);
+            }
+          });
+        }
+
+        // Generate and upload QR code in background
+        setImmediate(() => {
+          generateQRCodeBackground(qrCodeData.fullData).catch(err => {
+            console.error("Background QR code generation failed:", err);
+          });
+        });
+
+      } catch (error) {
+        console.error("Error in async operations:", error);
+      }
+    });
+
   } catch (error) {
     console.error("Verify guest booking error:", error);
     res.status(500).json({ message: "Internal server error" });

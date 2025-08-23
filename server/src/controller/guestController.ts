@@ -13,7 +13,6 @@ import { sendToRoleInHotel, sendToUser } from "../ws/index";
 import { WsEvents } from "../ws/events";
 import { getBookingDataForWebSocket } from "../utils/bookingUtils";
 import {
-  holdSeatsForBooking,
   getSeatHoldStatus,
   releaseHeldSeats,
   releaseAllSeatsForBooking,
@@ -266,41 +265,131 @@ const createTrip = async (req: Request, res: Response) => {
     const direction =
       tripType === "HOTEL_TO_AIRPORT" ? "HOTEL_TO_AIRPORT" : "AIRPORT_TO_HOTEL";
 
-    // Hold seats temporarily for this booking
-    const seatsHeld = await holdSeatsForBooking(
-      trip.id,
-      numberOfPersons,
-      guest.hotelId,
-      preferredTime ? new Date(preferredTime) : undefined,
-      direction
-    );
-    if (!seatsHeld) {
-      console.error("Failed to hold seats for booking:", trip.id);
-      // Delete the booking since no seats are available
-      await prisma.booking.delete({
+    // STEP 1: Use transaction for ALL operations including seat holding
+    const result = await prisma.$transaction(async (tx) => {
+      // Find available shuttle
+      const shuttles = await tx.shuttle.findMany({
+        where: { hotelId: guest.hotelId! },
+        select: {
+          id: true,
+          vehicleNumber: true,
+          seats: true,
+          seatsHeld: true,
+          seatsConfirmed: true,
+          airportToHotelCapacity: true,
+          airportToHotelSeatsHeld: true,
+          airportToHotelSeatsConfirmed: true,
+          hotelToAirportCapacity: true,
+          hotelToAirportSeatsHeld: true,
+          hotelToAirportSeatsConfirmed: true,
+        },
+      });
+
+      // Get schedules for these shuttles
+      const shuttleIds = shuttles.map(s => s.id);
+      const schedules = await tx.schedule.findMany({
+        where: {
+          shuttleId: { in: shuttleIds },
+          startTime: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lte: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+        },
+        orderBy: { startTime: 'asc' },
+      });
+
+      // Combine shuttles with their schedules
+      const shuttlesWithSchedules = shuttles.map(shuttle => ({
+        ...shuttle,
+        schedules: schedules.filter(s => s.shuttleId === shuttle.id),
+      }));
+
+      // Find shuttle with available capacity
+      let availableShuttle = null;
+      for (const shuttle of shuttlesWithSchedules) {
+        if (shuttle.schedules.length === 0) continue;
+
+        let capacity = shuttle.seats;
+        let seatsHeld = 0;
+        let seatsConfirmed = 0;
+
+        if (direction === "HOTEL_TO_AIRPORT") {
+          if (shuttle.hotelToAirportCapacity && shuttle.hotelToAirportCapacity > 0) {
+            capacity = shuttle.hotelToAirportCapacity;
+          }
+          seatsHeld = shuttle.hotelToAirportSeatsHeld;
+          seatsConfirmed = shuttle.hotelToAirportSeatsConfirmed;
+        } else if (direction === "AIRPORT_TO_HOTEL") {
+          if (shuttle.airportToHotelCapacity && shuttle.airportToHotelCapacity > 0) {
+            capacity = shuttle.airportToHotelCapacity;
+          }
+          seatsHeld = shuttle.airportToHotelSeatsHeld;
+          seatsConfirmed = shuttle.airportToHotelSeatsConfirmed;
+        } else {
+          seatsHeld = shuttle.seatsHeld;
+          seatsConfirmed = shuttle.seatsConfirmed;
+        }
+
+        if (seatsHeld + seatsConfirmed + numberOfPersons <= capacity) {
+          availableShuttle = shuttle;
+          break;
+        }
+      }
+
+      if (!availableShuttle) {
+        throw new Error("NO_SHUTTLE_AVAILABLE");
+      }
+
+      // Hold seats in shuttle
+      let shuttleUpdateData: any = {};
+      if (direction === "HOTEL_TO_AIRPORT") {
+        shuttleUpdateData = {
+          hotelToAirportSeatsHeld: availableShuttle.hotelToAirportSeatsHeld + numberOfPersons
+        };
+      } else if (direction === "AIRPORT_TO_HOTEL") {
+        shuttleUpdateData = {
+          airportToHotelSeatsHeld: availableShuttle.airportToHotelSeatsHeld + numberOfPersons
+        };
+      } else {
+        shuttleUpdateData = {
+          seatsHeld: availableShuttle.seatsHeld + numberOfPersons
+        };
+      }
+
+      await tx.shuttle.update({
+        where: { id: availableShuttle.id },
+        data: shuttleUpdateData,
+      });
+
+      // Update booking with seat hold information
+      const now = new Date();
+      const holdUntil = new Date(now.getTime() + 30 * 60 * 1000);
+
+      await tx.booking.update({
         where: { id: trip.id },
+        data: {
+          seatsHeld: true,
+          seatsHeldAt: now,
+          seatsHeldUntil: holdUntil,
+          shuttleId: availableShuttle.id,
+        },
       });
-      return res.status(400).json({
-        error:
-          "No shuttle capacity available for your booking. Please try again later or contact the front desk.",
-      });
-    }
 
-    // For guest bookings, QR code will be generated after frontdesk verification
-    // No QR code generation here - it will happen in verifyGuestBooking
-    const updatedTrip = trip;
-
-    // Send notification to all frontdesks in the hotel - async to avoid blocking
-    const guestData = await prisma.guest.findUnique({
-      where: { id: userId },
-      select: { hotelId: true, firstName: true },
+      return { trip, availableShuttle };
     });
 
-    if (guestData?.hotelId) {
-      // Send notifications asynchronously to avoid blocking the response
-      setImmediate(async () => {
-        try {
-          // Fetch the complete booking with guest information for the WebSocket event
+    // STEP 2: Send immediate response after transaction completes
+    const updatedTrip = result.trip;
+
+    // STEP 3: Handle notifications asynchronously (background processing)
+    setImmediate(async () => {
+      try {
+        const guestData = await prisma.guest.findUnique({
+          where: { id: userId },
+          select: { hotelId: true, firstName: true },
+        });
+
+        if (guestData?.hotelId) {
           const completeBooking = await getBookingDataForWebSocket(
             updatedTrip.id,
             updatedTrip
@@ -314,7 +403,6 @@ const createTrip = async (req: Request, res: Response) => {
             booking: completeBooking,
           };
 
-          // Send WebSocket notification
           sendToRoleInHotel(
             guestData.hotelId!,
             "frontdesk",
@@ -322,7 +410,6 @@ const createTrip = async (req: Request, res: Response) => {
             notificationPayload
           );
 
-          // Create database notifications in batch
           const frontdeskUsers = await prisma.frontDesk.findMany({
             where: { hotelId: guestData.hotelId! },
             select: { id: true },
@@ -340,11 +427,11 @@ const createTrip = async (req: Request, res: Response) => {
               })),
             });
           }
-        } catch (error) {
-          console.error("Error sending notifications:", error);
         }
-      });
-    }
+      } catch (error) {
+        console.error("Error sending notifications:", error);
+      }
+    });
 
     res.json({
       trip: updatedTrip,
@@ -355,6 +442,12 @@ const createTrip = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "NO_SHUTTLE_AVAILABLE") {
+      return res.status(400).json({
+        error: "No shuttle capacity available for your booking. Please try again later or contact the front desk.",
+      });
+    }
+
     console.error("Error creating trip:", error);
     res.status(500).json({ error: "Failed to create trip" });
   }
