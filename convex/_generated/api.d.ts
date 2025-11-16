@@ -8,7 +8,7 @@
  * @module
  */
 
-import type * as user_index from "../user/index.js";
+import type * as auth from "../auth.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +17,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "user/index": typeof user_index;
+  auth: typeof auth;
 }>;
 
 /**

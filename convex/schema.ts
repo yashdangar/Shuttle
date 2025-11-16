@@ -13,7 +13,7 @@ export default defineSchema({
     ),
     name: v.string(),
     phoneNumber: v.string(),
-    password: v.string(), //Hash of the password
+    password: v.optional(v.string()), //Hash of the password (optional for OAuth users)
     profilePictureId: v.optional(v.id("files")),
 
     notificationIds: v.array(v.id("notifications")),
