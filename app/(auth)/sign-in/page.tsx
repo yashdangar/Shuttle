@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,7 +39,17 @@ export default function SignInPage() {
       });
 
       if (result?.ok) {
-        router.push("/");
+        const redirect = searchParams.get("redirect");
+        const hotelId = searchParams.get("hotelId");
+        
+        if (redirect) {
+          const redirectUrl = hotelId 
+            ? `${redirect}?hotelId=${hotelId}`
+            : redirect;
+          router.push(redirectUrl);
+        } else {
+          router.push("/");
+        }
         router.refresh();
       } else {
         setError("Invalid email or password");
@@ -53,7 +64,14 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError("");
-    await signIn("google", { callbackUrl: "/" });
+    const redirect = searchParams.get("redirect");
+    const hotelId = searchParams.get("hotelId");
+    
+    const callbackUrl = redirect && hotelId
+      ? `${redirect}?hotelId=${hotelId}`
+      : redirect || "/";
+    
+    await signIn("google", { callbackUrl });
   };
 
   return (
