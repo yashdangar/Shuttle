@@ -20,7 +20,7 @@ const roleScopes: Record<Role, string[]> = {
   frontdesk: ["/admin"],
   superadmin: ["/super-admin"],
 };
-w
+
 export default auth((req) => {
   const { nextUrl } = req;
   const pathname = normalizePath(nextUrl.pathname);

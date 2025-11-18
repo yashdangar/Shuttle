@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -41,9 +41,9 @@ export default function SignInPage() {
       if (result?.ok) {
         const redirect = searchParams.get("redirect");
         const hotelId = searchParams.get("hotelId");
-        
+
         if (redirect) {
-          const redirectUrl = hotelId 
+          const redirectUrl = hotelId
             ? `${redirect}?hotelId=${hotelId}`
             : redirect;
           router.push(redirectUrl);
@@ -66,11 +66,10 @@ export default function SignInPage() {
     setError("");
     const redirect = searchParams.get("redirect");
     const hotelId = searchParams.get("hotelId");
-    
-    const callbackUrl = redirect && hotelId
-      ? `${redirect}?hotelId=${hotelId}`
-      : redirect || "/";
-    
+
+    const callbackUrl =
+      redirect && hotelId ? `${redirect}?hotelId=${hotelId}` : redirect || "/";
+
     await signIn("google", { callbackUrl });
   };
 
@@ -162,5 +161,19 @@ export default function SignInPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center p-4">
+          Loading...
+        </div>
+      }
+    >
+      <SignInContent />
+    </Suspense>
   );
 }

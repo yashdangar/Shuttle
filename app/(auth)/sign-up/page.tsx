@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { signIn } from "next-auth/react";
 
-export default function SignUpPage() {
+function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const createUser = useAction(api.auth.createUser);
@@ -54,9 +54,9 @@ export default function SignUpPage() {
       if (result?.ok) {
         const redirect = searchParams.get("redirect");
         const hotelId = searchParams.get("hotelId");
-        
+
         if (redirect) {
-          const redirectUrl = hotelId 
+          const redirectUrl = hotelId
             ? `${redirect}?hotelId=${hotelId}`
             : redirect;
           router.push(redirectUrl);
@@ -65,7 +65,9 @@ export default function SignUpPage() {
         }
         router.refresh();
       } else {
-        setError("Account created but failed to sign in. Please try signing in.");
+        setError(
+          "Account created but failed to sign in. Please try signing in."
+        );
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account");
@@ -82,9 +84,7 @@ export default function SignUpPage() {
     const hotelId = searchParams.get("hotelId");
 
     const callbackUrl =
-      redirect && hotelId
-        ? `${redirect}?hotelId=${hotelId}`
-        : redirect || "/";
+      redirect && hotelId ? `${redirect}?hotelId=${hotelId}` : redirect || "/";
 
     await signIn("google", { callbackUrl });
   };
@@ -201,3 +201,16 @@ export default function SignUpPage() {
   );
 }
 
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center p-4">
+          Loading...
+        </div>
+      }
+    >
+      <SignUpContent />
+    </Suspense>
+  );
+}

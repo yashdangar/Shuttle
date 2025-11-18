@@ -1,10 +1,10 @@
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { FAKE_HOTELS, type Hotel } from "../../../lib/hotels";
 
-export default function NewBookingPage() {
+function NewBookingContent() {
   const searchParams = useSearchParams();
   const hotelId = searchParams.get("hotelId");
   const [hotel, setHotel] = useState<Hotel | null>(null);
@@ -52,7 +52,8 @@ export default function NewBookingPage() {
             New booking
           </h1>
           <p className="text-sm text-muted-foreground">
-            You’re booking for <span className="font-medium text-foreground">{hotel.name}</span>
+            You’re booking for{" "}
+            <span className="font-medium text-foreground">{hotel.name}</span>
           </p>
         </header>
 
@@ -65,9 +66,7 @@ export default function NewBookingPage() {
               <h2 className="text-xl font-semibold text-foreground">
                 {hotel.name}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {hotel.address}
-              </p>
+              <p className="text-sm text-muted-foreground">{hotel.address}</p>
             </div>
             <button className="text-sm font-medium text-primary hover:underline">
               Change
@@ -81,7 +80,8 @@ export default function NewBookingPage() {
               Booking form will go here
             </p>
             <p className="text-sm text-muted-foreground">
-              Add passenger details, trip direction, seat count, and payment info.
+              Add passenger details, trip direction, seat count, and payment
+              info.
             </p>
           </div>
         </section>
@@ -90,3 +90,16 @@ export default function NewBookingPage() {
   );
 }
 
+export default function NewBookingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
+      <NewBookingContent />
+    </Suspense>
+  );
+}
