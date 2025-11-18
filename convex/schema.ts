@@ -15,7 +15,6 @@ export default defineSchema({
     phoneNumber: v.string(),
     password: v.optional(v.string()), //Hash of the password (optional for OAuth users)
     profilePictureId: v.optional(v.id("files")),
-
     notificationIds: v.array(v.id("notifications")),
     chatIds: v.array(v.id("chats")),
   })
