@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { CalendarPlus, LayoutDashboard, MapPin, Shield } from "lucide-react";
-
 import type { SidebarData } from "@/types/sidebar";
 
-export type SidebarType = "guest" | "admin" | "hidden" | "driver" | "superadmin" ;
+export type SidebarType = "guest" | "admin" | "hidden" | "driver" | "superadmin";
 
 export interface RouteConfig {
   sidebarType: SidebarType;
@@ -14,14 +14,11 @@ export interface RouteConfig {
   shouldShowSidebar: boolean;
   pathname: string;
   sidebarData: SidebarData | null;
+  hiddenRoutes: string[];
 }
 
 const guestSidebarData: SidebarData = {
-  organization: {
-    name: "Shuttle OPS",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
+  organization: { name: "Shuttle OPS", url: "/dashboard", icon: LayoutDashboard },
   navMain: [
     {
       title: "Dashboard",
@@ -44,53 +41,32 @@ const guestSidebarData: SidebarData = {
 };
 
 const adminSidebarData: SidebarData = {
-  organization: {
-    name: "Shuttle Admin",
-    url: "/admin/dashboard",
-    icon: Shield,
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/admin/dashboard",
-      icon: LayoutDashboard,
-    },
-  ],
+  organization: { name: "Shuttle Admin", url: "/admin/dashboard", icon: Shield },
+  navMain: [{ title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard }],
   navSecondary: [],
 };
 
 const driverSidebarData: SidebarData = {
-  organization: {
-    name: "Shuttle Driver",
-    url: "/driver/dashboard",
-    icon: Shield,
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/driver",
-      icon: LayoutDashboard,
-    },
-  ],
+  organization: { name: "Shuttle Driver", url: "/driver/dashboard", icon: Shield },
+  navMain: [{ title: "Dashboard", url: "/driver", icon: LayoutDashboard }],
   navSecondary: [],
 };
 
 const superAdminSidebarData: SidebarData = {
-  organization: {
-    name: "Shuttle Super Admin",
-    url: "/super-admin",
-    icon: Shield,
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/super-admin",
-      icon: LayoutDashboard,
-    },
-  ],
+  organization: { name: "Shuttle Super Admin", url: "/super-admin", icon: Shield },
+  navMain: [{ title: "Dashboard", url: "/super-admin", icon: LayoutDashboard }],
   navSecondary: [],
 };
 
+const roleSidebarMap: Record<string, SidebarData> = {
+  guest: guestSidebarData,
+  admin: adminSidebarData,
+  driver: driverSidebarData,
+  superadmin: superAdminSidebarData,
+  frontdesk: guestSidebarData,
+};
+
+const hiddenRoutes: string[] = ["/", "/sign-in", "/sign-up"];
 const routeGroups: Array<{
   sidebarType: SidebarType;
   sidebarData: SidebarData;
@@ -161,33 +137,30 @@ function annotateSidebarDataWithActiveState(
 
 export function useRouteConfig(): RouteConfig {
   const pathname = usePathname() ?? "/";
+  const { user } = useAuthSession();
 
   return useMemo(() => {
-    for (const routeGroup of routeGroups) {
-      const matchedRoute = Object.keys(routeGroup.headers).find((route) =>
-        pathname.startsWith(route)
-      );
-
-      if (matchedRoute) {
-        return {
-          sidebarType: routeGroup.sidebarType,
-          headerTitle: routeGroup.headers[matchedRoute],
-          shouldShowSidebar: true,
-          pathname,
-          sidebarData: annotateSidebarDataWithActiveState(
-            routeGroup.sidebarData,
-            pathname
-          ),
-        };
-      }
+    if (hiddenRoutes.includes(pathname)) {
+      return {
+        sidebarType: "hidden",
+        headerTitle: null,
+        shouldShowSidebar: false,
+        pathname,
+        sidebarData: null,
+        hiddenRoutes,
+      };
     }
 
+    const role = user?.role ?? "guest";
+    const sidebarData = roleSidebarMap[role] ?? guestSidebarData;
+
     return {
-      sidebarType: "hidden",
-      headerTitle: null,
-      shouldShowSidebar: false,
+      sidebarType: role as SidebarType,
+      headerTitle: sidebarData.organization.name,
+      shouldShowSidebar: true,
       pathname,
-      sidebarData: null,
+      sidebarData: annotateSidebarDataWithActiveState(sidebarData, pathname),
+      hiddenRoutes,
     };
-  }, [pathname]);
+  }, [pathname, user?.role]);
 }

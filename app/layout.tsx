@@ -4,6 +4,7 @@ import { ConvexClientProvider } from "../lib/provider/convex-provider";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/lib/provider/theme-provider";
+import SidebarProviderLayout from "@/lib/provider/sidebar-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,12 +32,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-          >
-            <ConvexClientProvider>{children}</ConvexClientProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <ConvexClientProvider>
+              <SidebarProviderLayout>{children}</SidebarProviderLayout>
+            </ConvexClientProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>

@@ -11,7 +11,7 @@ export function useAuthSession() {
     if (!data?.user) {
       return null;
     }
-
+    console.log(data.user);
     return {
       id: data.user.id,
       name: data.user.name ?? "",
