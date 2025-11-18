@@ -28,7 +28,6 @@ export interface SidebarSecondaryItem {
 
 export interface SidebarData {
   organization: SidebarOrganization;
-  user: SidebarUser;
   navMain: SidebarNavItem[];
   navSecondary: SidebarSecondaryItem[];
 }

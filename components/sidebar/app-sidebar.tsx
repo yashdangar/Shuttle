@@ -46,7 +46,7 @@ export function AppSidebar({ data, ...props }: AppSidebarProps) {
         <NavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser fallbackUser={data.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   );

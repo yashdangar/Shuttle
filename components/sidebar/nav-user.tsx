@@ -28,7 +28,7 @@ import { useAuthSession } from "@/hooks/use-auth-session";
 import type { SidebarUser } from "@/types/sidebar";
 import { signOut } from "next-auth/react";
 
-export function NavUser({ fallbackUser }: { fallbackUser?: SidebarUser }) {
+export function NavUser() {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { user: sessionUser } = useAuthSession();
@@ -51,18 +51,19 @@ export function NavUser({ fallbackUser }: { fallbackUser?: SidebarUser }) {
       ? "Switch to light theme"
       : "Switch to dark theme";
 
+  const fallbackUser: SidebarUser = {
+    name: "Guest User",
+    email: "guest@example.com",
+    avatar: "/placeholder-user.jpg",
+  };
+
   const user = sessionUser
     ? {
-        name: sessionUser.name || fallbackUser?.name || "User",
-        email: sessionUser.email || fallbackUser?.email || "user@example.com",
-        avatar:
-          sessionUser.image || fallbackUser?.avatar || "/placeholder-user.jpg",
+        name: sessionUser.name || fallbackUser.name,
+        email: sessionUser.email || fallbackUser.email,
+        avatar: sessionUser.image || fallbackUser.avatar,
       }
-    : fallbackUser || {
-        name: "Guest User",
-        email: "guest@example.com",
-        avatar: "/placeholder-user.jpg",
-      };
+    : fallbackUser;
 
   const initials =
     user.name

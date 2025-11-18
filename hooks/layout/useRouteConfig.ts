@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarPlus, LayoutDashboard, MapPin } from "lucide-react";
+import { CalendarPlus, LayoutDashboard, MapPin, Shield } from "lucide-react";
 
 import type { SidebarData } from "@/types/sidebar";
 
-export type SidebarType = "guest" | "hidden";
+export type SidebarType = "guest" | "admin" | "hidden" | "driver" | "superadmin" ;
 
 export interface RouteConfig {
   sidebarType: SidebarType;
@@ -21,11 +21,6 @@ const guestSidebarData: SidebarData = {
     name: "Shuttle OPS",
     url: "/dashboard",
     icon: LayoutDashboard,
-  },
-  user: {
-    name: "Guest Access",
-    email: "guest@shuttleops.com",
-    avatar: "/avatars/shadcn.jpg",
   },
   navMain: [
     {
@@ -47,20 +42,90 @@ const guestSidebarData: SidebarData = {
   navSecondary: [],
 };
 
-const guestRouteConfig: Record<
-  string,
-  {
-    headerTitle: string | null;
-    sidebarData: SidebarData;
-  }
-> = {
-  "/dashboard": { headerTitle: "Dashboard", sidebarData: guestSidebarData },
-  "/select-hotels": {
-    headerTitle: "Select hotels",
-    sidebarData: guestSidebarData,
+const adminSidebarData: SidebarData = {
+  organization: {
+    name: "Shuttle Admin",
+    url: "/admin/dashboard",
+    icon: Shield,
   },
-  "/new-booking": { headerTitle: null, sidebarData: guestSidebarData },
+  navMain: [
+    {
+      title: "Dashboard",
+      url: "/admin/dashboard",
+      icon: LayoutDashboard,
+    },
+  ],
+  navSecondary: [],
 };
+
+const driverSidebarData: SidebarData = {
+  organization: {
+    name: "Shuttle Driver",
+    url: "/driver/dashboard",
+    icon: Shield,
+  },
+  navMain: [
+    {
+      title: "Dashboard",
+      url: "/driver",
+      icon: LayoutDashboard,
+    },
+  ],
+  navSecondary: [],
+};
+
+const superAdminSidebarData: SidebarData = {
+  organization: {
+    name: "Shuttle Super Admin",
+    url: "/super-admin",
+    icon: Shield,
+  },
+  navMain: [
+    {
+      title: "Dashboard",
+      url: "/super-admin",
+      icon: LayoutDashboard,
+    },
+  ],
+  navSecondary: [],
+};
+
+const routeGroups: Array<{
+  sidebarType: SidebarType;
+  sidebarData: SidebarData;
+  headers: Record<string, string | null>;
+}> = [
+  {
+    sidebarType: "guest",
+    sidebarData: guestSidebarData,
+    headers: {
+      "/dashboard": "Dashboard",
+      "/select-hotels": "Select hotels",
+      "/new-booking": null,
+    },
+  },
+  {
+    sidebarType: "admin",
+    sidebarData: adminSidebarData,
+    headers: {
+      "/admin": "Dashboard",
+    },
+  },
+  {
+    sidebarType: "driver",
+    sidebarData: driverSidebarData,
+    headers: {
+      "/driver": "Dashboard",
+    },
+  },
+  {
+    sidebarType: "superadmin",
+    sidebarData: superAdminSidebarData,
+    headers: {
+      "/super-admin": "Dashboard",
+    },
+  },
+];
 
 function annotateSidebarDataWithActiveState(
   sidebarData: SidebarData,
@@ -83,23 +148,23 @@ export function useRouteConfig(): RouteConfig {
   const pathname = usePathname() ?? "/";
 
   return useMemo(() => {
-    const matchedGuestRoute = Object.keys(guestRouteConfig).find((guestRoute) =>
-      pathname.startsWith(guestRoute)
-    );
+    for (const routeGroup of routeGroups) {
+      const matchedRoute = Object.keys(routeGroup.headers).find((route) =>
+        pathname.startsWith(route)
+      );
 
-    if (matchedGuestRoute) {
-      const route = guestRouteConfig[matchedGuestRoute];
-
-      return {
-        sidebarType: "guest",
-        headerTitle: route.headerTitle,
-        shouldShowSidebar: true,
-        pathname,
-        sidebarData: annotateSidebarDataWithActiveState(
-          route.sidebarData,
-          pathname
-        ),
-      };
+      if (matchedRoute) {
+        return {
+          sidebarType: routeGroup.sidebarType,
+          headerTitle: routeGroup.headers[matchedRoute],
+          shouldShowSidebar: true,
+          pathname,
+          sidebarData: annotateSidebarDataWithActiveState(
+            routeGroup.sidebarData,
+            pathname
+          ),
+        };
+      }
     }
 
     return {
