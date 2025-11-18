@@ -13,6 +13,7 @@ import FAQSection from "../components/landing/faq-section";
 import CTASection from "../components/landing/cta-section";
 import FooterSection from "../components/landing/footer-section";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 // Reusable Badge Component
 function Badge({ icon, text }: { icon: React.ReactNode; text: string }) {
@@ -33,6 +34,8 @@ export default function LandingPage() {
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
@@ -122,10 +125,15 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
-                <div onClick={() => router.push("/sign-in")} className="h-6 sm:h-7 md:h-8 flex justify-start items-start gap-2 sm:gap-3 cursor-pointer">
+                <div
+                  onClick={() =>
+                    router.push(isAuthenticated ? "/dashboard" : "/sign-in")
+                  }
+                  className="h-6 sm:h-7 md:h-8 flex justify-start items-start gap-2 sm:gap-3 cursor-pointer"
+                >
                   <div className="px-3 sm:px-4 md:px-[15px] py-2 sm:py-[7px] bg-card shadow-sm border border-border overflow-hidden rounded-full flex justify-center items-center">
                     <div className="flex flex-col justify-center text-foreground text-xs md:text-[14px] font-medium leading-5 font-sans">
-                      Log in
+                      {isAuthenticated ? "Dashboard" : "Log in"}
                     </div>
                   </div>
                 </div>
@@ -152,13 +160,13 @@ export default function LandingPage() {
 
               <div className="w-full max-w-[497px] lg:w-[497px] flex flex-col justify-center items-center gap-6 sm:gap-8 md:gap-10 lg:gap-12 relative z-10 mt-6 sm:mt-8 md:mt-10 lg:mt-12">
                 <div className="backdrop-blur-[8.25px] flex justify-start items-center gap-4">
-                  <div 
+                  <div
                     onClick={() => router.push("/select-hotels")}
                     className="h-10 sm:h-11 md:h-12 px-6 sm:px-8 md:px-10 lg:px-12 py-2 sm:py-[6px] relative bg-primary shadow-[0px_0px_0px_2.5px_rgba(255,255,255,0.08)_inset] overflow-hidden rounded-full flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity"
                   >
                     <div className="w-20 sm:w-24 md:w-28 lg:w-44 h-[41px] absolute left-0 top-[-0.5px] bg-linear-to-b from-[rgba(255,255,255,0)] to-[rgba(0,0,0,0.10)] mix-blend-multiply"></div>
                     <div className="flex flex-col justify-center text-primary-foreground text-sm sm:text-base md:text-[15px] font-medium leading-5 font-sans">
-                      See Listed hotels 
+                      See Listed hotels
                     </div>
                   </div>
                 </div>
@@ -190,8 +198,10 @@ export default function LandingPage() {
                               : "opacity-0 scale-95 z-0 pointer-events-none"
                           }`}
                           style={{
-                            transition: "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
-                            filter: activeCard === 0 ? "blur(0px)" : "blur(4px)",
+                            transition:
+                              "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
+                            filter:
+                              activeCard === 0 ? "blur(0px)" : "blur(4px)",
                           }}
                         >
                           <img
@@ -209,8 +219,10 @@ export default function LandingPage() {
                               : "opacity-0 scale-95 z-0 pointer-events-none"
                           }`}
                           style={{
-                            transition: "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
-                            filter: activeCard === 1 ? "blur(0px)" : "blur(4px)",
+                            transition:
+                              "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
+                            filter:
+                              activeCard === 1 ? "blur(0px)" : "blur(4px)",
                           }}
                         >
                           <img
@@ -228,8 +240,10 @@ export default function LandingPage() {
                               : "opacity-0 scale-95 z-0 pointer-events-none"
                           }`}
                           style={{
-                            transition: "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
-                            filter: activeCard === 2 ? "blur(0px)" : "blur(4px)",
+                            transition:
+                              "opacity 500ms ease-in-out, transform 500ms ease-in-out, filter 500ms ease-in-out",
+                            filter:
+                              activeCard === 2 ? "blur(0px)" : "blur(4px)",
                           }}
                         >
                           <img
