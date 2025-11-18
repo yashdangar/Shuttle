@@ -5,10 +5,11 @@ import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useRouteConfig } from "@/hooks/layout/useRouteConfig";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
-export default function SuperAdminLayout({ children }: PropsWithChildren) {
+export default function SidebarProviderLayout({ children }: PropsWithChildren) {
   const routeConfig = useRouteConfig();
-
+  const { user } = useAuthSession();
   return (
     <SidebarProvider
       className="bg-background text-foreground"
@@ -23,12 +24,12 @@ export default function SuperAdminLayout({ children }: PropsWithChildren) {
         <AppSidebar variant="inset" data={routeConfig.sidebarData} />
       ) : null}
       <SidebarInset className="flex min-h-screen flex-1 flex-col">
-        <SiteHeader title={routeConfig.headerTitle ?? undefined} />
+        {!routeConfig.hiddenRoutes.includes(routeConfig.pathname) ? <SiteHeader title={routeConfig.headerTitle ?? undefined} /> : null}
         <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
           {routeConfig.headerTitle ? (
             <header className="mb-6 border-b border-border pb-4">
               <div className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-                Super Admin area
+                Admin area
               </div>
               <h1 className="mt-1 text-2xl font-semibold text-foreground">
                 {routeConfig.headerTitle}
