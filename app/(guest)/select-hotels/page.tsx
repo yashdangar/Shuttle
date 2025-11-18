@@ -22,7 +22,7 @@ import {
   Hotel as HotelIcon,
   Loader2,
 } from "lucide-react";
-import { FAKE_HOTELS, type Hotel } from "../../../lib/hotels";
+import { FAKE_HOTELS, type Hotel } from "@/lib/hotels";
 
 function SelectHotelSkeleton() {
   return (
@@ -79,7 +79,9 @@ function SelectHotelSkeleton() {
 export default function SelectHotelPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
+  const [selectedHotelSlug, setSelectedHotelSlug] = useState<string | null>(
+    null
+  );
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -110,18 +112,6 @@ export default function SelectHotelPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (!hotels.length) return;
-    if (typeof window === "undefined") return;
-    const storedId = localStorage.getItem("selectedHotelId");
-    if (storedId) {
-      const match = hotels.find((hotel) => hotel.id === storedId);
-      if (match) {
-        setSelectedHotelId(match.id);
-      }
-    }
-  }, [hotels]);
-
   const filteredHotels = useMemo(() => {
     if (!searchQuery.trim()) return hotels;
     const q = searchQuery.toLowerCase();
@@ -133,33 +123,24 @@ export default function SelectHotelPage() {
   }, [hotels, searchQuery]);
 
   const selectedHotel = useMemo(
-    () => hotels.find((hotel) => hotel.id === selectedHotelId) || null,
-    [hotels, selectedHotelId]
+    () => hotels.find((hotel) => hotel.slug === selectedHotelSlug) || null,
+    [hotels, selectedHotelSlug]
   );
 
-  const handleSelectHotel = (hotelId: string) => {
-    setSelectedHotelId(hotelId);
+  const handleSelectHotel = (hotelSlug: string) => {
+    setSelectedHotelSlug(hotelSlug);
   };
 
   const handleContinue = () => {
     if (isSubmitting || !selectedHotel) return;
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("selectedHotelId", selectedHotel.id);
-    }
-
     setIsSubmitting(true);
-    const navigate = () => {
-      if (session?.user) {
-        router.push(`/new-booking?hotelId=${selectedHotel.id}`);
-      } else {
-        router.push(`/sign-in?redirect=/new-booking&hotelId=${selectedHotel.id}`);
-      }
-      setIsSubmitting(false);
-    };
-
-    // small delay to allow button animation
-    setTimeout(navigate, 150);
+    if (session?.user) {
+      router.push(`/new-booking/${selectedHotel.slug}`);
+    } else {
+      router.push(`/sign-in?redirect=/new-booking/${selectedHotel.slug}`);
+    }
+    setIsSubmitting(false);
   };
 
   if (isLoading) {
@@ -245,7 +226,7 @@ export default function SelectHotelPage() {
             className="grid grid-cols-1 gap-6 md:grid-cols-2"
           >
             {filteredHotels.map((hotel) => {
-              const isSelected = selectedHotelId === hotel.id;
+              const isSelected = selectedHotelSlug === hotel.slug;
 
               return (
                 <motion.div
@@ -254,7 +235,7 @@ export default function SelectHotelPage() {
                   whileHover={{ y: -3, scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                   className="group rounded-2xl transition-all"
-                  onClick={() => handleSelectHotel(hotel.id)}
+                  onClick={() => handleSelectHotel(hotel.slug)}
                 >
                   <Card
                     className={`relative cursor-pointer overflow-hidden rounded-[14px] border bg-white transition-all hover:shadow-lg ${

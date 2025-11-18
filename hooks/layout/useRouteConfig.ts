@@ -29,13 +29,14 @@ const guestSidebarData: SidebarData = {
       icon: LayoutDashboard,
     },
     {
-      title: "Select hotels",
+      title: "New booking",
       url: "/select-hotels",
-      icon: MapPin,
+      icon: CalendarPlus,
+      matchPaths: ["/select-hotels", "/new-booking"],
     },
     {
-      title: "New booking",
-      url: "/new-booking",
+      title: "Bookings",
+      url: "/bookings",
       icon: CalendarPlus,
     },
   ],
@@ -100,8 +101,9 @@ const routeGroups: Array<{
     sidebarData: guestSidebarData,
     headers: {
       "/dashboard": "Dashboard",
-      "/select-hotels": "Select hotels",
+      "/select-hotels": "New booking",
       "/new-booking": null,
+      "/bookings": "Bookings",
     },
   },
   {
@@ -131,16 +133,29 @@ function annotateSidebarDataWithActiveState(
   sidebarData: SidebarData,
   pathname: string
 ): SidebarData {
+  const isNavItemActive = (paths: string[], currentPath: string) =>
+    paths.some((path) => currentPath.startsWith(path));
+
   return {
     ...sidebarData,
-    navMain: sidebarData.navMain.map((item) => ({
-      ...item,
-      isActive: pathname.startsWith(item.url),
-    })),
-    navSecondary: sidebarData.navSecondary.map((item) => ({
-      ...item,
-      isActive: pathname.startsWith(item.url),
-    })),
+    navMain: sidebarData.navMain.map((item) => {
+      const matchPaths = item.matchPaths?.length
+        ? item.matchPaths
+        : [item.url];
+      return {
+        ...item,
+        isActive: isNavItemActive(matchPaths, pathname),
+      };
+    }),
+    navSecondary: sidebarData.navSecondary.map((item) => {
+      const matchPaths = item.matchPaths?.length
+        ? item.matchPaths
+        : [item.url];
+      return {
+        ...item,
+        isActive: isNavItemActive(matchPaths, pathname),
+      };
+    }),
   };
 }
 
