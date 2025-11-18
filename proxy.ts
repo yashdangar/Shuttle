@@ -7,14 +7,14 @@ const LOGIN_ROUTE = "/sign-in";
 const publicRoutes = new Set(["/", "/sign-in", "/sign-up"]);
 const authRoutes = new Set(["/sign-in", "/sign-up"]);
 const roleHomes: Record<Role, string> = {
-  guest: "/",
+  guest: "/dashboard",
   admin: "/admin",
   driver: "/driver",
   frontdesk: "/admin",
   superadmin: "/super-admin",
 };
 const roleScopes: Record<Role, string[]> = {
-  guest: ["/"],
+  guest: ["/dashboard", "/select-hotels", "/new-booking"],
   admin: ["/admin"],
   driver: ["/driver"],
   frontdesk: ["/admin"],
@@ -58,12 +58,7 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/",
-    "/admin/:path*",
-    "/driver/:path*",
-    "/super-admin/:path*",
-    "/sign-in",
-    "/sign-up",
+    "/((?!api|_next/static|_next/image|_next/data|favicon.ico|robots.txt|sitemap.xml|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
 
