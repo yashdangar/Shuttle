@@ -42,7 +42,11 @@ const guestSidebarData: SidebarData = {
 
 const adminSidebarData: SidebarData = {
   organization: { name: "Shuttle Admin", url: "/admin/dashboard", icon: Shield },
-  navMain: [{ title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard }],
+  navMain: [
+    { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+    { title: "Drivers", url: "/admin/drivers", icon: MapPin },
+    { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
+  ],
   navSecondary: [],
 };
 
@@ -87,7 +91,10 @@ const routeGroups: Array<{
     sidebarData: adminSidebarData,
     headers: {
       "/admin": "Dashboard",
+      "/admin/drivers": "Drivers",
+      "/admin/frontdesk": "Frontdesk",
     },
+    
   },
   {
     sidebarType: "driver",
