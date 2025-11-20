@@ -7,7 +7,7 @@ const LOGIN_ROUTE = "/sign-in";
 const publicRoutes = new Set(["/", "/sign-in", "/sign-up"]);
 const authRoutes = new Set(["/sign-in", "/sign-up"]);
 const roleHomes: Record<Role, string> = {
-  guest: "/dashboard",
+  guest: "/dashboard", 
   admin: "/admin",
   driver: "/driver",
   frontdesk: "/admin",
