@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
+import { IconMapPin } from "@tabler/icons-react";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
 
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { EmptyMuted } from "@/components/interfaces/common/EmptyState";
+import { TableLoader } from "@/components/interfaces/common/TableLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,12 +66,7 @@ export function LocationTable() {
   const deleteLocation = useAction(api.locations.deleteLocation);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center rounded-md border py-10 text-sm text-muted-foreground">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Loading locations...
-      </div>
-    );
+    return <TableLoader label="Loading Locations" />;
   }
 
   const handleNextPage = () => {
@@ -132,29 +130,28 @@ export function LocationTable() {
   return (
     <>
       <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Airport</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {locations.length === 0 ? (
+        {locations.length === 0 ? (
+          <div className="flex min-h-[320px] items-center justify-center p-6">
+            <EmptyMuted
+              title="No locations added"
+              description="Add shuttle pickup points so teams can manage routes and assignments."
+              icon={<IconMapPin className="h-10 w-10" />}
+            />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-muted-foreground"
-                >
-                  No locations added yet.
-                </TableCell>
+                <TableHead>Name</TableHead>
+                <TableHead>Address</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Airport</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              locations.map((location) => (
+            </TableHeader>
+            <TableBody>
+              {locations.map((location) => (
                 <TableRow key={location.id}>
                   <TableCell className="font-medium">{location.name}</TableCell>
                   <TableCell className="max-w-[320px] truncate text-muted-foreground">
@@ -217,10 +214,10 @@ export function LocationTable() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
       {locations.length > 0 && (
         <Pagination className="border-t pt-4 mt-4">
