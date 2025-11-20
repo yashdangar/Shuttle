@@ -3,10 +3,21 @@
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { CalendarPlus, LayoutDashboard, MapPin, Shield } from "lucide-react";
+import {
+  CalendarPlus,
+  LayoutDashboard,
+  MapPin,
+  Shield,
+  Users,
+} from "lucide-react";
 import type { SidebarData } from "@/types/sidebar";
 
-export type SidebarType = "guest" | "admin" | "hidden" | "driver" | "superadmin";
+export type SidebarType =
+  | "guest"
+  | "admin"
+  | "hidden"
+  | "driver"
+  | "superadmin";
 
 export interface RouteConfig {
   sidebarType: SidebarType;
@@ -18,7 +29,11 @@ export interface RouteConfig {
 }
 
 const guestSidebarData: SidebarData = {
-  organization: { name: "Shuttle OPS", url: "/dashboard", icon: LayoutDashboard },
+  organization: {
+    name: "Shuttle OPS",
+    url: "/dashboard",
+    icon: LayoutDashboard,
+  },
   navMain: [
     {
       title: "Dashboard",
@@ -41,7 +56,11 @@ const guestSidebarData: SidebarData = {
 };
 
 const adminSidebarData: SidebarData = {
-  organization: { name: "Shuttle Admin", url: "/admin/dashboard", icon: Shield },
+  organization: {
+    name: "Shuttle Admin",
+    url: "/admin/dashboard",
+    icon: Shield,
+  },
   navMain: [
     { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
     { title: "Drivers", url: "/admin/drivers", icon: MapPin },
@@ -52,14 +71,25 @@ const adminSidebarData: SidebarData = {
 };
 
 const driverSidebarData: SidebarData = {
-  organization: { name: "Shuttle Driver", url: "/driver/dashboard", icon: Shield },
+  organization: {
+    name: "Shuttle Driver",
+    url: "/driver/dashboard",
+    icon: Shield,
+  },
   navMain: [{ title: "Dashboard", url: "/driver", icon: LayoutDashboard }],
   navSecondary: [],
 };
 
 const superAdminSidebarData: SidebarData = {
-  organization: { name: "Shuttle Super Admin", url: "/super-admin", icon: Shield },
-  navMain: [{ title: "Dashboard", url: "/super-admin", icon: LayoutDashboard }],
+  organization: {
+    name: "Shuttle Super Admin",
+    url: "/super-admin",
+    icon: Shield,
+  },
+  navMain: [
+    { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
+    { title: "Admin", url: "/super-admin/admin", icon: Users },
+  ],
   navSecondary: [],
 };
 
@@ -96,7 +126,6 @@ const routeGroups: Array<{
       "/admin/frontdesk": "Frontdesk",
       "/admin/shuttle": "Shuttles",
     },
-    
   },
   {
     sidebarType: "driver",
@@ -124,18 +153,14 @@ function annotateSidebarDataWithActiveState(
   return {
     ...sidebarData,
     navMain: sidebarData.navMain.map((item) => {
-      const matchPaths = item.matchPaths?.length
-        ? item.matchPaths
-        : [item.url];
+      const matchPaths = item.matchPaths?.length ? item.matchPaths : [item.url];
       return {
         ...item,
         isActive: isNavItemActive(matchPaths, pathname),
       };
     }),
     navSecondary: sidebarData.navSecondary.map((item) => {
-      const matchPaths = item.matchPaths?.length
-        ? item.matchPaths
-        : [item.url];
+      const matchPaths = item.matchPaths?.length ? item.matchPaths : [item.url];
       return {
         ...item,
         isActive: isNavItemActive(matchPaths, pathname),

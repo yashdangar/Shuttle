@@ -2,7 +2,7 @@
 //   -H "Content-Type: application/json" \
 //   -d '{
 //     "name": "Superadmin",
-//     "email": "superadmin@example.com",
+//     "email": "superadmin@superadmin.com",
 //     "password": "sasasasa",
 //     "phoneNumber": "+1234567890",
 //     "token": "admin"
