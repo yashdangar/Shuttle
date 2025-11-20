@@ -89,6 +89,7 @@ const superAdminSidebarData: SidebarData = {
   navMain: [
     { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
     { title: "Admin", url: "/super-admin/admin", icon: Users },
+    { title: "Locations", url: "/super-admin/locations", icon: MapPin },
   ],
   navSecondary: [],
 };
@@ -102,53 +103,13 @@ const roleSidebarMap: Record<string, SidebarData> = {
 };
 
 const hiddenRoutes: string[] = ["/", "/sign-in", "/sign-up"];
-const routeGroups: Array<{
-  sidebarType: SidebarType;
-  sidebarData: SidebarData;
-  headers: Record<string, string | null>;
-}> = [
-  {
-    sidebarType: "guest",
-    sidebarData: guestSidebarData,
-    headers: {
-      "/dashboard": "Dashboard",
-      "/select-hotels": "New booking",
-      "/new-booking": null,
-      "/bookings": "Bookings",
-    },
-  },
-  {
-    sidebarType: "admin",
-    sidebarData: adminSidebarData,
-    headers: {
-      "/admin": "Dashboard",
-      "/admin/drivers": "Drivers",
-      "/admin/frontdesk": "Frontdesk",
-      "/admin/shuttle": "Shuttles",
-    },
-  },
-  {
-    sidebarType: "driver",
-    sidebarData: driverSidebarData,
-    headers: {
-      "/driver": "Dashboard",
-    },
-  },
-  {
-    sidebarType: "superadmin",
-    sidebarData: superAdminSidebarData,
-    headers: {
-      "/super-admin": "Dashboard",
-    },
-  },
-];
 
 function annotateSidebarDataWithActiveState(
   sidebarData: SidebarData,
   pathname: string
 ): SidebarData {
   const isNavItemActive = (paths: string[], currentPath: string) =>
-    paths.some((path) => currentPath.startsWith(path));
+    paths.some((path) => currentPath === path);
 
   return {
     ...sidebarData,
