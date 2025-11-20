@@ -1,10 +1,21 @@
+import Link from "next/link";
+
 import PageLayout from "@/components/layout/page-layout";
-import { LocationManager } from "@/components/maps/location-manager";
+import { Button } from "@/components/ui/button";
+import { LocationTable } from "@/components/interfaces/superadmin";
 
 export default function LocationsPage() {
   return (
-    <PageLayout title="Locations" description="Manage locations">
-      <LocationManager />
+    <PageLayout
+      title="Locations"
+      description="Track pickup and drop-off points across every property."
+      primaryActions={
+        <Button asChild>
+          <Link href="/super-admin/locations/new">Add location</Link>
+        </Button>
+      }
+    >
+      <LocationTable />
     </PageLayout>
   );
 }

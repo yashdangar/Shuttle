@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useAction } from "convex/react";
+import { IconUsersGroup } from "@tabler/icons-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -33,6 +34,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { EmptyMuted } from "@/components/interfaces/common/EmptyState";
+import { TableLoader } from "@/components/interfaces/common/TableLoader";
 import { EditAdminDialog } from "./edit-admin-dialog";
 import type { AdminAccount } from "@/convex/admins";
 
@@ -105,38 +108,20 @@ export function AdminTable() {
   const isLoading = adminsData === undefined;
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="size-4 animate-spin mr-2" />
-        <p className="text-muted-foreground">Loading admins...</p>
-      </div>
-    );
+    return <TableLoader label="Loading Admins" />;
   }
 
   return (
     <>
       <div className="rounded-md border">
         {admins.length === 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center text-muted-foreground py-8"
-                >
-                  No admins found
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+          <div className="flex min-h-[320px] items-center justify-center p-6">
+            <EmptyMuted
+              title="No admin accounts"
+              description="Create admin users to manage organizations, locations, and permissions."
+              icon={<IconUsersGroup className="h-10 w-10" />}
+            />
+          </div>
         ) : (
           <Table>
             <TableHeader>

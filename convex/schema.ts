@@ -42,7 +42,7 @@ export default defineSchema({
     latitude: v.float64(),
     longitude: v.float64(),
     address: v.string(),
-    locationType: v.union(v.literal("public"), v.literal("private")),
+    locationType: v.union(v.literal("public"), v.literal("private")), //private always if superadmin creates the location then it will be private , otherwise if admin creates the location then it will be private and if hotel creates the location then it will be public
     isAirportLocation: v.boolean(),
     hotelId: v.optional(v.id("hotels")), // if hotel Id is present that means this location is asscoitaed with that hotel , then check the type for more detail
     clonedFromLocationId: v.optional(v.id("locations")), // if clonedFromLocationId is present that means this location is cloned from that location , then check the type for more detail , this will help to get the original location details which are not cloned yet and show what to list in UI
