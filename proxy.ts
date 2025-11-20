@@ -14,8 +14,8 @@ const roleHomes: Record<Role, string> = {
   superadmin: "/super-admin",
 };
 const roleScopes: Record<Role, string[]> = {
-  guest: ["/dashboard", "/select-hotels", "/new-booking"],
-  admin: ["/admin"],
+  guest: ["/dashboard", "/select-hotels", "/new-booking", "/bookings"],
+  admin: ["/admin", "/admin/drivers", "/admin/frontdesk"],
   driver: ["/driver"],
   frontdesk: ["/admin"],
   superadmin: ["/super-admin"],

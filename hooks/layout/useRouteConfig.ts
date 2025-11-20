@@ -20,16 +20,34 @@ export interface RouteConfig {
 const guestSidebarData: SidebarData = {
   organization: { name: "Shuttle OPS", url: "/dashboard", icon: LayoutDashboard },
   navMain: [
-    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-    { title: "Select hotels", url: "/select-hotels", icon: MapPin },
-    { title: "New booking", url: "/new-booking", icon: CalendarPlus },
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "New booking",
+      url: "/select-hotels",
+      icon: CalendarPlus,
+      matchPaths: ["/select-hotels", "/new-booking"],
+    },
+    {
+      title: "Bookings",
+      url: "/bookings",
+      icon: CalendarPlus,
+    },
   ],
   navSecondary: [],
 };
 
 const adminSidebarData: SidebarData = {
   organization: { name: "Shuttle Admin", url: "/admin/dashboard", icon: Shield },
-  navMain: [{ title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard }],
+  navMain: [
+    { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+    { title: "Drivers", url: "/admin/drivers", icon: MapPin },
+    { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
+    { title: "Shuttles", url: "/admin/shuttle", icon: MapPin },
+  ],
   navSecondary: [],
 };
 
@@ -54,12 +72,75 @@ const roleSidebarMap: Record<string, SidebarData> = {
 };
 
 const hiddenRoutes: string[] = ["/", "/sign-in", "/sign-up"];
+const routeGroups: Array<{
+  sidebarType: SidebarType;
+  sidebarData: SidebarData;
+  headers: Record<string, string | null>;
+}> = [
+  {
+    sidebarType: "guest",
+    sidebarData: guestSidebarData,
+    headers: {
+      "/dashboard": "Dashboard",
+      "/select-hotels": "New booking",
+      "/new-booking": null,
+      "/bookings": "Bookings",
+    },
+  },
+  {
+    sidebarType: "admin",
+    sidebarData: adminSidebarData,
+    headers: {
+      "/admin": "Dashboard",
+      "/admin/drivers": "Drivers",
+      "/admin/frontdesk": "Frontdesk",
+      "/admin/shuttle": "Shuttles",
+    },
+    
+  },
+  {
+    sidebarType: "driver",
+    sidebarData: driverSidebarData,
+    headers: {
+      "/driver": "Dashboard",
+    },
+  },
+  {
+    sidebarType: "superadmin",
+    sidebarData: superAdminSidebarData,
+    headers: {
+      "/super-admin": "Dashboard",
+    },
+  },
+];
 
-function annotateSidebarDataWithActiveState(sidebarData: SidebarData, pathname: string): SidebarData {
+function annotateSidebarDataWithActiveState(
+  sidebarData: SidebarData,
+  pathname: string
+): SidebarData {
+  const isNavItemActive = (paths: string[], currentPath: string) =>
+    paths.some((path) => currentPath.startsWith(path));
+
   return {
     ...sidebarData,
-    navMain: sidebarData.navMain.map(i => ({ ...i, isActive: pathname.startsWith(i.url) })),
-    navSecondary: sidebarData.navSecondary.map(i => ({ ...i, isActive: pathname.startsWith(i.url) })),
+    navMain: sidebarData.navMain.map((item) => {
+      const matchPaths = item.matchPaths?.length
+        ? item.matchPaths
+        : [item.url];
+      return {
+        ...item,
+        isActive: isNavItemActive(matchPaths, pathname),
+      };
+    }),
+    navSecondary: sidebarData.navSecondary.map((item) => {
+      const matchPaths = item.matchPaths?.length
+        ? item.matchPaths
+        : [item.url];
+      return {
+        ...item,
+        isActive: isNavItemActive(matchPaths, pathname),
+      };
+    }),
   };
 }
 

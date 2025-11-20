@@ -9,6 +9,8 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as shuttles from "../shuttles.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +20,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  shuttles: typeof shuttles;
+  users: typeof users;
 }>;
 
 /**

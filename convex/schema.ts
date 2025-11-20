@@ -23,6 +23,7 @@ export default defineSchema({
 
   hotels: defineTable({
     name: v.string(),
+    slug: v.string(),
     address: v.string(),
     phoneNumber: v.string(),
     email: v.string(),
@@ -33,7 +34,8 @@ export default defineSchema({
     shuttleIds: v.array(v.id("shuttles")),
     userIds: v.array(v.id("users")), //driver , frontdesk , admin
     locationIds: v.array(v.id("locations")), // private and public locations and hotel location itself too
-  }).index("by_name", ["name"]),
+  })
+  .index("by_slug", ["slug"]),
 
   locations: defineTable({
     name: v.string(),

@@ -17,6 +17,7 @@ export interface SidebarNavItem {
   url: string;
   icon?: ComponentType<{ className?: string }>;
   isActive?: boolean;
+  matchPaths?: string[];
 }
 
 export interface SidebarSecondaryItem {
@@ -24,6 +25,7 @@ export interface SidebarSecondaryItem {
   url: string;
   icon: ComponentType<{ className?: string }>;
   isActive?: boolean;
+  matchPaths?: string[];
 }
 
 export interface SidebarData {

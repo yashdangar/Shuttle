@@ -1,5 +1,6 @@
 export type Hotel = {
   id: string;
+  slug: string;
   name: string;
   address: string;
   phoneNumber: string;
@@ -17,6 +18,7 @@ export type Hotel = {
 export const FAKE_HOTELS: Hotel[] = [
   {
     id: "hotel-1",
+    slug: "grand-plaza-hotel",
     name: "Grand Plaza Hotel",
     address: "123 Main Street, New York, NY 10001",
     phoneNumber: "+1-555-0101",
@@ -33,6 +35,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-2",
+    slug: "oceanview-resort",
     name: "Oceanview Resort",
     address: "456 Beach Boulevard, Miami, FL 33139",
     phoneNumber: "+1-555-0202",
@@ -49,6 +52,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-3",
+    slug: "mountain-peak-lodge",
     name: "Mountain Peak Lodge",
     address: "789 Alpine Road, Denver, CO 80202",
     phoneNumber: "+1-555-0303",
@@ -65,6 +69,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-4",
+    slug: "sunset-bay-inn",
     name: "Sunset Bay Inn",
     address: "321 Harbor Drive, San Francisco, CA 94102",
     phoneNumber: "+1-555-0404",
@@ -81,6 +86,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-5",
+    slug: "downtown-express-hotel",
     name: "Downtown Express Hotel",
     address: "654 Business District, Chicago, IL 60601",
     phoneNumber: "+1-555-0505",
@@ -97,6 +103,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-6",
+    slug: "riverside-grand-hotel",
     name: "Riverside Grand Hotel",
     address: "987 Riverwalk Avenue, Seattle, WA 98101",
     phoneNumber: "+1-555-0606",
@@ -113,6 +120,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-7",
+    slug: "desert-oasis-resort",
     name: "Desert Oasis Resort",
     address: "147 Palm Tree Lane, Phoenix, AZ 85001",
     phoneNumber: "+1-555-0707",
@@ -129,6 +137,7 @@ export const FAKE_HOTELS: Hotel[] = [
   },
   {
     id: "hotel-8",
+    slug: "historic-manor-hotel",
     name: "Historic Manor Hotel",
     address: "258 Heritage Street, Boston, MA 02101",
     phoneNumber: "+1-555-0808",
