@@ -58,11 +58,11 @@ const guestSidebarData: SidebarData = {
 const adminSidebarData: SidebarData = {
   organization: {
     name: "Shuttle Admin",
-    url: "/admin/dashboard",
+    url: "/admin",
     icon: Shield,
   },
   navMain: [
-    { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+    { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
     { title: "Drivers", url: "/admin/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
     { title: "Shuttles", url: "/admin/shuttle", icon: MapPin },

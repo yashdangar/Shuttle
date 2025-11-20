@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Users, UsersRound } from "lucide-react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -28,6 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableLoader } from "../../common/TableLoader";
+import { EmptyMuted } from "../../common/EmptyState";
 
 export type DriverAccount = {
   id: Id<"users">;
@@ -136,89 +138,91 @@ export function DriverTable() {
     setPageIndex((index) => Math.max(0, index - 1));
   };
 
+  if (isLoading) {
+    return <TableLoader label="Loading Drivers" />;
+  }
+
   return (
     <>
-        <CardContent className="space-y-4">
-          {/* <SearchBar
+      <CardContent className="space-y-4">
+        {/* <SearchBar
             placeholder={`Search ${entityCollectionLabel}`}
             value={searchQuery}
             onChange={setSearchQuery}
             showIcon
           /> */}
-          {queryError ? <ErrorAlert message={queryError} /> : null}
-          {deleteError && !isDeleteDialogOpen ? (
-            <ErrorAlert message={deleteError} />
-          ) : null}
-          <div className="rounded-lg border">
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading {entityCollectionLabel}...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                {`No ${entityCollectionLabel} match your search.`}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-medium">Name</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+        {queryError ? <ErrorAlert message={queryError} /> : null}
+        {deleteError && !isDeleteDialogOpen ? (
+          <ErrorAlert message={deleteError} />
+        ) : null}
+        <div className="rounded-lg border">
+          {filteredUsers.length === 0 ? (
+            <div className="flex min-h-[320px] items-center justify-center p-6">
+              <EmptyMuted
+                title="No drivers added"
+                description="Add drivers to manage routes and assignments."
+                icon={<Users className="h-10 w-10" />}
+              />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-medium">Name</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="font-medium">{user.name}</div>
+                      <p className="text-muted-foreground text-xs">
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{user.email}</div>
+                      <p className="text-muted-foreground text-xs">
+                        {user.phoneNumber || "Not provided"}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary">Active</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <EditDriverDialog driver={user} disabled={!isAdmin} />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${user.name}`}
+                          onClick={() => handleDeleteRequest(user)}
+                          disabled={!isAdmin}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        <div className="font-medium">{user.name}</div>
-                        <p className="text-muted-foreground text-xs">
-                          {user.role.charAt(0).toUpperCase() +
-                            user.role.slice(1)}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{user.email}</div>
-                        <p className="text-muted-foreground text-xs">
-                          {user.phoneNumber || "Not provided"}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary">Active</Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <EditDriverDialog driver={user} disabled={!isAdmin} />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Delete ${user.name}`}
-                            onClick={() => handleDeleteRequest(user)}
-                            disabled={!isAdmin}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-          <PaginationControls
-            currentPage={pageIndex}
-            hasNextPage={!!usersData?.nextCursor}
-            onNextPage={handleNextPage}
-            onPrevPage={handlePrevPage}
-            isLoading={usersData === undefined}
-          />
-        </CardContent>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+        <PaginationControls
+          currentPage={pageIndex}
+          hasNextPage={!!usersData?.nextCursor}
+          onNextPage={handleNextPage}
+          onPrevPage={handlePrevPage}
+          isLoading={usersData === undefined}
+        />
+      </CardContent>
 
       <DeleteConfirmDialog
         isOpen={isDeleteDialogOpen}

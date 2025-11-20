@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { BusFront, Loader2, Trash2 } from "lucide-react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -27,6 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableLoader } from "../../common/TableLoader";
+import { EmptyMuted } from "../../common/EmptyState";
 
 export type ShuttleEntry = {
   id: Id<"shuttles">;
@@ -132,79 +134,80 @@ export function ShuttleTable() {
     setPageIndex((index) => Math.max(0, index - 1));
   };
 
+  if (isLoading) {
+    return <TableLoader label="Loading Shuttles" />;
+  }
+
   return (
     <>
-        <CardContent className="space-y-4">
-          {/* <SearchBar
+      <CardContent className="space-y-4">
+        {/* <SearchBar
             placeholder="Search shuttles"
             value={searchQuery}
             onChange={setSearchQuery}
             showIcon
           /> */}
-          {queryError ? <ErrorAlert message={queryError} /> : null}
-          {deleteError && !isDeleteDialogOpen ? (
-            <ErrorAlert message={deleteError} />
-          ) : null}
-          <div className="rounded-lg border">
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading {entityCollectionLabel}...
-              </div>
-            ) : filteredShuttles.length === 0 ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                {`No ${entityCollectionLabel} match your search.`}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-medium">
-                      Vehicle Number
-                    </TableHead>
-                    <TableHead>Total Seats</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+        {queryError ? <ErrorAlert message={queryError} /> : null}
+        {deleteError && !isDeleteDialogOpen ? (
+          <ErrorAlert message={deleteError} />
+        ) : null}
+        <div className="rounded-lg border">
+          {filteredShuttles.length === 0 ? (
+            <div className="flex min-h-[320px] items-center justify-center p-6">
+              <EmptyMuted
+                title="No shuttles added"
+                description="Add shuttles to manage routes and assignments."
+                icon={<BusFront className="h-10 w-10" />}
+              />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-medium">Vehicle Number</TableHead>
+                  <TableHead>Total Seats</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredShuttles.map((shuttle) => (
+                  <TableRow key={shuttle.id}>
+                    <TableCell className="font-medium">
+                      {shuttle.vehicleNumber}
+                    </TableCell>
+                    <TableCell>{shuttle.totalSeats}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <EditShuttleDialog
+                          shuttle={shuttle}
+                          disabled={!isAdmin}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete shuttle ${shuttle.vehicleNumber}`}
+                          onClick={() => handleDeleteRequest(shuttle)}
+                          disabled={!isAdmin}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredShuttles.map((shuttle) => (
-                    <TableRow key={shuttle.id}>
-                      <TableCell className="font-medium">
-                        {shuttle.vehicleNumber}
-                      </TableCell>
-                      <TableCell>{shuttle.totalSeats}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <EditShuttleDialog
-                            shuttle={shuttle}
-                            disabled={!isAdmin}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Delete shuttle ${shuttle.vehicleNumber}`}
-                            onClick={() => handleDeleteRequest(shuttle)}
-                            disabled={!isAdmin}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-          <PaginationControls
-            currentPage={pageIndex}
-            hasNextPage={!!shuttlesData?.nextCursor}
-            onNextPage={handleNextPage}
-            onPrevPage={handlePrevPage}
-            isLoading={shuttlesData === undefined}
-          />
-        </CardContent>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+        <PaginationControls
+          currentPage={pageIndex}
+          hasNextPage={!!shuttlesData?.nextCursor}
+          onNextPage={handleNextPage}
+          onPrevPage={handlePrevPage}
+          isLoading={shuttlesData === undefined}
+        />
+      </CardContent>
 
       <DeleteConfirmDialog
         isOpen={isDeleteDialogOpen}
