@@ -140,20 +140,13 @@ export function FrontdeskTable() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{entityLabel} Directory</CardTitle>
-          <CardDescription>
-            Search and manage your {entityCollectionLabel}.
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
-          <SearchBar
+          {/* <SearchBar
             placeholder={`Search ${entityCollectionLabel}`}
             value={searchQuery}
             onChange={setSearchQuery}
             showIcon
-          />
+          /> */}
           {queryError ? <ErrorAlert message={queryError} /> : null}
           {deleteError && !isDeleteDialogOpen ? (
             <ErrorAlert message={deleteError} />
@@ -231,7 +224,6 @@ export function FrontdeskTable() {
             isLoading={usersData === undefined}
           />
         </CardContent>
-      </Card>
 
       <DeleteConfirmDialog
         isOpen={isDeleteDialogOpen}

@@ -17,17 +17,6 @@ const formatShuttle = (shuttle: Doc<"shuttles">): ShuttleRecord => ({
   totalSeats: Number(shuttle.totalSeats),
 });
 
-export const getAnyHotelId = query({
-  args: {},
-  async handler(ctx) {
-    const hotel = await ctx.db.query("hotels").first();
-    if (!hotel) {
-      return null;
-    }
-    return hotel._id;
-  },
-});
-
 export const findShuttleByVehicleNumber = query({
   args: {
     hotelId: v.id("hotels"),
@@ -84,10 +73,25 @@ export const getShuttleById = query({
 
 export const createShuttle = action({
   args: {
+    adminId: v.id("users"),
     vehicleNumber: v.string(),
     totalSeats: v.number(),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
+      id: args.adminId,
+    });
+    if (!admin || admin.role !== "admin") {
+      throw new Error("Only administrators can create shuttles");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.adminId,
+    });
+    if (!hotel) {
+      throw new Error("Create a hotel before managing shuttles.");
+    }
+
     const vehicleNumber = args.vehicleNumber.trim();
     if (!vehicleNumber) {
       throw new Error("Vehicle number is required");
@@ -97,15 +101,10 @@ export const createShuttle = action({
       throw new Error("Total seats must be a positive integer");
     }
 
-    const hotelId = await ctx.runQuery(api.shuttles.getAnyHotelId, {});
-    if (!hotelId) {
-      throw new Error("No hotels found. Please create a hotel first.");
-    }
-
     const existing = await ctx.runQuery(
       api.shuttles.findShuttleByVehicleNumber,
       {
-        hotelId,
+        hotelId: hotel.id,
         vehicleNumber,
       }
     );
@@ -117,11 +116,16 @@ export const createShuttle = action({
     const shuttleId = await ctx.runMutation(
       internal.shuttles.createShuttleInternal,
       {
-        hotelId,
+        hotelId: hotel.id,
         vehicleNumber,
         totalSeats: args.totalSeats,
       }
     );
+
+    await ctx.runMutation(internal.hotels.addShuttleToHotelInternal, {
+      hotelId: hotel.id,
+      shuttleId,
+    });
 
     const created = await ctx.runQuery(api.shuttles.getShuttleById, {
       shuttleId,
@@ -216,6 +220,11 @@ export const deleteShuttle = action({
     if (!existing) {
       throw new Error("Shuttle not found");
     }
+
+    await ctx.runMutation(internal.hotels.removeShuttleFromHotelInternal, {
+      hotelId: existing.hotelId,
+      shuttleId: args.shuttleId,
+    });
 
     await ctx.runMutation(internal.shuttles.deleteShuttleInternal, {
       shuttleId: args.shuttleId,

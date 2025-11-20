@@ -71,6 +71,7 @@ export const getStaffAccountById = query({
 
 export const createStaffAccount = action({
   args: {
+    adminId: v.id("users"),
     name: v.string(),
     email: v.string(),
     phoneNumber: v.string(),
@@ -78,6 +79,19 @@ export const createStaffAccount = action({
     role: staffRoleSchema,
   },
   async handler(ctx, args): Promise<StaffAccount> {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
+      id: args.adminId,
+    });
+    if (!admin || admin.role !== "admin") {
+      throw new Error("Only administrators can create staff accounts");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.adminId,
+    });
+    if (!hotel) {
+      throw new Error("Create a hotel before managing staff.");
+    }
 
     const normalized = {
       name: args.name.trim(),
@@ -115,6 +129,11 @@ export const createStaffAccount = action({
       phoneNumber: normalized.phoneNumber,
       hashedPassword,
       role: normalized.role,
+    });
+
+    await ctx.runMutation(internal.hotels.addUserToHotelInternal, {
+      hotelId: hotel.id,
+      userId,
     });
 
     return {
@@ -221,9 +240,20 @@ export const deleteStaffAccount = action({
       throw new Error("User not found");
     }
 
+    const hotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
+      userId: args.userId,
+    });
+
     await ctx.runMutation(internal.users.deleteStaffAccountInternal, {
       userId: args.userId,
     });
+
+    if (hotel) {
+      await ctx.runMutation(internal.hotels.removeUserFromHotelInternal, {
+        hotelId: hotel.id,
+        userId: args.userId,
+      });
+    }
 
     return { success: true };
   },

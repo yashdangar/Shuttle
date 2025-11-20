@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus } from "lucide-react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,8 +46,8 @@ export function CreateFrontdeskDialog() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const createStaffAccount = useAction(api.users.createStaffAccount);
   const { user } = useAuthSession();
-  const isAdmin =
-    user?.role === "admin" || user?.role === "superadmin" || false;
+  const adminId = user?.role === "admin" ? (user.id as Id<"users">) : null;
+  const isAdmin = !!adminId;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -65,7 +66,7 @@ export function CreateFrontdeskDialog() {
   };
 
   const handleSubmit = async (values: FormValues) => {
-    if (!isAdmin) {
+    if (!adminId) {
       setRequestError("Only administrators can create frontdesk users");
       return;
     }
@@ -80,6 +81,7 @@ export function CreateFrontdeskDialog() {
     try {
       setRequestError(null);
       await createStaffAccount({
+        adminId,
         ...trimmed,
         role: "frontdesk",
       });

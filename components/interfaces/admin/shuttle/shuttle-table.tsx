@@ -134,20 +134,13 @@ export function ShuttleTable() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{entityLabel} Directory</CardTitle>
-          <CardDescription>
-            Maintain vehicle details and total seat capacity.
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
-          <SearchBar
+          {/* <SearchBar
             placeholder="Search shuttles"
             value={searchQuery}
             onChange={setSearchQuery}
             showIcon
-          />
+          /> */}
           {queryError ? <ErrorAlert message={queryError} /> : null}
           {deleteError && !isDeleteDialogOpen ? (
             <ErrorAlert message={deleteError} />
@@ -212,7 +205,6 @@ export function ShuttleTable() {
             isLoading={shuttlesData === undefined}
           />
         </CardContent>
-      </Card>
 
       <DeleteConfirmDialog
         isOpen={isDeleteDialogOpen}

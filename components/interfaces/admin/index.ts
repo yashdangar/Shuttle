@@ -7,3 +7,5 @@ export * from "./frontdesk/frontdesk-table";
 export * from "./shuttle/create-shuttle-dialog";
 export * from "./shuttle/edit-shuttle-dialog";
 export * from "./shuttle/shuttle-table";
+export * from "./hotel/create-hotel-form";
+export * from "./hotel/hotel-setup-required";

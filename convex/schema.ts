@@ -27,7 +27,7 @@ export default defineSchema({
     address: v.string(),
     phoneNumber: v.string(),
     email: v.string(),
-    imageId: v.optional(v.id("files")),
+    imageIds: v.array(v.id("files")),
     timeZone: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
