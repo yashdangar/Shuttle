@@ -1,0 +1,276 @@
+import { action, internalMutation, query } from "./_generated/server";
+import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import { api, internal } from "./_generated/api";
+
+type ShuttleRecord = {
+  id: Id<"shuttles">;
+  hotelId: Id<"hotels">;
+  vehicleNumber: string;
+  totalSeats: number;
+};
+
+const formatShuttle = (shuttle: Doc<"shuttles">): ShuttleRecord => ({
+  id: shuttle._id,
+  hotelId: shuttle.hotelId,
+  vehicleNumber: shuttle.vehicleNumber,
+  totalSeats: Number(shuttle.totalSeats),
+});
+
+export const getAnyHotelId = query({
+  args: {},
+  async handler(ctx) {
+    const hotel = await ctx.db.query("hotels").first();
+    if (!hotel) {
+      return null;
+    }
+    return hotel._id;
+  },
+});
+
+export const findShuttleByVehicleNumber = query({
+  args: {
+    hotelId: v.id("hotels"),
+    vehicleNumber: v.string(),
+  },
+  async handler(ctx, args) {
+    const shuttles = await ctx.db
+      .query("shuttles")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
+      .collect();
+
+    return (
+      shuttles.find(
+        (shuttle) =>
+          shuttle.vehicleNumber.toLowerCase() ===
+          args.vehicleNumber.toLowerCase()
+      ) ?? null
+    );
+  },
+});
+
+export const listShuttles = query({
+  args: {
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const pageSize = Math.max(1, Math.min(args.limit ?? 10, 50));
+
+    const result = await ctx.db.query("shuttles").paginate({
+      numItems: pageSize,
+      cursor: args.cursor ?? null,
+    });
+
+    return {
+      shuttles: result.page.map(formatShuttle),
+      nextCursor: result.isDone ? null : result.continueCursor ?? null,
+    };
+  },
+});
+
+export const getShuttleById = query({
+  args: {
+    shuttleId: v.id("shuttles"),
+  },
+  async handler(ctx, args) {
+    const shuttle = await ctx.db.get(args.shuttleId);
+    if (!shuttle) {
+      return null;
+    }
+    return formatShuttle(shuttle);
+  },
+});
+
+export const createShuttle = action({
+  args: {
+    vehicleNumber: v.string(),
+    totalSeats: v.number(),
+  },
+  async handler(ctx, args): Promise<ShuttleRecord> {
+    const vehicleNumber = args.vehicleNumber.trim();
+    if (!vehicleNumber) {
+      throw new Error("Vehicle number is required");
+    }
+
+    if (!Number.isInteger(args.totalSeats) || args.totalSeats <= 0) {
+      throw new Error("Total seats must be a positive integer");
+    }
+
+    const hotelId = await ctx.runQuery(api.shuttles.getAnyHotelId, {});
+    if (!hotelId) {
+      throw new Error("No hotels found. Please create a hotel first.");
+    }
+
+    const existing = await ctx.runQuery(
+      api.shuttles.findShuttleByVehicleNumber,
+      {
+        hotelId,
+        vehicleNumber,
+      }
+    );
+
+    if (existing) {
+      throw new Error("A shuttle with this vehicle number already exists");
+    }
+
+    const shuttleId = await ctx.runMutation(
+      internal.shuttles.createShuttleInternal,
+      {
+        hotelId,
+        vehicleNumber,
+        totalSeats: args.totalSeats,
+      }
+    );
+
+    const created = await ctx.runQuery(api.shuttles.getShuttleById, {
+      shuttleId,
+    });
+
+    if (!created) {
+      throw new Error("Shuttle creation failed");
+    }
+
+    return created;
+  },
+});
+
+export const updateShuttle = action({
+  args: {
+    shuttleId: v.id("shuttles"),
+    vehicleNumber: v.optional(v.string()),
+    totalSeats: v.optional(v.number()),
+  },
+  async handler(ctx, args): Promise<ShuttleRecord> {
+    const existing = await ctx.runQuery(api.shuttles.getShuttleById, {
+      shuttleId: args.shuttleId,
+    });
+
+    if (!existing) {
+      throw new Error("Shuttle not found");
+    }
+
+    const updates: {
+      vehicleNumber?: string;
+      totalSeats?: number;
+    } = {};
+
+    if (typeof args.vehicleNumber === "string") {
+      const trimmed = args.vehicleNumber.trim();
+      if (!trimmed) {
+        throw new Error("Vehicle number cannot be empty");
+      }
+      if (trimmed.toLowerCase() !== existing.vehicleNumber.toLowerCase()) {
+        const duplicate = await ctx.runQuery(
+          api.shuttles.findShuttleByVehicleNumber,
+          {
+            hotelId: existing.hotelId,
+            vehicleNumber: trimmed,
+          }
+        );
+
+        if (duplicate) {
+          throw new Error("Another shuttle already uses this vehicle number");
+        }
+      }
+      updates.vehicleNumber = trimmed;
+    }
+
+    if (typeof args.totalSeats === "number") {
+      if (!Number.isInteger(args.totalSeats) || args.totalSeats <= 0) {
+        throw new Error("Total seats must be a positive integer");
+      }
+      updates.totalSeats = args.totalSeats;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return existing;
+    }
+
+    await ctx.runMutation(internal.shuttles.updateShuttleInternal, {
+      shuttleId: args.shuttleId,
+      ...updates,
+    });
+
+    const updated = await ctx.runQuery(api.shuttles.getShuttleById, {
+      shuttleId: args.shuttleId,
+    });
+
+    if (!updated) {
+      throw new Error("Shuttle not found after update");
+    }
+
+    return updated;
+  },
+});
+
+export const deleteShuttle = action({
+  args: {
+    shuttleId: v.id("shuttles"),
+  },
+  async handler(ctx, args): Promise<{ success: true }> {
+    const existing = await ctx.runQuery(api.shuttles.getShuttleById, {
+      shuttleId: args.shuttleId,
+    });
+
+    if (!existing) {
+      throw new Error("Shuttle not found");
+    }
+
+    await ctx.runMutation(internal.shuttles.deleteShuttleInternal, {
+      shuttleId: args.shuttleId,
+    });
+
+    return { success: true };
+  },
+});
+
+export const createShuttleInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    vehicleNumber: v.string(),
+    totalSeats: v.number(),
+  },
+  async handler(ctx, args) {
+    return await ctx.db.insert("shuttles", {
+      hotelId: args.hotelId,
+      vehicleNumber: args.vehicleNumber,
+      totalSeats: BigInt(args.totalSeats),
+    });
+  },
+});
+
+export const updateShuttleInternal = internalMutation({
+  args: {
+    shuttleId: v.id("shuttles"),
+    vehicleNumber: v.optional(v.string()),
+    totalSeats: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
+    const updates: Record<string, any> = {};
+
+    if (typeof args.vehicleNumber === "string") {
+      updates.vehicleNumber = args.vehicleNumber;
+    }
+
+    if (typeof args.totalSeats === "number") {
+      updates.totalSeats = BigInt(args.totalSeats);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    await ctx.db.patch(args.shuttleId, updates);
+  },
+});
+
+export const deleteShuttleInternal = internalMutation({
+  args: {
+    shuttleId: v.id("shuttles"),
+  },
+  async handler(ctx, args) {
+    await ctx.db.delete(args.shuttleId);
+  },
+});
+

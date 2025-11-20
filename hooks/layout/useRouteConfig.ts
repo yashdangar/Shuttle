@@ -46,6 +46,7 @@ const adminSidebarData: SidebarData = {
     { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
     { title: "Drivers", url: "/admin/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
+    { title: "Shuttles", url: "/admin/shuttle", icon: MapPin },
   ],
   navSecondary: [],
 };
@@ -93,6 +94,7 @@ const routeGroups: Array<{
       "/admin": "Dashboard",
       "/admin/drivers": "Drivers",
       "/admin/frontdesk": "Frontdesk",
+      "/admin/shuttle": "Shuttles",
     },
     
   },
