@@ -1,4 +1,9 @@
-import { action, internalMutation, query } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  query,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -25,6 +30,29 @@ const formatStaffAccount = (user: Doc<"users">): StaffAccount => ({
   hasPassword: !!user.password,
 });
 
+export type UserProfile = {
+  id: Id<"users">;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  role: Doc<"users">["role"];
+  profilePictureId: Id<"files"> | null;
+  notificationCount: number;
+  chatCount: number;
+  hasPassword: boolean;
+};
+
+const formatUserProfile = (user: Doc<"users">): UserProfile => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  role: user.role,
+  profilePictureId: (user.profilePictureId ?? null) as Id<"files"> | null,
+  notificationCount: user.notificationIds?.length ?? 0,
+  chatCount: user.chatIds?.length ?? 0,
+  hasPassword: !!user.password,
+});
 
 export const listStaffByRole = query({
   args: {
@@ -45,8 +73,21 @@ export const listStaffByRole = query({
 
     return {
       staff: users.page.map(formatStaffAccount),
-      nextCursor: users.isDone ? null : users.continueCursor ?? null,
+      nextCursor: users.isDone ? null : (users.continueCursor ?? null),
     };
+  },
+});
+
+export const getUserProfile = query({
+  args: {
+    userId: v.id("users"),
+  },
+  async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return null;
+    }
+    return formatUserProfile(user);
   },
 });
 
@@ -55,7 +96,6 @@ export const getStaffAccountById = query({
     userId: v.id("users"),
   },
   async handler(ctx, args) {
-    
     const user = await ctx.db.get(args.userId);
     if (!user) {
       return null;
@@ -66,6 +106,90 @@ export const getStaffAccountById = query({
     }
 
     return formatStaffAccount(user);
+  },
+});
+
+export const updateUserProfile = action({
+  args: {
+    userId: v.id("users"),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    currentPassword: v.optional(v.string()),
+    newPassword: v.optional(v.string()),
+  },
+  async handler(ctx, args): Promise<UserProfile> {
+    const existing = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.userId,
+    });
+
+    const updates: {
+      name?: string;
+      email?: string;
+      phoneNumber?: string;
+      hashedPassword?: string;
+    } = {};
+
+    if (typeof args.name === "string") {
+      const value = args.name.trim();
+      if (!value) {
+        throw new Error("Name cannot be empty");
+      }
+      updates.name = value;
+    }
+
+    if (typeof args.email === "string") {
+      const value = args.email.trim().toLowerCase();
+      if (!value) {
+        throw new Error("Email cannot be empty");
+      }
+      const userWithEmail = await ctx.runQuery(api.auth.getUserByEmail, {
+        email: value,
+      });
+      if (userWithEmail && userWithEmail._id !== args.userId) {
+        throw new Error("Another user already uses this email");
+      }
+      updates.email = value;
+    }
+
+    if (typeof args.phoneNumber === "string") {
+      const value = args.phoneNumber.trim();
+      if (!value) {
+        throw new Error("Phone number cannot be empty");
+      }
+      updates.phoneNumber = value;
+    }
+
+    if (typeof args.newPassword === "string") {
+      if (!args.currentPassword || !args.currentPassword.trim()) {
+        throw new Error("Current password is required to set a new password");
+      }
+      if (!existing.password) {
+        throw new Error("This account does not have a password set");
+      }
+      const isValid = await bcrypt.compare(
+        args.currentPassword,
+        existing.password
+      );
+      if (!isValid) {
+        throw new Error("Current password is incorrect");
+      }
+      updates.hashedPassword = await bcrypt.hash(args.newPassword, 10);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return formatUserProfile(existing);
+    }
+
+    await ctx.runMutation(internal.users.updateStaffAccountInternal, {
+      userId: args.userId,
+      ...updates,
+    });
+    const updated = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.userId,
+    });
+
+    return formatUserProfile(updated);
   },
 });
 
@@ -156,7 +280,6 @@ export const updateStaffAccount = action({
     password: v.optional(v.string()),
   },
   async handler(ctx, args): Promise<StaffAccount> {
-
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
       userId: args.userId,
     });
@@ -231,7 +354,6 @@ export const deleteStaffAccount = action({
     userId: v.id("users"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
-
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
       userId: args.userId,
     });
@@ -256,6 +378,19 @@ export const deleteStaffAccount = action({
     }
 
     return { success: true };
+  },
+});
+
+export const getUserByIdInternal = internalQuery({
+  args: {
+    userId: v.id("users"),
+  },
+  async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    return user;
   },
 });
 
@@ -299,4 +434,3 @@ export const deleteStaffAccountInternal = internalMutation({
     await ctx.db.delete(args.userId);
   },
 });
-

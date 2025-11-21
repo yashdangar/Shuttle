@@ -6,6 +6,7 @@ import {
   IconMoon,
   IconNotification,
   IconSun,
+  IconUser,
 } from "@tabler/icons-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -27,11 +28,13 @@ import { useTheme } from "next-themes";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import type { SidebarUser } from "@/types/sidebar";
 import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { user: sessionUser } = useAuthSession();
+  const router = useRouter();
   const resolvedTheme = theme ?? "system";
   const isLightTheme = resolvedTheme === "light";
   const themeToggleTarget = isLightTheme ? "dark" : "light";
@@ -120,6 +123,13 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={() => router.push("/profile")}
+                className="cursor-pointer"
+              >
+                <IconUser className="mr-2 size-4" />
+                Profile
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme(themeToggleTarget)}>
                 {themeIcon}
                 <div className="flex flex-col">
