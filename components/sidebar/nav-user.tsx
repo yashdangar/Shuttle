@@ -139,8 +139,11 @@ export function NavUser() {
                   </span>
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification />
+              <DropdownMenuItem
+                onClick={() => router.push("/notifications")}
+                className="cursor-pointer"
+              >
+                <IconNotification className="mr-2 size-4" />
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
