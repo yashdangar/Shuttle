@@ -29,6 +29,9 @@ import { useAuthSession } from "@/hooks/use-auth-session";
 import type { SidebarUser } from "@/types/sidebar";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
@@ -54,19 +57,43 @@ export function NavUser() {
       ? "Switch to light theme"
       : "Switch to dark theme";
 
+  const profileArgs = sessionUser?.id
+    ? ({ userId: sessionUser.id as Id<"users"> } as const)
+    : "skip";
+  const profile = useQuery(api.users.getUserProfile, profileArgs);
+  const profilePictureUrl = useQuery(
+    api.files.getProfilePictureUrl,
+    profile?.profilePictureId
+      ? ({ fileId: profile.profilePictureId } as const)
+      : "skip"
+  );
+
   const fallbackUser: SidebarUser = {
     name: "Guest User",
     email: "guest@example.com",
     avatar: "/placeholder-user.jpg",
   };
 
-  const user = sessionUser
+  const avatarUrl =
+    profilePictureUrl || sessionUser?.image || fallbackUser.avatar;
+  const avatarUrlWithCacheBust =
+    avatarUrl && avatarUrl !== fallbackUser.avatar && profile?.profilePictureId
+      ? `${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}v=${profile.profilePictureId}`
+      : avatarUrl;
+
+  const user = profile
     ? {
-        name: sessionUser.name || fallbackUser.name,
-        email: sessionUser.email || fallbackUser.email,
-        avatar: sessionUser.image || fallbackUser.avatar,
+        name: profile.name || fallbackUser.name,
+        email: profile.email || fallbackUser.email,
+        avatar: avatarUrlWithCacheBust,
       }
-    : fallbackUser;
+    : sessionUser
+      ? {
+          name: sessionUser.name || fallbackUser.name,
+          email: sessionUser.email || fallbackUser.email,
+          avatar: avatarUrlWithCacheBust,
+        }
+      : fallbackUser;
 
   const initials =
     user.name
@@ -84,7 +111,10 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg grayscale">
+              <Avatar
+                key={profile?.profilePictureId || user.avatar}
+                className="h-8 w-8 rounded-lg"
+              >
                 <AvatarImage src={user.avatar} alt={user.name} />
                 <AvatarFallback className="rounded-lg">
                   {initials}
@@ -107,7 +137,10 @@ export function NavUser() {
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
+                <Avatar
+                  key={profile?.profilePictureId || user.avatar}
+                  className="h-8 w-8 rounded-lg"
+                >
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="rounded-lg">
                     {initials}

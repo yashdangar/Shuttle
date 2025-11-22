@@ -10,7 +10,9 @@
 
 import type * as admins from "../admins.js";
 import type * as auth from "../auth.js";
+import type * as files from "../files.js";
 import type * as hotels from "../hotels.js";
+import type * as http from "../http.js";
 import type * as locations from "../locations.js";
 import type * as notifications from "../notifications.js";
 import type * as shuttles from "../shuttles.js";
@@ -25,7 +27,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   admins: typeof admins;
   auth: typeof auth;
+  files: typeof files;
   hotels: typeof hotels;
+  http: typeof http;
   locations: typeof locations;
   notifications: typeof notifications;
   shuttles: typeof shuttles;

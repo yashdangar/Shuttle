@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { InputHTMLAttributes } from "react";
 import { useAction, useQuery } from "convex/react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Camera, Pencil } from "lucide-react";
 import PageLayout from "@/components/layout/page-layout";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +41,7 @@ type UserProfileData = {
   email: string;
   phoneNumber: string;
   role: string;
+  profilePictureId: Id<"files"> | null;
   notificationCount: number;
   chatCount: number;
   hasPassword: boolean;
@@ -141,6 +143,13 @@ export default function ProfilePage() {
   const organization = useQuery(api.hotels.getHotelByUserId, profileArgs);
   const updateProfile = useAction(api.users.updateUserProfile);
 
+  const profilePictureUrl = useQuery(
+    api.files.getProfilePictureUrl,
+    profile?.profilePictureId
+      ? ({ fileId: profile.profilePictureId } as const)
+      : "skip"
+  );
+
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
@@ -183,6 +192,8 @@ export default function ProfilePage() {
       .toUpperCase();
   }, [profile?.name, user?.name]);
 
+  const [isProfileEditMode, setIsProfileEditMode] = useState(false);
+
   const handleProfileSubmit = profileForm.handleSubmit(async (values) => {
     if (!user?.id) {
       toast.error("You must be signed in to update your profile.");
@@ -201,6 +212,7 @@ export default function ProfilePage() {
         email: updated.email,
         phoneNumber: updated.phoneNumber,
       });
+      setIsProfileEditMode(false);
       toast.success("Profile updated");
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to update profile");
@@ -208,6 +220,8 @@ export default function ProfilePage() {
       setProfileSubmitting(false);
     }
   });
+
+  const [isPasswordEditMode, setIsPasswordEditMode] = useState(false);
 
   const handlePasswordSubmit = passwordForm.handleSubmit(async (values) => {
     if (!user?.id) {
@@ -226,6 +240,7 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       });
+      setIsPasswordEditMode(false);
       toast.success("Password reset successfully");
     } catch (error: any) {
       const message =
@@ -282,6 +297,8 @@ export default function ProfilePage() {
             profile={profile}
             initials={initials}
             userImage={user.image}
+            profilePictureUrl={profilePictureUrl ?? undefined}
+            userId={user.id as Id<"users">}
           />
         </div>
 
@@ -290,6 +307,9 @@ export default function ProfilePage() {
             form={profileForm}
             onSubmit={handleProfileSubmit}
             isSubmitting={profileSubmitting}
+            isEditMode={isProfileEditMode}
+            onEditModeChange={setIsProfileEditMode}
+            profile={profile}
           />
         </div>
 
@@ -298,6 +318,8 @@ export default function ProfilePage() {
             form={passwordForm}
             onSubmit={handlePasswordSubmit}
             isSubmitting={passwordSubmitting}
+            isEditMode={isPasswordEditMode}
+            onEditModeChange={setIsPasswordEditMode}
           />
         </div>
       </div>
@@ -309,21 +331,88 @@ function ProfileHero({
   profile,
   initials,
   userImage,
+  profilePictureUrl,
+  userId,
 }: {
   profile: UserProfileData;
   initials: string;
   userImage: string | null | undefined;
+  profilePictureUrl?: string | null;
+  userId: Id<"users">;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useFileUpload("profile", {
+    onSuccess: () => {
+      toast.success("Profile picture updated successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to upload profile picture");
+    },
+  });
+
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image size must be less than 10MB");
+      return;
+    }
+
+    await uploadFile(file, { userId });
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const handleUploadClick = () => {
+    inputRef.current?.click();
+  };
+
+  const displayImage = profilePictureUrl || userImage;
+
   return (
     <Card className="shadow-sm">
       <CardContent className="flex flex-col gap-6 pt-6 lg:flex-row lg:items-center">
         <div className="flex items-center gap-4">
-          <Avatar className="h-20 w-20 rounded-2xl border">
-            <AvatarImage src={userImage ?? undefined} alt={profile.name} />
-            <AvatarFallback className="rounded-2xl text-lg font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative group">
+            <Avatar className="h-20 w-20 rounded-2xl border">
+              <AvatarImage src={displayImage ?? undefined} alt={profile.name} />
+              <AvatarFallback className="rounded-2xl text-lg font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={isUploading}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-md"
+              onClick={handleUploadClick}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-2xl font-semibold">{profile.name}</h2>
@@ -346,18 +435,52 @@ function PersonalInfoCard({
   form,
   onSubmit,
   isSubmitting,
+  isEditMode,
+  onEditModeChange,
+  profile,
 }: {
   form: ReturnType<typeof useForm<ProfileFormValues>>;
   onSubmit: () => void;
   isSubmitting: boolean;
+  isEditMode: boolean;
+  onEditModeChange: (value: boolean) => void;
+  profile: UserProfileData;
 }) {
+  const handleEditClick = () => {
+    onEditModeChange(true);
+  };
+
+  const handleCancel = () => {
+    form.reset({
+      name: profile.name,
+      email: profile.email,
+      phoneNumber: profile.phoneNumber,
+    });
+    onEditModeChange(false);
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Personal information</CardTitle>
-        <CardDescription>
-          Keep your contact details accurate so teams know how to reach you.
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Personal information</CardTitle>
+            <CardDescription>
+              Keep your contact details accurate so teams know how to reach you.
+            </CardDescription>
+          </div>
+          {!isEditMode && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleEditClick}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -376,6 +499,12 @@ function PersonalInfoCard({
                         autoComplete={fieldConfig.autoComplete}
                         inputMode={fieldConfig.inputMode}
                         placeholder={fieldConfig.placeholder}
+                        readOnly={!isEditMode}
+                        className={
+                          !isEditMode
+                            ? "cursor-default bg-muted/50 text-foreground"
+                            : ""
+                        }
                         {...field}
                       />
                     </FormControl>
@@ -384,22 +513,24 @@ function PersonalInfoCard({
                 )}
               />
             ))}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                )}
-                Save changes
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isSubmitting}
-                onClick={() => form.reset()}
-              >
-                Reset
-              </Button>
-            </div>
+            {isEditMode && (
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  )}
+                  Save changes
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isSubmitting}
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </form>
         </Form>
       </CardContent>
@@ -411,18 +542,50 @@ function SecurityCard({
   form,
   onSubmit,
   isSubmitting,
+  isEditMode,
+  onEditModeChange,
 }: {
   form: ReturnType<typeof useForm<PasswordFormValues>>;
   onSubmit: () => void;
   isSubmitting: boolean;
+  isEditMode: boolean;
+  onEditModeChange: (value: boolean) => void;
 }) {
+  const handleEditClick = () => {
+    onEditModeChange(true);
+  };
+
+  const handleCancel = () => {
+    form.reset({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    onEditModeChange(false);
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Security</CardTitle>
-        <CardDescription>
-          Update your password to keep access restricted to you.
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Security</CardTitle>
+            <CardDescription>
+              Update your password to keep access restricted to you.
+            </CardDescription>
+          </div>
+          {!isEditMode && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleEditClick}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -438,6 +601,12 @@ function SecurityCard({
                     <FormControl>
                       <PasswordInput
                         autoComplete={fieldConfig.autoComplete}
+                        readOnly={!isEditMode}
+                        className={
+                          !isEditMode
+                            ? "cursor-default bg-muted/50 text-foreground"
+                            : ""
+                        }
                         {...field}
                       />
                     </FormControl>
@@ -446,17 +615,27 @@ function SecurityCard({
                 )}
               />
             ))}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                )}
-                Update password
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Passwords must be at least 6 characters.
-              </p>
-            </div>
+            {isEditMode && (
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  )}
+                  Update password
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isSubmitting}
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Passwords must be at least 6 characters.
+                </p>
+              </div>
+            )}
           </form>
         </Form>
       </CardContent>
