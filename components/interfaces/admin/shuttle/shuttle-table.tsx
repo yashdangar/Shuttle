@@ -73,10 +73,16 @@ export function ShuttleTable() {
     | undefined;
 
   try {
-    shuttlesData = useQuery(api.shuttles.listShuttles, {
-      limit: pageSize,
-      cursor: currentCursor ?? undefined,
-    });
+    shuttlesData = useQuery(
+      api.shuttles.listShuttles,
+      sessionUser?.id
+        ? {
+            userId: sessionUser.id as Id<"users">,
+            limit: pageSize,
+            cursor: currentCursor ?? undefined,
+          }
+        : "skip"
+    );
   } catch (error: any) {
     shuttlesData = { shuttles: [], nextCursor: null };
     queryError = error.message ?? "Failed to load shuttles";
@@ -105,11 +111,14 @@ export function ShuttleTable() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!shuttleToDelete) return;
+    if (!shuttleToDelete || !sessionUser?.id) return;
     setDeleteError(null);
     setPendingDeleteId(shuttleToDelete.id);
     try {
-      await deleteShuttle({ shuttleId: shuttleToDelete.id });
+      await deleteShuttle({
+        currentUserId: sessionUser.id as Id<"users">,
+        shuttleId: shuttleToDelete.id,
+      });
       setIsDeleteDialogOpen(false);
       setShuttleToDelete(null);
     } catch (error: any) {

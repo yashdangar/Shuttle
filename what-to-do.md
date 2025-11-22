@@ -1,3 +1,31 @@
+Sun - mon -tue 
+
+Dev : Email add karana che + booking - chats + normal chats betwene people + timezone nu shit figure out + location walu check kar badhi api
+
+yash : 
+Location edit UI 
+(FD+Admin) Trip table page + trip add page + trip edit page 
+
+hard shit 
+Guets ma Form ui change karvu padshe and make it working
+Frontdesk ma booking list thai ee UI 
+Booking / id walu page 
+Trip Instance pan create thashe -> only for the firs booking of that time 
+
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+
+
 Roles : 
     Guest
     Admin

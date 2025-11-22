@@ -70,11 +70,17 @@ export function FrontdeskTable() {
     | undefined;
 
   try {
-    usersData = useQuery(api.users.listStaffByRole, {
-      role: entityType,
-      limit: pageSize,
-      cursor: currentCursor ?? undefined,
-    });
+    usersData = useQuery(
+      api.users.listStaffByRole,
+      sessionUser?.id
+        ? {
+            role: entityType,
+            userId: sessionUser.id as Id<"users">,
+            limit: pageSize,
+            cursor: currentCursor ?? undefined,
+          }
+        : "skip"
+    );
   } catch (error: any) {
     usersData = { staff: [], nextCursor: null };
     queryError = error.message ?? "Failed to load frontdesk staff";
@@ -105,11 +111,14 @@ export function FrontdeskTable() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete || !sessionUser?.id) return;
     setDeleteError(null);
     setPendingDeleteId(userToDelete.id);
     try {
-      await deleteStaffAccount({ userId: userToDelete.id });
+      await deleteStaffAccount({
+        currentUserId: sessionUser.id as Id<"users">,
+        userId: userToDelete.id,
+      });
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (error: any) {
@@ -147,80 +156,80 @@ export function FrontdeskTable() {
             onChange={setSearchQuery}
             showIcon
           /> */}
-          {queryError ? <ErrorAlert message={queryError} /> : null}
-          {deleteError && !isDeleteDialogOpen ? (
-            <ErrorAlert message={deleteError} />
-          ) : null}
-          <div className="rounded-lg border">
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading {entityCollectionLabel}...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                {`No ${entityCollectionLabel} match your search.`}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-medium">Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone Number</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+        {queryError ? <ErrorAlert message={queryError} /> : null}
+        {deleteError && !isDeleteDialogOpen ? (
+          <ErrorAlert message={deleteError} />
+        ) : null}
+        <div className="rounded-lg border">
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading {entityCollectionLabel}...
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              {`No ${entityCollectionLabel} match your search.`}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-medium">Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone Number</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="font-medium">{user.name}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{user.email}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{user.phoneNumber}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary">Active</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <EditFrontdeskDialog
+                          frontdesk={user}
+                          disabled={!isAdmin}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${user.name}`}
+                          onClick={() => handleDeleteRequest(user)}
+                          disabled={!isAdmin}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        <div className="font-medium">{user.name}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{user.email}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{user.phoneNumber}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary">Active</Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <EditFrontdeskDialog
-                            frontdesk={user}
-                            disabled={!isAdmin}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Delete ${user.name}`}
-                            onClick={() => handleDeleteRequest(user)}
-                            disabled={!isAdmin}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-          <PaginationControls
-            currentPage={pageIndex}
-            hasNextPage={!!usersData?.nextCursor}
-            onNextPage={handleNextPage}
-            onPrevPage={handlePrevPage}
-            isLoading={usersData === undefined}
-          />
-        </CardContent>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+        <PaginationControls
+          currentPage={pageIndex}
+          hasNextPage={!!usersData?.nextCursor}
+          onNextPage={handleNextPage}
+          onPrevPage={handlePrevPage}
+          isLoading={usersData === undefined}
+        />
+      </CardContent>
 
       <DeleteConfirmDialog
         isOpen={isDeleteDialogOpen}

@@ -17,9 +17,13 @@ export default defineSchema({
     profilePictureId: v.optional(v.id("files")),
     notificationIds: v.array(v.id("notifications")),
     chatIds: v.array(v.id("chats")),
+    // Hotel association: Required for admin, frontdesk, and driver roles.
+    // Optional (null) for guest and superadmin roles who are not tied to a specific hotel.
+    hotelId: v.optional(v.id("hotels")),
   })
     .index("by_email", ["email"])
-    .index("by_role", ["role"]),
+    .index("by_role", ["role"])
+    .index("by_hotel", ["hotelId"]),
 
   hotels: defineTable({
     name: v.string(),
@@ -34,8 +38,7 @@ export default defineSchema({
     shuttleIds: v.array(v.id("shuttles")),
     userIds: v.array(v.id("users")), //driver , frontdesk , admin
     locationIds: v.array(v.id("locations")), // private and public locations and hotel location itself too
-  })
-  .index("by_slug", ["slug"]),
+  }).index("by_slug", ["slug"]),
 
   locations: defineTable({
     name: v.string(),
@@ -132,12 +135,15 @@ export default defineSchema({
 
   tripTimes: defineTable({
     tripId: v.id("trips"),
+    shuttleId: v.id("shuttles"),
     startTime: v.number(),
     endTime: v.number(),
   })
     .index("by_trip", ["tripId"])
-    .index("by_trip_time", ["tripId", "startTime", "endTime"]),
+    .index("by_trip_time", ["tripId", "startTime", "endTime"])
+    .index("by_shuttle", ["shuttleId"]),
 
+    // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({
     tripId: v.id("trips"),
     driverId: v.id("users"),
@@ -149,7 +155,7 @@ export default defineSchema({
     seatsOccupied: v.int64(),
     seatHeld: v.int64(), // when someone does booking then the setas are held until frontdsk confirms the booking , and this held means total - occupied should always be lesser than held seat , and how many setas to be hold should be decided by the booking Id , emans we have to check the booking seats how many are there to be held
 
-    bookingIds: v.array(v.id("bookings")),
+    bookingIds: v.array(v.id("bookings")), // Array of booking ids which are associated with this trip instance
 
     // This below 2 things will be updated every 2-3 minutes by google api calls which will automatically reflect in UI
     driverCurrentLatitude: v.optional(v.float64()),
@@ -194,10 +200,10 @@ export default defineSchema({
     .index("by_expiry", ["expiresAt"]),
 
   chats: defineTable({
-    bookingId: v.id("bookings"),
+    bookingId: v.optional(v.id("bookings")), // Present if chat is related to a booking, null for general chats
+    participantIds: v.array(v.id("users")), // List of user IDs in the chat (required for general chats, also used for booking chats)
     isOpen: v.boolean(),
-  })
-    .index("by_booking", ["bookingId"]),
+  }).index("by_booking", ["bookingId"]),
 
   messages: defineTable({
     chatId: v.id("chats"),
@@ -212,10 +218,9 @@ export default defineSchema({
 
   files: defineTable({
     storageId: v.id("_storage"),
-    uiName : v.string(), //Original file name
+    uiName: v.string(), //Original file name
     uploadedByUserId: v.id("users"),
-  })
-    .index("by_uploaded_by", ["uploadedByUserId"]),
+  }).index("by_uploaded_by", ["uploadedByUserId"]),
 
   seatReservations: defineTable({
     shuttleId: v.id("shuttles"),
