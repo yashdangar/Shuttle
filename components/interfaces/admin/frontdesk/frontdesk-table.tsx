@@ -166,7 +166,8 @@ export function FrontdeskTable() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="font-medium">Name</TableHead>
-                    <TableHead>Contact</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone Number</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -176,16 +177,12 @@ export function FrontdeskTable() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         <div className="font-medium">{user.name}</div>
-                        <p className="text-muted-foreground text-xs">
-                          {user.role.charAt(0).toUpperCase() +
-                            user.role.slice(1)}
-                        </p>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{user.email}</div>
-                        <p className="text-muted-foreground text-xs">
-                          {user.phoneNumber || "Not provided"}
-                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{user.phoneNumber}</div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
