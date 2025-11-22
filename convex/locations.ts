@@ -326,12 +326,9 @@ export const listAdminLocations = query({
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const hotels = await ctx.db.query("hotels").collect();
-    const hotel = hotels.find((entry) =>
-      entry.userIds.some((userId: Id<"users">) => userId === args.adminId)
-    );
-
-    if (!hotel) {
+    const user = await ctx.db.get(args.adminId);
+    
+    if (!user || !user.hotelId) {
       return {
         locations: [],
         nextCursor: null,
@@ -341,7 +338,7 @@ export const listAdminLocations = query({
     const pageSize = Math.max(1, Math.min(args.limit ?? 25, 100));
     const allLocations = await ctx.db
       .query("locations")
-      .withIndex("by_hotel", (q) => q.eq("hotelId", hotel._id))
+      .withIndex("by_hotel", (q) => q.eq("hotelId", user.hotelId))
       .collect();
 
     const sortedLocations = allLocations.sort(
@@ -371,10 +368,8 @@ export const listPublicLocations = query({
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const hotels = await ctx.db.query("hotels").collect();
-    const hotel = hotels.find((entry) =>
-      entry.userIds.some((userId: Id<"users">) => userId === args.adminId)
-    );
+    const user = await ctx.db.get(args.adminId);
+    const hotel = user?.hotelId ? await ctx.db.get(user.hotelId) : null;
 
     const pageSize = Math.max(1, Math.min(args.limit ?? 25, 100));
 
@@ -441,12 +436,20 @@ export const createAdminLocation = action({
       throw new Error("Only admin can create private locations");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const userDoc = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.currentUserId,
+    });
+
+    if (!userDoc || !userDoc.hotelId) {
+      throw new Error("Hotel not found for admin");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelById, {
+      hotelId: userDoc.hotelId,
     });
 
     if (!hotel) {
-      throw new Error("Hotel not found for admin");
+      throw new Error("Hotel not found");
     }
 
     const locationId = await ctx.runMutation(
@@ -498,12 +501,20 @@ export const importLocation = action({
       throw new Error("Only admin can import locations");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const userDoc = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.currentUserId,
+    });
+
+    if (!userDoc || !userDoc.hotelId) {
+      throw new Error("Hotel not found for admin");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelById, {
+      hotelId: userDoc.hotelId,
     });
 
     if (!hotel) {
-      throw new Error("Hotel not found for admin");
+      throw new Error("Hotel not found");
     }
 
     if (hotel.locationIds.includes(args.publicLocationId)) {
@@ -577,12 +588,20 @@ export const updateAdminLocation = action({
       throw new Error("Only admin can update locations");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const userDoc = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.currentUserId,
+    });
+
+    if (!userDoc || !userDoc.hotelId) {
+      throw new Error("Hotel not found for admin");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelById, {
+      hotelId: userDoc.hotelId,
     });
 
     if (!hotel) {
-      throw new Error("Hotel not found for admin");
+      throw new Error("Hotel not found");
     }
 
     const existing = await ctx.runQuery(api.locations.getLocationById, {
@@ -655,12 +674,20 @@ export const deleteAdminLocation = action({
       throw new Error("Only admin can delete locations");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const userDoc = await ctx.runQuery(internal.users.getUserByIdInternal, {
+      userId: args.currentUserId,
+    });
+
+    if (!userDoc || !userDoc.hotelId) {
+      throw new Error("Hotel not found for admin");
+    }
+
+    const hotel = await ctx.runQuery(api.hotels.getHotelById, {
+      hotelId: userDoc.hotelId,
     });
 
     if (!hotel) {
-      throw new Error("Hotel not found for admin");
+      throw new Error("Hotel not found");
     }
 
     const existing = await ctx.runQuery(api.locations.getLocationById, {
