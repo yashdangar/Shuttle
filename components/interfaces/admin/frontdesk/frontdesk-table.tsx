@@ -1,19 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Users, UsersRound } from "lucide-react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SearchBar } from "@/components/ui/search-bar";
 import { ErrorAlert } from "@/components/ui/error-alert";
@@ -28,6 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyMuted } from "../../common/EmptyState";
+import { TableLoader } from "../../common/TableLoader";
 
 export type FrontdeskAccount = {
   id: Id<"users">;
@@ -138,10 +134,14 @@ export function FrontdeskTable() {
     setPageIndex((index) => Math.max(0, index - 1));
   };
 
+  if (isLoading) {
+    return <TableLoader label="Loading Frontdesk Staff" />;
+  }
+
   return (
     <>
-        <CardContent className="space-y-4">
-          {/* <SearchBar
+      <CardContent className="space-y-4">
+        {/* <SearchBar
             placeholder={`Search ${entityCollectionLabel}`}
             value={searchQuery}
             onChange={setSearchQuery}

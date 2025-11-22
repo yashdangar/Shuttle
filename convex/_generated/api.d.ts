@@ -12,6 +12,7 @@ import type * as admins from "../admins.js";
 import type * as auth from "../auth.js";
 import type * as hotels from "../hotels.js";
 import type * as locations from "../locations.js";
+import type * as notifications from "../notifications.js";
 import type * as shuttles from "../shuttles.js";
 import type * as users from "../users.js";
 
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   hotels: typeof hotels;
   locations: typeof locations;
+  notifications: typeof notifications;
   shuttles: typeof shuttles;
   users: typeof users;
 }>;

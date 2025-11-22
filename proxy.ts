@@ -14,11 +14,11 @@ const roleHomes: Record<Role, string> = {
   superadmin: "/super-admin",
 };
 const roleScopes: Record<Role, string[]> = {
-  guest: ["/dashboard", "/select-hotels", "/new-booking", "/bookings"],
-  admin: ["/admin", "/admin/drivers", "/admin/frontdesk"],
-  driver: ["/driver"],
-  frontdesk: ["/admin"],
-  superadmin: ["/super-admin"],
+  guest: ["/dashboard", "/select-hotels", "/new-booking", "/bookings","/profile","/notifications"],
+  admin: ["/admin", "/admin/drivers", "/admin/frontdesk","/profile","/notifications"],
+  driver: ["/driver","/profile","/notifications"],
+  frontdesk: ["/admin","/profile","/notifications"  ],
+  superadmin: ["/super-admin","/profile","/notifications"],
 };
 
 export default auth((req) => {

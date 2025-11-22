@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Users, UsersRound } from "lucide-react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -28,6 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableLoader } from "../../common/TableLoader";
+import { EmptyMuted } from "../../common/EmptyState";
 
 export type DriverAccount = {
   id: Id<"users">;
@@ -136,10 +138,14 @@ export function DriverTable() {
     setPageIndex((index) => Math.max(0, index - 1));
   };
 
+  if (isLoading) {
+    return <TableLoader label="Loading Drivers" />;
+  }
+
   return (
     <>
-        <CardContent className="space-y-4">
-          {/* <SearchBar
+      <CardContent className="space-y-4">
+        {/* <SearchBar
             placeholder={`Search ${entityCollectionLabel}`}
             value={searchQuery}
             onChange={setSearchQuery}
