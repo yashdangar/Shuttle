@@ -172,17 +172,36 @@ export const createShuttle = action({
 
 export const updateShuttle = action({
   args: {
+    currentUserId: v.id("users"),
     shuttleId: v.id("shuttles"),
     vehicleNumber: v.optional(v.string()),
     totalSeats: v.optional(v.number()),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
+      id: args.currentUserId,
+    });
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Only administrators can update shuttles");
+    }
+
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
+    });
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to update shuttles");
+    }
+
     const existing = await ctx.runQuery(api.shuttles.getShuttleById, {
       shuttleId: args.shuttleId,
     });
 
     if (!existing) {
       throw new Error("Shuttle not found");
+    }
+
+    if (existing.hotelId !== adminHotel.id) {
+      throw new Error("Shuttle does not belong to your hotel");
     }
 
     const updates: {
@@ -241,15 +260,34 @@ export const updateShuttle = action({
 
 export const deleteShuttle = action({
   args: {
+    currentUserId: v.id("users"),
     shuttleId: v.id("shuttles"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
+      id: args.currentUserId,
+    });
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Only administrators can delete shuttles");
+    }
+
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
+    });
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to delete shuttles");
+    }
+
     const existing = await ctx.runQuery(api.shuttles.getShuttleById, {
       shuttleId: args.shuttleId,
     });
 
     if (!existing) {
       throw new Error("Shuttle not found");
+    }
+
+    if (existing.hotelId !== adminHotel.id) {
+      throw new Error("Shuttle does not belong to your hotel");
     }
 
     await ctx.runMutation(internal.hotels.removeShuttleFromHotelInternal, {

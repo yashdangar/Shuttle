@@ -111,11 +111,14 @@ export function ShuttleTable() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!shuttleToDelete) return;
+    if (!shuttleToDelete || !sessionUser?.id) return;
     setDeleteError(null);
     setPendingDeleteId(shuttleToDelete.id);
     try {
-      await deleteShuttle({ shuttleId: shuttleToDelete.id });
+      await deleteShuttle({
+        currentUserId: sessionUser.id as Id<"users">,
+        shuttleId: shuttleToDelete.id,
+      });
       setIsDeleteDialogOpen(false);
       setShuttleToDelete(null);
     } catch (error: any) {

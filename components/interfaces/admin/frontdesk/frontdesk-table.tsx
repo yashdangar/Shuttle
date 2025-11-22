@@ -111,11 +111,14 @@ export function FrontdeskTable() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete || !sessionUser?.id) return;
     setDeleteError(null);
     setPendingDeleteId(userToDelete.id);
     try {
-      await deleteStaffAccount({ userId: userToDelete.id });
+      await deleteStaffAccount({
+        currentUserId: sessionUser.id as Id<"users">,
+        userId: userToDelete.id,
+      });
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (error: any) {

@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Edit3, Loader2 } from "lucide-react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +51,7 @@ type EditDriverDialogProps = {
 };
 
 export function EditDriverDialog({ driver, disabled }: EditDriverDialogProps) {
+  const { user: sessionUser } = useAuthSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const updateStaffAccount = useAction(api.users.updateStaffAccount);
@@ -87,9 +90,14 @@ export function EditDriverDialog({ driver, disabled }: EditDriverDialogProps) {
   };
 
   const handleSubmit = async (values: FormValues) => {
+    if (!sessionUser?.id) {
+      setRequestError("You must be logged in to update drivers");
+      return;
+    }
     try {
       setRequestError(null);
       await updateStaffAccount({
+        currentUserId: sessionUser.id as Id<"users">,
         userId: driver.id,
         name: values.name.trim(),
         email: values.email.trim().toLowerCase(),

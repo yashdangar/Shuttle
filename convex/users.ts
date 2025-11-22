@@ -315,6 +315,7 @@ export const createStaffAccount = action({
 
 export const updateStaffAccount = action({
   args: {
+    currentUserId: v.id("users"),
     userId: v.id("users"),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -322,12 +323,33 @@ export const updateStaffAccount = action({
     password: v.optional(v.string()),
   },
   async handler(ctx, args): Promise<StaffAccount> {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
+      id: args.currentUserId,
+    });
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Only administrators can update staff accounts");
+    }
+
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
+    });
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to update staff");
+    }
+
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
       userId: args.userId,
     });
 
     if (!existing) {
       throw new Error("User not found");
+    }
+
+    const userHotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
+      userId: args.userId,
+    });
+    if (!userHotel || userHotel.id !== adminHotel.id) {
+      throw new Error("User does not belong to your hotel");
     }
 
     const payload: {
@@ -393,9 +415,24 @@ export const updateStaffAccount = action({
 
 export const deleteStaffAccount = action({
   args: {
+    currentUserId: v.id("users"),
     userId: v.id("users"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
+      id: args.currentUserId,
+    });
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Only administrators can delete staff accounts");
+    }
+
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
+    });
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to delete staff");
+    }
+
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
       userId: args.userId,
     });
@@ -404,9 +441,14 @@ export const deleteStaffAccount = action({
       throw new Error("User not found");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
+    const userHotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
       userId: args.userId,
     });
+    if (!userHotel || userHotel.id !== adminHotel.id) {
+      throw new Error("User does not belong to your hotel");
+    }
+
+    const hotel = userHotel;
 
     await ctx.runMutation(internal.users.deleteStaffAccountInternal, {
       userId: args.userId,

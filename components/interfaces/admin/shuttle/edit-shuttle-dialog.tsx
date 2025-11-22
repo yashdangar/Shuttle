@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Edit3, Loader2 } from "lucide-react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,6 +49,7 @@ export function EditShuttleDialog({
   shuttle,
   disabled,
 }: EditShuttleDialogProps) {
+  const { user: sessionUser } = useAuthSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const updateShuttle = useAction(api.shuttles.updateShuttle);
@@ -79,9 +82,14 @@ export function EditShuttleDialog({
   };
 
   const handleSubmit = async (values: FormValues) => {
+    if (!sessionUser?.id) {
+      setRequestError("You must be logged in to update shuttles");
+      return;
+    }
     try {
       setRequestError(null);
       await updateShuttle({
+        currentUserId: sessionUser.id as Id<"users">,
         shuttleId: shuttle.id,
         vehicleNumber: values.vehicleNumber.trim(),
         totalSeats: values.totalSeats,
