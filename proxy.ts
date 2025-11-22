@@ -10,14 +10,14 @@ const roleHomes: Record<Role, string> = {
   guest: "/dashboard", 
   admin: "/admin",
   driver: "/driver",
-  frontdesk: "/admin",
+  frontdesk: "/frontdesk",
   superadmin: "/super-admin",
 };
 const roleScopes: Record<Role, string[]> = {
   guest: ["/dashboard", "/select-hotels", "/new-booking", "/bookings","/profile","/notifications"],
-  admin: ["/admin", "/admin/drivers", "/admin/frontdesk","/profile","/notifications"],
+  admin: ["/admin", "/admin/drivers", "/admin/frontdesks","/admin/shuttles","/profile","/notifications"],
   driver: ["/driver","/profile","/notifications"],
-  frontdesk: ["/admin","/profile","/notifications"  ],
+  frontdesk: ["/frontdesk","/frontdesk/drivers","/frontdesk/frontdesks","/frontdesk/shuttles","/profile","/notifications"  ],
   superadmin: ["/super-admin","/profile","/notifications"],
 };
 

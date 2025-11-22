@@ -64,8 +64,8 @@ const adminSidebarData: SidebarData = {
   navMain: [
     { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
     { title: "Drivers", url: "/admin/drivers", icon: MapPin },
-    { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
-    { title: "Shuttles", url: "/admin/shuttle", icon: MapPin },
+    { title: "Frontdesk", url: "/admin/frontdesks", icon: CalendarPlus },
+    { title: "Shuttles", url: "/admin/shuttles", icon: MapPin },
   ],
   navSecondary: [],
 };
@@ -94,12 +94,27 @@ const superAdminSidebarData: SidebarData = {
   navSecondary: [],
 };
 
+const frontdeskSidebarData: SidebarData = {
+  organization: {
+    name: "Shuttle Frontdesk",
+    url: "/frontdesk",
+    icon: Shield,
+  },
+  navMain: [
+    { title: "Dashboard", url: "/frontdesk", icon: LayoutDashboard },
+    { title: "Drivers", url: "/frontdesk/drivers", icon: MapPin },
+    { title: "Frontdesk", url: "/frontdesk/frontdesks", icon: CalendarPlus },
+    { title: "Shuttles", url: "/frontdesk/shuttles", icon: MapPin },
+  ],
+  navSecondary: [],
+};
+
 const roleSidebarMap: Record<string, SidebarData> = {
   guest: guestSidebarData,
   admin: adminSidebarData,
   driver: driverSidebarData,
   superadmin: superAdminSidebarData,
-  frontdesk: guestSidebarData,
+  frontdesk: frontdeskSidebarData,
 };
 
 const hiddenRoutes: string[] = ["/", "/sign-in", "/sign-up"];

@@ -40,11 +40,42 @@ export const findShuttleByVehicleNumber = query({
 
 export const listShuttles = query({
   args: {
+    userId: v.optional(v.id("users")),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const pageSize = Math.max(1, Math.min(args.limit ?? 10, 50));
+
+    let hotelId: Id<"hotels"> | null = null;
+    if (args.userId) {
+      const hotels = await ctx.db.query("hotels").collect();
+      const hotel = hotels.find((entry) =>
+        entry.userIds.some((userId: Id<"users">) => userId === args.userId)
+      );
+      if (!hotel) {
+        return {
+          shuttles: [],
+          nextCursor: null,
+        };
+      }
+      hotelId = hotel._id;
+    }
+
+    if (hotelId) {
+      const result = await ctx.db
+        .query("shuttles")
+        .withIndex("by_hotel", (q) => q.eq("hotelId", hotelId))
+        .paginate({
+          numItems: pageSize,
+          cursor: args.cursor ?? null,
+        });
+
+      return {
+        shuttles: result.page.map(formatShuttle),
+        nextCursor: result.isDone ? null : (result.continueCursor ?? null),
+      };
+    }
 
     const result = await ctx.db.query("shuttles").paginate({
       numItems: pageSize,
@@ -53,7 +84,7 @@ export const listShuttles = query({
 
     return {
       shuttles: result.page.map(formatShuttle),
-      nextCursor: result.isDone ? null : result.continueCursor ?? null,
+      nextCursor: result.isDone ? null : (result.continueCursor ?? null),
     };
   },
 });
@@ -282,4 +313,3 @@ export const deleteShuttleInternal = internalMutation({
     await ctx.db.delete(args.shuttleId);
   },
 });
-

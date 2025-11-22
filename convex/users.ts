@@ -57,23 +57,65 @@ const formatUserProfile = (user: Doc<"users">): UserProfile => ({
 export const listStaffByRole = query({
   args: {
     role: staffRoleSchema,
+    userId: v.optional(v.id("users")),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const pageSize = Math.max(1, Math.min(args.limit ?? 10, 50));
 
-    const users = await ctx.db
+    let hotelUserIds: Id<"users">[] | null = null;
+    if (args.userId) {
+      const hotels = await ctx.db.query("hotels").collect();
+      const hotel = hotels.find((entry) =>
+        entry.userIds.some((userId: Id<"users">) => userId === args.userId)
+      );
+      if (!hotel) {
+        return {
+          staff: [],
+          nextCursor: null,
+        };
+      }
+      hotelUserIds = hotel.userIds;
+    }
+
+    const allUsers = await ctx.db
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", args.role))
-      .paginate({
-        numItems: pageSize,
-        cursor: args.cursor ?? null,
-      });
+      .collect();
+
+    let filteredUsers = allUsers;
+    if (hotelUserIds) {
+      filteredUsers = allUsers.filter((user) =>
+        hotelUserIds!.includes(user._id)
+      );
+    }
+
+    let startIndex = 0;
+    if (args.cursor) {
+      const cursorIndex = filteredUsers.findIndex(
+        (u) => u._id === (args.cursor as Id<"users">)
+      );
+      if (cursorIndex >= 0) {
+        startIndex = cursorIndex + 1;
+      } else {
+        return {
+          staff: [],
+          nextCursor: null,
+        };
+      }
+    }
+
+    const endIndex = startIndex + pageSize;
+    const page = filteredUsers.slice(startIndex, endIndex);
+    const nextCursor =
+      endIndex < filteredUsers.length
+        ? (page[page.length - 1]._id as string)
+        : null;
 
     return {
-      staff: users.page.map(formatStaffAccount),
-      nextCursor: users.isDone ? null : (users.continueCursor ?? null),
+      staff: page.map(formatStaffAccount),
+      nextCursor,
     };
   },
 });
