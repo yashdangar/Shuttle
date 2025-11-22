@@ -65,25 +65,59 @@ export const listStaffByRole = query({
     const pageSize = Math.max(1, Math.min(args.limit ?? 10, 50));
 
     let hotelId: Id<"hotels"> | null = null;
+    let hotelUserIds: Id<"users">[] | null = null;
     if (args.userId) {
       const user = await ctx.db.get(args.userId);
-      if (!user || !user.hotelId) {
+      if (!user) {
         return {
           staff: [],
           nextCursor: null,
         };
       }
-      hotelId = user.hotelId;
+
+      // Try to get hotelId from user first
+      if (user.hotelId) {
+        hotelId = user.hotelId;
+      } else {
+        // Fallback: find hotel that has this user in userIds array
+        const hotels = await ctx.db.query("hotels").collect();
+        const userHotel = hotels.find((h) => h.userIds.includes(user._id));
+        if (userHotel) {
+          hotelId = userHotel._id;
+        } else {
+          return {
+            staff: [],
+            nextCursor: null,
+          };
+        }
+      }
+
+      // Get hotel's userIds array for backward compatibility
+      const hotel = await ctx.db.get(hotelId);
+      if (hotel) {
+        hotelUserIds = hotel.userIds;
+      }
     }
 
     let filteredUsers: Doc<"users">[];
     if (hotelId) {
-      // Use by_hotel index for efficient filtering, then filter by role
+      // Query by role index, then filter by hotelId
+      // Check both user.hotelId and hotel.userIds array for backward compatibility
       const allUsers = await ctx.db
         .query("users")
-        .withIndex("by_hotel", (q) => q.eq("hotelId", hotelId))
+        .withIndex("by_role", (q) => q.eq("role", args.role))
         .collect();
-      filteredUsers = allUsers.filter((user) => user.role === args.role);
+      filteredUsers = allUsers.filter((user) => {
+        // Check if user has hotelId set (new way)
+        if (user.hotelId === hotelId) {
+          return true;
+        }
+        // Fallback: check if user is in hotel's userIds array (backward compatibility)
+        if (hotelUserIds && hotelUserIds.includes(user._id)) {
+          return true;
+        }
+        return false;
+      });
     } else {
       // No hotel filter - get all users with the role
       filteredUsers = await ctx.db
@@ -253,13 +287,10 @@ export const createStaffAccount = action({
       throw new Error("Only administrators can create staff accounts");
     }
 
-    const adminUserFull = await ctx.runQuery(
-      internal.users.getUserByIdInternal,
-      {
-        userId: args.adminId,
-      }
-    );
-    if (!adminUserFull || !adminUserFull.hotelId) {
+    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.adminId,
+    });
+    if (!hotel) {
       throw new Error("Create a hotel before managing staff.");
     }
 
@@ -302,7 +333,7 @@ export const createStaffAccount = action({
     });
 
     await ctx.runMutation(internal.hotels.addUserToHotelInternal, {
-      hotelId: adminUserFull.hotelId,
+      hotelId: hotel.id,
       userId,
     });
 
@@ -334,33 +365,11 @@ export const updateStaffAccount = action({
       throw new Error("Only administrators can update staff accounts");
     }
 
-    if (!currentUser.id) {
-      throw new Error("Invalid user data");
-    }
-
-    const adminUserFull = await ctx.runQuery(
-      internal.users.getUserByIdInternal,
-      {
-        userId: args.currentUserId,
-      }
-    );
-    if (!adminUserFull || !adminUserFull.hotelId) {
-      throw new Error("Admin must have a hotel to update staff");
-    }
-
-    const targetUser = await ctx.runQuery(internal.users.getUserByIdInternal, {
-      userId: args.userId,
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
     });
-    if (!targetUser) {
-      throw new Error("User not found");
-    }
-
-    if (targetUser.role !== "driver" && targetUser.role !== "frontdesk") {
-      throw new Error("User is not a staff member");
-    }
-
-    if (targetUser.hotelId !== adminUserFull.hotelId) {
-      throw new Error("User does not belong to your hotel");
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to update staff");
     }
 
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
@@ -369,6 +378,13 @@ export const updateStaffAccount = action({
 
     if (!existing) {
       throw new Error("User not found");
+    }
+
+    const userHotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
+      userId: args.userId,
+    });
+    if (!userHotel || userHotel.id !== adminHotel.id) {
+      throw new Error("User does not belong to your hotel");
     }
 
     const payload: {
@@ -445,29 +461,11 @@ export const deleteStaffAccount = action({
       throw new Error("Only administrators can delete staff accounts");
     }
 
-    const adminUserFull = await ctx.runQuery(
-      internal.users.getUserByIdInternal,
-      {
-        userId: args.currentUserId,
-      }
-    );
-    if (!adminUserFull || !adminUserFull.hotelId) {
-      throw new Error("Admin must have a hotel to delete staff");
-    }
-
-    const targetUser = await ctx.runQuery(internal.users.getUserByIdInternal, {
-      userId: args.userId,
+    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
+      adminId: args.currentUserId,
     });
-    if (!targetUser) {
-      throw new Error("User not found");
-    }
-
-    if (targetUser.role !== "driver" && targetUser.role !== "frontdesk") {
-      throw new Error("User is not a staff member");
-    }
-
-    if (targetUser.hotelId !== adminUserFull.hotelId) {
-      throw new Error("User does not belong to your hotel");
+    if (!adminHotel) {
+      throw new Error("Admin must have a hotel to delete staff");
     }
 
     const existing = await ctx.runQuery(api.users.getStaffAccountById, {
@@ -478,13 +476,22 @@ export const deleteStaffAccount = action({
       throw new Error("User not found");
     }
 
+    const userHotel = await ctx.runQuery(api.hotels.getHotelByUserId, {
+      userId: args.userId,
+    });
+    if (!userHotel || userHotel.id !== adminHotel.id) {
+      throw new Error("User does not belong to your hotel");
+    }
+
+    const hotel = userHotel;
+
     await ctx.runMutation(internal.users.deleteStaffAccountInternal, {
       userId: args.userId,
     });
 
-    if (targetUser.hotelId) {
+    if (hotel) {
       await ctx.runMutation(internal.hotels.removeUserFromHotelInternal, {
-        hotelId: targetUser.hotelId,
+        hotelId: hotel.id,
         userId: args.userId,
       });
     }
