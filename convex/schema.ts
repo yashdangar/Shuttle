@@ -135,12 +135,15 @@ export default defineSchema({
 
   tripTimes: defineTable({
     tripId: v.id("trips"),
+    shuttleId: v.id("shuttles"),
     startTime: v.number(),
     endTime: v.number(),
   })
     .index("by_trip", ["tripId"])
-    .index("by_trip_time", ["tripId", "startTime", "endTime"]),
+    .index("by_trip_time", ["tripId", "startTime", "endTime"])
+    .index("by_shuttle", ["shuttleId"]),
 
+    // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({
     tripId: v.id("trips"),
     driverId: v.id("users"),
@@ -152,7 +155,7 @@ export default defineSchema({
     seatsOccupied: v.int64(),
     seatHeld: v.int64(), // when someone does booking then the setas are held until frontdsk confirms the booking , and this held means total - occupied should always be lesser than held seat , and how many setas to be hold should be decided by the booking Id , emans we have to check the booking seats how many are there to be held
 
-    bookingIds: v.array(v.id("bookings")),
+    bookingIds: v.array(v.id("bookings")), // Array of booking ids which are associated with this trip instance
 
     // This below 2 things will be updated every 2-3 minutes by google api calls which will automatically reflect in UI
     driverCurrentLatitude: v.optional(v.float64()),
@@ -197,7 +200,8 @@ export default defineSchema({
     .index("by_expiry", ["expiresAt"]),
 
   chats: defineTable({
-    bookingId: v.id("bookings"),
+    bookingId: v.optional(v.id("bookings")), // Present if chat is related to a booking, null for general chats
+    participantIds: v.array(v.id("users")), // List of user IDs in the chat (required for general chats, also used for booking chats)
     isOpen: v.boolean(),
   }).index("by_booking", ["bookingId"]),
 
