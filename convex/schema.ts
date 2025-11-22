@@ -17,9 +17,13 @@ export default defineSchema({
     profilePictureId: v.optional(v.id("files")),
     notificationIds: v.array(v.id("notifications")),
     chatIds: v.array(v.id("chats")),
+    // Hotel association: Required for admin, frontdesk, and driver roles.
+    // Optional (null) for guest and superadmin roles who are not tied to a specific hotel.
+    hotelId: v.optional(v.id("hotels")),
   })
     .index("by_email", ["email"])
-    .index("by_role", ["role"]),
+    .index("by_role", ["role"])
+    .index("by_hotel", ["hotelId"]),
 
   hotels: defineTable({
     name: v.string(),
@@ -34,8 +38,7 @@ export default defineSchema({
     shuttleIds: v.array(v.id("shuttles")),
     userIds: v.array(v.id("users")), //driver , frontdesk , admin
     locationIds: v.array(v.id("locations")), // private and public locations and hotel location itself too
-  })
-  .index("by_slug", ["slug"]),
+  }).index("by_slug", ["slug"]),
 
   locations: defineTable({
     name: v.string(),
@@ -196,8 +199,7 @@ export default defineSchema({
   chats: defineTable({
     bookingId: v.id("bookings"),
     isOpen: v.boolean(),
-  })
-    .index("by_booking", ["bookingId"]),
+  }).index("by_booking", ["bookingId"]),
 
   messages: defineTable({
     chatId: v.id("chats"),
@@ -212,10 +214,9 @@ export default defineSchema({
 
   files: defineTable({
     storageId: v.id("_storage"),
-    uiName : v.string(), //Original file name
+    uiName: v.string(), //Original file name
     uploadedByUserId: v.id("users"),
-  })
-    .index("by_uploaded_by", ["uploadedByUserId"]),
+  }).index("by_uploaded_by", ["uploadedByUserId"]),
 
   seatReservations: defineTable({
     shuttleId: v.id("shuttles"),

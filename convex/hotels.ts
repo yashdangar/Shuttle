@@ -42,15 +42,17 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+// Get hotel by admin user ID using direct hotelId reference
 export const getHotelByAdmin = query({
   args: {
     adminId: v.id("users"),
   },
   async handler(ctx, args) {
-    const hotels = await ctx.db.query("hotels").collect();
-    const hotel = hotels.find((entry) =>
-      entry.userIds.some((userId: Id<"users">) => userId === args.adminId)
-    );
+    const user = await ctx.db.get(args.adminId);
+    if (!user || !user.hotelId) {
+      return null;
+    }
+    const hotel = await ctx.db.get(user.hotelId);
     if (!hotel) {
       return null;
     }
@@ -58,15 +60,17 @@ export const getHotelByAdmin = query({
   },
 });
 
+// Get hotel by any user ID (admin, frontdesk, or driver) using direct hotelId reference
 export const getHotelByUserId = query({
   args: {
     userId: v.id("users"),
   },
   async handler(ctx, args) {
-    const hotels = await ctx.db.query("hotels").collect();
-    const hotel = hotels.find((entry) =>
-      entry.userIds.some((userId: Id<"users">) => userId === args.userId)
-    );
+    const user = await ctx.db.get(args.userId);
+    if (!user || !user.hotelId) {
+      return null;
+    }
+    const hotel = await ctx.db.get(user.hotelId);
     if (!hotel) {
       return null;
     }
@@ -161,20 +165,17 @@ export const createHotel = action({
       throw new Error("All fields are required");
     }
 
-    const hotelId = await ctx.runMutation(
-      internal.hotels.createHotelInternal,
-      {
-        name: trimmedName,
-        slug: normalizedSlug,
-        address: trimmedAddress,
-        phoneNumber: trimmedPhone,
-        email: trimmedEmail,
-        timeZone: trimmedTimeZone,
-        latitude: args.latitude,
-        longitude: args.longitude,
-        adminId: args.adminId,
-      }
-    );
+    const hotelId = await ctx.runMutation(internal.hotels.createHotelInternal, {
+      name: trimmedName,
+      slug: normalizedSlug,
+      address: trimmedAddress,
+      phoneNumber: trimmedPhone,
+      email: trimmedEmail,
+      timeZone: trimmedTimeZone,
+      latitude: args.latitude,
+      longitude: args.longitude,
+      adminId: args.adminId,
+    });
 
     const hotel = await ctx.runQuery(api.hotels.getHotelById, {
       hotelId,
@@ -200,7 +201,7 @@ export const createHotelInternal = internalMutation({
     adminId: v.id("users"),
   },
   async handler(ctx, args) {
-    return await ctx.db.insert("hotels", {
+    const hotelId = await ctx.db.insert("hotels", {
       name: args.name,
       slug: args.slug,
       address: args.address,
@@ -214,6 +215,13 @@ export const createHotelInternal = internalMutation({
       userIds: [args.adminId],
       locationIds: [],
     });
+
+    // Set hotelId on the admin user for direct reference
+    await ctx.db.patch(args.adminId, {
+      hotelId,
+    });
+
+    return hotelId;
   },
 });
 
@@ -223,15 +231,25 @@ export const addUserToHotelInternal = internalMutation({
     userId: v.id("users"),
   },
   async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    // Check if user already has this hotelId
+    if (user.hotelId === args.hotelId) {
+      return;
+    }
     const hotel = await ctx.db.get(args.hotelId);
     if (!hotel) {
       throw new Error("Hotel not found");
     }
-    if (hotel.userIds.some((userId) => userId === args.userId)) {
-      return;
-    }
+    // Add user to hotel's userIds array (for backward compatibility)
     await ctx.db.patch(args.hotelId, {
       userIds: [...hotel.userIds, args.userId],
+    });
+    // Set hotelId on user for direct reference
+    await ctx.db.patch(args.userId, {
+      hotelId: args.hotelId,
     });
   },
 });
@@ -242,15 +260,25 @@ export const removeUserFromHotelInternal = internalMutation({
     userId: v.id("users"),
   },
   async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    // Check if user doesn't belong to this hotel
+    if (user.hotelId !== args.hotelId) {
+      return;
+    }
     const hotel = await ctx.db.get(args.hotelId);
     if (!hotel) {
       throw new Error("Hotel not found");
     }
-    if (!hotel.userIds.some((userId) => userId === args.userId)) {
-      return;
-    }
+    // Remove user from hotel's userIds array (for backward compatibility)
     await ctx.db.patch(args.hotelId, {
       userIds: hotel.userIds.filter((userId) => userId !== args.userId),
+    });
+    // Clear hotelId on user
+    await ctx.db.patch(args.userId, {
+      hotelId: undefined,
     });
   },
 });

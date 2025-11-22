@@ -49,17 +49,14 @@ export const listShuttles = query({
 
     let hotelId: Id<"hotels"> | null = null;
     if (args.userId) {
-      const hotels = await ctx.db.query("hotels").collect();
-      const hotel = hotels.find((entry) =>
-        entry.userIds.some((userId: Id<"users">) => userId === args.userId)
-      );
-      if (!hotel) {
+      const user = await ctx.db.get(args.userId);
+      if (!user || !user.hotelId) {
         return {
           shuttles: [],
           nextCursor: null,
         };
       }
-      hotelId = hotel._id;
+      hotelId = user.hotelId;
     }
 
     if (hotelId) {
@@ -116,10 +113,13 @@ export const createShuttle = action({
       throw new Error("Only administrators can create shuttles");
     }
 
-    const hotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.adminId,
-    });
-    if (!hotel) {
+    const adminUserFull = await ctx.runQuery(
+      internal.users.getUserByIdInternal,
+      {
+        userId: args.adminId,
+      }
+    );
+    if (!adminUserFull || !adminUserFull.hotelId) {
       throw new Error("Create a hotel before managing shuttles.");
     }
 
@@ -135,7 +135,7 @@ export const createShuttle = action({
     const existing = await ctx.runQuery(
       api.shuttles.findShuttleByVehicleNumber,
       {
-        hotelId: hotel.id,
+        hotelId: adminUserFull.hotelId,
         vehicleNumber,
       }
     );
@@ -147,14 +147,14 @@ export const createShuttle = action({
     const shuttleId = await ctx.runMutation(
       internal.shuttles.createShuttleInternal,
       {
-        hotelId: hotel.id,
+        hotelId: adminUserFull.hotelId,
         vehicleNumber,
         totalSeats: args.totalSeats,
       }
     );
 
     await ctx.runMutation(internal.hotels.addShuttleToHotelInternal, {
-      hotelId: hotel.id,
+      hotelId: adminUserFull.hotelId,
       shuttleId,
     });
 
@@ -185,10 +185,13 @@ export const updateShuttle = action({
       throw new Error("Only administrators can update shuttles");
     }
 
-    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
-    });
-    if (!adminHotel) {
+    const adminUserFull = await ctx.runQuery(
+      internal.users.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
+    if (!adminUserFull || !adminUserFull.hotelId) {
       throw new Error("Admin must have a hotel to update shuttles");
     }
 
@@ -200,7 +203,7 @@ export const updateShuttle = action({
       throw new Error("Shuttle not found");
     }
 
-    if (existing.hotelId !== adminHotel.id) {
+    if (existing.hotelId !== adminUserFull.hotelId) {
       throw new Error("Shuttle does not belong to your hotel");
     }
 
@@ -271,10 +274,13 @@ export const deleteShuttle = action({
       throw new Error("Only administrators can delete shuttles");
     }
 
-    const adminHotel = await ctx.runQuery(api.hotels.getHotelByAdmin, {
-      adminId: args.currentUserId,
-    });
-    if (!adminHotel) {
+    const adminUserFull = await ctx.runQuery(
+      internal.users.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
+    if (!adminUserFull || !adminUserFull.hotelId) {
       throw new Error("Admin must have a hotel to delete shuttles");
     }
 
@@ -286,7 +292,7 @@ export const deleteShuttle = action({
       throw new Error("Shuttle not found");
     }
 
-    if (existing.hotelId !== adminHotel.id) {
+    if (existing.hotelId !== adminUserFull.hotelId) {
       throw new Error("Shuttle does not belong to your hotel");
     }
 
