@@ -292,3 +292,41 @@ export const removeShuttleFromHotelInternal = internalMutation({
     });
   },
 });
+
+export const addLocationToHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    locationId: v.id("locations"),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+    if (hotel.locationIds.some((id) => id === args.locationId)) {
+      return;
+    }
+    await ctx.db.patch(args.hotelId, {
+      locationIds: [...hotel.locationIds, args.locationId],
+    });
+  },
+});
+
+export const removeLocationFromHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    locationId: v.id("locations"),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+    if (!hotel.locationIds.some((id) => id === args.locationId)) {
+      return;
+    }
+    await ctx.db.patch(args.hotelId, {
+      locationIds: hotel.locationIds.filter((id) => id !== args.locationId),
+    });
+  },
+});

@@ -9,3 +9,7 @@ export * from "./shuttle/edit-shuttle-dialog";
 export * from "./shuttle/shuttle-table";
 export * from "./hotel/create-hotel-form";
 export * from "./hotel/hotel-setup-required";
+export * from "./locations/location-table";
+export * from "./locations/add-location-form";
+export * from "./locations/edit-location-form";
+export * from "./locations/import-location-list";

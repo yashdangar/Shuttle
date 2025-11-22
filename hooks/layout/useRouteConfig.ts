@@ -66,6 +66,7 @@ const adminSidebarData: SidebarData = {
     { title: "Drivers", url: "/admin/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/admin/frontdesk", icon: CalendarPlus },
     { title: "Shuttles", url: "/admin/shuttle", icon: MapPin },
+    { title: "Locations", url: "/admin/locations", icon: MapPin },
   ],
   navSecondary: [],
 };
