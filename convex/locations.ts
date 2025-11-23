@@ -414,6 +414,53 @@ export const listPublicLocations = query({
   },
 });
 
+export const listHotelLocations = query({
+  args: {
+    hotelId: v.id("hotels"),
+    limit: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      return [];
+    }
+
+    const pageSize = Math.max(1, Math.min(args.limit ?? 100, 200));
+
+    // Get private locations created by this hotel (where hotelId matches)
+    const privateLocations = await ctx.db
+      .query("locations")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
+      .collect();
+
+    // Get imported locations (locations whose IDs are in hotel.locationIds)
+    const importedLocationIds = hotel.locationIds ?? [];
+    const importedLocations = importedLocationIds.length > 0
+      ? await Promise.all(
+          importedLocationIds.map((id) => ctx.db.get(id))
+        ).then((locs) => locs.filter((loc): loc is Doc<"locations"> => loc !== null))
+      : [];
+
+    // Combine both types of locations
+    const allHotelLocations = [...privateLocations, ...importedLocations];
+
+    // Remove duplicates (in case a location is both private and imported)
+    const uniqueLocations = Array.from(
+      new Map(allHotelLocations.map((loc) => [loc._id, loc])).values()
+    );
+
+    // Sort by creation time (newest first)
+    const sortedLocations = uniqueLocations.sort(
+      (a, b) => b._creationTime - a._creationTime
+    );
+
+    // Limit results
+    const limitedLocations = sortedLocations.slice(0, pageSize);
+
+    return limitedLocations.map(formatLocation);
+  },
+});
+
 export const createAdminLocation = action({
   args: {
     currentUserId: v.id("users"),

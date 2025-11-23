@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { api, internal } from "./_generated/api";
 
-type HotelRecord = {
+export type HotelRecord = {
   id: Id<"hotels">;
   name: string;
   slug: string;
@@ -104,6 +104,17 @@ export const getHotelById = query({
       return null;
     }
     return formatHotel(hotel);
+  },
+});
+
+export const listHotels = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
+    const pageSize = Math.max(1, Math.min(args.limit ?? 100, 200));
+    const hotels = await ctx.db.query("hotels").take(pageSize);
+    return hotels.map(formatHotel);
   },
 });
 
