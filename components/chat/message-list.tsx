@@ -305,7 +305,7 @@ export function MessageList({
                     isOwn ? "bg-primary text-primary-foreground" : "bg-muted"
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">
+                  <p className="text-sm whitespace-pre-wrap wrap-break-words">
                     {message.content}
                   </p>
                   {message.attachedFiles.length > 0 && (
