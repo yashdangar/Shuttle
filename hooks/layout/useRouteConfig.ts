@@ -73,6 +73,7 @@ const adminSidebarData: SidebarData = {
     { title: "Frontdesk", url: "/admin/frontdesks", icon: CalendarPlus },
     { title: "Shuttles", url: "/admin/shuttles", icon: MapPin },
     { title: "Locations", url: "/admin/locations", icon: MapPin },
+    { title: "Trips", url: "/admin/trips", icon: MapPin },
     { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],

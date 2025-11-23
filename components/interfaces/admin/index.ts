@@ -13,3 +13,6 @@ export * from "./locations/location-table";
 export * from "./locations/add-location-form";
 export * from "./locations/edit-location-form";
 export * from "./locations/import-location-list";
+export * from "./trips/trip-table";
+export * from "./trips/add-trip-form";
+export * from "./trips/edit-trip-form";

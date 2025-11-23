@@ -129,15 +129,17 @@ export default defineSchema({
     destinationLocationId: v.id("locations"),
     charges: v.float64(),
     tripTimesIds: v.array(v.id("tripTimes")),
+    hotelId: v.id("hotels"),
   })
     .index("by_source_location", ["sourceLocationId"])
-    .index("by_destination_location", ["destinationLocationId"]),
+    .index("by_destination_location", ["destinationLocationId"])
+    .index("by_hotel", ["hotelId"]),
 
   tripTimes: defineTable({
     tripId: v.id("trips"),
     shuttleId: v.id("shuttles"),
-    startTime: v.number(),
-    endTime: v.number(),
+    startTime: v.string(),
+    endTime: v.string(),
   })
     .index("by_trip", ["tripId"])
     .index("by_trip_time", ["tripId", "startTime", "endTime"])

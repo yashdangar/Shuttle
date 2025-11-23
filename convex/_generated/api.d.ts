@@ -17,6 +17,7 @@ import type * as http from "../http.js";
 import type * as locations from "../locations.js";
 import type * as notifications from "../notifications.js";
 import type * as shuttles from "../shuttles.js";
+import type * as trips from "../trips.js";
 import type * as users from "../users.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   locations: typeof locations;
   notifications: typeof notifications;
   shuttles: typeof shuttles;
+  trips: typeof trips;
   users: typeof users;
 }>;
 
