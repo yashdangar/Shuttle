@@ -116,3 +116,25 @@ export const getHotelImageUrls = query({
     return urls;
   },
 });
+
+export const uploadChatFile = mutation({
+  args: {
+    storageId: v.id("_storage"),
+    userId: v.id("users"),
+    fileName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const fileId = await ctx.db.insert("files", {
+      storageId: args.storageId,
+      uiName: args.fileName,
+      uploadedByUserId: args.userId,
+    });
+
+    return fileId;
+  },
+});
