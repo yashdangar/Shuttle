@@ -145,7 +145,7 @@ export default defineSchema({
     .index("by_trip_time", ["tripId", "startTime", "endTime"])
     .index("by_shuttle", ["shuttleId"]),
 
-    // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
+  // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({
     tripId: v.id("trips"),
     driverId: v.id("users"),
@@ -205,6 +205,8 @@ export default defineSchema({
     bookingId: v.optional(v.id("bookings")), // Present if chat is related to a booking, null for general chats
     participantIds: v.array(v.id("users")), // List of user IDs in the chat (required for general chats, also used for booking chats)
     isOpen: v.boolean(),
+    chatName: v.optional(v.string()), // Name for group chats, null for personal chats
+    isGroupChat: v.boolean(), // true for group chats, false for personal chats
   }).index("by_booking", ["bookingId"]),
 
   messages: defineTable({

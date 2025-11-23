@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   LayoutDashboard,
   MapPin,
+  MessageSquare,
   Shield,
   Users,
 } from "lucide-react";
@@ -51,6 +52,11 @@ const guestSidebarData: SidebarData = {
       url: "/bookings",
       icon: CalendarPlus,
     },
+    {
+      title: "Chat",
+      url: "/chat",
+      icon: MessageSquare,
+    },
   ],
   navSecondary: [],
 };
@@ -68,6 +74,7 @@ const adminSidebarData: SidebarData = {
     { title: "Shuttles", url: "/admin/shuttles", icon: MapPin },
     { title: "Locations", url: "/admin/locations", icon: MapPin },
     { title: "Trips", url: "/admin/trips", icon: MapPin },
+    { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],
 };
@@ -78,7 +85,10 @@ const driverSidebarData: SidebarData = {
     url: "/driver/dashboard",
     icon: Shield,
   },
-  navMain: [{ title: "Dashboard", url: "/driver", icon: LayoutDashboard }],
+  navMain: [
+    { title: "Dashboard", url: "/driver", icon: LayoutDashboard },
+    { title: "Chat", url: "/chat", icon: MessageSquare },
+  ],
   navSecondary: [],
 };
 
@@ -92,6 +102,7 @@ const superAdminSidebarData: SidebarData = {
     { title: "Dashboard", url: "/super-admin", icon: LayoutDashboard },
     { title: "Admin", url: "/super-admin/admin", icon: Users },
     { title: "Locations", url: "/super-admin/locations", icon: MapPin },
+    { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],
 };
@@ -107,6 +118,7 @@ const frontdeskSidebarData: SidebarData = {
     { title: "Drivers", url: "/frontdesk/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/frontdesk/frontdesks", icon: CalendarPlus },
     { title: "Shuttles", url: "/frontdesk/shuttles", icon: MapPin },
+    { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],
 };
