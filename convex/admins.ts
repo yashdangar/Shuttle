@@ -148,6 +148,21 @@ export const createAdmin = action({
       throw new Error("Failed to create admin user");
     }
 
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://shuttles.devitaliya.me";
+    const loginUrl = `${baseUrl}/sign-in`;
+
+    await ctx.runAction(internal.email.sendAccountCredentialsEmail, {
+      to: normalized.email,
+      subject:
+        "Welcome to Shuttle Management System - Administrator Account Created",
+      name: normalized.name,
+      email: normalized.email,
+      password: normalized.password,
+      role: "admin",
+      loginUrl,
+    });
+
     return {
       id: createdUser.id,
       name: createdUser.name,
