@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -48,7 +48,6 @@ const tripSlotSchema = z.object({
     .string()
     .min(1, "End time is required")
     .regex(/^([0-1][0-9]|2[0-3]):00$/, "Time must be in hour-only format (HH:00)"),
-  shuttleId: z.string().min(1, "Shuttle is required"),
 });
 
 const formSchema = z
@@ -122,16 +121,6 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
       : "skip"
   );
 
-  const shuttles = useQuery(
-    api.shuttles.listShuttles,
-    user?.id
-      ? {
-          userId: user.id as Id<"users">,
-          limit: 100,
-        }
-      : "skip"
-  );
-
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -148,8 +137,55 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
     name: "tripSlots",
   });
 
+  const slotErrorRegexes = [
+    /(Trip slot .+? already exists for this route\.)/,
+    /(Duplicate trip slot .+? is not allowed)/,
+  ];
+
+  const parseSlotError = (message: string | null) => {
+    if (!message) {
+      return null;
+    }
+    for (const regex of slotErrorRegexes) {
+      const match = message.match(regex);
+      if (match) {
+        return match[1];
+      }
+    }
+    return null;
+  };
+
+  const conflictMessage = useMemo(
+    () => parseSlotError(requestError),
+    [requestError]
+  );
+
+  const formatErrorMessage = (error: unknown) => {
+    const raw =
+      typeof error === "object" && error !== null && "message" in error
+        ? String((error as any).message ?? "")
+        : String(error ?? "");
+
+    const slotError = parseSlotError(raw);
+    if (slotError) {
+      return slotError;
+    }
+
+    const cleaned = raw
+      .split("\n")[0]
+      .replace(/\[CONVEX.*?\]\s*/g, "")
+      .replace(/\[Request ID:[^\]]*\]\s*/gi, "")
+      .trim();
+
+    if (!cleaned || cleaned.toLowerCase() === "server error") {
+      return "Something went wrong. Please try again.";
+    }
+
+    return cleaned;
+  };
+
   useEffect(() => {
-    if (trip && locations && shuttles && !isInitialized) {
+    if (trip && locations && !isInitialized) {
       form.reset({
         name: trip.name,
         sourceLocationId: trip.sourceLocationId as string,
@@ -158,12 +194,11 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
         tripSlots: trip.tripSlots.map((slot) => ({
           startTime: slot.startTimeDisplay,
           endTime: slot.endTimeDisplay,
-          shuttleId: slot.shuttleId as string,
         })),
       });
       setIsInitialized(true);
     }
-  }, [trip, locations, shuttles, form, isInitialized]);
+  }, [trip, locations, form, isInitialized]);
 
   const handleSubmit = async (values: FormValues) => {
     if (!user?.id) {
@@ -175,12 +210,6 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
       setIsSubmitting(true);
       setRequestError(null);
 
-      const tripSlots = values.tripSlots.map((slot) => ({
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        shuttleId: slot.shuttleId as Id<"shuttles">,
-      }));
-
       await updateTrip({
         currentUserId: user.id as any,
         tripId,
@@ -188,12 +217,15 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
         sourceLocationId: values.sourceLocationId as Id<"locations">,
         destinationLocationId: values.destinationLocationId as Id<"locations">,
         charges: values.charges,
-        tripSlots,
+        tripSlots: values.tripSlots.map((slot) => ({
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        })),
       });
 
       router.push("/admin/trips");
-    } catch (error: any) {
-      setRequestError(error.message || "Failed to update trip.");
+    } catch (error) {
+      setRequestError(formatErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -203,11 +235,10 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
     append({
       startTime: "07:00",
       endTime: "08:00",
-      shuttleId: "",
     });
   };
 
-  if (!trip || !locations || !shuttles || !isInitialized) {
+  if (!trip || !locations || !isInitialized) {
     return (
       <div className="mx-auto mb-10 max-w-5xl space-y-4">
         <Skeleton className="h-10 w-full" />
@@ -332,16 +363,15 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>End Time</TableHead>
-                    <TableHead>Shuttle</TableHead>
-                    <TableHead className="w-[100px]">Remove</TableHead>
+                  <TableHead>Start Time</TableHead>
+                  <TableHead>End Time</TableHead>
+                  <TableHead className="w-[100px]">Remove</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {fields.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
                         No slots added. Click "Add Slot" to add one.
                       </TableCell>
                     </TableRow>
@@ -425,37 +455,6 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
                           />
                         </TableCell>
                         <TableCell>
-                          <FormField
-                            control={form.control}
-                            name={`tripSlots.${index}.shuttleId`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <Select
-                                  value={field.value}
-                                  onValueChange={field.onChange}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select shuttle" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {shuttles?.shuttles.map((shuttle) => (
-                                      <SelectItem
-                                        key={shuttle.id}
-                                        value={shuttle.id}
-                                      >
-                                        {shuttle.vehicleNumber}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell>
                           <Button
                             type="button"
                             variant="ghost"
@@ -473,34 +472,23 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
                 </TableBody>
               </Table>
             </div>
+            {conflictMessage && (
+              <Alert variant="destructive" role="alert">
+                <AlertCircle className="h-4 w-4" />
+                <div className="col-start-2 space-y-1">
+                  <AlertTitle>Scheduling conflict</AlertTitle>
+                  <AlertDescription>{conflictMessage}</AlertDescription>
+                </div>
+              </Alert>
+            )}
           </section>
 
-          {requestError && (
+          {requestError && !conflictMessage && (
             <Alert variant="destructive" role="alert">
               <AlertCircle className="h-4 w-4" />
               <div className="col-start-2 space-y-2">
-                <AlertTitle>Scheduling Conflicts Detected</AlertTitle>
-                <AlertDescription>
-                  {requestError.includes("Scheduling conflicts") ? (
-                    <div className="space-y-2">
-                      {requestError
-                        .split("\n")
-                        .filter((line) => line.trim() && line.match(/^\d+\./))
-                        .map((line, idx) => (
-                          <div key={idx} className="flex items-start gap-2">
-                            <span className="font-medium text-destructive">
-                              {line.split(".")[0]}.
-                            </span>
-                            <span className="flex-1">
-                              {line.substring(line.indexOf(".") + 1).trim()}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p>{requestError}</p>
-                  )}
-                </AlertDescription>
+                <AlertTitle>Request Failed</AlertTitle>
+                <AlertDescription>{requestError}</AlertDescription>
               </div>
             </Alert>
           )}

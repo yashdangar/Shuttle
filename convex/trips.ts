@@ -1,4 +1,9 @@
-import { action, internalMutation, internalQuery, query } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  query,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -6,13 +11,10 @@ import type { Doc, Id } from "./_generated/dataModel";
 export type TripTimeRecord = {
   id: Id<"tripTimes">;
   tripId: Id<"trips">;
-  shuttleId: Id<"shuttles">;
   startTime: string;
   endTime: string;
   startTimeDisplay: string;
   endTimeDisplay: string;
-  shuttleVehicleNumber: string;
-  shuttleTotalSeats: number;
 };
 
 function timeToUTCString(timeString: string): string {
@@ -26,19 +28,6 @@ function utcStringToTime(utcString: string): string {
   const hours = String(date.getUTCHours()).padStart(2, "0");
   const minutes = String(date.getUTCMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
-}
-
-function timeRangesOverlap(
-  utcStart1: string,
-  utcEnd1: string,
-  utcStart2: string,
-  utcEnd2: string
-): boolean {
-  const start1 = new Date(utcStart1).getTime();
-  const end1 = new Date(utcEnd1).getTime();
-  const start2 = new Date(utcStart2).getTime();
-  const end2 = new Date(utcEnd2).getTime();
-  return start1 < end2 && start2 < end1;
 }
 
 export type TripRecord = {
@@ -55,24 +44,16 @@ export type TripRecord = {
 };
 
 const formatTripTime = async (
-  ctx: any,
+  _ctx: any,
   tripTime: Doc<"tripTimes">
 ): Promise<TripTimeRecord> => {
-  const shuttle = await ctx.db.get(tripTime.shuttleId);
-  if (!shuttle) {
-    throw new Error("Shuttle not found");
-  }
-
   return {
     id: tripTime._id,
     tripId: tripTime.tripId,
-    shuttleId: tripTime.shuttleId,
     startTime: tripTime.startTime,
     endTime: tripTime.endTime,
     startTimeDisplay: utcStringToTime(tripTime.startTime),
     endTimeDisplay: utcStringToTime(tripTime.endTime),
-    shuttleVehicleNumber: shuttle.vehicleNumber,
-    shuttleTotalSeats: Number(shuttle.totalSeats),
   };
 };
 
@@ -112,6 +93,43 @@ const formatTrip = async (
     tripSlots,
     createdAt: trip._creationTime,
   };
+};
+
+type TripSlotUTC = {
+  startTime: string;
+  endTime: string;
+};
+
+const ensureNoConflictingTripSlots = async (
+  ctx: any,
+  params: {
+    hotelId: Id<"hotels">;
+    sourceLocationId: Id<"locations">;
+    destinationLocationId: Id<"locations">;
+    tripSlots: TripSlotUTC[];
+    excludeTripId?: Id<"trips">;
+  }
+) => {
+  if (params.tripSlots.length === 0) {
+    return;
+  }
+
+  const conflict = await ctx.runQuery(
+    internal.trips.findConflictingTripSlotInternal,
+    {
+      hotelId: params.hotelId,
+      sourceLocationId: params.sourceLocationId,
+      destinationLocationId: params.destinationLocationId,
+      tripSlots: params.tripSlots,
+      excludeTripId: params.excludeTripId,
+    }
+  );
+
+  if (conflict) {
+    const start = utcStringToTime(conflict.startTime);
+    const end = utcStringToTime(conflict.endTime);
+    throw new Error(`Trip slot ${start}-${end} already exists for this route.`);
+  }
 };
 
 export const listAdminTrips = query({
@@ -173,74 +191,6 @@ export const getTripById = query({
   },
 });
 
-export const checkTripSlotConflicts = query({
-  args: {
-    hotelId: v.id("hotels"),
-    tripSlots: v.array(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        shuttleId: v.id("shuttles"),
-      })
-    ),
-    excludeTripId: v.optional(v.id("trips")),
-  },
-  async handler(ctx, args) {
-    const allTrips = await ctx.db
-      .query("trips")
-      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
-      .collect();
-
-    const conflicts: Array<{
-      slot: { startTime: string; endTime: string; shuttleId: Id<"shuttles"> };
-      conflictingTrip: { id: Id<"trips">; name: string; slot: { startTime: string; endTime: string } };
-    }> = [];
-
-    for (const newSlot of args.tripSlots) {
-      for (const trip of allTrips) {
-        if (args.excludeTripId && trip._id === args.excludeTripId) {
-          continue;
-        }
-
-        for (const tripTimeId of trip.tripTimesIds) {
-          const existingSlot = await ctx.db.get(tripTimeId);
-          if (!existingSlot) {
-            continue;
-          }
-
-          if (existingSlot.shuttleId === newSlot.shuttleId) {
-            if (
-              timeRangesOverlap(
-                newSlot.startTime,
-                newSlot.endTime,
-                existingSlot.startTime,
-                existingSlot.endTime
-              )
-            ) {
-              conflicts.push({
-                slot: newSlot,
-                conflictingTrip: {
-                  id: trip._id,
-                  name: trip.name,
-                  slot: {
-                    startTime: existingSlot.startTime,
-                    endTime: existingSlot.endTime,
-                  },
-                },
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return {
-      hasConflict: conflicts.length > 0,
-      conflicts,
-    };
-  },
-});
-
 export const createTrip = action({
   args: {
     currentUserId: v.id("users"),
@@ -252,7 +202,6 @@ export const createTrip = action({
       v.object({
         startTime: v.string(),
         endTime: v.string(),
-        shuttleId: v.id("shuttles"),
       })
     ),
   },
@@ -323,9 +272,10 @@ export const createTrip = action({
       throw new Error("Destination location does not belong to your hotel");
     }
 
-    // Validate time formats and collect unique shuttle IDs
+    // Validate time formats
     const timeRegex = /^([0-1][0-9]|2[0-3]):00$/;
-    const uniqueShuttleIds = new Set<Id<"shuttles">>();
+
+    const seenSlots = new Set<string>();
 
     for (const slot of args.tripSlots) {
       if (!timeRegex.test(slot.startTime)) {
@@ -354,108 +304,26 @@ export const createTrip = action({
         );
       }
 
-      uniqueShuttleIds.add(slot.shuttleId);
-    }
-
-    // Batch shuttle lookups in parallel
-    const shuttleLookups = Array.from(uniqueShuttleIds).map((shuttleId) =>
-      ctx.runQuery(api.shuttles.getShuttleById, { shuttleId })
-    );
-    const shuttles = await Promise.all(shuttleLookups);
-    const shuttleMap = new Map<Id<"shuttles">, typeof shuttles[0]>();
-    
-    for (let i = 0; i < shuttles.length; i++) {
-      const shuttle = shuttles[i];
-      if (!shuttle) {
-        throw new Error("Shuttle not found");
+      const slotKey = `${slot.startTime}-${slot.endTime}`;
+      if (seenSlots.has(slotKey)) {
+        throw new Error(
+          `Duplicate trip slot ${slot.startTime}-${slot.endTime} is not allowed`
+        );
       }
-      if (shuttle.hotelId !== hotel.id) {
-        throw new Error("Shuttle does not belong to your hotel");
-      }
-      shuttleMap.set(Array.from(uniqueShuttleIds)[i], shuttle);
+      seenSlots.add(slotKey);
     }
 
     const utcTripSlots = args.tripSlots.map((slot) => ({
       startTime: timeToUTCString(slot.startTime),
       endTime: timeToUTCString(slot.endTime),
-      shuttleId: slot.shuttleId,
     }));
 
-    // Check for conflicts within the same trip
-    const internalConflicts: Array<{
-      slot1: { startTime: string; endTime: string; shuttleId: Id<"shuttles"> };
-      slot2: { startTime: string; endTime: string; shuttleId: Id<"shuttles"> };
-    }> = [];
-
-    for (let i = 0; i < utcTripSlots.length; i++) {
-      for (let j = i + 1; j < utcTripSlots.length; j++) {
-        const slot1 = utcTripSlots[i];
-        const slot2 = utcTripSlots[j];
-        if (slot1.shuttleId === slot2.shuttleId) {
-          if (
-            timeRangesOverlap(
-              slot1.startTime,
-              slot1.endTime,
-              slot2.startTime,
-              slot2.endTime
-            )
-          ) {
-            internalConflicts.push({ slot1, slot2 });
-          }
-        }
-      }
-    }
-
-    if (internalConflicts.length > 0) {
-      // Use cached shuttle data instead of querying again
-      const conflictMessages = internalConflicts.map((conflict, idx) => {
-        const shuttle = shuttleMap.get(conflict.slot1.shuttleId);
-        const shuttleName = shuttle?.vehicleNumber || "Unknown Shuttle";
-        return `${idx + 1}. Shuttle "${shuttleName}" has overlapping time slots: ${utcStringToTime(conflict.slot1.startTime)}-${utcStringToTime(conflict.slot1.endTime)} and ${utcStringToTime(conflict.slot2.startTime)}-${utcStringToTime(conflict.slot2.endTime)}`;
-      });
-      throw new Error(
-        `Scheduling conflicts within this trip:\n${conflictMessages.join("\n")}`
-      );
-    }
-
-    const conflictCheck = await ctx.runQuery(api.trips.checkTripSlotConflicts, {
+    await ensureNoConflictingTripSlots(ctx, {
       hotelId: hotel.id,
+      sourceLocationId: args.sourceLocationId,
+      destinationLocationId: args.destinationLocationId,
       tripSlots: utcTripSlots,
     });
-
-    if (conflictCheck.hasConflict && conflictCheck.conflicts.length > 0) {
-      // Get unique shuttle IDs from conflicts that we haven't already looked up
-      const conflictShuttleIds = new Set<Id<"shuttles">>();
-      for (const conflict of conflictCheck.conflicts) {
-        if (!shuttleMap.has(conflict.slot.shuttleId)) {
-          conflictShuttleIds.add(conflict.slot.shuttleId);
-        }
-      }
-
-      // Batch lookup missing shuttles in parallel
-      if (conflictShuttleIds.size > 0) {
-        const missingShuttleLookups = Array.from(conflictShuttleIds).map(
-          (shuttleId) => ctx.runQuery(api.shuttles.getShuttleById, { shuttleId })
-        );
-        const missingShuttles = await Promise.all(missingShuttleLookups);
-        for (let i = 0; i < missingShuttles.length; i++) {
-          const shuttle = missingShuttles[i];
-          if (shuttle) {
-            shuttleMap.set(Array.from(conflictShuttleIds)[i], shuttle);
-          }
-        }
-      }
-
-      // Use cached shuttle data
-      const conflictMessages = conflictCheck.conflicts.map((conflict, idx) => {
-        const shuttle = shuttleMap.get(conflict.slot.shuttleId);
-        const shuttleName = shuttle?.vehicleNumber || "Unknown Shuttle";
-        return `${idx + 1}. Shuttle "${shuttleName}" is already assigned from ${utcStringToTime(conflict.slot.startTime)} to ${utcStringToTime(conflict.slot.endTime)} in trip "${conflict.conflictingTrip.name}" (${utcStringToTime(conflict.conflictingTrip.slot.startTime)}-${utcStringToTime(conflict.conflictingTrip.slot.endTime)})`;
-      });
-      throw new Error(
-        `Scheduling conflicts detected:\n${conflictMessages.join("\n")}`
-      );
-    }
 
     const tripId = await ctx.runMutation(internal.trips.createTripInternal, {
       name: args.name.trim(),
@@ -472,7 +340,6 @@ export const createTrip = action({
         internal.trips.createTripTimeInternal,
         {
           tripId,
-          shuttleId: slot.shuttleId,
           startTime: slot.startTime,
           endTime: slot.endTime,
         }
@@ -509,7 +376,6 @@ export const updateTrip = action({
       v.object({
         startTime: v.string(),
         endTime: v.string(),
-        shuttleId: v.id("shuttles"),
       })
     ),
   },
@@ -592,9 +458,10 @@ export const updateTrip = action({
       throw new Error("Destination location does not belong to your hotel");
     }
 
-    // Validate time formats and collect unique shuttle IDs
+    // Validate time formats
     const timeRegex = /^([0-1][0-9]|2[0-3]):00$/;
-    const uniqueShuttleIds = new Set<Id<"shuttles">>();
+
+    const seenSlots = new Set<string>();
 
     for (const slot of args.tripSlots) {
       if (!timeRegex.test(slot.startTime)) {
@@ -623,109 +490,27 @@ export const updateTrip = action({
         );
       }
 
-      uniqueShuttleIds.add(slot.shuttleId);
-    }
-
-    // Batch shuttle lookups in parallel
-    const shuttleLookups = Array.from(uniqueShuttleIds).map((shuttleId) =>
-      ctx.runQuery(api.shuttles.getShuttleById, { shuttleId })
-    );
-    const shuttles = await Promise.all(shuttleLookups);
-    const shuttleMap = new Map<Id<"shuttles">, typeof shuttles[0]>();
-    
-    for (let i = 0; i < shuttles.length; i++) {
-      const shuttle = shuttles[i];
-      if (!shuttle) {
-        throw new Error("Shuttle not found");
+      const slotKey = `${slot.startTime}-${slot.endTime}`;
+      if (seenSlots.has(slotKey)) {
+        throw new Error(
+          `Duplicate trip slot ${slot.startTime}-${slot.endTime} is not allowed`
+        );
       }
-      if (shuttle.hotelId !== hotel.id) {
-        throw new Error("Shuttle does not belong to your hotel");
-      }
-      shuttleMap.set(Array.from(uniqueShuttleIds)[i], shuttle);
+      seenSlots.add(slotKey);
     }
 
     const utcTripSlots = args.tripSlots.map((slot) => ({
       startTime: timeToUTCString(slot.startTime),
       endTime: timeToUTCString(slot.endTime),
-      shuttleId: slot.shuttleId,
     }));
 
-    // Check for conflicts within the same trip
-    const internalConflicts: Array<{
-      slot1: { startTime: string; endTime: string; shuttleId: Id<"shuttles"> };
-      slot2: { startTime: string; endTime: string; shuttleId: Id<"shuttles"> };
-    }> = [];
-
-    for (let i = 0; i < utcTripSlots.length; i++) {
-      for (let j = i + 1; j < utcTripSlots.length; j++) {
-        const slot1 = utcTripSlots[i];
-        const slot2 = utcTripSlots[j];
-        if (slot1.shuttleId === slot2.shuttleId) {
-          if (
-            timeRangesOverlap(
-              slot1.startTime,
-              slot1.endTime,
-              slot2.startTime,
-              slot2.endTime
-            )
-          ) {
-            internalConflicts.push({ slot1, slot2 });
-          }
-        }
-      }
-    }
-
-    if (internalConflicts.length > 0) {
-      // Use cached shuttle data instead of querying again
-      const conflictMessages = internalConflicts.map((conflict, idx) => {
-        const shuttle = shuttleMap.get(conflict.slot1.shuttleId);
-        const shuttleName = shuttle?.vehicleNumber || "Unknown Shuttle";
-        return `${idx + 1}. Shuttle "${shuttleName}" has overlapping time slots: ${utcStringToTime(conflict.slot1.startTime)}-${utcStringToTime(conflict.slot1.endTime)} and ${utcStringToTime(conflict.slot2.startTime)}-${utcStringToTime(conflict.slot2.endTime)}`;
-      });
-      throw new Error(
-        `Scheduling conflicts within this trip:\n${conflictMessages.join("\n")}`
-      );
-    }
-
-    const conflictCheck = await ctx.runQuery(api.trips.checkTripSlotConflicts, {
+    await ensureNoConflictingTripSlots(ctx, {
       hotelId: hotel.id,
+      sourceLocationId: args.sourceLocationId,
+      destinationLocationId: args.destinationLocationId,
       tripSlots: utcTripSlots,
       excludeTripId: args.tripId,
     });
-
-    if (conflictCheck.hasConflict && conflictCheck.conflicts.length > 0) {
-      // Get unique shuttle IDs from conflicts that we haven't already looked up
-      const conflictShuttleIds = new Set<Id<"shuttles">>();
-      for (const conflict of conflictCheck.conflicts) {
-        if (!shuttleMap.has(conflict.slot.shuttleId)) {
-          conflictShuttleIds.add(conflict.slot.shuttleId);
-        }
-      }
-
-      // Batch lookup missing shuttles in parallel
-      if (conflictShuttleIds.size > 0) {
-        const missingShuttleLookups = Array.from(conflictShuttleIds).map(
-          (shuttleId) => ctx.runQuery(api.shuttles.getShuttleById, { shuttleId })
-        );
-        const missingShuttles = await Promise.all(missingShuttleLookups);
-        for (let i = 0; i < missingShuttles.length; i++) {
-          const shuttle = missingShuttles[i];
-          if (shuttle) {
-            shuttleMap.set(Array.from(conflictShuttleIds)[i], shuttle);
-          }
-        }
-      }
-
-      // Use cached shuttle data
-      const conflictMessages = conflictCheck.conflicts.map((conflict, idx) => {
-        const shuttle = shuttleMap.get(conflict.slot.shuttleId);
-        const shuttleName = shuttle?.vehicleNumber || "Unknown Shuttle";
-        return `${idx + 1}. Shuttle "${shuttleName}" is already assigned from ${utcStringToTime(conflict.slot.startTime)} to ${utcStringToTime(conflict.slot.endTime)} in trip "${conflict.conflictingTrip.name}" (${utcStringToTime(conflict.conflictingTrip.slot.startTime)}-${utcStringToTime(conflict.conflictingTrip.slot.endTime)})`;
-      });
-      throw new Error(
-        `Scheduling conflicts detected:\n${conflictMessages.join("\n")}`
-      );
-    }
 
     const existingTripDoc = await ctx.runQuery(
       internal.trips.getTripByIdInternal,
@@ -761,7 +546,6 @@ export const updateTrip = action({
         internal.trips.createTripTimeInternal,
         {
           tripId: args.tripId,
-          shuttleId: slot.shuttleId,
           startTime: slot.startTime,
           endTime: slot.endTime,
         }
@@ -880,14 +664,12 @@ export const createTripInternal = internalMutation({
 export const createTripTimeInternal = internalMutation({
   args: {
     tripId: v.id("trips"),
-    shuttleId: v.id("shuttles"),
     startTime: v.string(),
     endTime: v.string(),
   },
   async handler(ctx, args) {
     return await ctx.db.insert("tripTimes", {
       tripId: args.tripId,
-      shuttleId: args.shuttleId,
       startTime: args.startTime,
       endTime: args.endTime,
     });
@@ -958,3 +740,56 @@ export const getTripByIdInternal = internalQuery({
   },
 });
 
+export const findConflictingTripSlotInternal = internalQuery({
+  args: {
+    hotelId: v.id("hotels"),
+    sourceLocationId: v.id("locations"),
+    destinationLocationId: v.id("locations"),
+    tripSlots: v.array(
+      v.object({
+        startTime: v.string(),
+        endTime: v.string(),
+      })
+    ),
+    excludeTripId: v.optional(v.id("trips")),
+  },
+  async handler(ctx, args) {
+    if (args.tripSlots.length === 0) {
+      return null;
+    }
+
+    const tripSlotKeys = new Set(
+      args.tripSlots.map((slot) => `${slot.startTime}-${slot.endTime}`)
+    );
+
+    const trips = await ctx.db
+      .query("trips")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
+      .collect();
+
+    const relevantTrips = trips.filter(
+      (trip) =>
+        trip.sourceLocationId === args.sourceLocationId &&
+        trip.destinationLocationId === args.destinationLocationId &&
+        (!args.excludeTripId || trip._id !== args.excludeTripId)
+    );
+
+    for (const trip of relevantTrips) {
+      for (const tripTimeId of trip.tripTimesIds) {
+        const tripTime = await ctx.db.get(tripTimeId);
+        if (!tripTime) {
+          continue;
+        }
+        const key = `${tripTime.startTime}-${tripTime.endTime}`;
+        if (tripSlotKeys.has(key)) {
+          return {
+            startTime: tripTime.startTime,
+            endTime: tripTime.endTime,
+          };
+        }
+      }
+    }
+
+    return null;
+  },
+});

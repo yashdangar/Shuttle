@@ -137,13 +137,11 @@ export default defineSchema({
 
   tripTimes: defineTable({
     tripId: v.id("trips"),
-    shuttleId: v.id("shuttles"),
     startTime: v.string(),
     endTime: v.string(),
   })
     .index("by_trip", ["tripId"])
-    .index("by_trip_time", ["tripId", "startTime", "endTime"])
-    .index("by_shuttle", ["shuttleId"]),
+    .index("by_trip_time", ["tripId", "startTime", "endTime"]),
 
   // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({

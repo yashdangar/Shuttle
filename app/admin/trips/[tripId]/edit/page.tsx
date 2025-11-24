@@ -17,7 +17,7 @@ export default async function EditAdminTripPage({
   return (
     <PageLayout
       title="Edit Trip"
-      description="Update trip details and time slots."
+      description="Update trip details and slots without shuttle assignments."
     >
       <EditAdminTripForm tripId={tripId} />
     </PageLayout>
