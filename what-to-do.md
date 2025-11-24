@@ -1,6 +1,6 @@
 Sun - mon -tue 
 
-Dev : Email add karana che + booking - chats + normal chats betwene people + timezone nu shit figure out + location walu check kar badhi api
+Dev :   timezone nu shit figure out + location walu check kar badhi api
 
 yash : 
 Location edit UI 
@@ -88,3 +88,11 @@ Main modals :
     driver-location
     hotel
 
+
+
+
+booking ema trip select -> trip no trip time male ee j batava no and ema the ek trip time s,eect karshe user -> ee trip time par the shuttle id and driverid malshe -> and aa booking ne ek nava tripunstance sathe mukvano if ee triptime mate instance no hoi ee divase to , neter ee divas and ee time mate je tripinstance hoi tene id api devani booking ma 
+
+now booking list ma trip time , trip instane dekhai 
+
+driver ne tripinstance dekhad vana badha , adv booking pan and right now je chalu hoi te pan 

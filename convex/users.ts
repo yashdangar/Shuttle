@@ -337,6 +337,20 @@ export const createStaffAccount = action({
       userId,
     });
 
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL!;
+    const loginUrl = `${baseUrl}/sign-in`;
+
+    await ctx.runAction(internal.email.sendAccountCredentialsEmail, {
+      to: normalized.email,
+      subject: `Welcome to Shuttle Management System - ${normalized.role === "driver" ? "Driver" : "Front Desk"} Account Created`,
+      name: normalized.name,
+      email: normalized.email,
+      password: normalized.password,
+      role: normalized.role,
+      loginUrl,
+    });
+
     return {
       id: userId,
       name: normalized.name,
