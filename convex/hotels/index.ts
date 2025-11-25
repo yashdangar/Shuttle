@@ -135,7 +135,7 @@ export const createHotel = action({
     longitude: v.number(),
   },
   async handler(ctx, args): Promise<HotelRecord> {
-    const admin = await ctx.runQuery(api.auth.index.getUserById, {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
       id: args.adminId,
     });
     if (!admin || admin.role !== "admin") {

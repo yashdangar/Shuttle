@@ -42,8 +42,7 @@ export const listLocations = query({
     const allLocations = await ctx.db.query("locations").collect();
 
     const publicLocations = allLocations.filter(
-      (loc) =>
-        loc.hotelId === undefined && loc.locationPrivacy === "public"
+      (loc) => loc.hotelId === undefined && loc.locationPrivacy === "public"
     );
 
     const sortedLocations = publicLocations.sort(
@@ -90,7 +89,7 @@ export const createLocation = action({
     ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -144,7 +143,7 @@ export const updateLocation = action({
     ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -191,7 +190,7 @@ export const deleteLocation = action({
     locationId: v.id("locations"),
   },
   async handler(ctx, args) {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -276,11 +275,7 @@ export const updateAdminLocationInternal = internalMutation({
     latitude: v.optional(v.float64()),
     longitude: v.optional(v.float64()),
     locationType: v.optional(
-      v.union(
-        v.literal("airport"),
-        v.literal("hotel"),
-        v.literal("other")
-      )
+      v.union(v.literal("airport"), v.literal("hotel"), v.literal("other"))
     ),
   },
   async handler(ctx, args) {
@@ -503,7 +498,7 @@ export const createAdminLocation = action({
     ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -515,9 +510,12 @@ export const createAdminLocation = action({
       throw new Error("Only admin can create private locations");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -568,7 +566,7 @@ export const importLocation = action({
     publicLocationId: v.id("locations"),
   },
   async handler(ctx, args): Promise<LocationRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -580,9 +578,12 @@ export const importLocation = action({
       throw new Error("Only admin can import locations");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -600,9 +601,12 @@ export const importLocation = action({
       throw new Error("Location already imported");
     }
 
-    const publicLocation = await ctx.runQuery(api.locations.index.getLocationById, {
-      locationId: args.publicLocationId,
-    });
+    const publicLocation = await ctx.runQuery(
+      api.locations.index.getLocationById,
+      {
+        locationId: args.publicLocationId,
+      }
+    );
 
     if (!publicLocation) {
       throw new Error("Public location not found");
@@ -653,15 +657,11 @@ export const updateAdminLocation = action({
     latitude: v.optional(v.float64()),
     longitude: v.optional(v.float64()),
     locationType: v.optional(
-      v.union(
-        v.literal("airport"),
-        v.literal("hotel"),
-        v.literal("other")
-      )
+      v.union(v.literal("airport"), v.literal("hotel"), v.literal("other"))
     ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -673,9 +673,12 @@ export const updateAdminLocation = action({
       throw new Error("Only admin can update locations");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -704,11 +707,14 @@ export const updateAdminLocation = action({
     const isImported = !!existing.clonedFromLocationId;
 
     if (isImported) {
-      await ctx.runMutation(internal.locations.index.updateAdminLocationInternal, {
-        locationId: args.locationId,
-        name: args.name.trim(),
-        address: args.address.trim(),
-      });
+      await ctx.runMutation(
+        internal.locations.index.updateAdminLocationInternal,
+        {
+          locationId: args.locationId,
+          name: args.name.trim(),
+          address: args.address.trim(),
+        }
+      );
     } else {
       if (
         args.latitude === undefined ||
@@ -717,14 +723,17 @@ export const updateAdminLocation = action({
       ) {
         throw new Error("All fields are required for private location updates");
       }
-      await ctx.runMutation(internal.locations.index.updateAdminLocationInternal, {
-        locationId: args.locationId,
-        name: args.name.trim(),
-        address: args.address.trim(),
-        latitude: args.latitude,
-        longitude: args.longitude,
-        locationType: args.locationType,
-      });
+      await ctx.runMutation(
+        internal.locations.index.updateAdminLocationInternal,
+        {
+          locationId: args.locationId,
+          name: args.name.trim(),
+          address: args.address.trim(),
+          latitude: args.latitude,
+          longitude: args.longitude,
+          locationType: args.locationType,
+        }
+      );
     }
 
     const updated = await ctx.runQuery(api.locations.index.getLocationById, {
@@ -745,7 +754,7 @@ export const deleteAdminLocation = action({
     locationId: v.id("locations"),
   },
   async handler(ctx, args) {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -757,9 +766,12 @@ export const deleteAdminLocation = action({
       throw new Error("Only admin can delete locations");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -789,10 +801,13 @@ export const deleteAdminLocation = action({
       locationId: args.locationId,
     });
 
-    await ctx.runMutation(internal.hotels.index.removeLocationFromHotelInternal, {
-      hotelId: hotel.id,
-      locationId: args.locationId,
-    });
+    await ctx.runMutation(
+      internal.hotels.index.removeLocationFromHotelInternal,
+      {
+        hotelId: hotel.id,
+        locationId: args.locationId,
+      }
+    );
 
     return { success: true };
   },

@@ -96,7 +96,7 @@ export const createAdmin = action({
     confirmPassword: v.string(),
   },
   async handler(ctx, args): Promise<AdminAccount> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -122,7 +122,7 @@ export const createAdmin = action({
 
     const normalized = validationResult.data;
 
-    const existingUser = await ctx.runQuery(api.auth.index.getUserByEmail, {
+    const existingUser = await ctx.runQuery(api.auth.getUserByEmail, {
       email: normalized.email,
     });
 
@@ -132,7 +132,7 @@ export const createAdmin = action({
 
     const hashedPassword = await bcrypt.hash(normalized.password, 10);
 
-    const userId = await ctx.runMutation(internal.auth.index.createUserInternal, {
+    const userId = await ctx.runMutation(internal.auth.createUserInternal, {
       email: normalized.email,
       name: normalized.name,
       phoneNumber: normalized.phoneNumber,
@@ -140,7 +140,7 @@ export const createAdmin = action({
       role: "admin",
     });
 
-    const createdUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const createdUser = await ctx.runQuery(api.auth.getUserById, {
       id: userId,
     });
 
@@ -201,7 +201,7 @@ export const updateAdmin = action({
     password: v.optional(v.string()),
   },
   async handler(ctx, args): Promise<AdminAccount> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -259,7 +259,7 @@ export const updateAdmin = action({
     const validated = validationResult.data;
 
     if (validated.email) {
-      const userWithEmail = await ctx.runQuery(api.auth.index.getUserByEmail, {
+      const userWithEmail = await ctx.runQuery(api.auth.getUserByEmail, {
         email: validated.email,
       });
       if (userWithEmail && userWithEmail._id !== args.userId) {
@@ -310,7 +310,7 @@ export const deleteAdmin = action({
     userId: v.id("users"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 

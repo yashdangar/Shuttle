@@ -196,9 +196,12 @@ export const updateUserProfile = action({
     newPassword: v.optional(v.string()),
   },
   async handler(ctx, args): Promise<UserProfile> {
-    const existing = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.userId,
-    });
+    const existing = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.userId,
+      }
+    );
 
     const updates: {
       name?: string;
@@ -220,7 +223,7 @@ export const updateUserProfile = action({
       if (!value) {
         throw new Error("Email cannot be empty");
       }
-      const userWithEmail = await ctx.runQuery(api.auth.index.getUserByEmail, {
+      const userWithEmail = await ctx.runQuery(api.auth.getUserByEmail, {
         email: value,
       });
       if (userWithEmail && userWithEmail._id !== args.userId) {
@@ -262,9 +265,12 @@ export const updateUserProfile = action({
       userId: args.userId,
       ...updates,
     });
-    const updated = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.userId,
-    });
+    const updated = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.userId,
+      }
+    );
 
     return formatUserProfile(updated);
   },
@@ -280,7 +286,7 @@ export const createStaffAccount = action({
     role: staffRoleSchema,
   },
   async handler(ctx, args): Promise<StaffAccount> {
-    const admin = await ctx.runQuery(api.auth.index.getUserById, {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
       id: args.adminId,
     });
     if (!admin || admin.role !== "admin") {
@@ -314,7 +320,7 @@ export const createStaffAccount = action({
       throw new Error("Phone number is required");
     }
 
-    const existingUser = await ctx.runQuery(api.auth.index.getUserByEmail, {
+    const existingUser = await ctx.runQuery(api.auth.getUserByEmail, {
       email: normalized.email,
     });
 
@@ -324,13 +330,16 @@ export const createStaffAccount = action({
 
     const hashedPassword = await bcrypt.hash(normalized.password, 10);
 
-    const userId = await ctx.runMutation(internal.auth.index.createUserInternal, {
-      email: normalized.email,
-      name: normalized.name,
-      phoneNumber: normalized.phoneNumber,
-      hashedPassword,
-      role: normalized.role,
-    });
+    const userId = await ctx.runMutation(
+      internal.auth.createUserInternal,
+      {
+        email: normalized.email,
+        name: normalized.name,
+        phoneNumber: normalized.phoneNumber,
+        hashedPassword,
+        role: normalized.role,
+      }
+    );
 
     await ctx.runMutation(internal.hotels.index.addUserToHotelInternal, {
       hotelId: hotel.id,
@@ -371,7 +380,7 @@ export const updateStaffAccount = action({
     password: v.optional(v.string()),
   },
   async handler(ctx, args): Promise<StaffAccount> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
     if (!currentUser || currentUser.role !== "admin") {
@@ -416,7 +425,7 @@ export const updateStaffAccount = action({
     if (typeof args.email === "string") {
       const value = args.email.trim().toLowerCase();
       if (!value) throw new Error("Email cannot be empty");
-      const userWithEmail = await ctx.runQuery(api.auth.index.getUserByEmail, {
+      const userWithEmail = await ctx.runQuery(api.auth.getUserByEmail, {
         email: value,
       });
       if (userWithEmail && userWithEmail._id !== args.userId) {
@@ -467,7 +476,7 @@ export const deleteStaffAccount = action({
     userId: v.id("users"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
     if (!currentUser || currentUser.role !== "admin") {

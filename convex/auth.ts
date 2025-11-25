@@ -1,14 +1,17 @@
 import { v } from "convex/values";
-import { query, action, internalMutation } from "../_generated/server";
-import { internal, api } from "../_generated/api";
+import { query, action, internalMutation } from "./_generated/server";
+import { internal, api } from "./_generated/api";
 import bcrypt from "bcryptjs";
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export const getUserByEmail = query({
   args: { email: v.string() },
   handler: async (ctx, args) => {
+    const normalizedEmail = normalizeEmail(args.email);
     return await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
       .first();
   },
 });
@@ -57,8 +60,9 @@ export const createUser = action({
     ),
   },
   handler: async (ctx, args): Promise<string> => {
-    const existingUser = await ctx.runQuery((api as any).auth.getUserByEmail, {
-      email: args.email,
+    const normalizedEmail = normalizeEmail(args.email);
+    const existingUser = await ctx.runQuery(api.auth.getUserByEmail, {
+      email: normalizedEmail,
     });
 
     if (existingUser) {
@@ -67,8 +71,8 @@ export const createUser = action({
 
     const hashedPassword = await bcrypt.hash(args.password, 10);
 
-    const userId = await ctx.runMutation(internal.auth.index.createUserInternal, {
-      email: args.email,
+    const userId = await ctx.runMutation(internal.auth.createUserInternal, {
+      email: normalizedEmail,
       name: args.name,
       phoneNumber: args.phoneNumber,
       hashedPassword,
@@ -76,32 +80,6 @@ export const createUser = action({
     });
 
     return userId;
-  },
-});
-
-export const verifyPassword = action({
-  args: { email: v.string(), password: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.runQuery((api as any).auth.getUserByEmail, {
-      email: args.email,
-    });
-
-    if (!user || !user.password) {
-      return null;
-    }
-
-    const isValid = await bcrypt.compare(args.password, user.password);
-
-    if (!isValid) {
-      return null;
-    }
-
-    return {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
   },
 });
 
@@ -120,3 +98,39 @@ export const getUserById = query({
     };
   },
 });
+
+export const verifyPassword = action({
+  args: {
+    email: v.string(),
+    password: v.string(),
+  },
+  handler : async (ctx,args):Promise<
+  {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+  } | null> =>{
+    const normalizedEmail = normalizeEmail(args.email);
+    const user = await ctx.runQuery(api.auth.getUserByEmail, {
+      email: normalizedEmail,
+    });
+
+    if (!user || !user.password) {
+      throw new Error("User not found");
+    }
+
+    const isValid = await bcrypt.compare(args.password, user.password);
+
+    if (!isValid) {
+      throw new Error("Invalid password");
+    }
+
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    };
+  }
+})

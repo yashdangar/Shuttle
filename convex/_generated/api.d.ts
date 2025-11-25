@@ -9,7 +9,7 @@
  */
 
 import type * as admins_index from "../admins/index.js";
-import type * as auth_index from "../auth/index.js";
+import type * as auth from "../auth.js";
 import type * as chats_index from "../chats/index.js";
 import type * as email_emailTemplates from "../email/emailTemplates.js";
 import type * as email_index from "../email/index.js";
@@ -30,7 +30,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "admins/index": typeof admins_index;
-  "auth/index": typeof auth_index;
+  auth: typeof auth;
   "chats/index": typeof chats_index;
   "email/emailTemplates": typeof email_emailTemplates;
   "email/index": typeof email_index;
