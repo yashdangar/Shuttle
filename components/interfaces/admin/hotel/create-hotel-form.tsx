@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 
- const formSchema = z.object({
+const formSchema = z.object({
   name: z.string().min(1, "Hotel name is required").max(150),
   slug: z
     .string()
@@ -63,7 +63,7 @@ const slugify = (value: string) =>
 export function CreateHotelForm() {
   const { user } = useAuthSession();
   const router = useRouter();
-  const createHotel = useAction(api.hotels.createHotel);
+  const createHotel = useAction(api.hotels.index.createHotel);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
@@ -131,7 +131,8 @@ export function CreateHotelForm() {
           Create Your Hotel
         </h2>
         <p className="text-sm text-muted-foreground">
-          Start by adding your hotel&apos;s basic information. You can update these details later.
+          Start by adding your hotel&apos;s basic information. You can update
+          these details later.
         </p>
       </div>
       <Form {...form}>
@@ -139,18 +140,86 @@ export function CreateHotelForm() {
           onSubmit={handleSubmit}
           className="space-y-6 rounded-xl border bg-background/60 p-6 shadow-sm"
         >
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-base font-medium">
+                  Hotel Name <span className="text-destructive">*</span>
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Sunrise Suites"
+                    autoComplete="organization"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="slug"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-base font-medium">
+                  Slug <span className="text-destructive">*</span>
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="sunrise-suites"
+                    {...field}
+                    onChange={(event) => {
+                      setSlugManuallyEdited(true);
+                      field.onChange(event.target.value);
+                    }}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  This will be used in URLs like{" "}
+                  <span className="font-medium text-foreground">
+                    /hotels/sunrise-suites
+                  </span>
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-base font-medium">
+                  Address <span className="text-destructive">*</span>
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="123 Ocean Avenue"
+                    className="min-h-[100px]"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid gap-4 md:grid-cols-2">
             <FormField
               control={form.control}
-              name="name"
+              name="phoneNumber"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-base font-medium">
-                    Hotel Name <span className="text-destructive">*</span>
+                    Phone Number
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Sunrise Suites"
-                      autoComplete="organization"
+                      type="tel"
+                      placeholder="+1 555 000 0000"
+                      className="pl-10"
                       {...field}
                     />
                   </FormControl>
@@ -160,44 +229,15 @@ export function CreateHotelForm() {
             />
             <FormField
               control={form.control}
-              name="slug"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-base font-medium">
-                    Slug <span className="text-destructive">*</span>
-                  </FormLabel>
+                  <FormLabel className="text-base font-medium">Email</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="sunrise-suites"
-                      {...field}
-                      onChange={(event) => {
-                        setSlugManuallyEdited(true);
-                        field.onChange(event.target.value);
-                      }}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    This will be used in URLs like{" "}
-                    <span className="font-medium text-foreground">
-                      /hotels/sunrise-suites
-                    </span>
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-medium">
-                    Address <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="123 Ocean Avenue"
-                      className="min-h-[100px]"
+                      type="email"
+                      placeholder="info@hotel.com"
+                      className="pl-10"
                       {...field}
                     />
                   </FormControl>
@@ -205,48 +245,7 @@ export function CreateHotelForm() {
                 </FormItem>
               )}
             />
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Phone Number
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="tel"
-                        placeholder="+1 555 000 0000"
-                        className="pl-10"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Email
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="info@hotel.com"
-                        className="pl-10"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+          </div>
           <FormField
             control={form.control}
             name="timeZone"
@@ -273,62 +272,62 @@ export function CreateHotelForm() {
               </FormItem>
             )}
           />
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="latitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Latitude
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.000001"
-                        placeholder="40.7128"
-                        value={Number.isNaN(field.value) ? "" : field.value}
-                        onChange={(event) => {
-                          const nextValue =
-                            event.target.value === ""
-                              ? Number.NaN
-                              : event.target.valueAsNumber;
-                          field.onChange(nextValue);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="longitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Longitude
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.000001"
-                        placeholder="-74.0060"
-                        value={Number.isNaN(field.value) ? "" : field.value}
-                        onChange={(event) => {
-                          const nextValue =
-                            event.target.value === ""
-                              ? Number.NaN
-                              : event.target.valueAsNumber;
-                          field.onChange(nextValue);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="latitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-base font-medium">
+                    Latitude
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      placeholder="40.7128"
+                      value={Number.isNaN(field.value) ? "" : field.value}
+                      onChange={(event) => {
+                        const nextValue =
+                          event.target.value === ""
+                            ? Number.NaN
+                            : event.target.valueAsNumber;
+                        field.onChange(nextValue);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="longitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-base font-medium">
+                    Longitude
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      placeholder="-74.0060"
+                      value={Number.isNaN(field.value) ? "" : field.value}
+                      onChange={(event) => {
+                        const nextValue =
+                          event.target.value === ""
+                            ? Number.NaN
+                            : event.target.valueAsNumber;
+                        field.onChange(nextValue);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           {requestError ? (
             <div className="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {requestError}

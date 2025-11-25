@@ -37,7 +37,7 @@ export function ImportLocationList() {
   const currentCursor = pageStack[pageIndex] ?? null;
 
   const data = useQuery(
-    api.locations.listPublicLocations,
+    api.locations.index.listPublicLocations,
     user?.id
       ? {
           adminId: user.id as Id<"users">,
@@ -49,7 +49,7 @@ export function ImportLocationList() {
   const locations = data?.locations ?? [];
   const isLoading = data === undefined;
 
-  const importLocation = useAction(api.locations.importLocation);
+  const importLocation = useAction(api.locations.index.importLocation);
 
   const filteredLocations = locations.filter((location) => {
     if (!searchQuery.trim()) return true;
@@ -229,4 +229,3 @@ export function ImportLocationList() {
     </div>
   );
 }
-

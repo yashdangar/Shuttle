@@ -19,9 +19,9 @@ export function useFileUpload(
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const uploadProfilePicture = useMutation(api.files.uploadProfilePicture);
-  const uploadHotelImage = useMutation(api.files.uploadHotelImage);
+  const generateUploadUrl = useMutation(api.files.index.generateUploadUrl);
+  const uploadProfilePicture = useMutation(api.files.index.uploadProfilePicture);
+  const uploadHotelImage = useMutation(api.files.index.uploadHotelImage);
 
   const uploadFile = useCallback(
     async (

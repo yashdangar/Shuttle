@@ -54,7 +54,7 @@ export function ShuttleTable() {
 
   try {
     shuttlesData = useQuery(
-      api.shuttles.listShuttles,
+      api.shuttles.index.listShuttles,
       sessionUser?.id
         ? {
             userId: sessionUser.id as Id<"users">,

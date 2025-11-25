@@ -71,7 +71,7 @@ export function FrontdeskTable() {
 
   try {
     usersData = useQuery(
-      api.users.listStaffByRole,
+      api.users.index.listStaffByRole,
       sessionUser?.id
         ? {
             role: entityType,
@@ -86,7 +86,7 @@ export function FrontdeskTable() {
     queryError = error.message ?? "Failed to load frontdesk staff";
   }
 
-  const deleteStaffAccount = useAction(api.users.deleteStaffAccount);
+  const deleteStaffAccount = useAction(api.users.index.deleteStaffAccount);
   const isLoading = usersData === undefined;
 
   const filteredUsers = useMemo(() => {

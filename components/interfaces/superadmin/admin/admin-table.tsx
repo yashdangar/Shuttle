@@ -53,12 +53,12 @@ export function AdminTable() {
 
   const currentCursor = pageStack[pageIndex] ?? null;
 
-  const adminsData = useQuery(api.admins.listAdmins, {
+  const adminsData = useQuery(api.admins.index.listAdmins, {
     limit: pageSize,
     cursor: currentCursor ?? undefined,
   });
 
-  const deleteAdmin = useAction(api.admins.deleteAdmin);
+  const deleteAdmin = useAction(api.admins.index.deleteAdmin);
 
   const handleNextPage = () => {
     if (adminsData?.nextCursor) {

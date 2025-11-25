@@ -56,14 +56,14 @@ export function LocationTable() {
 
   const currentCursor = pageStack[pageIndex] ?? null;
 
-  const data = useQuery(api.locations.listLocations, {
+  const data = useQuery(api.locations.index.listLocations, {
     limit: PAGE_SIZE,
     cursor: currentCursor ?? undefined,
   });
   const locations = data?.locations ?? [];
   const isLoading = data === undefined;
 
-  const deleteLocation = useAction(api.locations.deleteLocation);
+  const deleteLocation = useAction(api.locations.index.deleteLocation);
 
   if (isLoading) {
     return <TableLoader label="Loading Locations" />;

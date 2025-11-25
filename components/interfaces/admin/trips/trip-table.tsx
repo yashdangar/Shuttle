@@ -56,7 +56,7 @@ export function AdminTripTable() {
   const currentCursor = pageStack[pageIndex] ?? null;
 
   const data = useQuery(
-    api.trips.listAdminTrips,
+    api.trips.index.listAdminTrips,
     user?.id
       ? {
           adminId: user.id as Id<"users">,
@@ -68,7 +68,7 @@ export function AdminTripTable() {
   const trips = data?.trips ?? [];
   const isLoading = data === undefined;
 
-  const deleteTrip = useAction(api.trips.deleteTrip);
+  const deleteTrip = useAction(api.trips.index.deleteTrip);
 
   if (isLoading) {
     return <TableLoader label="Loading Trips" />;
@@ -259,8 +259,8 @@ export function AdminTripTable() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Trip</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {tripToDelete?.name}? This
-              action cannot be undone.
+              Are you sure you want to delete {tripToDelete?.name}? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {requestError && (
@@ -306,4 +306,3 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 function formatTimestamp(timestamp: number) {
   return dateFormatter.format(new Date(timestamp));
 }
-

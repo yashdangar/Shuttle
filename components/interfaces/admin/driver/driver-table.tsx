@@ -75,7 +75,7 @@ export function DriverTable() {
 
   try {
     usersData = useQuery(
-      api.users.listStaffByRole,
+      api.users.index.listStaffByRole,
       sessionUser?.id
         ? {
             role: entityType,
@@ -90,7 +90,7 @@ export function DriverTable() {
     queryError = error.message ?? "Failed to load drivers";
   }
 
-  const deleteStaffAccount = useAction(api.users.deleteStaffAccount);
+  const deleteStaffAccount = useAction(api.users.index.deleteStaffAccount);
   const isLoading = usersData === undefined;
 
   const filteredUsers = useMemo(() => {

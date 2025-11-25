@@ -76,16 +76,16 @@ export function EditAdminLocationForm({
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const location = useQuery(api.locations.getLocationById, {
+  const location = useQuery(api.locations.index.getLocationById, {
     locationId,
   });
   const originalLocation = useQuery(
-    api.locations.getLocationById,
+    api.locations.index.getLocationById,
     location?.clonedFromLocationId
       ? { locationId: location.clonedFromLocationId }
       : "skip"
   );
-  const updateLocation = useAction(api.locations.updateAdminLocation);
+  const updateLocation = useAction(api.locations.index.updateAdminLocation);
 
   const isImported = !!location?.clonedFromLocationId;
 
@@ -161,7 +161,6 @@ export function EditAdminLocationForm({
           `${lat.toFixed(5)}, ${lng.toFixed(5)}`
       );
     },
-    disabled: isImported,
   });
 
   const handleUseCurrentLocation = () => {
@@ -337,7 +336,8 @@ export function EditAdminLocationForm({
                     </FormLabel>
                     <p className="text-xs text-muted-foreground">
                       Enables airport-specific filters and routing.
-                      {isImported && " (Cannot be changed for imported locations)"}
+                      {isImported &&
+                        " (Cannot be changed for imported locations)"}
                     </p>
                   </div>
                 </div>
@@ -381,7 +381,8 @@ export function EditAdminLocationForm({
                 {selectedAddress
                   ? `Pinned: ${selectedAddress}`
                   : "To store coordinates, select a point on the map."}
-                {isImported && " (Map interaction disabled for imported locations)"}
+                {isImported &&
+                  " (Map interaction disabled for imported locations)"}
               </p>
             </div>
             <div className="relative h-[420px] overflow-hidden rounded-xl border">

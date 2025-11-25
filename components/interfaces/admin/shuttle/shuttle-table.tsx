@@ -74,7 +74,7 @@ export function ShuttleTable() {
 
   try {
     shuttlesData = useQuery(
-      api.shuttles.listShuttles,
+      api.shuttles.index.listShuttles,
       sessionUser?.id
         ? {
             userId: sessionUser.id as Id<"users">,
@@ -88,7 +88,7 @@ export function ShuttleTable() {
     queryError = error.message ?? "Failed to load shuttles";
   }
 
-  const deleteShuttle = useAction(api.shuttles.deleteShuttle);
+  const deleteShuttle = useAction(api.shuttles.index.deleteShuttle);
   const isLoading = shuttlesData === undefined;
 
   const filteredShuttles = useMemo(() => {

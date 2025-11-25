@@ -24,7 +24,7 @@ function MessageAvatar({
   name: string;
 }) {
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     fileId ? { fileId } : "skip"
   );
 
@@ -100,7 +100,7 @@ function ViewedByUser({
   profilePictureId: Id<"files"> | null;
 }) {
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     profilePictureId ? { fileId: profilePictureId } : "skip"
   );
 
@@ -143,7 +143,7 @@ export function MessageList({
   const previousChatIdRef = useRef<Id<"chats"> | null>(null);
 
   const latestMessages = useQuery(
-    api.chats.getMessages,
+    api.chats.index.getMessages,
     chatId && userId ? { chatId, userId, limit: 20 } : "skip"
   );
 
@@ -158,7 +158,7 @@ export function MessageList({
 
   // Update older messages when cursor changes
   const olderMessagesQuery = useQuery(
-    api.chats.getMessages,
+    api.chats.index.getMessages,
     chatId && userId && currentCursor
       ? { chatId, userId, limit: 20, cursor: currentCursor }
       : "skip"

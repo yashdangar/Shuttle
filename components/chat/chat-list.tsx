@@ -21,7 +21,7 @@ function ChatAvatar({
   name: string;
 }) {
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     fileId ? { fileId } : "skip"
   );
 

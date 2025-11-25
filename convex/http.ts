@@ -25,7 +25,7 @@ http.route({
     const storageId = await ctx.storage.store(blob);
     const fileName = url.searchParams.get("fileName") || "profile-picture";
 
-    await ctx.runMutation(api.files.uploadProfilePicture, {
+    await ctx.runMutation(api.files.index.uploadProfilePicture, {
       storageId,
       userId: userId as any,
       fileName,
@@ -97,7 +97,7 @@ http.route({
       });
     }
 
-    await ctx.runMutation(api.files.uploadHotelImage, {
+    await ctx.runMutation(api.files.index.uploadHotelImage, {
       storageId,
       hotelId: hotelId as any,
       userId: userId as any,

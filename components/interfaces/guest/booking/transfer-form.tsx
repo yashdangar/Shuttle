@@ -34,14 +34,23 @@ type TransferFormProps = {
   form: TransferFormData;
   hotelId: Id<"hotels"> | null;
   onChange: (field: keyof TransferFormData, value: string) => void;
-  onPaymentChange: (method: keyof TransferFormData["paymentMethods"], value: boolean | "indeterminate") => void;
+  onPaymentChange: (
+    method: keyof TransferFormData["paymentMethods"],
+    value: boolean | "indeterminate"
+  ) => void;
 };
 
 const paymentOptions = [{ value: "frontDesk", label: "Front Desk" }] as const;
 
-export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }: TransferFormProps) {
+export function TransferForm({
+  tabId,
+  form,
+  hotelId,
+  onChange,
+  onPaymentChange,
+}: TransferFormProps) {
   const locationsData = useQuery(
-    api.locations.listHotelLocations,
+    api.locations.index.listHotelLocations,
     hotelId ? { hotelId, limit: 100 } : "skip"
   );
   const locations = locationsData ?? [];
@@ -113,7 +122,9 @@ export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }
             id={fieldId("confirmationNumber")}
             value={form.confirmationNumber}
             placeholder="ABC12345"
-            onChange={(event) => onChange("confirmationNumber", event.target.value)}
+            onChange={(event) =>
+              onChange("confirmationNumber", event.target.value)
+            }
           />
         </div>
       </div>
@@ -132,7 +143,11 @@ export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }
             disabled={isLoadingLocations}
           >
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={isLoadingLocations ? "Loading..." : "Select pickup"} />
+              <SelectValue
+                placeholder={
+                  isLoadingLocations ? "Loading..." : "Select pickup"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {pickupOptions.map((option) => (
@@ -151,7 +166,11 @@ export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }
             disabled={isLoadingLocations}
           >
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={isLoadingLocations ? "Loading..." : "Select destination"} />
+              <SelectValue
+                placeholder={
+                  isLoadingLocations ? "Loading..." : "Select destination"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {destinationOptions.map((option) => (
@@ -212,7 +231,9 @@ export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }
               </div>
               <Checkbox
                 checked={form.paymentMethods[option.value]}
-                onCheckedChange={(checked) => onPaymentChange(option.value, checked)}
+                onCheckedChange={(checked) =>
+                  onPaymentChange(option.value, checked)
+                }
               />
             </div>
           ))}
@@ -221,4 +242,3 @@ export function TransferForm({ tabId, form, hotelId, onChange, onPaymentChange }
     </div>
   );
 }
-

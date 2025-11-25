@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = await convex.action(api.auth.createUser, {
+    const userId = await convex.action(api.auth.index.createUser, {
       email,
       name,
       phoneNumber,

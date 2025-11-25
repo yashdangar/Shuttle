@@ -75,10 +75,10 @@ export function EditLocationForm({ locationId }: EditLocationFormProps) {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const location = useQuery(api.locations.getLocationById, {
+  const location = useQuery(api.locations.index.getLocationById, {
     locationId,
   });
-  const updateLocation = useAction(api.locations.updateLocation);
+  const updateLocation = useAction(api.locations.index.updateLocation);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

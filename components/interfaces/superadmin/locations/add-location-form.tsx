@@ -69,7 +69,7 @@ export function AddLocationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
-  const createLocation = useAction(api.locations.createLocation);
+  const createLocation = useAction(api.locations.index.createLocation);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

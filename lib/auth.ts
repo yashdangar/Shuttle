@@ -21,7 +21,7 @@ export const config = {
           return null;
         }
 
-        const user = await convex.action(api.auth.verifyPassword, {
+        const user = await convex.action(api.auth.index.verifyPassword, {
           email: credentials.email as string,
           password: credentials.password as string,
         });
@@ -51,7 +51,7 @@ export const config = {
       }
 
       if (account?.provider === "google") {
-        const existingUser = await convex.query(api.auth.getUserByEmail, {
+        const existingUser = await convex.query(api.auth.index.getUserByEmail, {
           email: token.email!,
         });
 
@@ -59,7 +59,7 @@ export const config = {
           token.id = existingUser._id;
           token.role = existingUser.role;
         } else {
-          const userId = await convex.action(api.auth.createUser, {
+          const userId = await convex.action(api.auth.index.createUser, {
             email: token.email!,
             name: token.name || "",
             phoneNumber: "",

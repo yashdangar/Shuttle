@@ -22,7 +22,7 @@ import { signIn } from "next-auth/react";
 function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const createUser = useAction(api.auth.createUser);
+  const createUser = useAction(api.auth.index.createUser);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 

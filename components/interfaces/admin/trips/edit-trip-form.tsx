@@ -43,18 +43,26 @@ const tripSlotSchema = z.object({
   startTime: z
     .string()
     .min(1, "Start time is required")
-    .regex(/^([0-1][0-9]|2[0-3]):00$/, "Time must be in hour-only format (HH:00)"),
+    .regex(
+      /^([0-1][0-9]|2[0-3]):00$/,
+      "Time must be in hour-only format (HH:00)"
+    ),
   endTime: z
     .string()
     .min(1, "End time is required")
-    .regex(/^([0-1][0-9]|2[0-3]):00$/, "Time must be in hour-only format (HH:00)"),
+    .regex(
+      /^([0-1][0-9]|2[0-3]):00$/,
+      "Time must be in hour-only format (HH:00)"
+    ),
 });
 
 const formSchema = z
   .object({
     name: z.string().min(1, "Trip name is required").max(200),
     sourceLocationId: z.string().min(1, "Source location is required"),
-    destinationLocationId: z.string().min(1, "Destination location is required"),
+    destinationLocationId: z
+      .string()
+      .min(1, "Destination location is required"),
     charges: z
       .number()
       .positive("Charges must be a positive number")
@@ -108,11 +116,11 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const trip = useQuery(api.trips.getTripById, { tripId });
-  const updateTrip = useAction(api.trips.updateTrip);
+  const trip = useQuery(api.trips.index.getTripById, { tripId });
+  const updateTrip = useAction(api.trips.index.updateTrip);
 
   const locations = useQuery(
-    api.locations.listAdminLocations,
+    api.locations.index.listAdminLocations,
     user?.id
       ? {
           adminId: user.id as Id<"users">,
@@ -296,10 +304,7 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Source Location</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
+                  <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select source location" />
@@ -323,10 +328,7 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Destination Location</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
+                  <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select destination location" />
@@ -363,15 +365,18 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead className="w-[100px]">Remove</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead className="w-[100px]">Remove</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {fields.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={3}
+                        className="text-center text-muted-foreground"
+                      >
                         No slots added. Click "Add Slot" to add one.
                       </TableCell>
                     </TableRow>
@@ -400,7 +405,10 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
                                       </SelectTrigger>
                                       <SelectContent>
                                         {Array.from({ length: 24 }, (_, i) => {
-                                          const hour = String(i).padStart(2, "0");
+                                          const hour = String(i).padStart(
+                                            2,
+                                            "0"
+                                          );
                                           return (
                                             <SelectItem key={hour} value={hour}>
                                               {hour}:00
@@ -438,7 +446,10 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
                                       </SelectTrigger>
                                       <SelectContent>
                                         {Array.from({ length: 24 }, (_, i) => {
-                                          const hour = String(i).padStart(2, "0");
+                                          const hour = String(i).padStart(
+                                            2,
+                                            "0"
+                                          );
                                           return (
                                             <SelectItem key={hour} value={hour}>
                                               {hour}:00
@@ -517,4 +528,3 @@ export function EditAdminTripForm({ tripId }: EditAdminTripFormProps) {
     </div>
   );
 }
-

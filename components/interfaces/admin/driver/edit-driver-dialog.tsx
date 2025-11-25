@@ -54,7 +54,7 @@ export function EditDriverDialog({ driver, disabled }: EditDriverDialogProps) {
   const { user: sessionUser } = useAuthSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const updateStaffAccount = useAction(api.users.updateStaffAccount);
+  const updateStaffAccount = useAction(api.users.index.updateStaffAccount);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

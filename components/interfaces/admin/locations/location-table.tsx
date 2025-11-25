@@ -57,7 +57,7 @@ export function AdminLocationTable() {
   const currentCursor = pageStack[pageIndex] ?? null;
 
   const data = useQuery(
-    api.locations.listAdminLocations,
+    api.locations.index.listAdminLocations,
     user?.id
       ? {
           adminId: user.id as Id<"users">,
@@ -69,7 +69,7 @@ export function AdminLocationTable() {
   const locations = data?.locations ?? [];
   const isLoading = data === undefined;
 
-  const deleteLocation = useAction(api.locations.deleteAdminLocation);
+  const deleteLocation = useAction(api.locations.index.deleteAdminLocation);
 
   if (isLoading) {
     return <TableLoader label="Loading Locations" />;
@@ -334,5 +334,3 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 function formatTimestamp(timestamp: number) {
   return dateFormatter.format(new Date(timestamp));
 }
-
-

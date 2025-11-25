@@ -23,7 +23,7 @@ function UserAvatar({
   name: string;
 }) {
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     fileId ? { fileId } : "skip"
   );
 
@@ -49,7 +49,9 @@ export function UserSelect({
   allowMultiple = true,
 }: UserSelectProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const chattableUsers = useQuery(api.chats.getChattableUsers, { userId });
+  const chattableUsers = useQuery(api.chats.index.getChattableUsers, {
+    userId,
+  });
 
   const filteredUsers = useMemo(() => {
     if (!chattableUsers) return [];

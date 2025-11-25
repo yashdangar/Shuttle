@@ -12,36 +12,36 @@ export function useChat(userId: Id<"users"> | null) {
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
 
   const chats = useQuery(
-    api.chats.getChatsForUser,
+    api.chats.index.getChatsForUser,
     userId ? { userId } : "skip"
   );
 
   const selectedChat = useQuery(
-    api.chats.getChatById,
+    api.chats.index.getChatById,
     selectedChatId && userId ? { chatId: selectedChatId, userId } : "skip"
   );
 
   const messages = useQuery(
-    api.chats.getMessages,
+    api.chats.index.getMessages,
     selectedChatId && userId
       ? { chatId: selectedChatId, userId, limit: 20 }
       : "skip"
   );
 
   const chattableUsers = useQuery(
-    api.chats.getChattableUsers,
+    api.chats.index.getChattableUsers,
     userId ? { userId } : "skip"
   );
 
-  const createChatMutation = useMutation(api.chats.createChat);
-  const sendMessageMutation = useMutation(api.chats.sendMessage);
-  const markAsViewedMutation = useMutation(api.chats.markMessagesAsViewed);
-  const addParticipantsMutation = useMutation(api.chats.addParticipantsToGroup);
+  const createChatMutation = useMutation(api.chats.index.createChat);
+  const sendMessageMutation = useMutation(api.chats.index.sendMessage);
+  const markAsViewedMutation = useMutation(api.chats.index.markMessagesAsViewed);
+  const addParticipantsMutation = useMutation(api.chats.index.addParticipantsToGroup);
   const removeParticipantMutation = useMutation(
-    api.chats.removeParticipantFromGroup
+    api.chats.index.removeParticipantFromGroup
   );
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const uploadChatFile = useMutation(api.files.uploadChatFile);
+  const generateUploadUrl = useMutation(api.files.index.generateUploadUrl);
+  const uploadChatFile = useMutation(api.files.index.uploadChatFile);
 
   const sendMessage = useCallback(
     async (

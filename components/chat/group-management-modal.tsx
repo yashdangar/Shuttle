@@ -42,7 +42,7 @@ function UserAvatar({
   name: string;
 }) {
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     fileId ? { fileId } : "skip"
   );
 
@@ -70,12 +70,14 @@ export function GroupManagementModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<Id<"users">[]>([]);
 
-  const addParticipantsMutation = useMutation(api.chats.addParticipantsToGroup);
+  const addParticipantsMutation = useMutation(
+    api.chats.index.addParticipantsToGroup
+  );
   const removeParticipantMutation = useMutation(
-    api.chats.removeParticipantFromGroup
+    api.chats.index.removeParticipantFromGroup
   );
 
-  const chattableUsers = useQuery(api.chats.getChattableUsers, {
+  const chattableUsers = useQuery(api.chats.index.getChattableUsers, {
     userId: currentUserId,
   });
 

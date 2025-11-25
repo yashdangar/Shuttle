@@ -69,7 +69,7 @@ export function AddAdminLocationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
-  const createLocation = useAction(api.locations.createAdminLocation);
+  const createLocation = useAction(api.locations.index.createAdminLocation);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -398,5 +398,3 @@ export function AddAdminLocationForm() {
     </div>
   );
 }
-
-

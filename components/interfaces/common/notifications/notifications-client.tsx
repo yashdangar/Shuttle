@@ -30,19 +30,21 @@ export function NotificationsClient() {
     : "skip";
 
   const notifications = useQuery(
-    api.notifications.listUserNotifications,
+    api.notifications.index.listUserNotifications,
     notificationsArgs
   );
 
   const markNotificationRead = useMutation(
-    api.notifications.markNotificationRead
+    api.notifications.index.markNotificationRead
   );
   const markAllNotificationsRead = useMutation(
-    api.notifications.markAllNotificationsRead
+    api.notifications.index.markAllNotificationsRead
   );
-  const clearNotifications = useMutation(api.notifications.clearNotifications);
+  const clearNotifications = useMutation(
+    api.notifications.index.clearNotifications
+  );
   const clearAllNotifications = useMutation(
-    api.notifications.clearAllNotifications
+    api.notifications.index.clearAllNotifications
   );
 
   const isLoadingSession = status === "loading";

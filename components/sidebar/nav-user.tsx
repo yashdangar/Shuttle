@@ -60,9 +60,9 @@ export function NavUser() {
   const profileArgs = sessionUser?.id
     ? ({ userId: sessionUser.id as Id<"users"> } as const)
     : "skip";
-  const profile = useQuery(api.users.getUserProfile, profileArgs);
+  const profile = useQuery(api.users.index.getUserProfile, profileArgs);
   const profilePictureUrl = useQuery(
-    api.files.getProfilePictureUrl,
+    api.files.index.getProfilePictureUrl,
     profile?.profilePictureId
       ? ({ fileId: profile.profilePictureId } as const)
       : "skip"

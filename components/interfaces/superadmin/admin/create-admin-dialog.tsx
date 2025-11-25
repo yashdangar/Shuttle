@@ -51,7 +51,7 @@ export function CreateAdminDialog() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const { user } = useAuthSession();
-  const createAdmin = useAction(api.admins.createAdmin);
+  const createAdmin = useAction(api.admins.index.createAdmin);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

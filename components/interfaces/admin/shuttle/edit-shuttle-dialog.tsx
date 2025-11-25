@@ -52,7 +52,7 @@ export function EditShuttleDialog({
   const { user: sessionUser } = useAuthSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const updateShuttle = useAction(api.shuttles.updateShuttle);
+  const updateShuttle = useAction(api.shuttles.index.updateShuttle);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

@@ -53,7 +53,7 @@ export function EditAdminDialog({ admin }: EditAdminDialogProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const { user } = useAuthSession();
-  const updateAdmin = useAction(api.admins.updateAdmin);
+  const updateAdmin = useAction(api.admins.index.updateAdmin);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),

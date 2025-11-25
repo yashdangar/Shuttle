@@ -34,7 +34,10 @@ type ParkFormProps = {
   form: ParkFormData;
   hotelId: Id<"hotels"> | null;
   onChange: (updates: Partial<ParkFormData>) => void;
-  onPaymentChange: (method: keyof ParkFormData["paymentMethods"], value: boolean | "indeterminate") => void;
+  onPaymentChange: (
+    method: keyof ParkFormData["paymentMethods"],
+    value: boolean | "indeterminate"
+  ) => void;
 };
 
 const directionOptions = [
@@ -44,17 +47,22 @@ const directionOptions = [
 
 const paymentOptions = [{ value: "frontDesk", label: "Front Desk" }] as const;
 
-export function ParkForm({ form, hotelId, onChange, onPaymentChange }: ParkFormProps) {
+export function ParkForm({
+  form,
+  hotelId,
+  onChange,
+  onPaymentChange,
+}: ParkFormProps) {
   const locationsData = useQuery(
-    api.locations.listHotelLocations,
+    api.locations.index.listHotelLocations,
     hotelId ? { hotelId, limit: 100 } : "skip"
   );
   const locations = locationsData ?? [];
   const isLoadingLocations = hotelId ? locationsData === undefined : false;
 
   const directionLabel =
-    directionOptions.find((option) => option.value === form.direction)
-      ?.label ?? "";
+    directionOptions.find((option) => option.value === form.direction)?.label ??
+    "";
   const parkFullName = `${form.firstName} ${form.lastName}`.trim();
   const parkFieldId = (field: string) => `park-${field}`;
 
@@ -185,7 +193,11 @@ export function ParkForm({ form, hotelId, onChange, onPaymentChange }: ParkFormP
             disabled={isLoadingLocations}
           >
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={isLoadingLocations ? "Loading..." : "Select pickup"} />
+              <SelectValue
+                placeholder={
+                  isLoadingLocations ? "Loading..." : "Select pickup"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {pickupOptions.map((option) => (
@@ -208,7 +220,11 @@ export function ParkForm({ form, hotelId, onChange, onPaymentChange }: ParkFormP
             disabled={isLoadingLocations}
           >
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={isLoadingLocations ? "Loading..." : "Select destination"} />
+              <SelectValue
+                placeholder={
+                  isLoadingLocations ? "Loading..." : "Select destination"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {destinationOptions.map((option) => (
@@ -292,4 +308,3 @@ export function ParkForm({ form, hotelId, onChange, onPaymentChange }: ParkFormP
     </div>
   );
 }
-

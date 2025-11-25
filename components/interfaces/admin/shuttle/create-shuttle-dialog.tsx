@@ -42,7 +42,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function CreateShuttleDialog() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const createShuttle = useAction(api.shuttles.createShuttle);
+  const createShuttle = useAction(api.shuttles.index.createShuttle);
   const { user } = useAuthSession();
   const adminId = user?.role === "admin" ? (user.id as Id<"users">) : null;
   const isAdmin = !!adminId;

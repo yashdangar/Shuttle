@@ -44,7 +44,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function CreateFrontdeskDialog() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const createStaffAccount = useAction(api.users.createStaffAccount);
+  const createStaffAccount = useAction(api.users.index.createStaffAccount);
   const { user } = useAuthSession();
   const adminId = user?.role === "admin" ? (user.id as Id<"users">) : null;
   const isAdmin = !!adminId;

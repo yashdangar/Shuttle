@@ -58,7 +58,7 @@ export function FrontdeskTable() {
 
   try {
     usersData = useQuery(
-      api.users.listStaffByRole,
+      api.users.index.listStaffByRole,
       sessionUser?.id
         ? {
             role: entityType,
@@ -165,4 +165,3 @@ export function FrontdeskTable() {
     </CardContent>
   );
 }
-
