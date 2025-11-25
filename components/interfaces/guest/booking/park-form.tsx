@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { TripRecord } from "@/convex/trips";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +25,9 @@ type ParkFormData = {
   destination: string;
   date: string;
   time: string;
+  seats: string;
+  bags: string;
+  tripId: Id<"trips"> | "";
   notes: string;
   direction: "hotelToAirport" | "airportToHotel";
   paymentMethods: {
@@ -46,6 +51,31 @@ const directionOptions = [
 ] as const;
 
 const paymentOptions = [{ value: "frontDesk", label: "Front Desk" }] as const;
+const CLEAR_TRIP_VALUE = "__clear_trip__";
+
+const timeStringToMinutes = (time?: string): number | null => {
+  if (!time) {
+    return null;
+  }
+  const [hoursRaw, minutesRaw] = time.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+};
+
+const formatTripSlots = (trip: TripRecord): string => {
+  if (trip.tripSlots.length === 0) {
+    return "No time slots";
+  }
+  return trip.tripSlots
+    .map(
+      (slot) => `${slot.startTimeDisplay ?? "--"}-${slot.endTimeDisplay ?? "--"}`
+    )
+    .join(", ");
+};
 
 export function ParkForm({
   form,
@@ -53,12 +83,28 @@ export function ParkForm({
   onChange,
   onPaymentChange,
 }: ParkFormProps) {
+  const timeFilterMinutes = useMemo(
+    () => timeStringToMinutes(form.time),
+    [form.time]
+  );
+
   const locationsData = useQuery(
     api.locations.index.listHotelLocations,
     hotelId ? { hotelId, limit: 100 } : "skip"
   );
   const locations = locationsData ?? [];
   const isLoadingLocations = hotelId ? locationsData === undefined : false;
+  const tripsData = useQuery(
+    api.trips.index.listHotelTrips,
+    hotelId
+      ? {
+          hotelId,
+          filterMinutes: timeFilterMinutes ?? undefined,
+        }
+      : "skip"
+  );
+  const trips = tripsData ?? [];
+  const isLoadingTrips = hotelId ? tripsData === undefined : false;
 
   const directionLabel =
     directionOptions.find((option) => option.value === form.direction)?.label ??
@@ -66,30 +112,77 @@ export function ParkForm({
   const parkFullName = `${form.firstName} ${form.lastName}`.trim();
   const parkFieldId = (field: string) => `park-${field}`;
 
-  const airportLocations = locations.filter(
-    (loc) => loc.locationType === "airport"
-  );
-  const nonAirportLocations = locations.filter(
-    (loc) => loc.locationType !== "airport"
+  const locationMap = useMemo(() => {
+    const map = new Map<Id<"locations">, (typeof locations)[number]>();
+    locations.forEach((loc) => {
+      map.set(loc.id, loc);
+    });
+    return map;
+  }, [locations]);
+
+  const locationOptions = useMemo(
+    () =>
+      locations.map((loc) => ({
+        value: loc.id,
+        label: loc.name,
+      })),
+    [locations]
   );
 
-  const pickupOptions = [
-    ...nonAirportLocations.map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
-  ];
+  const filteredTrips = useMemo(() => {
+    if (!hotelId) {
+      return [];
+    }
+    return trips.filter((trip) => {
+      const source = locationMap.get(trip.sourceLocationId);
+      const destination = locationMap.get(trip.destinationLocationId);
+      if (!source || !destination) {
+        return false;
+      }
+      const needsHotelToAirport = form.direction === "hotelToAirport";
+      const matchesHotelToAirport =
+        source.locationType === "hotel" &&
+        (destination.locationType === "airport" ||
+          destination.locationType === "other");
+      const matchesAirportToHotel =
+        destination.locationType === "hotel" &&
+        (source.locationType === "airport" || source.locationType === "other");
+      if (
+        (needsHotelToAirport && !matchesHotelToAirport) ||
+        (!needsHotelToAirport && !matchesAirportToHotel)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [hotelId, trips, locationMap, form.direction]);
 
-  const destinationOptions = [
-    ...airportLocations.map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
-    ...nonAirportLocations.map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-    })),
-  ];
+  const handleTripChange = (tripId: Id<"trips"> | "") => {
+    onChange({
+      tripId,
+    });
+    if (!tripId) {
+      onChange({
+        pickupLocation: "",
+        destination: "",
+      });
+      return;
+    }
+    const selectedTrip = trips.find((trip) => trip.id === tripId);
+    if (!selectedTrip) {
+      onChange({
+        pickupLocation: "",
+        destination: "",
+      });
+      return;
+    }
+    onChange({
+      pickupLocation: selectedTrip.sourceLocationId,
+      destination: selectedTrip.destinationLocationId,
+    });
+  };
+
+  const tripSelectDisabled = isLoadingTrips || !hotelId;
 
   return (
     <div className="space-y-8">
@@ -101,6 +194,9 @@ export function ParkForm({
             onValueChange={(value) =>
               onChange({
                 direction: value as (typeof directionOptions)[number]["value"],
+                tripId: "",
+                pickupLocation: "",
+                destination: "",
               })
             }
           >
@@ -184,8 +280,40 @@ export function ParkForm({
           <span className="font-semibold">{parkFullName}</span>
         </div>
       )}
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-2">
+      <div className="flex flex-row flex-wrap gap-6">
+        <div className="space-y-2 flex-1 min-w-[220px]">
+          <Label>Trip</Label>
+          <Select
+            value={form.tripId ?? undefined}
+            onValueChange={(value) =>
+              handleTripChange(
+                value === CLEAR_TRIP_VALUE ? "" : (value as Id<"trips">)
+              )
+            }
+            disabled={tripSelectDisabled}
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  isLoadingTrips
+                    ? "Loading trips..."
+                    : filteredTrips.length === 0
+                      ? "No trips available"
+                      : "Select trip"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLEAR_TRIP_VALUE}>Clear selection</SelectItem>
+              {filteredTrips.map((trip) => (
+                <SelectItem key={trip.id} value={trip.id}>
+                  {trip.name} • {formatTripSlots(trip)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 flex-1 min-w-[220px]">
           <Label>Pickup location</Label>
           <Select
             value={form.pickupLocation || undefined}
@@ -194,17 +322,17 @@ export function ParkForm({
                 pickupLocation: value,
               })
             }
-            disabled={isLoadingLocations}
+            disabled
           >
             <SelectTrigger className="h-11">
               <SelectValue
                 placeholder={
-                  isLoadingLocations ? "Loading..." : "Select pickup"
+                  isLoadingLocations ? "Loading..." : "Trip required"
                 }
               />
             </SelectTrigger>
             <SelectContent>
-              {pickupOptions.map((option) => (
+              {locationOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -212,7 +340,7 @@ export function ParkForm({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 flex-1 min-w-[220px]">
           <Label>Destination</Label>
           <Select
             value={form.destination || undefined}
@@ -221,17 +349,17 @@ export function ParkForm({
                 destination: value,
               })
             }
-            disabled={isLoadingLocations}
+            disabled
           >
             <SelectTrigger className="h-11">
               <SelectValue
                 placeholder={
-                  isLoadingLocations ? "Loading..." : "Select destination"
+                  isLoadingLocations ? "Loading..." : "Trip required"
                 }
               />
             </SelectTrigger>
             <SelectContent>
-              {destinationOptions.map((option) => (
+              {locationOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -263,6 +391,36 @@ export function ParkForm({
             onChange={(event) =>
               onChange({
                 time: event.target.value,
+              })
+            }
+          />
+        </div>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="park-seats">Seats</Label>
+          <Input
+            id="park-seats"
+            type="number"
+            min={0}
+            value={form.seats}
+            onChange={(event) =>
+              onChange({
+                seats: event.target.value,
+              })
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="park-bags">Bags</Label>
+          <Input
+            id="park-bags"
+            type="number"
+            min={0}
+            value={form.bags}
+            onChange={(event) =>
+              onChange({
+                bags: event.target.value,
               })
             }
           />

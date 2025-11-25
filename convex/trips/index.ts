@@ -95,6 +95,42 @@ const formatTrip = async (
   };
 };
 
+const timeStringToMinutes = (timeString?: string): number | null => {
+  if (!timeString) {
+    return null;
+  }
+  const [hoursRaw, minutesRaw] = timeString.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+};
+
+const isTimeWithinSlot = (
+  slot: TripRecord["tripSlots"][number],
+  timeMinutes: number
+): boolean => {
+  const slotStart = timeStringToMinutes(slot.startTimeDisplay);
+  const slotEnd = timeStringToMinutes(slot.endTimeDisplay);
+  if (slotStart === null || slotEnd === null) {
+    return false;
+  }
+  if (slotEnd === slotStart) {
+    return timeMinutes === slotStart;
+  }
+  if (slotEnd < slotStart) {
+    return timeMinutes >= slotStart || timeMinutes < slotEnd;
+  }
+  return timeMinutes >= slotStart && timeMinutes < slotEnd;
+};
+
+const getCurrentMinutes = () => {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+};
+
 type TripSlotUTC = {
   startTime: string;
   endTime: string;
@@ -175,6 +211,34 @@ export const listAdminTrips = query({
           ? null
           : (sortedTrips[endIndex - 1]._id as string),
     };
+  },
+});
+
+export const listHotelTrips = query({
+  args: {
+    hotelId: v.id("hotels"),
+    filterMinutes: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
+    const trips = await ctx.db
+      .query("trips")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
+      .collect();
+
+    const formattedTrips = await Promise.all(
+      trips.map((trip) => formatTrip(ctx, trip))
+    );
+
+    const activeMinutes =
+      typeof args.filterMinutes === "number"
+        ? args.filterMinutes
+        : getCurrentMinutes();
+
+    const filteredTrips = formattedTrips.filter((trip) =>
+      trip.tripSlots.some((slot) => isTimeWithinSlot(slot, activeMinutes))
+    );
+
+    return filteredTrips;
   },
 });
 

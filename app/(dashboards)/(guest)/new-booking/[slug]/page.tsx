@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Card,
   CardContent,
@@ -50,6 +51,9 @@ function NewBookingContent() {
     destination: "",
     date: "",
     time: "",
+    seats: "",
+    bags: "",
+    tripId: "" as Id<"trips"> | "",
     notes: "",
     paymentMethods: {
       frontDesk: false,
