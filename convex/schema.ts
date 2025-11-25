@@ -38,6 +38,8 @@ export default defineSchema({
     shuttleIds: v.array(v.id("shuttles")),
     userIds: v.array(v.id("users")), //driver , frontdesk , admin
     locationIds: v.array(v.id("locations")), // private and public locations and hotel location itself too
+    bookingIds : v.array(v.id("bookings")),
+    tripIds : v.array(v.id("trips")),
   }).index("by_slug", ["slug"]),
 
   locations: defineTable({
@@ -60,15 +62,17 @@ export default defineSchema({
     hotelId: v.id("hotels"),
     vehicleNumber: v.string(),
     totalSeats: v.int64(),
+    isActive: v.boolean(),
   })
     .index("by_hotel", ["hotelId"])
-    .index("by_vehicle", ["vehicleNumber"]),
+    .index("by_vehicle", ["vehicleNumber"])
+    .index("by_active", ["isActive"]),
 
   bookings: defineTable({
     guestId: v.id("users"),
     seats: v.int64(),
     bags: v.int64(),
-
+    hotelId: v.id("hotels"),
     name: v.optional(v.string()), // name can be written like when guest itself is not going but is booking from someone else's id , so name will be of that person who is booking for the guest
     confirmationNum: v.optional(v.string()),
     notes: v.string(),
@@ -101,7 +105,7 @@ export default defineSchema({
     tripInstanceId: v.optional(v.id("tripInstances")), // who is driver , which shuttle it is , where to where info allw ill be there here
 
     // Frontdesk verification fields
-    verifiedAt: v.number(),
+    verifiedAt: v.string(),
     verifiedBy: v.id("users"),
 
     cancellationReason: v.string(),
@@ -113,7 +117,7 @@ export default defineSchema({
       v.literal("AUTO_CANCEL") // auto cancel after x minutes of booking time if not verified by anyone means verifiedAt is null
     ),
 
-    waivedAt: v.optional(v.number()),
+    waivedAt: v.optional(v.string()),
     waivedBy: v.optional(v.id("users")),
     waiverReason: v.optional(v.string()),
   })
@@ -149,8 +153,8 @@ export default defineSchema({
     driverId: v.id("users"),
     shuttleId: v.id("shuttles"), //total seats in shuttle
 
-    actualStartTime: v.optional(v.number()),
-    actualEndTime: v.optional(v.number()),
+    actualStartTime: v.optional(v.string()),
+    actualEndTime: v.optional(v.string()),
 
     seatsOccupied: v.int64(),
     seatHeld: v.int64(), // when someone does booking then the setas are held until frontdsk confirms the booking , and this held means total - occupied should always be lesser than held seat , and how many setas to be hold should be decided by the booking Id , emans we have to check the booking seats how many are there to be held
@@ -182,7 +186,7 @@ export default defineSchema({
   otps: defineTable({
     email: v.string(),
     code: v.string(),
-    expiresAt: v.number(),
+    expiresAt: v.string(),
     isUsed: v.boolean(),
     attempts: v.int64(),
   })
@@ -192,7 +196,7 @@ export default defineSchema({
   qrVerificationTokens: defineTable({
     token: v.string(),
     bookingId: v.id("bookings"),
-    expiresAt: v.number(),
+    expiresAt: v.string(),
     isUsed: v.boolean(),
   })
     .index("by_token", ["token"])
@@ -211,7 +215,7 @@ export default defineSchema({
     chatId: v.id("chats"),
     senderId: v.id("users"),
     content: v.string(),
-    timestamp: v.number(),
+    timestamp: v.string(),
     viewedByUserIds: v.array(v.id("users")),
     attachedFileIds: v.array(v.id("files")),
   })
@@ -228,8 +232,8 @@ export default defineSchema({
     shuttleId: v.id("shuttles"),
     bookingId: v.id("bookings"),
     numberOfSeats: v.int64(),
-    reservationStartTime: v.number(),
-    reservationEndTime: v.optional(v.number()),
+    reservationStartTime: v.string(),
+    reservationEndTime: v.optional(v.string()),
     status: v.union(
       v.literal("HELD"),
       v.literal("CONFIRMED"),

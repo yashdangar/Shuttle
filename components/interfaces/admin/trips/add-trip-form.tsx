@@ -335,9 +335,9 @@ export function AddAdminTripForm() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead className="w-[100px]">Remove</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead className="w-[100px]">Remove</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

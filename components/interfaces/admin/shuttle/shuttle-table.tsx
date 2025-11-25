@@ -34,6 +34,7 @@ export type ShuttleEntry = {
   id: Id<"shuttles">;
   vehicleNumber: string;
   totalSeats: number;
+  isActive: boolean;
 };
 
 const entityLabel = "Shuttle";
@@ -175,6 +176,7 @@ export function ShuttleTable() {
                 <TableRow>
                   <TableHead className="font-medium">Vehicle Number</TableHead>
                   <TableHead>Total Seats</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -185,6 +187,17 @@ export function ShuttleTable() {
                       {shuttle.vehicleNumber}
                     </TableCell>
                     <TableCell>{shuttle.totalSeats}</TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                          shuttle.isActive
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {shuttle.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <EditShuttleDialog

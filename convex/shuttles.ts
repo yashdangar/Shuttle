@@ -8,6 +8,7 @@ type ShuttleRecord = {
   hotelId: Id<"hotels">;
   vehicleNumber: string;
   totalSeats: number;
+  isActive: boolean;
 };
 
 const formatShuttle = (shuttle: Doc<"shuttles">): ShuttleRecord => ({
@@ -15,6 +16,7 @@ const formatShuttle = (shuttle: Doc<"shuttles">): ShuttleRecord => ({
   hotelId: shuttle.hotelId,
   vehicleNumber: shuttle.vehicleNumber,
   totalSeats: Number(shuttle.totalSeats),
+  isActive: shuttle.isActive,
 });
 
 export const findShuttleByVehicleNumber = query({
@@ -120,6 +122,7 @@ export const createShuttle = action({
     adminId: v.id("users"),
     vehicleNumber: v.string(),
     totalSeats: v.number(),
+    isActive: v.optional(v.boolean()),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
     const admin = await ctx.runQuery(api.auth.getUserById, {
@@ -163,6 +166,7 @@ export const createShuttle = action({
         hotelId: hotel.id,
         vehicleNumber,
         totalSeats: args.totalSeats,
+        isActive: args.isActive ?? true,
       }
     );
 
@@ -189,6 +193,7 @@ export const updateShuttle = action({
     shuttleId: v.id("shuttles"),
     vehicleNumber: v.optional(v.string()),
     totalSeats: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
     const currentUser = await ctx.runQuery(api.auth.getUserById, {
@@ -220,6 +225,7 @@ export const updateShuttle = action({
     const updates: {
       vehicleNumber?: string;
       totalSeats?: number;
+      isActive?: boolean;
     } = {};
 
     if (typeof args.vehicleNumber === "string") {
@@ -248,6 +254,10 @@ export const updateShuttle = action({
         throw new Error("Total seats must be a positive integer");
       }
       updates.totalSeats = args.totalSeats;
+    }
+
+    if (typeof args.isActive === "boolean") {
+      updates.isActive = args.isActive;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -321,12 +331,14 @@ export const createShuttleInternal = internalMutation({
     hotelId: v.id("hotels"),
     vehicleNumber: v.string(),
     totalSeats: v.number(),
+    isActive: v.boolean(),
   },
   async handler(ctx, args) {
     return await ctx.db.insert("shuttles", {
       hotelId: args.hotelId,
       vehicleNumber: args.vehicleNumber,
       totalSeats: BigInt(args.totalSeats),
+      isActive: args.isActive,
     });
   },
 });
@@ -336,6 +348,7 @@ export const updateShuttleInternal = internalMutation({
     shuttleId: v.id("shuttles"),
     vehicleNumber: v.optional(v.string()),
     totalSeats: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
     const updates: Record<string, any> = {};
@@ -346,6 +359,10 @@ export const updateShuttleInternal = internalMutation({
 
     if (typeof args.totalSeats === "number") {
       updates.totalSeats = BigInt(args.totalSeats);
+    }
+
+    if (typeof args.isActive === "boolean") {
+      updates.isActive = args.isActive;
     }
 
     if (Object.keys(updates).length === 0) {

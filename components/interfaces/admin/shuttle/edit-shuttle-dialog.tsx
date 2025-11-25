@@ -28,6 +28,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ShuttleEntry } from "./shuttle-table";
 
 const formSchema = z.object({
@@ -36,6 +37,7 @@ const formSchema = z.object({
     .number()
     .int("Seats must be an integer")
     .positive("Seats must be positive"),
+  isActive: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,6 +61,7 @@ export function EditShuttleDialog({
     defaultValues: {
       vehicleNumber: shuttle.vehicleNumber,
       totalSeats: shuttle.totalSeats,
+      isActive: shuttle.isActive,
     },
   });
 
@@ -67,16 +70,18 @@ export function EditShuttleDialog({
       form.reset({
         vehicleNumber: shuttle.vehicleNumber,
         totalSeats: shuttle.totalSeats,
+        isActive: shuttle.isActive,
       });
       setRequestError(null);
     }
-  }, [form, isDialogOpen, shuttle.vehicleNumber, shuttle.totalSeats]);
+  }, [form, isDialogOpen, shuttle.vehicleNumber, shuttle.totalSeats, shuttle.isActive]);
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     form.reset({
       vehicleNumber: shuttle.vehicleNumber,
       totalSeats: shuttle.totalSeats,
+      isActive: shuttle.isActive,
     });
     setRequestError(null);
   };
@@ -93,6 +98,7 @@ export function EditShuttleDialog({
         shuttleId: shuttle.id,
         vehicleNumber: values.vehicleNumber.trim(),
         totalSeats: values.totalSeats,
+        isActive: values.isActive,
       });
       handleCloseDialog();
     } catch (error: any) {
@@ -158,6 +164,26 @@ export function EditShuttleDialog({
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Active Status</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Enable or disable this shuttle for use.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

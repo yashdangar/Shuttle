@@ -126,7 +126,7 @@ interface MessageListProps {
   chatId: Id<"chats">;
   userId: Id<"users">;
   isGroupChat: boolean;
-  onLoadMore: (cursor: number) => void;
+  onLoadMore: (cursor: string) => void;
 }
 
 export function MessageList({
@@ -136,7 +136,7 @@ export function MessageList({
   onLoadMore,
 }: MessageListProps) {
   const [olderMessages, setOlderMessages] = useState<Message[]>([]);
-  const [currentCursor, setCurrentCursor] = useState<number | null>(null);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -172,7 +172,7 @@ export function MessageList({
           (msg) => !prev.some((m) => m.id === msg.id)
         );
         return [...newMessages, ...prev].sort(
-          (a, b) => a.timestamp - b.timestamp
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
       });
       setIsLoadingMore(false);
@@ -189,7 +189,7 @@ export function MessageList({
       messages.push(...latest);
     }
 
-    return messages.sort((a, b) => a.timestamp - b.timestamp);
+    return messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [latestMessages, olderMessages]);
 
   const hasMore = latestMessages?.nextCursor !== null;
@@ -209,7 +209,7 @@ export function MessageList({
     onLoadMore(nextCursor);
   }, [hasMore, isLoadingMore, latestMessages?.nextCursor, onLoadMore]);
 
-  const formatTime = (timestamp: number) => {
+  const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();

@@ -17,6 +17,8 @@ export type HotelRecord = {
   shuttleIds: Id<"shuttles">[];
   userIds: Id<"users">[];
   locationIds: Id<"locations">[];
+  bookingIds: Id<"bookings">[];
+  tripIds: Id<"trips">[];
 };
 
 const formatHotel = (hotel: Doc<"hotels">): HotelRecord => ({
@@ -33,6 +35,8 @@ const formatHotel = (hotel: Doc<"hotels">): HotelRecord => ({
   shuttleIds: hotel.shuttleIds,
   userIds: hotel.userIds,
   locationIds: hotel.locationIds,
+  bookingIds: hotel.bookingIds,
+  tripIds: hotel.tripIds,
 });
 
 const slugify = (value: string) =>
@@ -225,6 +229,8 @@ export const createHotelInternal = internalMutation({
       shuttleIds: [],
       userIds: [args.adminId],
       locationIds: [],
+      bookingIds: [],
+      tripIds: [],
     });
 
     // Set hotelId on the admin user for direct reference
@@ -366,6 +372,44 @@ export const removeLocationFromHotelInternal = internalMutation({
     }
     await ctx.db.patch(args.hotelId, {
       locationIds: hotel.locationIds.filter((id) => id !== args.locationId),
+    });
+  },
+});
+
+export const addTripToHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    tripId: v.id("trips"),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+    if (hotel.tripIds.some((id) => id === args.tripId)) {
+      return;
+    }
+    await ctx.db.patch(args.hotelId, {
+      tripIds: [...hotel.tripIds, args.tripId],
+    });
+  },
+});
+
+export const removeTripFromHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    tripId: v.id("trips"),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+    if (!hotel.tripIds.some((id) => id === args.tripId)) {
+      return;
+    }
+    await ctx.db.patch(args.hotelId, {
+      tripIds: hotel.tripIds.filter((id) => id !== args.tripId),
     });
   },
 });

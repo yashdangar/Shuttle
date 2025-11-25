@@ -134,7 +134,7 @@ export function ChatList({
 
     return filtered;
   }, [chats, filter, searchQuery, currentUserId]);
-  const formatTime = (timestamp: number) => {
+  const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
