@@ -125,7 +125,7 @@ export const createShuttle = action({
     isActive: v.optional(v.boolean()),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
-    const admin = await ctx.runQuery(api.auth.index.getUserById, {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
       id: args.adminId,
     });
     if (!admin || admin.role !== "admin") {
@@ -196,7 +196,7 @@ export const updateShuttle = action({
     isActive: v.optional(v.boolean()),
   },
   async handler(ctx, args): Promise<ShuttleRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
     if (!currentUser || currentUser.role !== "admin") {
@@ -287,7 +287,7 @@ export const deleteShuttle = action({
     shuttleId: v.id("shuttles"),
   },
   async handler(ctx, args): Promise<{ success: true }> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
     if (!currentUser || currentUser.role !== "admin") {
@@ -313,10 +313,13 @@ export const deleteShuttle = action({
       throw new Error("Shuttle does not belong to your hotel");
     }
 
-    await ctx.runMutation(internal.hotels.index.removeShuttleFromHotelInternal, {
-      hotelId: existing.hotelId,
-      shuttleId: args.shuttleId,
-    });
+    await ctx.runMutation(
+      internal.hotels.index.removeShuttleFromHotelInternal,
+      {
+        hotelId: existing.hotelId,
+        shuttleId: args.shuttleId,
+      }
+    );
 
     await ctx.runMutation(internal.shuttles.index.deleteShuttleInternal, {
       shuttleId: args.shuttleId,

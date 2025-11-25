@@ -17,7 +17,7 @@ export type TripTimeRecord = {
   endTimeDisplay: string;
 };
 
-function timeToUTCString(timeString: string): string {  
+function timeToUTCString(timeString: string): string {
   const [hours, minutes] = timeString.split(":").map(Number);
   const date = new Date(Date.UTC(1970, 0, 1, hours, minutes || 0, 0, 0));
   return date.toISOString();
@@ -206,7 +206,7 @@ export const createTrip = action({
     ),
   },
   async handler(ctx, args): Promise<TripRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -218,9 +218,12 @@ export const createTrip = action({
       throw new Error("Only admin can create trips");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -325,13 +328,16 @@ export const createTrip = action({
       tripSlots: utcTripSlots,
     });
 
-    const tripId = await ctx.runMutation(internal.trips.index.createTripInternal, {
-      name: args.name.trim(),
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      charges: args.charges,
-      hotelId: hotel.id,
-    });
+    const tripId = await ctx.runMutation(
+      internal.trips.index.createTripInternal,
+      {
+        name: args.name.trim(),
+        sourceLocationId: args.sourceLocationId,
+        destinationLocationId: args.destinationLocationId,
+        charges: args.charges,
+        hotelId: hotel.id,
+      }
+    );
 
     await ctx.runMutation(internal.hotels.index.addTripToHotelInternal, {
       hotelId: hotel.id,
@@ -385,7 +391,7 @@ export const updateTrip = action({
     ),
   },
   async handler(ctx, args): Promise<TripRecord> {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -397,9 +403,12 @@ export const updateTrip = action({
       throw new Error("Only admin can update trips");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");
@@ -581,7 +590,7 @@ export const deleteTrip = action({
     tripId: v.id("trips"),
   },
   async handler(ctx, args) {
-    const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
+    const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
 
@@ -593,9 +602,12 @@ export const deleteTrip = action({
       throw new Error("Only admin can delete trips");
     }
 
-    const userDoc = await ctx.runQuery(internal.users.index.getUserByIdInternal, {
-      userId: args.currentUserId,
-    });
+    const userDoc = await ctx.runQuery(
+      internal.users.index.getUserByIdInternal,
+      {
+        userId: args.currentUserId,
+      }
+    );
 
     if (!userDoc || !userDoc.hotelId) {
       throw new Error("Hotel not found for admin");

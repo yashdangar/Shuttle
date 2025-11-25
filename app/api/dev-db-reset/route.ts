@@ -1,13 +1,3 @@
-// curl -X POST http://localhost:3000/api/create-superadmin \
-//   -H "Content-Type: application/json" \
-//   -d '{
-//     "name": "Superadmin",
-//     "email": "superadmin@superadmin.com",
-//     "password": "sasasasa",
-//     "phoneNumber": "+1234567890",
-//     "token": "admin"
-//   }'
-
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { NextRequest, NextResponse } from "next/server";
@@ -16,20 +6,17 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, email, password, phoneNumber, token } = body;
+    console.log("NODE_ENV:", process.env.NODE_ENV);
 
-    if (!name || !email || !password || !phoneNumber) {
+    if (process.env.NODE_ENV !== "development") {
       return NextResponse.json(
-        {
-          error:
-            "Missing required fields: name, email, password, and phoneNumber are required",
-        },
-        { status: 400 }
+        { error: "This endpoint is only available in development mode" },
+        { status: 403 }
       );
     }
 
     const superAdminToken = process.env.SUPER_ADMIN_TOKEN;
+    console.log("SUPER_ADMIN_TOKEN env value:", superAdminToken);
 
     if (!superAdminToken) {
       return NextResponse.json(
@@ -38,8 +25,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch (error) {}
+
     const authHeader = request.headers.get("authorization");
-    const providedToken = authHeader?.replace("Bearer ", "") || token;
+    const providedToken =
+      authHeader?.replace("Bearer ", "") || body?.token || null;
 
     if (!providedToken) {
       return NextResponse.json(
@@ -58,30 +51,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = await convex.action(api.auth.createUser, {
-      email,
-      name,
-      phoneNumber,
-      password,
-      role: "superadmin",
-    });
+    const result = await convex.mutation(api.admins.index.wipeNonUserData, {});
 
     return NextResponse.json(
       {
         success: true,
-        message: "Superadmin created successfully",
-        userId,
+        message: "All non-user collections were cleared",
+        ...result,
       },
-      { status: 201 }
+      { status: 200 }
     );
   } catch (error: any) {
-    if (error.message === "User with this email already exists") {
-      return NextResponse.json(
-        { error: "User with this email already exists" },
-        { status: 409 }
-      );
-    }
-
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
