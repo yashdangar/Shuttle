@@ -141,7 +141,7 @@ export function ImportLocationList() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Address</TableHead>
-                <TableHead>Airport</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
@@ -158,11 +158,9 @@ export function ImportLocationList() {
                       {location.address}
                     </TableCell>
                     <TableCell>
-                      {location.isAirportLocation ? (
-                        <Badge variant="outline">Yes</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">No</span>
-                      )}
+                      <Badge variant="outline">
+                        {formatLocationCategory(location.locationType)}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       {isImported ? (
@@ -228,4 +226,8 @@ export function ImportLocationList() {
       )}
     </div>
   );
+}
+
+function formatLocationCategory(locationType: string) {
+  return locationType.charAt(0).toUpperCase() + locationType.slice(1);
 }

@@ -32,13 +32,19 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const coordinateSchema = z
   .string()
@@ -47,12 +53,18 @@ const coordinateSchema = z
     message: "Enter a valid number",
   });
 
+const locationTypeOptions = [
+  { value: "airport", label: "Airport" },
+  { value: "hotel", label: "Hotel" },
+  { value: "other", label: "Other" },
+];
+
 const formSchema = z.object({
   name: z.string().min(1, "Location name is required").max(200),
   address: z.string().min(1, "Address is required"),
   latitude: coordinateSchema,
   longitude: coordinateSchema,
-  isAirportLocation: z.boolean(),
+  locationType: z.enum(["airport", "hotel", "other"]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -78,7 +90,7 @@ export function AddLocationForm() {
       address: "",
       latitude: DEFAULT_CENTER.lat.toFixed(6),
       longitude: DEFAULT_CENTER.lng.toFixed(6),
-      isAirportLocation: false,
+      locationType: "airport",
     },
   });
 
@@ -180,7 +192,7 @@ export function AddLocationForm() {
         address: values.address.trim(),
         latitude: parseFloat(values.latitude),
         longitude: parseFloat(values.longitude),
-        isAirportLocation: values.isAirportLocation,
+        locationType: values.locationType,
       });
       router.push("/super-admin/locations");
     } catch (error: any) {
@@ -228,26 +240,24 @@ export function AddLocationForm() {
 
           <FormField
             control={form.control}
-            name="isAirportLocation"
+            name="locationType"
             render={({ field }) => (
-              <FormItem className="flex flex-col gap-2 rounded-md border p-4">
-                <div className="flex items-center gap-3">
+              <FormItem>
+                <FormLabel>Location type</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      id="airport-location"
-                    />
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select location type" />
+                    </SelectTrigger>
                   </FormControl>
-                  <div>
-                    <FormLabel htmlFor="airport-location" className="text-base">
-                      Airport location
-                    </FormLabel>
-                    <p className="text-xs text-muted-foreground">
-                      Enables airport-specific filters and routing.
-                    </p>
-                  </div>
-                </div>
+                  <SelectContent>
+                    {locationTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

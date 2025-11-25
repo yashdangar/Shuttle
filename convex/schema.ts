@@ -47,23 +47,23 @@ export default defineSchema({
     latitude: v.float64(),
     longitude: v.float64(),
     address: v.string(),
-    locationType: v.union(v.literal("public"), v.literal("private")), //private always if superadmin creates the location then it will be private , otherwise if admin creates the location then it will be private and if hotel creates the location then it will be public
-    isAirportLocation: v.boolean(),
+    locationPrivacy: v.union(v.literal("public"), v.literal("private")), //private always if superadmin creates the location then it will be private , otherwise if admin creates the location then it will be private and if hotel creates the location then it will be public
+    locationType: v.union(v.literal("airport"), v.literal("hotel"), v.literal("other")), // airport means it is an airport location , hotel means it is a hotel location , other means it is a other location
     hotelId: v.optional(v.id("hotels")), // if hotel Id is present that means this location is asscoitaed with that hotel , then check the type for more detail
     clonedFromLocationId: v.optional(v.id("locations")), // if clonedFromLocationId is present that means this location is cloned from that location , then check the type for more detail , this will help to get the original location details which are not cloned yet and show what to list in UI
 
     createdByUserId: v.id("users"),
   })
     .index("by_hotel", ["hotelId"])
-    .index("by_airport_location", ["isAirportLocation"])
-    .index("by_location_type", ["locationType"]),
+    .index("by_location_type", ["locationType"])
+    .index("by_location_privacy", ["locationPrivacy"]),
 
   shuttles: defineTable({
     hotelId: v.id("hotels"),
     vehicleNumber: v.string(),
     totalSeats: v.int64(),
     isActive: v.boolean(),
-  })
+  }) 
     .index("by_hotel", ["hotelId"])
     .index("by_vehicle", ["vehicleNumber"])
     .index("by_active", ["isActive"]),

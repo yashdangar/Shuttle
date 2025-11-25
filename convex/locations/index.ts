@@ -9,8 +9,8 @@ export type LocationRecord = {
   address: string;
   latitude: number;
   longitude: number;
-  locationType: "public" | "private";
-  isAirportLocation: boolean;
+  locationPrivacy: "public" | "private";
+  locationType: "airport" | "hotel" | "other";
   createdByUserId: Id<"users">;
   createdAt: number;
   hotelId?: Id<"hotels">;
@@ -23,8 +23,8 @@ const formatLocation = (doc: Doc<"locations">): LocationRecord => ({
   address: doc.address,
   latitude: doc.latitude,
   longitude: doc.longitude,
+  locationPrivacy: doc.locationPrivacy,
   locationType: doc.locationType,
-  isAirportLocation: doc.isAirportLocation,
   createdByUserId: doc.createdByUserId,
   createdAt: doc._creationTime,
   hotelId: doc.hotelId,
@@ -42,7 +42,8 @@ export const listLocations = query({
     const allLocations = await ctx.db.query("locations").collect();
 
     const publicLocations = allLocations.filter(
-      (loc) => loc.hotelId === undefined && loc.locationType === "public"
+      (loc) =>
+        loc.hotelId === undefined && loc.locationPrivacy === "public"
     );
 
     const sortedLocations = publicLocations.sort(
@@ -82,7 +83,11 @@ export const createLocation = action({
     address: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
-    isAirportLocation: v.boolean(),
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
     const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
@@ -104,8 +109,8 @@ export const createLocation = action({
         address: args.address.trim(),
         latitude: args.latitude,
         longitude: args.longitude,
-        locationType: "public",
-        isAirportLocation: args.isAirportLocation,
+        locationPrivacy: "public",
+        locationType: args.locationType,
         createdByUserId: args.currentUserId,
         hotelId: undefined,
         clonedFromLocationId: undefined,
@@ -132,7 +137,11 @@ export const updateLocation = action({
     address: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
-    isAirportLocation: v.boolean(),
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
     const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
@@ -161,7 +170,7 @@ export const updateLocation = action({
       address: args.address.trim(),
       latitude: args.latitude,
       longitude: args.longitude,
-      isAirportLocation: args.isAirportLocation,
+      locationType: args.locationType,
     });
 
     const updated = await ctx.runQuery(api.locations.index.getLocationById, {
@@ -216,8 +225,12 @@ export const createLocationInternal = internalMutation({
     address: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
-    locationType: v.union(v.literal("public"), v.literal("private")),
-    isAirportLocation: v.boolean(),
+    locationPrivacy: v.union(v.literal("public"), v.literal("private")),
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ),
     createdByUserId: v.id("users"),
     hotelId: v.optional(v.id("hotels")),
     clonedFromLocationId: v.optional(v.id("locations")),
@@ -228,8 +241,8 @@ export const createLocationInternal = internalMutation({
       address: string;
       latitude: number;
       longitude: number;
-      locationType: "public" | "private";
-      isAirportLocation: boolean;
+      locationPrivacy: "public" | "private";
+      locationType: "airport" | "hotel" | "other";
       createdByUserId: Id<"users">;
       hotelId?: Id<"hotels">;
       clonedFromLocationId?: Id<"locations">;
@@ -238,8 +251,8 @@ export const createLocationInternal = internalMutation({
       address: args.address,
       latitude: args.latitude,
       longitude: args.longitude,
+      locationPrivacy: args.locationPrivacy,
       locationType: args.locationType,
-      isAirportLocation: args.isAirportLocation,
       createdByUserId: args.createdByUserId,
     };
 
@@ -262,7 +275,13 @@ export const updateAdminLocationInternal = internalMutation({
     address: v.string(),
     latitude: v.optional(v.float64()),
     longitude: v.optional(v.float64()),
-    isAirportLocation: v.optional(v.boolean()),
+    locationType: v.optional(
+      v.union(
+        v.literal("airport"),
+        v.literal("hotel"),
+        v.literal("other")
+      )
+    ),
   },
   async handler(ctx, args) {
     const updateData: {
@@ -270,7 +289,7 @@ export const updateAdminLocationInternal = internalMutation({
       address: string;
       latitude?: number;
       longitude?: number;
-      isAirportLocation?: boolean;
+      locationType?: "airport" | "hotel" | "other";
     } = {
       name: args.name,
       address: args.address,
@@ -282,8 +301,8 @@ export const updateAdminLocationInternal = internalMutation({
     if (args.longitude !== undefined) {
       updateData.longitude = args.longitude;
     }
-    if (args.isAirportLocation !== undefined) {
-      updateData.isAirportLocation = args.isAirportLocation;
+    if (args.locationType !== undefined) {
+      updateData.locationType = args.locationType;
     }
 
     await ctx.db.patch(args.locationId, updateData);
@@ -297,7 +316,11 @@ export const updateLocationInternal = internalMutation({
     address: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
-    isAirportLocation: v.boolean(),
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ),
   },
   async handler(ctx, args) {
     await ctx.db.patch(args.locationId, {
@@ -305,7 +328,7 @@ export const updateLocationInternal = internalMutation({
       address: args.address,
       latitude: args.latitude,
       longitude: args.longitude,
-      isAirportLocation: args.isAirportLocation,
+      locationType: args.locationType,
     });
   },
 });
@@ -375,7 +398,9 @@ export const listPublicLocations = query({
 
     const allPublicLocations = await ctx.db
       .query("locations")
-      .withIndex("by_location_type", (q) => q.eq("locationType", "public"))
+      .withIndex("by_location_privacy", (q) =>
+        q.eq("locationPrivacy", "public")
+      )
       .collect();
 
     const publicLocations = allPublicLocations.filter(
@@ -471,7 +496,11 @@ export const createAdminLocation = action({
     address: v.string(),
     latitude: v.float64(),
     longitude: v.float64(),
-    isAirportLocation: v.boolean(),
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
     const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
@@ -509,8 +538,8 @@ export const createAdminLocation = action({
         address: args.address.trim(),
         latitude: args.latitude,
         longitude: args.longitude,
-        locationType: "private",
-        isAirportLocation: args.isAirportLocation,
+        locationPrivacy: "private",
+        locationType: args.locationType,
         createdByUserId: args.currentUserId,
         hotelId: hotel.id,
       }
@@ -579,7 +608,7 @@ export const importLocation = action({
       throw new Error("Public location not found");
     }
 
-    if (publicLocation.locationType !== "public") {
+    if (publicLocation.locationPrivacy !== "public") {
       throw new Error("Can only import public locations");
     }
 
@@ -590,8 +619,8 @@ export const importLocation = action({
         address: publicLocation.address,
         latitude: publicLocation.latitude,
         longitude: publicLocation.longitude,
-        locationType: "private",
-        isAirportLocation: publicLocation.isAirportLocation,
+        locationPrivacy: "private",
+        locationType: publicLocation.locationType,
         createdByUserId: args.currentUserId,
         hotelId: hotel.id,
         clonedFromLocationId: args.publicLocationId,
@@ -623,7 +652,13 @@ export const updateAdminLocation = action({
     address: v.string(),
     latitude: v.optional(v.float64()),
     longitude: v.optional(v.float64()),
-    isAirportLocation: v.optional(v.boolean()),
+    locationType: v.optional(
+      v.union(
+        v.literal("airport"),
+        v.literal("hotel"),
+        v.literal("other")
+      )
+    ),
   },
   async handler(ctx, args): Promise<LocationRecord> {
     const currentUser = await ctx.runQuery(api.auth.index.getUserById, {
@@ -678,7 +713,7 @@ export const updateAdminLocation = action({
       if (
         args.latitude === undefined ||
         args.longitude === undefined ||
-        args.isAirportLocation === undefined
+        args.locationType === undefined
       ) {
         throw new Error("All fields are required for private location updates");
       }
@@ -688,7 +723,7 @@ export const updateAdminLocation = action({
         address: args.address.trim(),
         latitude: args.latitude,
         longitude: args.longitude,
-        isAirportLocation: args.isAirportLocation,
+        locationType: args.locationType,
       });
     }
 

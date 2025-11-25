@@ -135,7 +135,7 @@ export function AdminLocationTable() {
 
   const getLocationType = (location: {
     clonedFromLocationId?: Id<"locations">;
-    locationType: "public" | "private";
+    locationPrivacy: "public" | "private";
   }) => {
     if (location.clonedFromLocationId) {
       return "Imported";
@@ -161,7 +161,7 @@ export function AdminLocationTable() {
                 <TableHead>Name</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Airport</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -185,11 +185,9 @@ export function AdminLocationTable() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {location.isAirportLocation ? (
-                      <Badge variant="outline">Yes</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">No</span>
-                    )}
+                    <Badge variant="outline">
+                      {formatLocationCategory(location.locationType)}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatTimestamp(location.createdAt)}
@@ -333,4 +331,8 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 function formatTimestamp(timestamp: number) {
   return dateFormatter.format(new Date(timestamp));
+}
+
+function formatLocationCategory(locationType: string) {
+  return locationType.charAt(0).toUpperCase() + locationType.slice(1);
 }

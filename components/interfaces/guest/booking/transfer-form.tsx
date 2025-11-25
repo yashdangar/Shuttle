@@ -59,8 +59,12 @@ export function TransferForm({
   const fullName = `${form.firstName} ${form.lastName}`.trim();
   const fieldId = (field: string) => `${tabId}-${field}`;
 
-  const airportLocations = locations.filter((loc) => loc.isAirportLocation);
-  const nonAirportLocations = locations.filter((loc) => !loc.isAirportLocation);
+  const airportLocations = locations.filter(
+    (loc) => loc.locationType === "airport"
+  );
+  const nonAirportLocations = locations.filter(
+    (loc) => loc.locationType !== "airport"
+  );
 
   const pickupOptions = [
     ...nonAirportLocations.map((loc) => ({

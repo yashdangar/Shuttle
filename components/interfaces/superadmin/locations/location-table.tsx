@@ -144,8 +144,8 @@ export function LocationTable() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Address</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Airport</TableHead>
+                <TableHead>Privacy</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -160,22 +160,20 @@ export function LocationTable() {
                   <TableCell>
                     <Badge
                       variant={
-                        location.locationType === "public"
+                        location.locationPrivacy === "public"
                           ? "secondary"
                           : "outline"
                       }
                     >
-                      {location.locationType === "public"
+                      {location.locationPrivacy === "public"
                         ? "Public"
                         : "Private"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {location.isAirportLocation ? (
-                      <Badge variant="outline">Yes</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">No</span>
-                    )}
+                    <Badge variant="outline">
+                      {formatLocationCategory(location.locationType)}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatTimestamp(location.createdAt)}
@@ -319,4 +317,8 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 function formatTimestamp(timestamp: number) {
   return dateFormatter.format(new Date(timestamp));
+}
+
+function formatLocationCategory(locationType: string) {
+  return locationType.charAt(0).toUpperCase() + locationType.slice(1);
 }

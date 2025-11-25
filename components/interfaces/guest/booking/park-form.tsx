@@ -66,8 +66,12 @@ export function ParkForm({
   const parkFullName = `${form.firstName} ${form.lastName}`.trim();
   const parkFieldId = (field: string) => `park-${field}`;
 
-  const airportLocations = locations.filter((loc) => loc.isAirportLocation);
-  const nonAirportLocations = locations.filter((loc) => !loc.isAirportLocation);
+  const airportLocations = locations.filter(
+    (loc) => loc.locationType === "airport"
+  );
+  const nonAirportLocations = locations.filter(
+    (loc) => loc.locationType !== "airport"
+  );
 
   const pickupOptions = [
     ...nonAirportLocations.map((loc) => ({
