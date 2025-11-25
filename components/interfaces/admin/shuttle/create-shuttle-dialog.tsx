@@ -28,6 +28,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
   vehicleNumber: z.string().min(1, "Vehicle number is required").max(120),
@@ -35,6 +36,7 @@ const formSchema = z.object({
     .number()
     .int("Seats must be an integer")
     .positive("Seats must be positive"),
+  isActive: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -52,6 +54,7 @@ export function CreateShuttleDialog() {
     defaultValues: {
       vehicleNumber: "",
       totalSeats: 0,
+      isActive: true,
     },
   });
 
@@ -73,6 +76,7 @@ export function CreateShuttleDialog() {
         adminId,
         vehicleNumber: values.vehicleNumber.trim(),
         totalSeats: values.totalSeats,
+        isActive: values.isActive,
       });
       handleCloseDialog();
     } catch (error: any) {
@@ -135,6 +139,26 @@ export function CreateShuttleDialog() {
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Active Status</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Enable or disable this shuttle for use.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

@@ -100,7 +100,7 @@ export function useChat(userId: Id<"users"> | null) {
   );
 
   const loadMoreMessages = useCallback(
-    (chatId: Id<"chats">, cursor: number | null) => {
+    (chatId: Id<"chats">, cursor: string | null) => {
       if (!userId || !cursor) return null;
       return cursor;
     },

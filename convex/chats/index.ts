@@ -15,7 +15,7 @@ export type ChatPreview = {
   }>;
   lastMessage: {
     content: string;
-    timestamp: number;
+    timestamp: string;
     senderId: Id<"users">;
   } | null;
   unreadCount: number;
@@ -34,7 +34,7 @@ export type Message = {
     profilePictureId: Id<"files"> | null;
   };
   content: string;
-  timestamp: number;
+  timestamp: string;
   viewedByUserIds: Id<"users">[];
   viewedBy: Array<{
     id: Id<"users">;
@@ -130,7 +130,9 @@ export const getChatsForUser = query({
       if (!a.lastMessage && !b.lastMessage) return 0;
       if (!a.lastMessage) return 1;
       if (!b.lastMessage) return -1;
-      return b.lastMessage.timestamp - a.lastMessage.timestamp;
+      return (
+        new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
+      )
     });
 
     return chats;
@@ -182,7 +184,7 @@ export const getMessages = query({
     chatId: v.id("chats"),
     userId: v.id("users"),
     limit: v.optional(v.number()),
-    cursor: v.optional(v.number()),
+    cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const chat = await ctx.db.get(args.chatId);
@@ -602,7 +604,7 @@ export const sendMessage = mutation({
       chatId: args.chatId,
       senderId: args.senderId,
       content: args.content.trim(),
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
       viewedByUserIds: [args.senderId],
       attachedFileIds: args.attachedFileIds || [],
     });

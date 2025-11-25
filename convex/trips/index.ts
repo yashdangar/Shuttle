@@ -333,6 +333,11 @@ export const createTrip = action({
       hotelId: hotel.id,
     });
 
+    await ctx.runMutation(internal.hotels.index.addTripToHotelInternal, {
+      hotelId: hotel.id,
+      tripId,
+    });
+
     const tripTimeIds: Id<"tripTimes">[] = [];
 
     for (const slot of utcTripSlots) {
@@ -632,6 +637,11 @@ export const deleteTrip = action({
         tripTimeId,
       });
     }
+
+    await ctx.runMutation(internal.hotels.index.removeTripFromHotelInternal, {
+      hotelId: hotel.id,
+      tripId: args.tripId,
+    });
 
     await ctx.runMutation(internal.trips.index.deleteTripInternal, {
       tripId: args.tripId,
