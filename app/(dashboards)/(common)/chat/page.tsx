@@ -48,7 +48,7 @@ export default function ChatPage() {
     await chat.createChat(participantIds, undefined, chatName);
   };
 
-  const handleLoadMoreMessages = (cursor: number) => {
+  const handleLoadMoreMessages = (cursor: string) => {
     // Cursor is handled by MessageList component
   };
 
