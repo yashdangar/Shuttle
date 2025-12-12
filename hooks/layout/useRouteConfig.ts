@@ -115,6 +115,7 @@ const frontdeskSidebarData: SidebarData = {
   },
   navMain: [
     { title: "Dashboard", url: "/frontdesk", icon: LayoutDashboard },
+    { title: "Bookings", url: "/frontdesk/bookings", icon: CalendarPlus },
     { title: "Drivers", url: "/frontdesk/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/frontdesk/frontdesks", icon: CalendarPlus },
     { title: "Shuttles", url: "/frontdesk/shuttles", icon: MapPin },

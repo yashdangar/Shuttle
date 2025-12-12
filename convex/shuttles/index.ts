@@ -199,15 +199,22 @@ export const updateShuttle = action({
     const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Only administrators can update shuttles");
+    if (!currentUser) {
+      throw new Error("User not found");
     }
 
-    const adminHotel = await ctx.runQuery(api.hotels.index.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const isAdmin = currentUser.role === "admin";
+    const isFrontdesk = currentUser.role === "frontdesk";
+
+    if (!isAdmin && !isFrontdesk) {
+      throw new Error("Only administrators and frontdesk staff can update shuttles");
+    }
+
+    const userHotel = await ctx.runQuery(api.hotels.index.getHotelByUserId, {
+      userId: args.currentUserId,
     });
-    if (!adminHotel) {
-      throw new Error("Admin must have a hotel to update shuttles");
+    if (!userHotel) {
+      throw new Error("You must be assigned to a hotel to update shuttles");
     }
 
     const existing = await ctx.runQuery(api.shuttles.index.getShuttleById, {
@@ -218,7 +225,7 @@ export const updateShuttle = action({
       throw new Error("Shuttle not found");
     }
 
-    if (existing.hotelId !== adminHotel.id) {
+    if (existing.hotelId !== userHotel.id) {
       throw new Error("Shuttle does not belong to your hotel");
     }
 
@@ -290,15 +297,22 @@ export const deleteShuttle = action({
     const currentUser = await ctx.runQuery(api.auth.getUserById, {
       id: args.currentUserId,
     });
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Only administrators can delete shuttles");
+    if (!currentUser) {
+      throw new Error("User not found");
     }
 
-    const adminHotel = await ctx.runQuery(api.hotels.index.getHotelByAdmin, {
-      adminId: args.currentUserId,
+    const isAdmin = currentUser.role === "admin";
+    const isFrontdesk = currentUser.role === "frontdesk";
+
+    if (!isAdmin && !isFrontdesk) {
+      throw new Error("Only administrators and frontdesk staff can delete shuttles");
+    }
+
+    const userHotel = await ctx.runQuery(api.hotels.index.getHotelByUserId, {
+      userId: args.currentUserId,
     });
-    if (!adminHotel) {
-      throw new Error("Admin must have a hotel to delete shuttles");
+    if (!userHotel) {
+      throw new Error("You must be assigned to a hotel to delete shuttles");
     }
 
     const existing = await ctx.runQuery(api.shuttles.index.getShuttleById, {
@@ -309,7 +323,7 @@ export const deleteShuttle = action({
       throw new Error("Shuttle not found");
     }
 
-    if (existing.hotelId !== adminHotel.id) {
+    if (existing.hotelId !== userHotel.id) {
       throw new Error("Shuttle does not belong to your hotel");
     }
 
