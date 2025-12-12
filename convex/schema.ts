@@ -61,6 +61,7 @@ export default defineSchema({
   shuttles: defineTable({
     hotelId: v.id("hotels"),
     vehicleNumber: v.string(),
+    
     totalSeats: v.int64(),
     isActive: v.boolean(),
   }) 
@@ -150,8 +151,8 @@ export default defineSchema({
   // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({
     tripId: v.id("trips"),
-    driverId: v.id("users"),
-    shuttleId: v.id("shuttles"), //total seats in shuttle
+    driverId: v.optional(v.id("users")),
+    shuttleId: v.optional(v.id("shuttles")), //total seats in shuttle
 
     actualStartTime: v.optional(v.string()),
     actualEndTime: v.optional(v.string()),
@@ -167,7 +168,6 @@ export default defineSchema({
     eta_to_destination: v.optional(v.int64()), // in minutes , this will tell the users when the driver is expected to reach the destination , so evrry time we update driver location we will update this eta also , this will be shown in Ui to the users
     eta_to_source: v.optional(v.int64()), // in minutes , this will tell the users when the driver is expected to reach the source , so evrry time we update driver location we will update this eta also , this will be shown in Ui to the users
 
-    seatReservationIds: v.array(v.id("seatReservations")),
   })
     .index("by_trip", ["tripId"])
     .index("by_driver", ["driverId"])
@@ -228,25 +228,6 @@ export default defineSchema({
     uploadedByUserId: v.id("users"),
   }).index("by_uploaded_by", ["uploadedByUserId"]),
 
-  seatReservations: defineTable({
-    shuttleId: v.id("shuttles"),
-    bookingId: v.id("bookings"),
-    numberOfSeats: v.int64(),
-    reservationStartTime: v.string(),
-    reservationEndTime: v.optional(v.string()),
-    status: v.union(
-      v.literal("HELD"),
-      v.literal("CONFIRMED"),
-      v.literal("CANCELLED"),
-      v.literal("EXPIRED")
-    ),
-  })
-    .index("by_shuttle", ["shuttleId"])
-    .index("by_booking", ["bookingId"])
-    .index("by_shuttle_time", [
-      "shuttleId",
-      "reservationStartTime",
-      "reservationEndTime",
-    ])
-    .index("by_time_range", ["reservationStartTime", "reservationEndTime"]),
 });
+
+

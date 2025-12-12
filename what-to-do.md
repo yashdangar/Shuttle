@@ -1,6 +1,6 @@
 Sun - mon -tue 
 
-Dev :   timezone nu shit figure out 
+Dev :   timezone nu shit figure out + /welcome page banavanu che bitch admin mate bicth
 
 yash : 
 Location edit UI 
