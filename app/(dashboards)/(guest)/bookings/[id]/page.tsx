@@ -1,24 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
 import { useParams } from "next/navigation";
-import { FAKE_BOOKINGS } from "@/lib/bookings";
 import {
-  BookingDetail,
+  GuestBookingDetail,
   BookingNotFound,
-} from "@/components/interfaces/guest/bookings/booking-detail";
+} from "@/components/interfaces/guest/bookings/guest-booking-detail";
 
 export default function BookingDetailPage() {
   const params = useParams<{ id?: string }>();
-  const booking = useMemo(
-    () => FAKE_BOOKINGS.find((item) => item.id === params?.id),
-    [params?.id],
-  );
 
-  if (!booking) {
+  if (!params?.id) {
     return <BookingNotFound />;
   }
 
-  return <BookingDetail booking={booking} />;
+  return <GuestBookingDetail bookingId={params.id} />;
 }
-

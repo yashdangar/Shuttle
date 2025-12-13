@@ -38,8 +38,8 @@ export default defineSchema({
     shuttleIds: v.array(v.id("shuttles")),
     userIds: v.array(v.id("users")), //driver , frontdesk , admin
     locationIds: v.array(v.id("locations")), // private and public locations and hotel location itself too
-    bookingIds : v.array(v.id("bookings")),
-    tripIds : v.array(v.id("trips")),
+    bookingIds: v.array(v.id("bookings")),
+    tripIds: v.array(v.id("trips")),
   }).index("by_slug", ["slug"]),
 
   locations: defineTable({
@@ -48,7 +48,11 @@ export default defineSchema({
     longitude: v.float64(),
     address: v.string(),
     locationPrivacy: v.union(v.literal("public"), v.literal("private")), //private always if superadmin creates the location then it will be private , otherwise if admin creates the location then it will be private and if hotel creates the location then it will be public
-    locationType: v.union(v.literal("airport"), v.literal("hotel"), v.literal("other")), // airport means it is an airport location , hotel means it is a hotel location , other means it is a other location
+    locationType: v.union(
+      v.literal("airport"),
+      v.literal("hotel"),
+      v.literal("other")
+    ), // airport means it is an airport location , hotel means it is a hotel location , other means it is a other location
     hotelId: v.optional(v.id("hotels")), // if hotel Id is present that means this location is asscoitaed with that hotel , then check the type for more detail
     clonedFromLocationId: v.optional(v.id("locations")), // if clonedFromLocationId is present that means this location is cloned from that location , then check the type for more detail , this will help to get the original location details which are not cloned yet and show what to list in UI
 
@@ -61,20 +65,21 @@ export default defineSchema({
   shuttles: defineTable({
     hotelId: v.id("hotels"),
     vehicleNumber: v.string(),
-    
     totalSeats: v.int64(),
     isActive: v.boolean(),
-  }) 
+    currentlyAssignedTo: v.optional(v.id("users")),
+  })
     .index("by_hotel", ["hotelId"])
     .index("by_vehicle", ["vehicleNumber"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_hotel_active", ["hotelId", "isActive"]),
 
   bookings: defineTable({
     guestId: v.id("users"),
     seats: v.int64(),
     bags: v.int64(),
     hotelId: v.id("hotels"),
-    name: v.optional(v.string()), // name can be written like when guest itself is not going but is booking from someone else's id , so name will be of that person who is booking for the guest
+    name: v.optional(v.string()),
     confirmationNum: v.optional(v.string()),
     notes: v.string(),
     isParkSleepFly: v.boolean(),
@@ -105,17 +110,18 @@ export default defineSchema({
 
     tripInstanceId: v.optional(v.id("tripInstances")), // who is driver , which shuttle it is , where to where info allw ill be there here
 
-    // Frontdesk verification fields
-    verifiedAt: v.string(),
-    verifiedBy: v.id("users"),
+    verifiedAt: v.optional(v.string()),
+    verifiedBy: v.optional(v.id("users")),
 
-    cancellationReason: v.string(),
-    cancelledBy: v.union(
-      v.literal("GUEST"),
-      v.literal("DRIVER"),
-      v.literal("FRONTDESK"),
-      v.literal("ADMIN"),
-      v.literal("AUTO_CANCEL") // auto cancel after x minutes of booking time if not verified by anyone means verifiedAt is null
+    cancellationReason: v.optional(v.string()),
+    cancelledBy: v.optional(
+      v.union(
+        v.literal("GUEST"),
+        v.literal("DRIVER"),
+        v.literal("FRONTDESK"),
+        v.literal("ADMIN"),
+        v.literal("AUTO_CANCEL") // auto cancel after x minutes of booking time if not verified by anyone means verifiedAt is null
+      )
     ),
 
     waivedAt: v.optional(v.string()),
@@ -126,7 +132,8 @@ export default defineSchema({
     .index("by_status", ["bookingStatus"])
     .index("by_payment", ["paymentStatus"])
     .index("by_trip_instance", ["tripInstanceId"])
-    .index("by_confirmation", ["confirmationNum"]),
+    .index("by_confirmation", ["confirmationNum"])
+    .index("by_hotel_status", ["hotelId", "bookingStatus"]),
 
   trips: defineTable({
     name: v.string(),
@@ -148,37 +155,59 @@ export default defineSchema({
     .index("by_trip", ["tripId"])
     .index("by_trip_time", ["tripId", "startTime", "endTime"]),
 
-  // Trip instance will be created only for the first booking of that time , and then it will be updated with the booking id
   tripInstances: defineTable({
     tripId: v.id("trips"),
-    driverId: v.optional(v.id("users")),
-    shuttleId: v.optional(v.id("shuttles")), //total seats in shuttle
+    shuttleId: v.optional(v.id("shuttles")), // Driver is obtained from shuttle.currentlyAssignedTo
+
+    scheduledDate: v.string(), // UTC date string YYYY-MM-DD
+    scheduledStartTime: v.string(),
+    scheduledEndTime: v.string(),
+    status: v.union(
+      v.literal("SCHEDULED"),
+      v.literal("IN_PROGRESS"),
+      v.literal("COMPLETED"),
+      v.literal("CANCELLED")
+    ),
 
     actualStartTime: v.optional(v.string()),
     actualEndTime: v.optional(v.string()),
 
     seatsOccupied: v.int64(),
-    seatHeld: v.int64(), // when someone does booking then the setas are held until frontdsk confirms the booking , and this held means total - occupied should always be lesser than held seat , and how many setas to be hold should be decided by the booking Id , emans we have to check the booking seats how many are there to be held
+    seatHeld: v.int64(),
 
-    bookingIds: v.array(v.id("bookings")), // Array of booking ids which are associated with this trip instance
+    bookingIds: v.array(v.id("bookings")),
 
-    // This below 2 things will be updated every 2-3 minutes by google api calls which will automatically reflect in UI
     driverCurrentLatitude: v.optional(v.float64()),
     driverCurrentLongitude: v.optional(v.float64()),
-    eta_to_destination: v.optional(v.int64()), // in minutes , this will tell the users when the driver is expected to reach the destination , so evrry time we update driver location we will update this eta also , this will be shown in Ui to the users
-    eta_to_source: v.optional(v.int64()), // in minutes , this will tell the users when the driver is expected to reach the source , so evrry time we update driver location we will update this eta also , this will be shown in Ui to the users
-
+    eta_to_destination: v.optional(v.int64()),
+    eta_to_source: v.optional(v.int64()),
   })
     .index("by_trip", ["tripId"])
-    .index("by_driver", ["driverId"])
     .index("by_shuttle", ["shuttleId"])
-    .index("by_actual_start_time", ["actualStartTime"]),
+    .index("by_actual_start_time", ["actualStartTime"])
+    .index("by_trip_date_time", [
+      "tripId",
+      "scheduledDate",
+      "scheduledStartTime",
+    ])
+    .index("by_shuttle_date", ["shuttleId", "scheduledDate"])
+    .index("by_date", ["scheduledDate"]),
 
   notifications: defineTable({
     title: v.string(),
     message: v.string(),
     isRead: v.boolean(),
     userId: v.id("users"),
+    type: v.optional(
+      v.union(
+        v.literal("NEW_BOOKING"),
+        v.literal("BOOKING_FAILED"),
+        v.literal("BOOKING_CONFIRMED"),
+        v.literal("BOOKING_REJECTED"),
+        v.literal("GENERAL")
+      )
+    ),
+    relatedBookingId: v.optional(v.id("bookings")),
   })
     .index("by_user", ["userId"])
     .index("by_read_status", ["userId", "isRead"]),
@@ -227,7 +256,4 @@ export default defineSchema({
     uiName: v.string(), //Original file name
     uploadedByUserId: v.id("users"),
   }).index("by_uploaded_by", ["uploadedByUserId"]),
-
 });
-
-

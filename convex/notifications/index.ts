@@ -1,4 +1,4 @@
-import { mutation, query } from "../_generated/server";
+import { mutation, query, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 
@@ -114,5 +114,40 @@ export const clearAllNotifications = mutation({
     }
 
     return { cleared: notifications.length };
+  },
+});
+
+export const createNotification = internalMutation({
+  args: {
+    userId: v.id("users"),
+    title: v.string(),
+    message: v.string(),
+    type: v.union(
+      v.literal("NEW_BOOKING"),
+      v.literal("BOOKING_FAILED"),
+      v.literal("BOOKING_CONFIRMED"),
+      v.literal("BOOKING_REJECTED"),
+      v.literal("GENERAL")
+    ),
+    relatedBookingId: v.optional(v.id("bookings")),
+  },
+  async handler(ctx, args) {
+    const notificationId = await ctx.db.insert("notifications", {
+      userId: args.userId,
+      title: args.title,
+      message: args.message,
+      isRead: false,
+      type: args.type,
+      relatedBookingId: args.relatedBookingId,
+    });
+
+    const user = await ctx.db.get(args.userId);
+    if (user) {
+      await ctx.db.patch(args.userId, {
+        notificationIds: [...user.notificationIds, notificationId],
+      });
+    }
+
+    return notificationId;
   },
 });

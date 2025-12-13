@@ -1,3 +1,13 @@
+"use client";
+
+import { DriverShuttleSelection } from "@/components/interfaces/driver";
+
 export default function DriverPage() {
-    return <div>DriverPage</div>;
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <DriverShuttleSelection />
+      </div>
+    </div>
+  );
 }
