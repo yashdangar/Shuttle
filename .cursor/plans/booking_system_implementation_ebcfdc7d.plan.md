@@ -602,3 +602,71 @@ convex/
 5. **Driver re-assignment:** Allow updating driverId on tripInstance and shuttle.currentlyAssignedTo if needed
 6. **TripInstance with no confirmed bookings:** If all bookings rejected, tripInstance can remain with 0 seats (cleanup optional)
 7. **Failed booking with no shuttle:** TripInstance created with shuttleId: undefined, booking status REJECTED with AUTO_CANCEL
+
+File chnaged till now :
+
+8. /Documents/Code/shuttle-2 % git diff --name-only f79f49987855e502a4bfd01d469e468c410fc298^!
+9. .cursor/plans/booking_system_implementation_ebcfdc7d.plan.md
+10. .cursor/worktrees.json
+11. app/(dashboards)/(guest)/bookings/[id]/page.tsx
+12. app/(dashboards)/(guest)/bookings/page.tsx
+13. app/(dashboards)/(guest)/new-booking/[slug]/page.tsx
+14. app/(dashboards)/driver/page.tsx
+15. app/(dashboards)/frontdesk/bookings/[id]/page.tsx
+16. app/api/bookings/[id]/route.ts
+17. app/api/bookings/cancel/route.ts
+18. app/api/bookings/confirm/route.ts
+19. app/api/bookings/create/route.ts
+20. app/api/bookings/guest/route.ts
+21. app/api/bookings/hotel/route.ts
+22. app/api/bookings/pending/route.ts
+23. app/api/bookings/reject/route.ts
+24. app/api/dev-db-reset/route.ts
+25. components/interfaces/driver/index.ts
+26. components/interfaces/driver/shuttle-selection.tsx
+27. components/interfaces/frontdesk/bookings/bookings-list.tsx
+28. components/interfaces/guest/booking/submit-bar.tsx
+29. components/interfaces/guest/bookings/guest-booking-detail.tsx
+30. components/interfaces/guest/bookings/guest-bookings-list.tsx
+31. convex/_generated/api.d.ts
+32. convex/bookings/index.ts
+33. convex/lib/tripTimeUtils.ts
+34. convex/lib/types.ts
+35. convex/notifications/index.ts
+36. convex/schema.ts
+37. convex/shuttles/mutations.ts
+38. :...skipping...
+39. .cursor/plans/booking_system_implementation_ebcfdc7d.plan.md
+40. .cursor/worktrees.json
+41. app/(dashboards)/(guest)/bookings/[id]/page.tsx
+42. app/(dashboards)/(guest)/bookings/page.tsx
+43. app/(dashboards)/(guest)/new-booking/[slug]/page.tsx
+44. app/(dashboards)/driver/page.tsx
+45. app/(dashboards)/frontdesk/bookings/[id]/page.tsx
+46. app/api/bookings/[id]/route.ts
+47. app/api/bookings/cancel/route.ts
+48. app/api/bookings/confirm/route.ts
+49. app/api/bookings/create/route.ts
+50. app/api/bookings/guest/route.ts
+51. app/api/bookings/hotel/route.ts
+52. app/api/bookings/pending/route.ts
+53. app/api/bookings/reject/route.ts
+54. app/api/dev-db-reset/route.ts
+55. components/interfaces/driver/index.ts
+56. components/interfaces/driver/shuttle-selection.tsx
+57. components/interfaces/frontdesk/bookings/bookings-list.tsx
+58. components/interfaces/guest/booking/submit-bar.tsx
+59. components/interfaces/guest/bookings/guest-booking-detail.tsx
+60. components/interfaces/guest/bookings/guest-bookings-list.tsx
+61. convex/_generated/api.d.ts
+62. convex/bookings/index.ts
+63. convex/lib/tripTimeUtils.ts
+64. convex/lib/types.ts
+65. convex/notifications/index.ts
+66. convex/schema.ts
+67. convex/shuttles/mutations.ts
+68. convex/shuttles/queries.ts
+69. convex/tripInstances/mutations.ts
+70. convex/tripInstances/queries.ts
+71. 
+72. ~/Documents/Code/shuttle-2 %

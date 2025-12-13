@@ -17,6 +17,7 @@ import type * as email_index from "../email/index.js";
 import type * as files_index from "../files/index.js";
 import type * as hotels_index from "../hotels/index.js";
 import type * as http from "../http.js";
+import type * as lib_slotFinder from "../lib/slotFinder.js";
 import type * as lib_tripTimeUtils from "../lib/tripTimeUtils.js";
 import type * as lib_types from "../lib/types.js";
 import type * as locations_index from "../locations/index.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   "files/index": typeof files_index;
   "hotels/index": typeof hotels_index;
   http: typeof http;
+  "lib/slotFinder": typeof lib_slotFinder;
   "lib/tripTimeUtils": typeof lib_tripTimeUtils;
   "lib/types": typeof lib_types;
   "locations/index": typeof locations_index;

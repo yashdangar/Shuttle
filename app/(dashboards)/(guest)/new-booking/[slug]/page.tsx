@@ -119,36 +119,6 @@ function NewBookingContent() {
     return transferForms[activeTab as "hotelToAirport" | "airportToHotel"];
   };
 
-  const findTripTimeSlot = (tripId: Id<"trips">, time: string) => {
-    const trip = trips.find((t) => t.id === tripId);
-    if (!trip || !trip.tripSlots.length) return null;
-
-    const [hours] = time.split(":").map(Number);
-
-    for (const slot of trip.tripSlots) {
-      const slotStartHour = parseInt(
-        slot.startTimeDisplay?.split(":")[0] ?? "0",
-        10
-      );
-      const slotEndHour = parseInt(
-        slot.endTimeDisplay?.split(":")[0] ?? "0",
-        10
-      );
-
-      if (hours >= slotStartHour && hours < slotEndHour) {
-        return {
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-        };
-      }
-    }
-
-    return {
-      startTime: trip.tripSlots[0].startTime,
-      endTime: trip.tripSlots[0].endTime,
-    };
-  };
-
   const validateForm = (
     form: TransferFormData | ParkFormData
   ): string | null => {
@@ -176,15 +146,6 @@ function NewBookingContent() {
       return;
     }
 
-    const timeSlot = findTripTimeSlot(
-      formData.tripId as Id<"trips">,
-      formData.time
-    );
-    if (!timeSlot) {
-      toast.error("Could not find a valid time slot for the selected trip");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -201,8 +162,7 @@ function NewBookingContent() {
           guestId: user.id,
           tripId: formData.tripId,
           scheduledDate: formData.date,
-          scheduledStartTime: timeSlot.startTime,
-          scheduledEndTime: timeSlot.endTime,
+          desiredTime: formData.time, // Send the user's desired time, system will find best slot
           seats: parseInt(formData.seats, 10),
           bags: parseInt(formData.bags || "0", 10),
           hotelId: hotel.id,
@@ -225,7 +185,14 @@ function NewBookingContent() {
       }
 
       if (result.success) {
-        toast.success(result.message || "Booking created successfully!");
+        // Show assigned slot if available
+        if (result.assignedSlot) {
+          toast.success(
+            `Booking created! Assigned to slot: ${result.assignedSlot.startTime} - ${result.assignedSlot.endTime}`
+          );
+        } else {
+          toast.success(result.message || "Booking created successfully!");
+        }
 
         if (activeTab === "parkSleepFly") {
           setParkForm({

@@ -87,6 +87,7 @@ const driverSidebarData: SidebarData = {
   },
   navMain: [
     { title: "Dashboard", url: "/driver", icon: LayoutDashboard },
+    { title: "Trips", url: "/driver/trips", icon: MapPin },
     { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],

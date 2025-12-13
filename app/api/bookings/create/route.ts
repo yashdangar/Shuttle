@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
       guestId,
       tripId,
       scheduledDate,
-      scheduledStartTime,
-      scheduledEndTime,
+      desiredTime, // e.g., "07:45" - the time user wants to travel
       seats,
       bags,
       hotelId,
@@ -33,14 +32,7 @@ export async function POST(request: NextRequest) {
       paymentMethod,
     } = body;
 
-    if (
-      !guestId ||
-      !tripId ||
-      !scheduledDate ||
-      !scheduledStartTime ||
-      !scheduledEndTime ||
-      !hotelId
-    ) {
+    if (!guestId || !tripId || !scheduledDate || !desiredTime || !hotelId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -72,8 +64,7 @@ export async function POST(request: NextRequest) {
       guestId: guestId as Id<"users">,
       tripId: tripId as Id<"trips">,
       scheduledDate,
-      scheduledStartTime,
-      scheduledEndTime,
+      desiredTime,
       seats,
       bags,
       hotelId: hotelId as Id<"hotels">,

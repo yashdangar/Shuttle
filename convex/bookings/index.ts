@@ -1,7 +1,7 @@
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
-import { validateTripTime } from "../lib/tripTimeUtils";
+import { findBestAvailableSlot } from "../lib/slotFinder";
 
 // ============================================
 // PUBLIC MUTATIONS
@@ -12,8 +12,7 @@ export const createBooking: any = mutation({
     guestId: v.id("users"),
     tripId: v.id("trips"),
     scheduledDate: v.string(),
-    scheduledStartTime: v.string(),
-    scheduledEndTime: v.string(),
+    desiredTime: v.string(), // e.g., "07:45" or "1970-01-01T07:45:00.000Z"
     seats: v.number(),
     bags: v.number(),
     hotelId: v.id("hotels"),
@@ -60,37 +59,35 @@ export const createBooking: any = mutation({
       throw new ConvexError("Cannot book for a past date");
     }
 
-    await validateTripTime(
+    // Find the best available slot using the smart slot finder
+    const slotResult = await findBestAvailableSlot(
       ctx,
       args.tripId,
-      args.scheduledStartTime,
-      args.scheduledEndTime
-    );
-
-    const shuttleId = await ctx.runQuery(
-      internal.shuttles.queries.getAvailableShuttle,
-      {
-        hotelId: args.hotelId,
-        scheduledDate: args.scheduledDate,
-        scheduledStartTime: args.scheduledStartTime,
-        scheduledEndTime: args.scheduledEndTime,
-        requiredSeats: args.seats,
-      }
+      args.hotelId,
+      args.scheduledDate,
+      args.desiredTime,
+      args.seats
     );
 
     const totalPrice = trip.charges * args.seats;
 
-    if (shuttleId) {
-      const tripInstanceId = await ctx.runMutation(
-        internal.tripInstances.mutations.getOrCreateTripInstance,
-        {
-          tripId: args.tripId,
-          scheduledDate: args.scheduledDate,
-          scheduledStartTime: args.scheduledStartTime,
-          scheduledEndTime: args.scheduledEndTime,
-          shuttleId,
-        }
-      );
+    if (slotResult.found && slotResult.slot) {
+      const { slot } = slotResult;
+      let tripInstanceId = slot.existingTripInstanceId;
+
+      // Create new TripInstance if one doesn't exist
+      if (!tripInstanceId) {
+        tripInstanceId = await ctx.runMutation(
+          internal.tripInstances.mutations.getOrCreateTripInstance,
+          {
+            tripId: args.tripId,
+            scheduledDate: args.scheduledDate,
+            scheduledStartTime: slot.startTime,
+            scheduledEndTime: slot.endTime,
+            shuttleId: slot.shuttleId,
+          }
+        );
+      }
 
       const bookingId = await ctx.db.insert("bookings", {
         guestId: args.guestId,
@@ -155,18 +152,37 @@ export const createBooking: any = mutation({
         bookingId,
         success: true,
         message: "Booking created successfully. Awaiting confirmation.",
+        assignedSlot: {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        },
       };
     } else {
-      const tripInstanceId = await ctx.runMutation(
-        internal.tripInstances.mutations.getOrCreateTripInstance,
-        {
-          tripId: args.tripId,
-          scheduledDate: args.scheduledDate,
-          scheduledStartTime: args.scheduledStartTime,
-          scheduledEndTime: args.scheduledEndTime,
-          shuttleId: undefined,
+      // No slot available - create rejected booking
+      // We still need to create a tripInstance for record-keeping
+      // Get the first TripTime for this trip to store the booking
+      const tripTimes = [];
+      for (const tripTimeId of trip.tripTimesIds) {
+        const tripTime = await ctx.db.get(tripTimeId);
+        if (tripTime) {
+          tripTimes.push(tripTime);
+          break; // Just need one for record keeping
         }
-      );
+      }
+
+      let tripInstanceId = undefined;
+      if (tripTimes.length > 0) {
+        tripInstanceId = await ctx.runMutation(
+          internal.tripInstances.mutations.getOrCreateTripInstance,
+          {
+            tripId: args.tripId,
+            scheduledDate: args.scheduledDate,
+            scheduledStartTime: tripTimes[0].startTime,
+            scheduledEndTime: tripTimes[0].endTime,
+            shuttleId: undefined,
+          }
+        );
+      }
 
       const bookingId = await ctx.db.insert("bookings", {
         guestId: args.guestId,
@@ -185,7 +201,7 @@ export const createBooking: any = mutation({
         paymentStatus: "UNPAID",
         tripInstanceId,
         cancelledBy: "AUTO_CANCEL",
-        cancellationReason: "No shuttle available",
+        cancellationReason: slotResult.reason || "No shuttle available",
       });
 
       const hotel = await ctx.db.get(args.hotelId);
@@ -198,8 +214,7 @@ export const createBooking: any = mutation({
       await ctx.runMutation(internal.notifications.index.createNotification, {
         userId: args.guestId,
         title: "Booking Failed",
-        message:
-          "Your booking could not be completed. No shuttle available for the selected time slot.",
+        message: `Your booking could not be completed. ${slotResult.reason || "No shuttle available for the selected time slot."}`,
         type: "BOOKING_FAILED",
         relatedBookingId: bookingId,
       });
@@ -215,7 +230,7 @@ export const createBooking: any = mutation({
         await ctx.runMutation(internal.notifications.index.createNotification, {
           userId: frontdesk._id,
           title: "Booking Auto-Rejected",
-          message: `Booking for ${args.seats} seat(s) on ${args.scheduledDate} was auto-rejected due to no shuttle availability`,
+          message: `Booking for ${args.seats} seat(s) on ${args.scheduledDate} was auto-rejected: ${slotResult.reason || "No shuttle availability"}`,
           type: "BOOKING_FAILED",
           relatedBookingId: bookingId,
         });
@@ -224,7 +239,9 @@ export const createBooking: any = mutation({
       return {
         bookingId,
         success: false,
-        message: "No shuttle available for the selected time slot.",
+        message:
+          slotResult.reason ||
+          "No shuttle available for the selected time slot.",
       };
     }
   },
@@ -637,6 +654,44 @@ export const getGuestBookings = query({
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+  },
+});
+
+export const getBookingsByTripInstance = query({
+  args: {
+    tripInstanceId: v.id("tripInstances"),
+  },
+  async handler(ctx, args) {
+    const bookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_trip_instance", (q) =>
+        q.eq("tripInstanceId", args.tripInstanceId)
+      )
+      .collect();
+
+    const results = await Promise.all(
+      bookings.map(async (booking) => {
+        const guest = await ctx.db.get(booking.guestId);
+
+        return {
+          _id: booking._id,
+          guestId: booking.guestId,
+          guestName: booking.name || guest?.name || "Unknown",
+          guestEmail: guest?.email,
+          guestPhone: guest?.phoneNumber,
+          seats: Number(booking.seats),
+          bags: Number(booking.bags),
+          bookingStatus: booking.bookingStatus,
+          paymentStatus: booking.paymentStatus,
+          totalPrice: booking.totalPrice,
+          notes: booking.notes,
+          isParkSleepFly: booking.isParkSleepFly,
+          confirmationNum: booking.confirmationNum,
+        };
+      })
+    );
+
+    return results;
   },
 });
 

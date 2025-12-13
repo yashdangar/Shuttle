@@ -42,6 +42,17 @@ export const getAvailableShuttle = internalQuery({
           instance.scheduledEndTime === args.scheduledEndTime
       );
 
+      // Skip if trip instance exists and is IN_PROGRESS (driver started the trip)
+      // or COMPLETED/CANCELLED - don't assign new bookings to these
+      if (
+        matchingInstance &&
+        (matchingInstance.status === "IN_PROGRESS" ||
+          matchingInstance.status === "COMPLETED" ||
+          matchingInstance.status === "CANCELLED")
+      ) {
+        continue;
+      }
+
       const usedSeats = matchingInstance
         ? Number(matchingInstance.seatsOccupied) +
           Number(matchingInstance.seatHeld)

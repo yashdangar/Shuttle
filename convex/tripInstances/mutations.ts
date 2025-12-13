@@ -1,5 +1,5 @@
-import { internalMutation } from "../_generated/server";
-import { v } from "convex/values";
+import { internalMutation, mutation } from "../_generated/server";
+import { v, ConvexError } from "convex/values";
 
 export const getOrCreateTripInstance = internalMutation({
   args: {
@@ -138,5 +138,132 @@ export const updateTripInstanceStatus = internalMutation({
     }
 
     await ctx.db.patch(args.tripInstanceId, updateData);
+  },
+});
+
+// ============================================
+// PUBLIC MUTATIONS (Driver Actions)
+// ============================================
+
+export const startTripInstance = mutation({
+  args: {
+    driverId: v.id("users"),
+    tripInstanceId: v.id("tripInstances"),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver || driver.role !== "driver") {
+      throw new ConvexError("Only drivers can start trip instances");
+    }
+
+    const tripInstance = await ctx.db.get(args.tripInstanceId);
+    if (!tripInstance) {
+      throw new ConvexError("Trip instance not found");
+    }
+
+    // Verify this driver is assigned to the shuttle
+    if (tripInstance.shuttleId) {
+      const shuttle = await ctx.db.get(tripInstance.shuttleId);
+      if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
+        throw new ConvexError("You are not assigned to this shuttle");
+      }
+    }
+
+    if (tripInstance.status !== "SCHEDULED") {
+      throw new ConvexError(
+        `Cannot start trip. Current status: ${tripInstance.status}`
+      );
+    }
+
+    await ctx.db.patch(args.tripInstanceId, {
+      status: "IN_PROGRESS",
+      actualStartTime: new Date().toISOString(),
+    });
+
+    return { success: true, message: "Trip started successfully" };
+  },
+});
+
+export const completeTripInstance = mutation({
+  args: {
+    driverId: v.id("users"),
+    tripInstanceId: v.id("tripInstances"),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver || driver.role !== "driver") {
+      throw new ConvexError("Only drivers can complete trip instances");
+    }
+
+    const tripInstance = await ctx.db.get(args.tripInstanceId);
+    if (!tripInstance) {
+      throw new ConvexError("Trip instance not found");
+    }
+
+    // Verify this driver is assigned to the shuttle
+    if (tripInstance.shuttleId) {
+      const shuttle = await ctx.db.get(tripInstance.shuttleId);
+      if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
+        throw new ConvexError("You are not assigned to this shuttle");
+      }
+    }
+
+    if (tripInstance.status !== "IN_PROGRESS") {
+      throw new ConvexError(
+        `Cannot complete trip. Current status: ${tripInstance.status}. Trip must be IN_PROGRESS first.`
+      );
+    }
+
+    await ctx.db.patch(args.tripInstanceId, {
+      status: "COMPLETED",
+      actualEndTime: new Date().toISOString(),
+    });
+
+    return { success: true, message: "Trip completed successfully" };
+  },
+});
+
+export const cancelTripInstance = mutation({
+  args: {
+    driverId: v.id("users"),
+    tripInstanceId: v.id("tripInstances"),
+    reason: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver || driver.role !== "driver") {
+      throw new ConvexError("Only drivers can cancel trip instances");
+    }
+
+    const tripInstance = await ctx.db.get(args.tripInstanceId);
+    if (!tripInstance) {
+      throw new ConvexError("Trip instance not found");
+    }
+
+    // Verify this driver is assigned to the shuttle
+    if (tripInstance.shuttleId) {
+      const shuttle = await ctx.db.get(tripInstance.shuttleId);
+      if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
+        throw new ConvexError("You are not assigned to this shuttle");
+      }
+    }
+
+    if (
+      tripInstance.status === "COMPLETED" ||
+      tripInstance.status === "CANCELLED"
+    ) {
+      throw new ConvexError(
+        `Cannot cancel trip. Current status: ${tripInstance.status}`
+      );
+    }
+
+    await ctx.db.patch(args.tripInstanceId, {
+      status: "CANCELLED",
+    });
+
+    // Optionally notify guests about cancellation
+    // TODO: Add notification logic here if needed
+
+    return { success: true, message: "Trip cancelled successfully" };
   },
 });
