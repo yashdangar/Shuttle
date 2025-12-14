@@ -6,7 +6,7 @@ import { HotelCard } from "./hotel-card";
 import type { HotelRecord } from "@/convex/hotels";
 
 type HotelListProps = {
-  hotels: (HotelRecord & { imageUrl?: string | null })[];
+  hotels: (HotelRecord & { imageUrls?: string[] })[];
   selectedHotelSlug: string | null;
   onSelectHotel: (hotelSlug: string) => void;
   searchQuery: string;

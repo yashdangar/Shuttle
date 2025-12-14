@@ -11,15 +11,26 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import type { HotelRecord } from "@/convex/hotels";
 
 type HotelCardProps = {
-  hotel: HotelRecord & { imageUrl?: string | null };
+  hotel: HotelRecord & { imageUrls?: string[] };
   isSelected: boolean;
   onSelect: () => void;
 };
 
 export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
+  const imageUrls = hotel.imageUrls || [];
+  const hasImages = imageUrls.length > 0;
+  const hasMultipleImages = imageUrls.length > 1;
+
   return (
     <motion.div
       whileHover={{ y: -3, scale: 1.01 }}
@@ -35,21 +46,49 @@ export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
         }`}
       >
         <div className="relative aspect-video overflow-hidden">
-          <img
-            src={hotel.imageUrl || "/placeholder.svg?height=320&width=480"}
-            alt={hotel.name}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-            onError={(event) => {
-              const target = event.target as HTMLImageElement;
-              target.src = "/placeholder.svg?height=320&width=480";
-            }}
-          />
+          {hasImages && hasMultipleImages ? (
+            <Carousel className="h-full w-full">
+              <CarouselContent className="h-full">
+                {imageUrls.map((url, index) => (
+                  <CarouselItem key={index} className="h-full pl-0">
+                    <img
+                      src={url}
+                      alt={`${hotel.name} - Image ${index + 1}`}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                      onError={(event) => {
+                        const target = event.target as HTMLImageElement;
+                        target.src = "/placeholder.svg?height=320&width=480";
+                      }}
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white border-gray-200" />
+              <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white border-gray-200" />
+            </Carousel>
+          ) : hasImages ? (
+            <img
+              src={imageUrls[0]}
+              alt={hotel.name}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+              onError={(event) => {
+                const target = event.target as HTMLImageElement;
+                target.src = "/placeholder.svg?height=320&width=480";
+              }}
+            />
+          ) : (
+            <img
+              src="/placeholder.svg?height=320&width=480"
+              alt={hotel.name}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            />
+          )}
           {isSelected && (
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="absolute right-3 top-3 rounded-full bg-white/90 p-1.5 shadow"
+              className="absolute right-3 top-3 rounded-full bg-white/90 p-1.5 shadow z-10"
             >
               <CheckCircle2 className="h-5 w-5 text-violet-600" />
             </motion.div>

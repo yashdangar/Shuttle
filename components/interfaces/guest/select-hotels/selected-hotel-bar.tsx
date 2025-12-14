@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { HotelRecord } from "@/convex/hotels";
 
 type SelectedHotelBarProps = {
-  hotel: HotelRecord & { imageUrl?: string | null };
+  hotel: HotelRecord & { imageUrls?: string[] };
   isSubmitting: boolean;
   onContinue: () => void;
 };
@@ -30,7 +30,7 @@ export function SelectedHotelBar({
             <div className="flex min-w-0 items-center gap-3">
               <div className="h-10 w-16 overflow-hidden rounded-md">
                 <img
-                  src={hotel.imageUrl || "/placeholder.svg?height=80&width=120"}
+                  src={hotel.imageUrls?.[0] || "/placeholder.svg?height=80&width=120"}
                   alt={hotel.name}
                   className="h-full w-full object-cover"
                   onError={(event) => {

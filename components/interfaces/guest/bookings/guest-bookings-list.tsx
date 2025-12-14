@@ -167,7 +167,7 @@ export function GuestBookingsList() {
                   {bookings?.length ?? 0}
                 </span>
               </p>
-              <Link href="/hotels">
+              <Link href="/select-hotel">
                 <Button size="sm" className="rounded-full gap-2">
                   <Plus className="h-4 w-4" />
                   New Booking

@@ -23,13 +23,39 @@ export default function SelectHotelPage() {
   const hotelsData = useQuery(api.hotels.index.listHotels, { limit: 100 });
   const isLoading = hotelsData === undefined;
 
+  const allImageIds = useMemo(() => {
+    if (!hotelsData) return [];
+    return hotelsData.flatMap((hotel) => hotel.imageIds);
+  }, [hotelsData]);
+
+  const allImageUrls = useQuery(
+    api.files.index.getHotelImageUrls,
+    allImageIds.length > 0 ? { fileIds: allImageIds } : "skip"
+  );
+
   const hotelsWithImages = useMemo(() => {
     if (!hotelsData) return [];
+    if (!allImageUrls) {
+      return hotelsData.map((hotel) => ({
+        ...hotel,
+        imageUrls: [] as string[],
+      }));
+    }
+
+    const imageIdToUrl = new Map<string, string | null>();
+    allImageIds.forEach((imageId, index) => {
+      if (index < allImageUrls.length) {
+        imageIdToUrl.set(imageId, allImageUrls[index]);
+      }
+    });
+
     return hotelsData.map((hotel) => ({
       ...hotel,
-      imageUrl: null as string | null,
+      imageUrls: hotel.imageIds
+        .map((id) => imageIdToUrl.get(id))
+        .filter((url): url is string => url !== null && url !== undefined),
     }));
-  }, [hotelsData]);
+  }, [hotelsData, allImageUrls, allImageIds]);
 
   const filteredHotels = useMemo(() => {
     if (!searchQuery.trim()) return hotelsWithImages;
