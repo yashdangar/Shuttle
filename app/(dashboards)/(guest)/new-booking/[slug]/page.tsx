@@ -129,6 +129,12 @@ function NewBookingContent() {
       return "Please enter valid number of seats";
     if (!form.firstName && !form.lastName && !form.confirmationNumber)
       return "Please enter guest name or confirmation number";
+    
+    // Validate that time slot format is correct
+    if (form.time && !form.time.includes("-")) {
+      return "Please select a valid time slot";
+    }
+    
     return null;
   };
 
@@ -153,6 +159,11 @@ function NewBookingContent() {
         `${formData.firstName} ${formData.lastName}`.trim() || undefined;
       const isParkSleepFly = activeTab === "parkSleepFly";
 
+      // Extract start time from slot format (e.g., "05:00-06:00" -> "05:00")
+      const desiredTime = formData.time.includes("-")
+        ? formData.time.split("-")[0].trim()
+        : formData.time;
+
       const response = await fetch("/api/bookings/create", {
         method: "POST",
         headers: {
@@ -162,7 +173,7 @@ function NewBookingContent() {
           guestId: user.id,
           tripId: formData.tripId,
           scheduledDate: formData.date,
-          desiredTime: formData.time, // Send the user's desired time, system will find best slot
+          desiredTime, // Send the start time of the selected slot
           seats: parseInt(formData.seats, 10),
           bags: parseInt(formData.bags || "0", 10),
           hotelId: hotel.id,

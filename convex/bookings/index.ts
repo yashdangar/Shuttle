@@ -60,6 +60,28 @@ export const createBooking = mutation({
       throw new ConvexError("Cannot book for a past date");
     }
 
+    // Validate seats don't exceed any shuttle capacity
+    const shuttles = await ctx.db
+      .query("shuttles")
+      .withIndex("by_hotel_active", (q) =>
+        q.eq("hotelId", args.hotelId).eq("isActive", true)
+      )
+      .collect();
+
+    if (shuttles.length === 0) {
+      throw new ConvexError("No active shuttles available");
+    }
+
+    const maxShuttleCapacity = Math.max(
+      ...shuttles.map((s) => Number(s.totalSeats))
+    );
+
+    if (args.seats > maxShuttleCapacity) {
+      throw new ConvexError(
+        `Cannot book ${args.seats} seats. Maximum shuttle capacity is ${maxShuttleCapacity} seats.`
+      );
+    }
+
     // Find the best available slot using the smart slot finder
     const slotResult = await findBestAvailableSlot(
       ctx,

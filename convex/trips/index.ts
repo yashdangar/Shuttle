@@ -217,7 +217,6 @@ export const listAdminTrips = query({
 export const listHotelTrips = query({
   args: {
     hotelId: v.id("hotels"),
-    filterMinutes: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const trips = await ctx.db
@@ -229,16 +228,7 @@ export const listHotelTrips = query({
       trips.map((trip) => formatTrip(ctx, trip))
     );
 
-    const activeMinutes =
-      typeof args.filterMinutes === "number"
-        ? args.filterMinutes
-        : getCurrentMinutes();
-
-    const filteredTrips = formattedTrips.filter((trip) =>
-      trip.tripSlots.some((slot) => isTimeWithinSlot(slot, activeMinutes))
-    );
-
-    return filteredTrips;
+    return formattedTrips;
   },
 });
 
@@ -252,6 +242,283 @@ export const getTripById = query({
       return null;
     }
     return formatTrip(ctx, trip);
+  },
+});
+
+export const getAvailableSlotsForTrip = query({
+  args: {
+    tripId: v.id("trips"),
+    hotelId: v.id("hotels"),
+    scheduledDate: v.string(),
+    requiredSeats: v.number(),
+  },
+  async handler(ctx, args) {
+    const trip = await ctx.db.get(args.tripId);
+    if (!trip) {
+      return [];
+    }
+
+    // Get all TripTimes for this trip
+    const tripTimes: Doc<"tripTimes">[] = [];
+    for (const tripTimeId of trip.tripTimesIds) {
+      const tripTime = await ctx.db.get(tripTimeId);
+      if (tripTime) {
+        tripTimes.push(tripTime);
+      }
+    }
+
+    if (tripTimes.length === 0) {
+      return [];
+    }
+
+    // Get all active shuttles for this hotel
+    const shuttles = await ctx.db
+      .query("shuttles")
+      .withIndex("by_hotel_active", (q) =>
+        q.eq("hotelId", args.hotelId).eq("isActive", true)
+      )
+      .collect();
+
+    if (shuttles.length === 0) {
+      return [];
+    }
+
+    // Check if any shuttle can accommodate the required seats
+    const maxShuttleCapacity = Math.max(
+      ...shuttles.map((s) => Number(s.totalSeats))
+    );
+
+    if (args.requiredSeats > maxShuttleCapacity) {
+      // No shuttle can accommodate this many seats - return empty array
+      return [];
+    }
+
+    // Parse time string to get hour
+    const parseTimeToHour = (timeStr: string): number => {
+      if (timeStr.includes("T")) {
+        const date = new Date(timeStr);
+        return date.getUTCHours();
+      } else if (timeStr.includes(":")) {
+        const [hours] = timeStr.split(":");
+        return parseInt(hours, 10);
+      }
+      return parseInt(timeStr, 10);
+    };
+
+    // Convert hour to ISO time string
+    const hourToISOTime = (hour: number): string => {
+      const paddedHour = String(hour).padStart(2, "0");
+      return `1970-01-01T${paddedHour}:00:00.000Z`;
+    };
+
+    // Convert ISO time to display format
+    const utcStringToTime = (utcString: string): string => {
+      const date = new Date(utcString);
+      const hours = String(date.getUTCHours()).padStart(2, "0");
+      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+      return `${hours}:${minutes}`;
+    };
+
+    // Check if slot is available
+    const checkSlotAvailability = async (
+      slotStartTime: string,
+      slotEndTime: string
+    ): Promise<boolean> => {
+      for (const shuttle of shuttles) {
+        // First check if shuttle can even accommodate the required seats
+        if (Number(shuttle.totalSeats) < args.requiredSeats) {
+          // This shuttle doesn't have enough total capacity
+          continue;
+        }
+
+        const existingInstances = await ctx.db
+          .query("tripInstances")
+          .withIndex("by_trip_date_time", (q) =>
+            q
+              .eq("tripId", args.tripId)
+              .eq("scheduledDate", args.scheduledDate)
+              .eq("scheduledStartTime", slotStartTime)
+          )
+          .collect();
+
+        const matchingInstance = existingInstances.find(
+          (instance) =>
+            instance.scheduledEndTime === slotEndTime &&
+            instance.shuttleId === shuttle._id
+        );
+
+        if (!matchingInstance) {
+          // No TripInstance exists - slot is available (we already checked total capacity)
+          return true;
+        }
+
+        if (matchingInstance.status !== "SCHEDULED") {
+          // Status is IN_PROGRESS, COMPLETED, or CANCELLED - skip this shuttle
+          continue;
+        }
+
+        // Check seat availability
+        const usedSeats =
+          Number(matchingInstance.seatsOccupied) +
+          Number(matchingInstance.seatHeld);
+        const availableSeats = Number(shuttle.totalSeats) - usedSeats;
+
+        if (availableSeats >= args.requiredSeats) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // Generate all 1-hour slots from tripTimes
+    const allSlots: Array<{
+      startTime: string;
+      endTime: string;
+      startTimeDisplay: string;
+      endTimeDisplay: string;
+    }> = [];
+
+    for (const tripTime of tripTimes) {
+      const startHour = parseTimeToHour(tripTime.startTime);
+      const endHour = parseTimeToHour(tripTime.endTime);
+
+      // Generate 1-hour slots
+      for (let hour = startHour; hour < endHour; hour++) {
+        const slotStartTime = hourToISOTime(hour);
+        const slotEndTime = hourToISOTime(hour + 1);
+        allSlots.push({
+          startTime: slotStartTime,
+          endTime: slotEndTime,
+          startTimeDisplay: utcStringToTime(slotStartTime),
+          endTimeDisplay: utcStringToTime(slotEndTime),
+        });
+      }
+    }
+
+    // Check current time if scheduled date is today
+    const today = new Date().toISOString().split("T")[0];
+    const isToday = args.scheduledDate === today;
+    const currentHour = isToday ? new Date().getHours() : -1;
+
+    // Filter and check availability for each slot
+    const availableSlots = [];
+    for (const slot of allSlots) {
+      const slotHour = parseTimeToHour(slot.startTime);
+
+      // Skip past slots if today (only skip if slot hour is before current hour)
+      // If current time is 5:30, we still want to check the 5-6 slot (slotHour = 5)
+      // The availability check will filter out IN_PROGRESS slots
+      if (isToday && slotHour < currentHour) {
+        continue;
+      }
+
+      // Check if slot is available
+      const isAvailable = await checkSlotAvailability(
+        slot.startTime,
+        slot.endTime
+      );
+
+      if (isAvailable) {
+        availableSlots.push(slot);
+      }
+    }
+
+    return availableSlots;
+  },
+});
+
+export const getMaxShuttleCapacity = query({
+  args: {
+    hotelId: v.id("hotels"),
+  },
+  async handler(ctx, args) {
+    const shuttles = await ctx.db
+      .query("shuttles")
+      .withIndex("by_hotel_active", (q) =>
+        q.eq("hotelId", args.hotelId).eq("isActive", true)
+      )
+      .collect();
+
+    if (shuttles.length === 0) {
+      return { maxCapacity: 0 };
+    }
+
+    const maxCapacity = Math.max(
+      ...shuttles.map((s) => Number(s.totalSeats))
+    );
+
+    return { maxCapacity };
+  },
+});
+
+export const getSlotCapacity = query({
+  args: {
+    tripId: v.id("trips"),
+    hotelId: v.id("hotels"),
+    scheduledDate: v.string(),
+    slotStartTime: v.string(),
+    slotEndTime: v.string(),
+  },
+  async handler(ctx, args) {
+    const trip = await ctx.db.get(args.tripId);
+    if (!trip) {
+      return { maxCapacity: 0, availableCapacity: 0 };
+    }
+
+    // Get all active shuttles for this hotel
+    const shuttles = await ctx.db
+      .query("shuttles")
+      .withIndex("by_hotel_active", (q) =>
+        q.eq("hotelId", args.hotelId).eq("isActive", true)
+      )
+      .collect();
+
+    if (shuttles.length === 0) {
+      return { maxCapacity: 0, availableCapacity: 0 };
+    }
+
+    let maxCapacity = 0;
+    let maxAvailableCapacity = 0;
+
+    for (const shuttle of shuttles) {
+      const totalSeats = Number(shuttle.totalSeats);
+      maxCapacity = Math.max(maxCapacity, totalSeats);
+
+      const existingInstances = await ctx.db
+        .query("tripInstances")
+        .withIndex("by_trip_date_time", (q) =>
+          q
+            .eq("tripId", args.tripId)
+            .eq("scheduledDate", args.scheduledDate)
+            .eq("scheduledStartTime", args.slotStartTime)
+        )
+        .collect();
+
+      const matchingInstance = existingInstances.find(
+        (instance) =>
+          instance.scheduledEndTime === args.slotEndTime &&
+          instance.shuttleId === shuttle._id &&
+          instance.status === "SCHEDULED"
+      );
+
+      if (!matchingInstance) {
+        // No TripInstance exists - full capacity available
+        maxAvailableCapacity = Math.max(maxAvailableCapacity, totalSeats);
+      } else {
+        // Check seat availability
+        const usedSeats =
+          Number(matchingInstance.seatsOccupied) +
+          Number(matchingInstance.seatHeld);
+        const availableSeats = totalSeats - usedSeats;
+        maxAvailableCapacity = Math.max(maxAvailableCapacity, availableSeats);
+      }
+    }
+
+    return {
+      maxCapacity,
+      availableCapacity: maxAvailableCapacity,
+    };
   },
 });
 

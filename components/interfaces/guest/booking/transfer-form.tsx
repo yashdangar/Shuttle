@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -79,11 +79,6 @@ export function TransferForm({
   onChange,
   onPaymentChange,
 }: TransferFormProps) {
-  const timeFilterMinutes = useMemo(
-    () => timeStringToMinutes(form.time),
-    [form.time]
-  );
-
   const locationsData = useQuery(
     api.locations.index.listHotelLocations,
     hotelId ? { hotelId, limit: 100 } : "skip"
@@ -92,15 +87,83 @@ export function TransferForm({
   const isLoadingLocations = hotelId ? locationsData === undefined : false;
   const tripsData = useQuery(
     api.trips.index.listHotelTrips,
-    hotelId
-      ? {
-          hotelId,
-          filterMinutes: timeFilterMinutes ?? undefined,
-        }
-      : "skip"
+    hotelId ? { hotelId } : "skip"
   );
   const trips = tripsData ?? [];
   const isLoadingTrips = hotelId ? tripsData === undefined : false;
+
+  const seatsNumber = useMemo(
+    () => (form.seats ? parseInt(form.seats, 10) : 0),
+    [form.seats]
+  );
+
+  // Get max shuttle capacity for validation
+  const maxCapacityData = useQuery(
+    api.trips.index.getMaxShuttleCapacity,
+    hotelId ? { hotelId } : "skip"
+  );
+  const maxShuttleCapacity = maxCapacityData?.maxCapacity ?? 0;
+
+  const availableSlots = useQuery(
+    api.trips.index.getAvailableSlotsForTrip,
+    form.tripId && hotelId && form.date && seatsNumber > 0
+      ? {
+          tripId: form.tripId,
+          hotelId,
+          scheduledDate: form.date,
+          requiredSeats: seatsNumber,
+        }
+      : "skip"
+  );
+  const slots = availableSlots ?? [];
+  const isLoadingSlots = form.tripId && hotelId && form.date && seatsNumber > 0
+    ? availableSlots === undefined
+    : false;
+
+  // Check if seats exceed max shuttle capacity
+  const seatsExceedMaxCapacity = useMemo(() => {
+    return maxShuttleCapacity > 0 && seatsNumber > maxShuttleCapacity;
+  }, [maxShuttleCapacity, seatsNumber]);
+
+  // Extract slot times from selected time slot (format: "HH:MM-HH:MM")
+  const selectedSlotTimes = useMemo(() => {
+    if (!form.time || !form.time.includes("-")) return null;
+    const [startTimeDisplay, endTimeDisplay] = form.time.split("-").map((t) => t.trim());
+    // Find the slot in availableSlots to get ISO times
+    const slot = availableSlots?.find(
+      (s) => s.startTimeDisplay === startTimeDisplay && s.endTimeDisplay === endTimeDisplay
+    );
+    return slot
+      ? { startTime: slot.startTime, endTime: slot.endTime, startTimeDisplay, endTimeDisplay }
+      : null;
+  }, [form.time, availableSlots]);
+
+  // Get capacity for selected slot
+  const slotCapacity = useQuery(
+    api.trips.index.getSlotCapacity,
+    selectedSlotTimes && form.tripId && hotelId && form.date
+      ? {
+          tripId: form.tripId,
+          hotelId,
+          scheduledDate: form.date,
+          slotStartTime: selectedSlotTimes.startTime,
+          slotEndTime: selectedSlotTimes.endTime,
+        }
+      : "skip"
+  );
+
+  // Check if selected seats exceed capacity
+  const seatsExceedCapacity = useMemo(() => {
+    if (!selectedSlotTimes || !slotCapacity || seatsNumber <= 0) return false;
+    return seatsNumber > slotCapacity.availableCapacity;
+  }, [selectedSlotTimes, slotCapacity, seatsNumber]);
+
+  // Clear time slot when seats exceed capacity
+  useEffect(() => {
+    if (seatsExceedCapacity && form.time) {
+      onChange("time", "");
+    }
+  }, [seatsExceedCapacity, form.time, onChange]);
 
   const fullName = `${form.firstName} ${form.lastName}`.trim();
   const fieldId = (field: string) => `${tabId}-${field}`;
@@ -305,36 +368,62 @@ export function TransferForm({
           </Select>
         </div>
       </div>
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={fieldId("date")}>Pickup date</Label>
-          <Input
-            id={fieldId("date")}
-            type="date"
-            value={form.date}
-            onChange={(event) => onChange("date", event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={fieldId("time")}>Pickup time</Label>
-          <Input
-            id={fieldId("time")}
-            type="time"
-            value={form.time}
-            onChange={(event) => onChange("time", event.target.value)}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor={fieldId("date")}>Pickup date</Label>
+        <Input
+          id={fieldId("date")}
+          type="date"
+          value={form.date}
+          onChange={(event) => {
+            onChange("date", event.target.value);
+            onChange("time", "");
+          }}
+        />
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor={fieldId("seats")}>Seats</Label>
+          <Label htmlFor={fieldId("seats")}>
+            Number of seats <span className="text-muted-foreground text-xs">(required to show available time slots)</span>
+          </Label>
           <Input
             id={fieldId("seats")}
             type="number"
-            min={0}
+            min={1}
             value={form.seats}
-            onChange={(event) => onChange("seats", event.target.value)}
+            onChange={(event) => {
+              onChange("seats", event.target.value);
+              // Clear time slot when seats change to allow re-validation
+              if (form.time) {
+                onChange("time", "");
+              }
+            }}
+            disabled={!form.tripId || !form.date}
           />
+          {!form.tripId && (
+            <p className="text-sm text-muted-foreground">
+              Please select a trip first
+            </p>
+          )}
+          {form.tripId && !form.date && (
+            <p className="text-sm text-muted-foreground">
+              Please select a date first
+            </p>
+          )}
+          {form.tripId && form.date && seatsExceedMaxCapacity && (
+            <p className="text-sm text-destructive">
+              Cannot book {seatsNumber} seats. Maximum shuttle capacity is {maxShuttleCapacity} seat{maxShuttleCapacity !== 1 ? "s" : ""}. Please reduce the number of seats.
+            </p>
+          )}
+          {form.tripId && form.date && !seatsExceedMaxCapacity && seatsExceedCapacity && selectedSlotTimes && slotCapacity && (
+            <p className="text-sm text-destructive">
+              Maximum {slotCapacity.availableCapacity} seat{slotCapacity.availableCapacity !== 1 ? "s" : ""} available for this slot. Please select fewer seats or choose a different time slot.
+            </p>
+          )}
+          {form.tripId && form.date && !seatsExceedMaxCapacity && !seatsExceedCapacity && seatsNumber > 0 && slots.length === 0 && !isLoadingSlots && (
+            <p className="text-sm text-destructive">
+              No time slots available for {seatsNumber} seat{seatsNumber !== 1 ? "s" : ""}. All slots are fully booked. Please try a different date or reduce the number of seats.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor={fieldId("bags")}>Bags</Label>
@@ -347,6 +436,62 @@ export function TransferForm({
           />
         </div>
       </div>
+      {form.tripId && form.date && seatsNumber > 0 && !seatsExceedMaxCapacity && (
+        <div className="space-y-2">
+          <Label htmlFor={fieldId("time")}>Pickup time slot</Label>
+          <Select
+            value={form.time || undefined}
+            onValueChange={(value) => {
+              // Validate that selected seats don't exceed capacity for this slot
+              const [startTimeDisplay, endTimeDisplay] = value.split("-").map((t) => t.trim());
+              const slot = availableSlots?.find(
+                (s) => s.startTimeDisplay === startTimeDisplay && s.endTimeDisplay === endTimeDisplay
+              );
+              
+              if (slot && seatsNumber > 0) {
+                // Check if this slot has enough capacity
+                const slotInList = slots.find(
+                  (s) => s.startTimeDisplay === startTimeDisplay && s.endTimeDisplay === endTimeDisplay
+                );
+                if (!slotInList) {
+                  // Slot not in available list means it doesn't have enough capacity
+                  return;
+                }
+              }
+              
+              onChange("time", value);
+            }}
+            disabled={isLoadingSlots}
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  isLoadingSlots
+                    ? "Loading available slots..."
+                    : slots.length === 0
+                      ? "No slots available"
+                      : "Select time slot"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {slots.map((slot) => (
+                <SelectItem
+                  key={`${slot.startTime}-${slot.endTime}`}
+                  value={`${slot.startTimeDisplay}-${slot.endTimeDisplay}`}
+                >
+                  {slot.startTimeDisplay} - {slot.endTimeDisplay}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {slots.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Showing {slots.length} available slot{slots.length !== 1 ? "s" : ""} for {seatsNumber} seat{seatsNumber !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor={fieldId("notes")}>Notes (optional)</Label>
         <Textarea
