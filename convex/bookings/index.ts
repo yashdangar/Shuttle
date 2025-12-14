@@ -2,12 +2,13 @@ import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import { findBestAvailableSlot } from "../lib/slotFinder";
+import { Id } from "../_generated/dataModel";
 
 // ============================================
 // PUBLIC MUTATIONS
 // ============================================
 
-export const createBooking: any = mutation({
+export const createBooking = mutation({
   args: {
     guestId: v.id("users"),
     tripId: v.id("trips"),
@@ -89,7 +90,7 @@ export const createBooking: any = mutation({
         );
       }
 
-      const bookingId = await ctx.db.insert("bookings", {
+      const bookingId: Id<"bookings"> = await ctx.db.insert("bookings", {
         guestId: args.guestId,
         seats: BigInt(args.seats),
         bags: BigInt(args.bags),
@@ -184,7 +185,7 @@ export const createBooking: any = mutation({
         );
       }
 
-      const bookingId = await ctx.db.insert("bookings", {
+      const bookingId: Id<"bookings"> = await ctx.db.insert("bookings", {
         guestId: args.guestId,
         seats: BigInt(args.seats),
         bags: BigInt(args.bags),

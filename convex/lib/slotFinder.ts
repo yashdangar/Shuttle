@@ -170,7 +170,7 @@ async function checkSlotAvailability(
  * 3. Starting from desired hour, check slots ONE BY ONE
  * 4. If current slot unavailable, check if NEXT CONSECUTIVE hour is covered
  *    - If yes, try next slot
- *    - If no (gap), reject immediately
+ *    - If no (gap), reject immediately means let say right now its 13:00 and the next slot is 14:00 and the shuttle is full then reject the booking means auto cancel the booking but dont even try to look for 15:00 or 16:00 or any other slot.
  */
 export async function findBestAvailableSlot(
   ctx: MutationCtx,
