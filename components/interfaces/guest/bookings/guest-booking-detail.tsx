@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -19,6 +20,7 @@ import {
   Luggage,
   CreditCard,
 } from "lucide-react";
+import QRCode from "qrcode";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 
@@ -48,6 +50,27 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
   const booking = useQuery(api.bookings.index.getBookingById, {
     bookingId: bookingId as Id<"bookings">,
   });
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    const generate = async () => {
+      if (!booking || !booking.qrCodePath) {
+        setQrDataUrl("");
+        return;
+      }
+      try {
+        const dataUrl = await QRCode.toDataURL(booking.qrCodePath, {
+          width: 240,
+          margin: 1,
+          errorCorrectionLevel: "H",
+        });
+        setQrDataUrl(dataUrl);
+      } catch {
+        setQrDataUrl("");
+      }
+    };
+    generate();
+  }, [booking]);
 
   const isLoading = booking === undefined;
 
@@ -227,6 +250,33 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
             )}
           </div>
         </div>
+
+        {booking.qrCodePath && booking.bookingStatus === "CONFIRMED" && (
+          <div className="rounded-2xl border border-border bg-card px-6 py-6 shadow-sm">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Your QR Code
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Show this QR to the driver for check-in.
+            </p>
+            <div className="mt-4 flex flex-col items-center gap-3">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="Booking QR code"
+                  className="h-60 w-60 rounded-lg border border-border bg-white p-2 shadow-sm"
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Unable to render QR code. Please refresh.
+                </p>
+              )}
+              <Badge variant="outline" className="text-xs">
+                Status: {booking.qrCodeStatus || "UNVERIFIED"}
+              </Badge>
+            </div>
+          </div>
+        )}
       </div>
     </PageLayout>
   );

@@ -85,6 +85,10 @@ export default defineSchema({
     isParkSleepFly: v.boolean(),
 
     qrCodePath: v.string(),
+    qrCodeStatus : v.union(
+      v.literal("UNVERIFIED"),
+      v.literal("VERIFIED"),
+    ),
     encryptionKey: v.string(),
 
     totalPrice: v.float64(),
