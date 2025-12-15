@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useChat } from "@/hooks/use-chat";
@@ -35,7 +35,7 @@ const rolePriority: Record<
   guest: 0,
 };
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { user } = useAuthSession();
   const userId = user?.id as Id<"users"> | null;
   const router = useRouter();
@@ -274,5 +274,13 @@ export default function ChatPage() {
         </>
       )}
     </PageLayout>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageContent />
+    </Suspense>
   );
 }
