@@ -34,10 +34,12 @@ import {
   Luggage,
   FileText,
   Play,
+  QrCode,
   CheckCircle,
   XCircle,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { QRScannerModal } from "./qr-scanner-modal";
 
 // Parse ISO time string
 function formatISOTime(isoTimeStr: string): string {
@@ -84,6 +86,7 @@ export function TripInstanceDetail({
   const router = useRouter();
   const { user } = useAuthSession();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     action: "start" | "complete" | "cancel" | null;
@@ -239,6 +242,14 @@ export function TripInstanceDetail({
             {tripDetails?.name || "Trip Instance"}
           </h1>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setQrOpen(true)}
+          className="gap-2"
+        >
+          <QrCode className="h-4 w-4" />
+          Scan QR
+        </Button>
       </div>
 
       {/* Action Buttons Card */}
@@ -438,69 +449,82 @@ export function TripInstanceDetail({
           </Card>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking) => (
-              <Card key={booking._id} className="overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="font-medium truncate">
-                          {booking.guestName || "Guest"}
-                        </span>
+            {bookings.map((booking) => {
+              const verified = (booking as any).qrCodeStatus === "VERIFIED";
+              return (
+                <Card key={booking._id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="font-medium truncate">
+                            {booking.guestName || "Guest"}
+                          </span>
+                        </div>
+
+                        {booking.guestPhone && (
+                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                            <Phone className="h-3.5 w-3.5 shrink-0" />
+                            <a
+                              href={`tel:${booking.guestPhone}`}
+                              className="hover:underline"
+                            >
+                              {booking.guestPhone}
+                            </a>
+                          </div>
+                        )}
+
+                        {booking.notes && (
+                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                            <span className="font-medium">Notes:</span>{" "}
+                            {booking.notes}
+                          </div>
+                        )}
                       </div>
 
-                      {booking.guestPhone && (
-                        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          <a
-                            href={`tel:${booking.guestPhone}`}
-                            className="hover:underline"
-                          >
-                            {booking.guestPhone}
-                          </a>
+                      <div className="flex flex-col items-end gap-1 text-sm">
+                        <Badge
+                          variant={
+                            booking.bookingStatus === "CONFIRMED"
+                              ? "default"
+                              : booking.bookingStatus === "PENDING"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                          className="text-xs"
+                        >
+                          {booking.bookingStatus}
+                        </Badge>
+                        <Badge
+                          variant={verified ? "default" : "secondary"}
+                          className={`text-[11px] ${
+                            verified
+                              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                              : "bg-amber-100 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          {verified ? "Verified" : "Unverified"}
+                        </Badge>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" />
+                            {booking.seats}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Luggage className="h-3.5 w-3.5" />
+                            {booking.bags}
+                          </span>
                         </div>
-                      )}
-
-                      {booking.notes && (
-                        <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
-                          <span className="font-medium">Notes:</span>{" "}
-                          {booking.notes}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1 text-sm">
-                      <Badge
-                        variant={
-                          booking.bookingStatus === "CONFIRMED"
-                            ? "default"
-                            : booking.bookingStatus === "PENDING"
-                              ? "secondary"
-                              : "destructive"
-                        }
-                        className="text-xs"
-                      >
-                        {booking.bookingStatus}
-                      </Badge>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" />
-                          {booking.seats}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Luggage className="h-3.5 w-3.5" />
-                          {booking.bags}
+                        <span className="text-xs text-muted-foreground">
+                          ${booking.totalPrice.toFixed(2)}
                         </span>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        ${booking.totalPrice.toFixed(2)}
-                      </span>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -556,6 +580,16 @@ export function TripInstanceDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QRScannerModal
+        isOpen={qrOpen}
+        onClose={() => setQrOpen(false)}
+        onSuccess={() => {
+          toast.success("Passenger checked in");
+          setQrOpen(false);
+        }}
+        passengerList={bookings}
+      />
     </div>
   );
 }

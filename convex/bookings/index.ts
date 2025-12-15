@@ -1,8 +1,12 @@
+"use strict";
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import { findBestAvailableSlot } from "../lib/slotFinder";
 import { Id } from "../_generated/dataModel";
+
+const generateToken = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 
 // ============================================
 // PUBLIC MUTATIONS
@@ -127,6 +131,7 @@ export const createBooking = mutation({
         totalPrice,
         bookingStatus: "PENDING",
         paymentStatus: "UNPAID",
+        qrCodeStatus: "UNVERIFIED",
         tripInstanceId,
       });
 
@@ -222,6 +227,7 @@ export const createBooking = mutation({
         totalPrice,
         bookingStatus: "REJECTED",
         paymentStatus: "UNPAID",
+        qrCodeStatus: "UNVERIFIED",
         tripInstanceId,
         cancelledBy: "AUTO_CANCEL",
         cancellationReason: slotResult.reason || "No shuttle available",
@@ -302,6 +308,7 @@ export const confirmBooking = mutation({
       bookingStatus: "CONFIRMED",
       verifiedAt: new Date().toISOString(),
       verifiedBy: args.frontdeskUserId,
+      qrCodeStatus: "UNVERIFIED",
     });
 
     await ctx.runMutation(
@@ -321,7 +328,40 @@ export const confirmBooking = mutation({
       relatedBookingId: args.bookingId,
     });
 
-    return { success: true, message: "Booking confirmed successfully" };
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const existingToken = await ctx.db
+      .query("qrVerificationTokens")
+      .withIndex("by_booking", (q) => q.eq("bookingId", args.bookingId))
+      .first();
+
+    if (existingToken) {
+      await ctx.db.patch(existingToken._id, {
+        token,
+        expiresAt,
+        isUsed: false,
+      });
+    } else {
+      await ctx.db.insert("qrVerificationTokens", {
+        token,
+        bookingId: args.bookingId,
+        expiresAt,
+        isUsed: false,
+      });
+    }
+
+    await ctx.db.patch(args.bookingId, {
+      qrCodePath: token,
+      encryptionKey: generateToken(),
+    });
+
+    return {
+      success: true,
+      message: "Booking confirmed successfully",
+      qrPayload: token,
+      expiresAt,
+    };
   },
 });
 
@@ -534,7 +574,9 @@ export const getBookingById = query({
       return null;
     }
 
-    const guest = await ctx.db.get(booking.guestId);
+    const guest = (await ctx.db.get(
+      booking.guestId as Id<"users">
+    )) as any;
     let tripDetails = null;
 
     if (booking.tripInstanceId) {
@@ -565,8 +607,8 @@ export const getBookingById = query({
             const driver = await ctx.db.get(shuttle.currentlyAssignedTo);
             if (driver) {
               driverDetails = {
-                name: driver.name,
-                phoneNumber: driver.phoneNumber,
+                name: (driver as any).name,
+                phoneNumber: (driver as any).phoneNumber,
               };
             }
           }
@@ -605,6 +647,10 @@ export const getBookingById = query({
       bookingStatus: booking.bookingStatus,
       totalPrice: booking.totalPrice,
       verifiedAt: booking.verifiedAt,
+      qrCodePath: booking.qrCodePath,
+      qrCodeStatus: booking.qrCodeStatus,
+      encryptionKey: booking.encryptionKey,
+      verifiedBy: booking.verifiedBy,
       cancellationReason: booking.cancellationReason,
       cancelledBy: booking.cancelledBy,
       createdAt: new Date(booking._creationTime).toISOString(),
@@ -710,6 +756,9 @@ export const getBookingsByTripInstance = query({
           notes: booking.notes,
           isParkSleepFly: booking.isParkSleepFly,
           confirmationNum: booking.confirmationNum,
+          qrCodeStatus: booking.qrCodeStatus,
+          verifiedAt: booking.verifiedAt,
+          verifiedBy: booking.verifiedBy,
         };
       })
     );
@@ -794,5 +843,144 @@ export const getHotelBookings = query({
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+  },
+});
+
+// ===========================================================
+// DRIVER QR VERIFICATION
+// ===========================================================
+
+const ensureDriver = async (ctx: any, driverId: Id<"users">) => {
+  const driver = await ctx.db.get(driverId);
+  if (!driver || driver.role !== "driver") {
+    throw new ConvexError("Driver not found");
+  }
+  return driver;
+};
+
+const loadBookingWithToken = async (ctx: any, token: string) => {
+  const tokenRow = await ctx.db
+    .query("qrVerificationTokens")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
+    .first();
+
+  if (!tokenRow) {
+    throw new ConvexError("Invalid verification token");
+  }
+
+  if (tokenRow.isUsed) {
+    throw new ConvexError("Verification token already used");
+  }
+
+  if (new Date(tokenRow.expiresAt) < new Date()) {
+    throw new ConvexError("Verification token expired");
+  }
+
+  const booking = await ctx.db.get(tokenRow.bookingId);
+  if (!booking) {
+    throw new ConvexError("Booking not found");
+  }
+
+  return { tokenRow, booking };
+};
+
+export const checkQrCode = mutation({
+  args: {
+    driverId: v.id("users"),
+    qrData: v.string(),
+  },
+  async handler(ctx, args) {
+    const driver = await ensureDriver(ctx, args.driverId);
+
+    const token =
+      (() => {
+        try {
+          const parsed = JSON.parse(args.qrData) as {
+            token?: string;
+            expiresAt?: string;
+          };
+          return parsed.token || args.qrData;
+        } catch {
+          return args.qrData;
+        }
+      })() || "";
+
+    if (!token) {
+      throw new ConvexError("Invalid QR data");
+    }
+
+    const { booking } = await loadBookingWithToken(ctx, token);
+
+    if (booking.hotelId !== driver.hotelId) {
+      throw new ConvexError("Driver not authorized for this booking");
+    }
+
+    if (booking.bookingStatus !== "CONFIRMED") {
+      throw new ConvexError("Booking not confirmed");
+    }
+
+    if (booking.qrCodeStatus === "VERIFIED") {
+      throw new ConvexError("Booking already verified");
+    }
+
+    const guest = (await ctx.db.get(
+      booking.guestId as Id<"users">
+    )) as any;
+
+    return {
+      success: true,
+      passenger: {
+        id: booking._id,
+        name: guest?.name ?? "Guest",
+        persons: Number(booking.seats),
+        bags: Number(booking.bags),
+        pickup: "Pickup",
+        dropoff: "Dropoff",
+        paymentMethod: booking.paymentMethod,
+        seatNumber: `A${Math.floor(Math.random() * 20) + 1}`,
+        token,
+      },
+    };
+  },
+});
+
+export const confirmCheckIn = mutation({
+  args: {
+    driverId: v.id("users"),
+    token: v.string(),
+  },
+  async handler(ctx, args) {
+    const driver = await ensureDriver(ctx, args.driverId);
+    const { tokenRow, booking } = await loadBookingWithToken(ctx, args.token);
+
+    if (booking.hotelId !== driver.hotelId) {
+      throw new ConvexError("Driver not authorized for this booking");
+    }
+
+    await ctx.db.patch(tokenRow._id, { isUsed: true });
+    await ctx.db.patch(booking._id, {
+      qrCodeStatus: "VERIFIED",
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: driver._id,
+    });
+
+    const guest = (await ctx.db.get(
+      booking.guestId as Id<"users">
+    )) as any;
+
+    return {
+      success: true,
+      passenger: {
+        id: booking._id,
+        name: guest?.name ?? "Guest",
+        persons: Number(booking.seats),
+        bags: Number(booking.bags),
+        pickup: "Pickup",
+        dropoff: "Dropoff",
+        paymentMethod: booking.paymentMethod,
+        seatNumber: `A${Math.floor(Math.random() * 20) + 1}`,
+        isVerified: true,
+      },
+    };
   },
 });
