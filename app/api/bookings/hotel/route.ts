@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
       | "REJECTED"
       | null;
     const limitParam = searchParams.get("limit");
-    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const cursor = searchParams.get("cursor");
+    const limit = limitParam ? parseInt(limitParam, 10) : 20;
 
     if (!userId) {
       return NextResponse.json(
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       userId: userId as Id<"users">,
       status: status || undefined,
       limit,
+      cursor: cursor || undefined,
     });
 
     return NextResponse.json(bookings);

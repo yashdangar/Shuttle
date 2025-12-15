@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useChat } from "@/hooks/use-chat";
 import { ChatList } from "@/components/chat/chat-list";
@@ -37,12 +38,16 @@ const rolePriority: Record<
 export default function ChatPage() {
   const { user } = useAuthSession();
   const userId = user?.id as Id<"users"> | null;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const chat = useChat(userId);
+  const chatIdFromQuery = searchParams.get("chatId") as Id<"chats"> | null;
 
   const canCreateChat = user?.role !== "guest";
   const hasChattableUsers = (chat.chattableUsers?.length ?? 0) > 0;
@@ -53,6 +58,24 @@ export default function ChatPage() {
       chat.markAsViewed(chat.selectedChatId);
     }
   }, [chat.selectedChatId, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (chatIdFromQuery && chatIdFromQuery !== chat.selectedChatId) {
+      chat.setSelectedChatId(chatIdFromQuery);
+    }
+  }, [chatIdFromQuery, chat.selectedChatId, chat, userId]);
+
+  const updateChatQuery = (chatId: Id<"chats"> | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (chatId) {
+      params.set("chatId", chatId);
+    } else {
+      params.delete("chatId");
+    }
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+  };
 
   const handleSendMessage = async (
     content: string,
@@ -102,6 +125,7 @@ export default function ChatPage() {
   const handleDeleteChat = async () => {
     if (!chat.selectedChatId) return;
     await chat.deleteChat(chat.selectedChatId);
+    updateChatQuery(null);
     setConfirmDeleteOpen(false);
   };
 
@@ -146,6 +170,7 @@ export default function ChatPage() {
             }
             onSelectChat={(chatId) => {
               chat.setSelectedChatId(chatId);
+              updateChatQuery(chatId);
             }}
           />
         </div>

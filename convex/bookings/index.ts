@@ -729,37 +729,44 @@ export const getHotelBookings = query({
       )
     ),
     limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const user = await ctx.db.get(args.userId);
     if (!user || !user.hotelId) {
-      return [];
+      return { page: [], isDone: true, continueCursor: null };
     }
 
     if (!["admin", "frontdesk"].includes(user.role)) {
-      return [];
+      return { page: [], isDone: true, continueCursor: null };
     }
 
-    const pageSize = Math.max(1, Math.min(args.limit ?? 50, 100));
+    const pageSize = Math.max(1, Math.min(args.limit ?? 20, 100));
 
-    let bookings;
+    let bookingsQuery = ctx.db
+      .query("bookings")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", user.hotelId!));
+
     if (args.status) {
-      bookings = await ctx.db
-        .query("bookings")
-        .withIndex("by_hotel_status", (q) =>
-          q.eq("hotelId", user.hotelId!).eq("bookingStatus", args.status!)
-        )
-        .take(pageSize);
-    } else {
-      const allBookings = await ctx.db.query("bookings").collect();
-      bookings = allBookings
-        .filter((b) => b.hotelId === user.hotelId)
-        .slice(0, pageSize);
+      bookingsQuery = bookingsQuery.filter((q) =>
+        q.eq(q.field("bookingStatus"), args.status!)
+      );
     }
+
+    const page = await bookingsQuery
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: pageSize });
 
     const results = await Promise.all(
-      bookings.map(async (booking) => {
+      page.page.map(async (booking) => {
         const guest = await ctx.db.get(booking.guestId);
+        const chat =
+          (
+            await ctx.db
+              .query("chats")
+              .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
+              .collect()
+          )[0] ?? null;
         let tripDetails = null;
 
         if (booking.tripInstanceId) {
@@ -785,14 +792,16 @@ export const getHotelBookings = query({
           paymentStatus: booking.paymentStatus,
           totalPrice: booking.totalPrice,
           createdAt: new Date(booking._creationTime).toISOString(),
+          chatId: chat?._id ?? null,
           tripDetails,
         };
       })
     );
 
-    return results.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return {
+      page: results,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
   },
 });
