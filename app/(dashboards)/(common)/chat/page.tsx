@@ -9,9 +9,30 @@ import { MessageInput } from "@/components/chat/message-input";
 import { NewChatModal } from "@/components/chat/new-chat-modal";
 import { GroupManagementModal } from "@/components/chat/group-management-modal";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PlusIcon, Users, Settings } from "lucide-react";
 import PageLayout from "@/components/layout/page-layout";
 import type { Id } from "@/convex/_generated/dataModel";
+
+const rolePriority: Record<
+  "admin" | "frontdesk" | "driver" | "superadmin" | "guest",
+  number
+> = {
+  superadmin: 4,
+  admin: 3,
+  frontdesk: 2,
+  driver: 1,
+  guest: 0,
+};
 
 export default function ChatPage() {
   const { user } = useAuthSession();
@@ -19,6 +40,7 @@ export default function ChatPage() {
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const chat = useChat(userId);
 
@@ -50,6 +72,37 @@ export default function ChatPage() {
 
   const handleLoadMoreMessages = (cursor: string) => {
     // Cursor is handled by MessageList component
+  };
+
+  const canDeleteChat =
+    !!chat.selectedChat &&
+    !!user &&
+    chat.selectedChat.participants.some(
+      (p: { id: Id<"users"> }) => p.id === userId
+    ) &&
+    (() => {
+      const highest = chat.selectedChat!.participants.reduce(
+        (
+          acc: { role: string; score: number },
+          p: { role: keyof typeof rolePriority }
+        ) => {
+          const score = rolePriority[p.role];
+          if (score > acc.score) {
+            return { role: p.role, score };
+          }
+          return acc;
+        },
+        { role: "guest", score: -1 }
+      );
+      return (
+        rolePriority[user.role as keyof typeof rolePriority] === highest.score
+      );
+    })();
+
+  const handleDeleteChat = async () => {
+    if (!chat.selectedChatId) return;
+    await chat.deleteChat(chat.selectedChatId);
+    setConfirmDeleteOpen(false);
   };
 
   return (
@@ -108,16 +161,27 @@ export default function ChatPage() {
                         .map((p: { name: string }) => p.name)
                         .join(", ") || "Chat"}
                 </h3>
-                {chat.selectedChat?.isGroupChat && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setGroupManagementOpen(true)}
-                    title="Manage group"
-                  >
-                    <Settings className="size-4" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {chat.selectedChat?.isGroupChat && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setGroupManagementOpen(true)}
+                      title="Manage group"
+                    >
+                      <Settings className="size-4" />
+                    </Button>
+                  )}
+                  {canDeleteChat && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setConfirmDeleteOpen(true)}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </div>
               <MessageList
                 chatId={chat.selectedChatId}
@@ -162,6 +226,26 @@ export default function ChatPage() {
               currentUserId={userId}
             />
           )}
+          <AlertDialog
+            open={confirmDeleteOpen}
+            onOpenChange={setConfirmDeleteOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the chat and all messages for all
+                  participants.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteChat}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </PageLayout>

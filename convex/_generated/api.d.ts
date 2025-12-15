@@ -12,6 +12,7 @@ import type * as admins_index from "../admins/index.js";
 import type * as auth from "../auth.js";
 import type * as bookings_index from "../bookings/index.js";
 import type * as chats_index from "../chats/index.js";
+import type * as cron from "../cron.js";
 import type * as email_emailTemplates from "../email/emailTemplates.js";
 import type * as email_index from "../email/index.js";
 import type * as files_index from "../files/index.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "bookings/index": typeof bookings_index;
   "chats/index": typeof chats_index;
+  cron: typeof cron;
   "email/emailTemplates": typeof email_emailTemplates;
   "email/index": typeof email_index;
   "files/index": typeof files_index;

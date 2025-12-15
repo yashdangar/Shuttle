@@ -35,11 +35,16 @@ export function useChat(userId: Id<"users"> | null) {
 
   const createChatMutation = useMutation(api.chats.index.createChat);
   const sendMessageMutation = useMutation(api.chats.index.sendMessage);
-  const markAsViewedMutation = useMutation(api.chats.index.markMessagesAsViewed);
-  const addParticipantsMutation = useMutation(api.chats.index.addParticipantsToGroup);
+  const markAsViewedMutation = useMutation(
+    api.chats.index.markMessagesAsViewed
+  );
+  const addParticipantsMutation = useMutation(
+    api.chats.index.addParticipantsToGroup
+  );
   const removeParticipantMutation = useMutation(
     api.chats.index.removeParticipantFromGroup
   );
+  const deleteChatMutation = useMutation(api.chats.index.deleteChat);
   const generateUploadUrl = useMutation(api.files.index.generateUploadUrl);
   const uploadChatFile = useMutation(api.files.index.uploadChatFile);
 
@@ -175,6 +180,15 @@ export function useChat(userId: Id<"users"> | null) {
     [userId, removeParticipantMutation]
   );
 
+  const deleteChat = useCallback(
+    async (chatId: Id<"chats">): Promise<void> => {
+      if (!userId) return;
+      await deleteChatMutation({ chatId, userId });
+      setSelectedChatId(null);
+    },
+    [userId, deleteChatMutation]
+  );
+
   return {
     chats: chats ?? [],
     selectedChatId,
@@ -191,6 +205,7 @@ export function useChat(userId: Id<"users"> | null) {
     markAsViewed,
     addParticipants,
     removeParticipant,
+    deleteChat,
     uploadingFiles,
     setUploadingFiles,
   };
