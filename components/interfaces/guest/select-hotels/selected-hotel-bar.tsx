@@ -25,12 +25,15 @@ export function SelectedHotelBar({
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto mb-4 w-full max-w-5xl px-4"
       >
-        <div className="pointer-events-auto rounded-2xl bg-white/90 p-3 shadow-xl ring-1 ring-black/5 backdrop-blur supports-backdrop-filter:bg-white/70">
+        <div className="pointer-events-auto rounded-2xl bg-card/90 p-3 shadow-xl ring-1 ring-border backdrop-blur supports-backdrop-filter:bg-card/70">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <div className="h-10 w-16 overflow-hidden rounded-md">
                 <img
-                  src={hotel.imageUrls?.[0] || "/placeholder.svg?height=80&width=120"}
+                  src={
+                    hotel.imageUrls?.[0] ||
+                    "/placeholder.svg?height=80&width=120"
+                  }
                   alt={hotel.name}
                   className="h-full w-full object-cover"
                   onError={(event) => {
@@ -40,10 +43,10 @@ export function SelectedHotelBar({
                 />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900">
+                <p className="truncate text-sm font-medium text-foreground">
                   {hotel.name}
                 </p>
-                <p className="truncate text-xs text-gray-600">
+                <p className="truncate text-xs text-muted-foreground">
                   {hotel.address}
                 </p>
               </div>
@@ -75,4 +78,3 @@ export function SelectedHotelBar({
     </AnimatePresence>
   );
 }
-

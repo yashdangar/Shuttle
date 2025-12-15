@@ -25,7 +25,11 @@ export function HotelList({
 
   const itemVariants = {
     hidden: { opacity: 0, y: 14 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.35, ease: "easeOut" },
+    },
   } as const;
 
   if (hotels.length === 0) {
@@ -34,13 +38,13 @@ export function HotelList({
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed bg-white p-10 text-center"
+        className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card p-10 text-center"
       >
-        <Search className="h-10 w-10 text-gray-400" />
-        <h3 className="mt-3 text-lg font-semibold text-gray-900">
+        <Search className="h-10 w-10 text-muted-foreground" />
+        <h3 className="mt-3 text-lg font-semibold text-foreground">
           No hotels found
         </h3>
-        <p className="mt-1 max-w-md text-sm text-gray-600">
+        <p className="mt-1 max-w-md text-sm text-muted-foreground">
           Try adjusting your search. We couldn't find any hotels matching "
           {searchQuery}".
         </p>
@@ -67,4 +71,3 @@ export function HotelList({
     </motion.div>
   );
 }
-

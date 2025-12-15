@@ -1,7 +1,65 @@
-import { query, mutation, action } from "../_generated/server";
+import {
+  query,
+  mutation,
+  action,
+  internalMutation,
+} from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { v } from "convex/values";
-import { api, internal } from "../_generated/api";
 import type { Id, Doc } from "../_generated/dataModel";
+
+const rolePriority: Record<Doc<"users">["role"], number> = {
+  superadmin: 4,
+  admin: 3,
+  frontdesk: 2,
+  driver: 1,
+  guest: 0,
+};
+
+function getHighestRole(
+  participants: Array<Doc<"users"> | null>
+): Doc<"users">["role"] | null {
+  let highest: Doc<"users">["role"] | null = null;
+  let highestScore = -1;
+  for (const participant of participants) {
+    if (!participant) continue;
+    const score = rolePriority[participant.role];
+    if (score > highestScore) {
+      highestScore = score;
+      highest = participant.role;
+    }
+  }
+  return highest;
+}
+
+async function cascadeDeleteChat(
+  ctx: MutationCtx,
+  chatId: Id<"chats">
+): Promise<void> {
+  const messages = await ctx.db
+    .query("messages")
+    .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+    .collect();
+
+  for (const message of messages) {
+    await ctx.db.delete(message._id);
+  }
+
+  const chat = await ctx.db.get(chatId);
+  if (chat) {
+    const participants = await Promise.all(
+      chat.participantIds.map((id) => ctx.db.get(id))
+    );
+    for (const participant of participants) {
+      if (!participant) continue;
+      await ctx.db.patch(participant._id, {
+        chatIds: (participant.chatIds || []).filter((id) => id !== chatId),
+      });
+    }
+  }
+
+  await ctx.db.delete(chatId);
+}
 
 export type ChatPreview = {
   id: Id<"chats">;
@@ -131,8 +189,9 @@ export const getChatsForUser = query({
       if (!a.lastMessage) return 1;
       if (!b.lastMessage) return -1;
       return (
-        new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
-      )
+        new Date(b.lastMessage.timestamp).getTime() -
+        new Date(a.lastMessage.timestamp).getTime()
+      );
     });
 
     return chats;
@@ -576,6 +635,81 @@ export const createChat = mutation({
   },
 });
 
+export const createBookingFrontdeskChat = mutation({
+  args: {
+    bookingId: v.id("bookings"),
+    hotelId: v.id("hotels"),
+    guestId: v.id("users"),
+    guestName: v.string(),
+    scheduledDate: v.string(),
+  },
+  async handler(ctx, args) {
+    const guest = await ctx.db.get(args.guestId);
+    if (!guest) {
+      throw new Error("Guest not found");
+    }
+
+    const hotelFrontdesks = await ctx.db
+      .query("users")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
+      .filter((q) => q.eq(q.field("role"), "frontdesk"))
+      .collect();
+
+    if (hotelFrontdesks.length === 0) {
+      throw new Error("No frontdesk users found for hotel");
+    }
+
+    const participantIds = Array.from(
+      new Set([args.guestId, ...hotelFrontdesks.map((u) => u._id)])
+    );
+
+    const existingChats = await ctx.db
+      .query("chats")
+      .withIndex("by_booking", (q) => q.eq("bookingId", args.bookingId))
+      .collect();
+
+    for (const chat of existingChats) {
+      if (!chat.isOpen || !chat.isGroupChat) continue;
+      const missingParticipants = participantIds.filter(
+        (id) => !chat.participantIds.includes(id)
+      );
+      if (missingParticipants.length > 0) {
+        await ctx.db.patch(chat._id, {
+          participantIds: [...chat.participantIds, ...missingParticipants],
+        });
+        for (const participantId of missingParticipants) {
+          const participant = await ctx.db.get(participantId);
+          if (participant) {
+            await ctx.db.patch(participantId, {
+              chatIds: [...(participant.chatIds || []), chat._id],
+            });
+          }
+        }
+      }
+      return chat._id;
+    }
+
+    const chatId = await ctx.db.insert("chats", {
+      bookingId: args.bookingId,
+      participantIds,
+      isOpen: true,
+      chatName: `${args.guestName} ${args.scheduledDate}`,
+      isGroupChat: true,
+    });
+
+    for (const participantId of participantIds) {
+      const participant = await ctx.db.get(participantId);
+      if (participant) {
+        await ctx.db.patch(participantId, {
+          chatIds: [...(participant.chatIds || []), chatId],
+        });
+      }
+    }
+
+    return chatId;
+  },
+});
+
 export const sendMessage = mutation({
   args: {
     chatId: v.id("chats"),
@@ -729,6 +863,74 @@ export const removeParticipantFromGroup = mutation({
       await ctx.db.patch(args.participantIdToRemove, {
         chatIds: (participant.chatIds || []).filter((id) => id !== args.chatId),
       });
+    }
+  },
+});
+
+export const deleteChat = mutation({
+  args: {
+    chatId: v.id("chats"),
+    userId: v.id("users"),
+  },
+  async handler(ctx, args) {
+    const chat = await ctx.db.get(args.chatId);
+    if (!chat) {
+      return;
+    }
+
+    if (!chat.participantIds.includes(args.userId)) {
+      throw new Error("User is not a participant in this chat");
+    }
+
+    const participants = await Promise.all(
+      chat.participantIds.map((id) => ctx.db.get(id))
+    );
+
+    const requester = participants.find((p) => p?._id === args.userId);
+    if (!requester) {
+      throw new Error("Requester not found");
+    }
+
+    const highestRole = getHighestRole(participants);
+    if (highestRole && requester.role !== highestRole) {
+      throw new Error("User is not authorized to delete this chat");
+    }
+
+    await cascadeDeleteChat(ctx, args.chatId);
+  },
+});
+
+export const cleanupExpiredBookingChats = internalMutation({
+  args: {},
+  async handler(ctx) {
+    const now = Date.now();
+    const chats = await ctx.db.query("chats").collect();
+
+    for (const chat of chats) {
+      if (!chat.bookingId || !chat.isOpen) {
+        continue;
+      }
+
+      const booking = await ctx.db.get(chat.bookingId);
+      if (!booking || !booking.tripInstanceId) {
+        continue;
+      }
+
+      const tripInstance = await ctx.db.get(booking.tripInstanceId);
+      if (!tripInstance) {
+        continue;
+      }
+
+      const startOfDay = new Date(`${tripInstance.scheduledDate}T00:00:00`);
+      if (isNaN(startOfDay.getTime())) {
+        continue;
+      }
+
+      const expiresAt = startOfDay.getTime() + 48 * 60 * 60 * 1000;
+
+      if (now >= expiresAt) {
+        await cascadeDeleteChat(ctx, chat._id);
+      }
     }
   },
 });

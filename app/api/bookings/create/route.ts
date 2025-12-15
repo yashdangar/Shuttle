@@ -77,6 +77,20 @@ export async function POST(request: NextRequest) {
       encryptionKey: generateEncryptionKey(),
     });
 
+    if (result?.bookingId) {
+      try {
+        await convex.mutation(api.chats.index.createBookingFrontdeskChat, {
+          bookingId: result.bookingId as Id<"bookings">,
+          hotelId: hotelId as Id<"hotels">,
+          guestId: guestId as Id<"users">,
+          guestName: name || "Guest",
+          scheduledDate,
+        } as any);
+      } catch (chatError) {
+        console.error("Booking chat init error:", chatError);
+      }
+    }
+
     return NextResponse.json(result, { status: result.success ? 201 : 200 });
   } catch (error: any) {
     console.error("Create booking error:", error);

@@ -133,6 +133,7 @@ export default defineSchema({
     waiverReason: v.optional(v.string()),
   })
     .index("by_guest", ["guestId"])
+    .index("by_hotel", ["hotelId"])
     .index("by_status", ["bookingStatus"])
     .index("by_payment", ["paymentStatus"])
     .index("by_trip_instance", ["tripInstanceId"])

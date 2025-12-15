@@ -1,17 +1,13 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function SelectHotelSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted">
       <div className="mx-auto max-w-5xl px-4 pt-10 pb-6">
-        <div className="rounded-2xl border border-gray-200 bg-white px-6 py-8 shadow-sm md:px-10">
+        <div className="rounded-2xl border border-border bg-card px-6 py-8 shadow-sm md:px-10">
           <div className="flex items-center justify-center">
             <Skeleton className="h-4 w-24 rounded-full" />
           </div>
@@ -33,7 +29,7 @@ export function SelectHotelSkeleton() {
           {[1, 2, 3, 4].map((i) => (
             <Card
               key={i}
-              className="overflow-hidden rounded-[14px] border border-gray-100 bg-white"
+              className="overflow-hidden rounded-[14px] border border-border bg-card"
             >
               <div className="aspect-video w-full">
                 <Skeleton className="h-full w-full" />
@@ -58,4 +54,3 @@ export function SelectHotelSkeleton() {
     </div>
   );
 }
-

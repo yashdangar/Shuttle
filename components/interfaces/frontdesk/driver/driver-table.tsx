@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TableLoader } from "../../common/TableLoader";
+import { DriverTableSkeleton } from "./driver-table-skeleton";
 
 export type DriverAccount = {
   id: Id<"users">;
@@ -106,7 +106,7 @@ export function DriverTable() {
   };
 
   if (isLoading) {
-    return <TableLoader label="Loading Drivers" />;
+    return <DriverTableSkeleton />;
   }
 
   return (

@@ -13,11 +13,13 @@ import {
   CalendarClock,
   MapPin,
   UserRound,
-  Loader2,
   Plus,
+  MessageSquare,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
+import { GuestBookingsSkeleton } from "./guest-bookings-skeleton";
+import PageLayout from "@/components/layout/page-layout";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 
@@ -39,6 +41,28 @@ const statusStyles: Record<
   },
 };
 
+type TripDetails = {
+  tripName: string | undefined;
+  sourceLocation: string | undefined;
+  destinationLocation: string | undefined;
+  scheduledDate: string | undefined;
+  scheduledStartTime: string | undefined;
+  scheduledEndTime: string | undefined;
+  status: string | undefined;
+};
+
+type GuestBooking = {
+  _id: Id<"bookings">;
+  seats: number;
+  bags: number;
+  bookingStatus: BookingStatus;
+  paymentStatus: "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
+  totalPrice: number;
+  createdAt: string;
+  chatId: Id<"chats"> | null;
+  tripDetails: TripDetails | null;
+};
+
 export function GuestBookingsList() {
   const router = useRouter();
   const { user } = useAuthSession();
@@ -47,7 +71,7 @@ export function GuestBookingsList() {
   const bookings = useQuery(
     api.bookings.index.getGuestBookings,
     user?.id ? { guestId: user.id as Id<"users"> } : "skip"
-  );
+  ) as GuestBooking[] | undefined;
 
   const isLoading = bookings === undefined;
 
@@ -67,6 +91,11 @@ export function GuestBookingsList() {
 
   const goToBooking = (bookingId: Id<"bookings">) => {
     router.push(`/bookings/${bookingId}`);
+  };
+
+  const goToChat = (chatId: Id<"chats"> | null | undefined) => {
+    if (!chatId) return;
+    router.push(`/chat?chatId=${chatId}`);
   };
 
   const formatTime = (timeStr: string) => {
@@ -96,28 +125,28 @@ export function GuestBookingsList() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-6xl px-4 pt-10 pb-6">
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-8 py-12 text-center shadow-sm">
-            <UserRound className="mx-auto h-10 w-10 text-gray-400" />
-            <p className="mt-4 text-lg font-semibold text-gray-900">
+      <PageLayout
+        title="My bookings"
+        description="Sign in to view and manage your shuttle bookings."
+        icon={<CalendarClock className="h-5 w-5 text-primary" />}
+      >
+        <div className="flex h-full items-center justify-center">
+          <div className="max-w-lg rounded-xl border border-dashed border-border bg-card px-8 py-10 text-center shadow-sm">
+            <UserRound className="mx-auto h-10 w-10 text-muted-foreground" />
+            <p className="mt-4 text-lg font-semibold text-foreground">
               Sign in to view your bookings
             </p>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Please sign in to see your shuttle reservations.
             </p>
           </div>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      </div>
-    );
+    return <GuestBookingsSkeleton />;
   }
 
   const statusCounts = {
@@ -129,22 +158,15 @@ export function GuestBookingsList() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-6xl px-4 pt-10 pb-6">
-        <div className="rounded-2xl border border-gray-200 bg-white px-6 py-8 shadow-sm md:px-10">
-          <div className="flex items-center justify-center gap-3 text-violet-700">
-            <CalendarClock className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-[0.3em]">
-              My bookings
-            </span>
-          </div>
-          <h1 className="mt-3 text-center text-3xl font-extrabold tracking-tight text-gray-900 md:text-4xl">
-            Shuttle Reservations
-          </h1>
-          <p className="mt-2 text-center text-gray-600">
-            View and track your shuttle bookings.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <PageLayout
+      title="My bookings"
+      description="View and track your shuttle bookings."
+      isCompact
+      size="full"
+    >
+      <div className="space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap gap-2">
               {(["PENDING", "CONFIRMED", "REJECTED"] as BookingStatus[]).map(
                 (status) => {
@@ -161,13 +183,13 @@ export function GuestBookingsList() {
               )}
             </div>
             <div className="flex items-center gap-4">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Total:{" "}
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-foreground">
                   {bookings?.length ?? 0}
                 </span>
               </p>
-              <Link href="/select-hotel">
+              <Link href="/select-hotels">
                 <Button size="sm" className="rounded-full gap-2">
                   <Plus className="h-4 w-4" />
                   New Booking
@@ -175,28 +197,26 @@ export function GuestBookingsList() {
               </Link>
             </div>
           </div>
-          <div className="mt-6">
+          <div className="mt-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search by trip, location, or date"
-                className="h-11 rounded-xl border-gray-200 pl-10 focus-visible:ring-indigo-500"
+                className="h-10 rounded-lg border-border pl-10 focus-visible:ring-primary"
               />
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="mx-auto max-w-6xl px-4 pb-16">
         {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-8 py-12 text-center shadow-sm">
-            <Search className="mx-auto h-10 w-10 text-gray-400" />
-            <p className="mt-4 text-lg font-semibold text-gray-900">
+          <div className="rounded-xl border border-dashed border-border bg-card px-8 py-12 text-center shadow-sm">
+            <Search className="mx-auto h-10 w-10 text-muted-foreground" />
+            <p className="mt-4 text-lg font-semibold text-foreground">
               No bookings found
             </p>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               {bookings?.length === 0
                 ? "You haven't made any reservations yet."
                 : "Try adjusting your search."}
@@ -211,21 +231,21 @@ export function GuestBookingsList() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {filtered.map((booking) => {
               const statusStyle = statusStyles[booking.bookingStatus];
               const trip = booking.tripDetails;
               return (
                 <div
                   key={booking._id}
-                  className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
                         {trip?.tripName || "Shuttle Transfer"}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         ${booking.totalPrice.toFixed(2)} • {booking.seats} seat
                         {booking.seats !== 1 ? "s" : ""}
                       </p>
@@ -236,32 +256,46 @@ export function GuestBookingsList() {
                       {statusStyle.label}
                     </Badge>
                   </div>
-                  <div className="mt-4 space-y-3 text-sm text-gray-600">
+
+                  <div className="space-y-2 text-sm text-muted-foreground">
                     {trip && (
                       <>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <MapPin className="h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
                           {trip.sourceLocation} → {trip.destinationLocation}
                         </div>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <CalendarClock className="h-4 w-4 text-gray-400" />
-                          {formatDate(trip.scheduledDate)} at{" "}
-                          {formatTime(trip.scheduledStartTime)}
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                          {formatDate(trip.scheduledDate || "")} at{" "}
+                          {formatTime(trip.scheduledStartTime || "")}
                         </div>
                       </>
                     )}
                   </div>
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
+
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       {booking.paymentStatus}
                     </p>
-                    <Button
-                      size="sm"
-                      className="rounded-full px-4"
-                      onClick={() => goToBooking(booking._id)}
-                    >
-                      View details
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full px-3"
+                        onClick={() => goToChat(booking.chatId)}
+                        disabled={!booking.chatId}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        Chat
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="rounded-full px-4"
+                        onClick={() => goToBooking(booking._id)}
+                      >
+                        View details
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
@@ -269,6 +303,6 @@ export function GuestBookingsList() {
           </div>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }
