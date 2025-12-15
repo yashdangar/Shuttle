@@ -660,6 +660,11 @@ export const getGuestBookings = query({
           }
         }
 
+        const chat = await ctx.db
+          .query("chats")
+          .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
+          .first();
+
         return {
           _id: booking._id,
           seats: Number(booking.seats),
@@ -668,6 +673,7 @@ export const getGuestBookings = query({
           paymentStatus: booking.paymentStatus,
           totalPrice: booking.totalPrice,
           createdAt: new Date(booking._creationTime).toISOString(),
+          chatId: chat?._id ?? null,
           tripDetails,
         };
       })
