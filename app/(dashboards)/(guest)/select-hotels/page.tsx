@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { SelectHotelSkeleton } from "@/components/interfaces/guest/select-hotels/select-hotel-skeleton";
 import { HotelSearchBar } from "@/components/interfaces/guest/select-hotels/hotel-search-bar";
 import { HotelList } from "@/components/interfaces/guest/select-hotels/hotel-list";
 import { SelectedHotelBar } from "@/components/interfaces/guest/select-hotels/selected-hotel-bar";
 import type { HotelRecord } from "@/convex/hotels";
+import { SelectHotelSkeleton } from "@/components/interfaces/guest/select-hotels/select-hotel-skeleton";
 
 export default function SelectHotelPage() {
   const router = useRouter();
@@ -95,7 +95,7 @@ export default function SelectHotelPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="relative">
         <div className="mx-auto max-w-5xl px-4 pt-10 pb-6">
           <HotelSearchBar

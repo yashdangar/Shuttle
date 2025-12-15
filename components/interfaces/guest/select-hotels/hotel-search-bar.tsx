@@ -24,21 +24,25 @@ export function HotelSearchBar({
       animate="visible"
       variants={{
         hidden: { opacity: 0, y: 16 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+        visible: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 0.5, ease: "easeOut" },
+        },
       }}
-      className="rounded-2xl border border-gray-200 shadow-sm"
+      className="rounded-2xl border border-border shadow-sm"
     >
-      <div className="rounded-2xl bg-white px-6 py-8 md:px-10">
-        <div className="flex items-center justify-center gap-3 text-violet-700">
+      <div className="rounded-2xl bg-card px-6 py-8 md:px-10">
+        <div className="flex items-center justify-center gap-3 text-primary">
           <HotelIcon className="h-5 w-5" />
           <span className="text-xs font-semibold uppercase tracking-wider">
             Plan your ride
           </span>
         </div>
-        <h1 className="mt-3 text-center text-3xl font-extrabold tracking-tight text-violet-800 md:text-4xl">
+        <h1 className="mt-3 text-center text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">
           Select your hotel
         </h1>
-        <p className="mt-2 text-center text-gray-600">
+        <p className="mt-2 text-center text-muted-foreground">
           Choose your destination to start booking shuttle rides
         </p>
         <motion.div
@@ -46,17 +50,21 @@ export function HotelSearchBar({
           animate="visible"
           variants={{
             hidden: { opacity: 0, y: 16 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+            visible: {
+              opacity: 1,
+              y: 0,
+              transition: { duration: 0.5, ease: "easeOut" },
+            },
           }}
           className="mx-auto mt-6 max-w-3xl"
         >
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search by hotel name or address"
-              className="h-11 rounded-xl border-gray-200 pl-10 focus-visible:ring-indigo-500"
+              className="h-11 rounded-xl border-border pl-10 focus-visible:ring-primary"
             />
           </div>
           <div className="mt-3 flex items-center justify-center gap-2">
@@ -64,7 +72,7 @@ export function HotelSearchBar({
               {resultCount} results
             </Badge>
             {hasSelection && (
-              <Badge className="rounded-full bg-violet-600 text-white hover:bg-violet-600">
+              <Badge className="rounded-full bg-primary text-primary-foreground hover:bg-primary">
                 1 selected
               </Badge>
             )}
@@ -74,4 +82,3 @@ export function HotelSearchBar({
     </motion.div>
   );
 }
-

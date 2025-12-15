@@ -39,10 +39,8 @@ export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
       onClick={onSelect}
     >
       <Card
-        className={`relative cursor-pointer overflow-hidden rounded-[14px] border bg-white transition-all hover:shadow-lg ${
-          isSelected
-            ? "border-violet-200 ring-2 ring-violet-500"
-            : "border-gray-100"
+        className={`relative cursor-pointer overflow-hidden rounded-[14px] border bg-card transition-all hover:shadow-lg ${
+          isSelected ? "border-primary/40 ring-2 ring-primary" : "border-border"
         }`}
       >
         <div className="relative aspect-video overflow-hidden">
@@ -63,8 +61,8 @@ export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white border-gray-200" />
-              <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white border-gray-200" />
+              <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 border-border bg-card/80 hover:bg-card" />
+              <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 border-border bg-card/80 hover:bg-card" />
             </Carousel>
           ) : hasImages ? (
             <img
@@ -88,19 +86,19 @@ export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="absolute right-3 top-3 rounded-full bg-white/90 p-1.5 shadow z-10"
+              className="absolute right-3 top-3 z-10 rounded-full bg-card/90 p-1.5 shadow"
             >
-              <CheckCircle2 className="h-5 w-5 text-violet-600" />
+              <CheckCircle2 className="h-5 w-5 text-primary" />
             </motion.div>
           )}
         </div>
 
         <CardHeader className="space-y-1 pb-2">
-          <CardTitle className="text-lg font-semibold text-gray-900">
+          <CardTitle className="text-lg font-semibold text-foreground">
             {hotel.name}
           </CardTitle>
-          <CardDescription className="flex items-center text-gray-600">
-            <MapPin className="mr-1.5 h-4 w-4 text-gray-400" />
+          <CardDescription className="flex items-center text-muted-foreground">
+            <MapPin className="mr-1.5 h-4 w-4 text-muted-foreground" />
             <span className="line-clamp-1">{hotel.address}</span>
           </CardDescription>
         </CardHeader>
@@ -123,4 +121,3 @@ export function HotelCard({ hotel, isSelected, onSelect }: HotelCardProps) {
     </motion.div>
   );
 }
-
