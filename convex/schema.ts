@@ -20,6 +20,10 @@ export default defineSchema({
     // Hotel association: Required for admin, frontdesk, and driver roles.
     // Optional (null) for guest and superadmin roles who are not tied to a specific hotel.
     hotelId: v.optional(v.id("hotels")),
+
+    // This fields are only used for "driver" role , for tracking the driver's current location
+    driverCurrentLatitude: v.optional(v.float64()),
+    driverCurrentLongitude: v.optional(v.float64()),
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])
@@ -164,6 +168,8 @@ export default defineSchema({
     tripId: v.id("trips"),
     shuttleId: v.optional(v.id("shuttles")), // Driver is obtained from shuttle.currentlyAssignedTo
 
+    tripInstancePriority: v.optional(v.int64()),
+
     scheduledDate: v.string(), // UTC date string YYYY-MM-DD
     scheduledStartTime: v.string(),
     scheduledEndTime: v.string(),
@@ -182,10 +188,7 @@ export default defineSchema({
 
     bookingIds: v.array(v.id("bookings")),
 
-    driverCurrentLatitude: v.optional(v.float64()),
-    driverCurrentLongitude: v.optional(v.float64()),
-    eta_to_destination: v.optional(v.int64()),
-    eta_to_source: v.optional(v.int64()),
+    eta : v.optional(v.string()),
   })
     .index("by_trip", ["tripId"])
     .index("by_shuttle", ["shuttleId"])

@@ -4,11 +4,11 @@ import { Suspense, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useChat } from "@/hooks/use-chat";
-import { ChatList } from "@/components/chat/chat-list";
-import { MessageList } from "@/components/chat/message-list";
-import { MessageInput } from "@/components/chat/message-input";
-import { NewChatModal } from "@/components/chat/new-chat-modal";
-import { GroupManagementModal } from "@/components/chat/group-management-modal";
+import { ChatList } from "@/components/interfaces/common/chat/chat-list";
+import { MessageList } from "@/components/interfaces/common/chat/message-list";
+import { MessageInput } from "@/components/interfaces/common/chat/message-input";
+import { NewChatModal } from "@/components/interfaces/common/chat/new-chat-modal";
+import { GroupManagementModal } from "@/components/interfaces/common/chat/group-management-modal";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,

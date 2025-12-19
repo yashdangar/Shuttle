@@ -97,6 +97,10 @@ export function DriverShuttleSelection() {
   );
 
   const isLoading = shuttles === undefined;
+  const availableShuttles =
+    shuttles?.filter((s) => !s.currentlyAssignedTo) ?? [];
+  const takenShuttles =
+    shuttles?.filter((s) => s.currentlyAssignedTo && !s.isAssignedToMe) ?? [];
 
   const handleSelectShuttle = (shuttleId: Id<"shuttles">) => {
     setSelectedShuttleId(shuttleId);
@@ -403,92 +407,168 @@ export function DriverShuttleSelection() {
         </div>
       )}
 
-      {/* Available Shuttles */}
-      <div>
-        <h2 className="text-base sm:text-lg font-semibold mb-3 px-1">
-          {assignedShuttle ? "Switch Shuttle" : "Available Shuttles"}
-        </h2>
+      {!assignedShuttle && (
+        <>
+          {/* Available Shuttles */}
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold mb-3 px-1">
+              Available Shuttles
+            </h2>
 
-        {shuttles && shuttles.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <Bus className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-4 font-semibold">No shuttles available</p>
-              <p className="text-sm text-muted-foreground">
-                Contact your hotel admin to add shuttles
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {shuttles?.map((shuttle) => (
-              <Card
-                key={shuttle._id}
-                className={`transition-all hover:shadow-md ${
-                  shuttle.isAssignedToMe
-                    ? "border-2 border-emerald-300 bg-emerald-50/30"
-                    : ""
-                }`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                      <Bus className="h-4 w-4" />
-                      {shuttle.vehicleNumber}
-                    </CardTitle>
-                    {shuttle.isAssignedToMe && (
-                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
-                        Assigned
-                      </Badge>
-                    )}
-                  </div>
-                  {shuttle.currentDriverName && !shuttle.isAssignedToMe && (
-                    <CardDescription className="flex items-center gap-1 text-xs">
-                      <UserRound className="h-3 w-3" />
-                      {shuttle.currentDriverName}
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3 pt-0">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="rounded-lg bg-muted/50 p-2">
-                      <p className="text-lg font-bold">
-                        {shuttle.tripCountToday}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Trips Today
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-2">
-                      <p className="text-lg font-bold">{shuttle.totalSeats}</p>
-                      <p className="text-[10px] text-muted-foreground">Seats</p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground text-center">
-                    {shuttle.totalBookingsToday} booking
-                    {shuttle.totalBookingsToday !== 1 ? "s" : ""} •{" "}
-                    {shuttle.totalSeatsBookedToday} seat
-                    {shuttle.totalSeatsBookedToday !== 1 ? "s" : ""} booked
+            {availableShuttles.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center">
+                  <Bus className="mx-auto h-10 w-10 text-muted-foreground" />
+                  <p className="mt-4 font-semibold">No shuttles available</p>
+                  <p className="text-sm text-muted-foreground">
+                    Contact your hotel admin to add shuttles
                   </p>
-
-                  {!shuttle.isAssignedToMe && (
-                    <Button
-                      className="w-full h-9"
-                      onClick={() => handleSelectShuttle(shuttle._id)}
-                      disabled={isAssigning}
-                    >
-                      {shuttle.currentlyAssignedTo
-                        ? "Take Over"
-                        : "Select Shuttle"}
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
-            ))}
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {availableShuttles.map((shuttle) => (
+                  <Card
+                    key={shuttle._id}
+                    className={`transition-all hover:shadow-md ${
+                      shuttle.isAssignedToMe
+                        ? "border-2 border-emerald-300 bg-emerald-50/30"
+                        : ""
+                    }`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                          <Bus className="h-4 w-4" />
+                          {shuttle.vehicleNumber}
+                        </CardTitle>
+                        {shuttle.isAssignedToMe && (
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                            Assigned
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="flex items-center gap-1 text-xs">
+                        <UserRound className="h-3 w-3" />
+                        {shuttle.currentDriverName || "Assigned to: none"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded-lg bg-muted/50 p-2">
+                          <p className="text-lg font-bold">
+                            {shuttle.tripCountToday}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Trips Today
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 p-2">
+                          <p className="text-lg font-bold">
+                            {shuttle.totalSeats}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Seats
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground text-center">
+                        {shuttle.totalBookingsToday} booking
+                        {shuttle.totalBookingsToday !== 1 ? "s" : ""} •{" "}
+                        {shuttle.totalSeatsBookedToday} seat
+                        {shuttle.totalSeatsBookedToday !== 1 ? "s" : ""} booked
+                      </p>
+
+                      {!shuttle.isAssignedToMe && (
+                        <Button
+                          className="w-full h-9"
+                          onClick={() => handleSelectShuttle(shuttle._id)}
+                          disabled={isAssigning}
+                        >
+                          Select Shuttle
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Taken Shuttles */}
+          {takenShuttles.length > 0 && (
+            <div>
+              <h2 className="text-base sm:text-lg font-semibold mb-3 px-1">
+                Taken Shuttles
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {takenShuttles.map((shuttle) => (
+                  <Card
+                    key={shuttle._id}
+                    className="transition-all hover:shadow-md"
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                          <Bus className="h-4 w-4" />
+                          {shuttle.vehicleNumber}
+                        </CardTitle>
+                        <Badge
+                          variant="outline"
+                          className="bg-destructive/10 text-destructive border-destructive/30 text-xs"
+                        >
+                          Taken
+                        </Badge>
+                      </div>
+                      <CardDescription className="flex items-center gap-1 text-xs">
+                        <UserRound className="h-3 w-3" />
+                        {shuttle.currentDriverName || "Assigned to: none"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded-lg bg-muted/50 p-2">
+                          <p className="text-lg font-bold">
+                            {shuttle.tripCountToday}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Trips Today
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 p-2">
+                          <p className="text-lg font-bold">
+                            {shuttle.totalSeats}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Seats
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground text-center">
+                        {shuttle.totalBookingsToday} booking
+                        {shuttle.totalBookingsToday !== 1 ? "s" : ""} •{" "}
+                        {shuttle.totalSeatsBookedToday} seat
+                        {shuttle.totalSeatsBookedToday !== 1 ? "s" : ""} booked
+                      </p>
+
+                      <Button
+                        variant="destructive"
+                        className="w-full h-9"
+                        onClick={() => handleSelectShuttle(shuttle._id)}
+                        disabled={isAssigning}
+                      >
+                        Take Over
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Confirm Dialog */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
