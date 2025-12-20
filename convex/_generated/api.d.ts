@@ -15,6 +15,8 @@ import type * as chats_index from "../chats/index.js";
 import type * as cron from "../cron.js";
 import type * as email_emailTemplates from "../email/emailTemplates.js";
 import type * as email_index from "../email/index.js";
+import type * as eta_actions from "../eta/actions.js";
+import type * as eta_queries from "../eta/queries.js";
 import type * as files_index from "../files/index.js";
 import type * as hotels_index from "../hotels/index.js";
 import type * as http from "../http.js";
@@ -50,6 +52,8 @@ declare const fullApi: ApiFromModules<{
   cron: typeof cron;
   "email/emailTemplates": typeof email_emailTemplates;
   "email/index": typeof email_index;
+  "eta/actions": typeof eta_actions;
+  "eta/queries": typeof eta_queries;
   "files/index": typeof files_index;
   "hotels/index": typeof hotels_index;
   http: typeof http;

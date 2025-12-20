@@ -305,7 +305,10 @@ export const getAvailableSlotsForTrip = query({
           return true;
         }
 
-        if (matchingInstance.status !== "SCHEDULED") {
+        if (
+          matchingInstance.status !== "SCHEDULED" &&
+          matchingInstance.status !== "IN_PROGRESS"
+        ) {
           continue;
         }
 
@@ -315,6 +318,22 @@ export const getAvailableSlotsForTrip = query({
             q.eq("tripInstanceId", matchingInstance._id)
           )
           .collect();
+
+        if (matchingInstance.status === "IN_PROGRESS") {
+          let anySegmentCompleted = false;
+          for (const ri of routeInstances) {
+            const orderIdx = Number(ri.orderIndex);
+            if (orderIdx >= fromIndex && orderIdx <= toIndex) {
+              if (ri.completed) {
+                anySegmentCompleted = true;
+                break;
+              }
+            }
+          }
+          if (anySegmentCompleted) {
+            continue;
+          }
+        }
 
         let maxUsed = 0;
         for (const ri of routeInstances) {

@@ -2,9 +2,10 @@ import {
   action,
   internalMutation,
   internalQuery,
+  mutation,
   query,
 } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import bcrypt from "bcryptjs";
@@ -573,5 +574,54 @@ export const deleteStaffAccountInternal = internalMutation({
   },
   async handler(ctx, args) {
     await ctx.db.delete(args.userId);
+  },
+});
+
+export const updateDriverLocation = mutation({
+  args: {
+    driverId: v.id("users"),
+    latitude: v.number(),
+    longitude: v.number(),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver) {
+      throw new ConvexError("User not found");
+    }
+
+    if (driver.role !== "driver") {
+      throw new ConvexError("Only drivers can update their location");
+    }
+
+    await ctx.db.patch(args.driverId, {
+      driverCurrentLatitude: args.latitude,
+      driverCurrentLongitude: args.longitude,
+    });
+
+    return { success: true };
+  },
+});
+
+export const getDriverLocation = query({
+  args: {
+    driverId: v.id("users"),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver || driver.role !== "driver") {
+      return null;
+    }
+
+    if (
+      driver.driverCurrentLatitude === undefined ||
+      driver.driverCurrentLongitude === undefined
+    ) {
+      return null;
+    }
+
+    return {
+      latitude: driver.driverCurrentLatitude,
+      longitude: driver.driverCurrentLongitude,
+    };
   },
 });

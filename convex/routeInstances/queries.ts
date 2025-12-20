@@ -1,5 +1,35 @@
-import { internalQuery, query } from "../_generated/server";
+import { internalQuery, query, QueryCtx } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
+
+async function getRoutesWithBookingsHelper(
+  ctx: QueryCtx,
+  tripInstanceId: Id<"tripInstances">
+): Promise<Set<number>> {
+  const bookings = await ctx.db
+    .query("bookings")
+    .withIndex("by_trip_instance", (q) =>
+      q.eq("tripInstanceId", tripInstanceId)
+    )
+    .collect();
+
+  const routeIndicesWithBookings = new Set<number>();
+
+  for (const booking of bookings) {
+    if (
+      booking.bookingStatus === "CONFIRMED" ||
+      booking.bookingStatus === "PENDING"
+    ) {
+      const fromIdx = Number(booking.fromRouteIndex ?? 0);
+      const toIdx = Number(booking.toRouteIndex ?? 0);
+      for (let i = fromIdx; i <= toIdx; i++) {
+        routeIndicesWithBookings.add(i);
+      }
+    }
+  }
+
+  return routeIndicesWithBookings;
+}
 
 export const getRouteInstancesByTripInstance = query({
   args: {
@@ -214,5 +244,68 @@ export const getTripInstanceSeatSummary = query({
       maxTotalUsed: maxTotal,
       availableSeats: Math.max(0, shuttleCapacity - maxTotal),
     };
+  },
+});
+
+export const getRouteInstancesWithSkipInfo = query({
+  args: {
+    tripInstanceId: v.id("tripInstances"),
+  },
+  async handler(ctx, args) {
+    const routeInstances = await ctx.db
+      .query("routeInstances")
+      .withIndex("by_trip_instance", (q) =>
+        q.eq("tripInstanceId", args.tripInstanceId)
+      )
+      .collect();
+
+    const sortedInstances = routeInstances.sort(
+      (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+    );
+
+    const routesWithBookings = await getRoutesWithBookingsHelper(
+      ctx,
+      args.tripInstanceId
+    );
+
+    const results = await Promise.all(
+      sortedInstances.map(async (ri) => {
+        const route = await ctx.db.get(ri.routeId);
+        let startLocationName = "Unknown";
+        let endLocationName = "Unknown";
+
+        if (route) {
+          const [startLoc, endLoc] = await Promise.all([
+            ctx.db.get(route.startLocationId),
+            ctx.db.get(route.endLocationId),
+          ]);
+          startLocationName = startLoc?.name ?? "Unknown";
+          endLocationName = endLoc?.name ?? "Unknown";
+        }
+
+        const orderIndex = Number(ri.orderIndex);
+        const hasBookings = routesWithBookings.has(orderIndex);
+        const isLastSegment = orderIndex === sortedInstances.length - 1;
+        const canBeSkipped = !hasBookings && !isLastSegment && !ri.completed;
+
+        return {
+          _id: ri._id,
+          tripInstanceId: ri.tripInstanceId,
+          routeId: ri.routeId,
+          orderIndex,
+          seatsOccupied: Number(ri.seatsOccupied),
+          seatHeld: Number(ri.seatHeld),
+          completed: ri.completed,
+          eta: ri.eta,
+          startLocationName,
+          endLocationName,
+          charges: route?.charges ?? 0,
+          hasBookings,
+          canBeSkipped,
+        };
+      })
+    );
+
+    return results;
   },
 });

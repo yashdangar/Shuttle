@@ -108,16 +108,44 @@ async function checkSlotAvailabilityForRoutes(
       return { available: true, shuttleId: shuttle._id };
     }
 
-    if (matchingInstance.status !== "SCHEDULED") {
+    if (
+      matchingInstance.status !== "SCHEDULED" &&
+      matchingInstance.status !== "IN_PROGRESS"
+    ) {
       continue;
     }
 
-    const maxUsedSeats = await getMaxUsedSeatsAcrossRouteSegments(
-      ctx,
-      matchingInstance._id,
-      fromRouteIndex,
-      toRouteIndex
-    );
+    const routeInstances = await ctx.db
+      .query("routeInstances")
+      .withIndex("by_trip_instance", (q) =>
+        q.eq("tripInstanceId", matchingInstance._id)
+      )
+      .collect();
+
+    if (matchingInstance.status === "IN_PROGRESS") {
+      let anySegmentCompleted = false;
+      for (const ri of routeInstances) {
+        const orderIdx = Number(ri.orderIndex);
+        if (orderIdx >= fromRouteIndex && orderIdx <= toRouteIndex) {
+          if (ri.completed) {
+            anySegmentCompleted = true;
+            break;
+          }
+        }
+      }
+      if (anySegmentCompleted) {
+        continue;
+      }
+    }
+
+    let maxUsedSeats = 0;
+    for (const ri of routeInstances) {
+      const orderIdx = Number(ri.orderIndex);
+      if (orderIdx >= fromRouteIndex && orderIdx <= toRouteIndex) {
+        const used = Number(ri.seatsOccupied) + Number(ri.seatHeld);
+        maxUsedSeats = Math.max(maxUsedSeats, used);
+      }
+    }
 
     const availableSeats = Number(shuttle.totalSeats) - maxUsedSeats;
 

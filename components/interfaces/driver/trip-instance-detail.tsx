@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -40,9 +40,15 @@ import {
   MapPin,
   ArrowRight,
   Check,
+  RotateCcw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { QRScannerModal } from "./qr-scanner-modal";
+import { useETAUpdater } from "@/hooks/maps/use-eta-updater";
+
+type RouteState = "completed" | "in_progress" | "upcoming";
 
 function formatISOTime(isoTimeStr: string): string {
   try {
@@ -88,11 +94,17 @@ export function TripInstanceDetail({
   const router = useRouter();
   const { user } = useAuthSession();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingRouteId, setProcessingRouteId] = useState<string | null>(null);
+  const [isRouteProcessing, setIsRouteProcessing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     action: "start" | "complete" | "cancel" | null;
+  }>({ open: false, action: null });
+  const [routeConfirmDialog, setRouteConfirmDialog] = useState<{
+    open: boolean;
+    action: "start_next" | "revert" | null;
+    currentSegment?: string;
+    nextSegment?: string;
   }>({ open: false, action: null });
 
   const tripInstance = useQuery(api.tripInstances.queries.getTripInstanceById, {
@@ -107,7 +119,7 @@ export function TripInstanceDetail({
   );
 
   const routeInstances = useQuery(
-    api.routeInstances.queries.getRouteInstancesByTripInstance,
+    api.routeInstances.queries.getRouteInstancesWithSkipInfo,
     tripInstance?._id
       ? { tripInstanceId: tripInstance._id as Id<"tripInstances"> }
       : "skip"
@@ -127,12 +139,25 @@ export function TripInstanceDetail({
   const cancelTrip = useMutation(
     api.tripInstances.mutations.cancelTripInstance
   );
-  const completeRouteInstance = useMutation(
-    api.routeInstances.mutations.completeRouteInstance
+  const startNextRouteSegment = useMutation(
+    api.routeInstances.mutations.startNextRouteSegment
   );
-  const uncompleteRouteInstance = useMutation(
-    api.routeInstances.mutations.uncompleteRouteInstance
+  const revertLastRouteCompletion = useMutation(
+    api.routeInstances.mutations.revertLastRouteCompletion
   );
+
+  const {
+    isUpdating: isETAUpdating,
+    lastUpdate: etaLastUpdate,
+    error: etaError,
+  } = useETAUpdater({
+    tripInstanceId:
+      tripInstance?.status === "IN_PROGRESS"
+        ? (tripInstanceId as Id<"tripInstances">)
+        : null,
+    driverId: user?.id ? (user.id as Id<"users">) : null,
+    enabled: tripInstance?.status === "IN_PROGRESS",
+  });
 
   const isLoading = tripInstance === undefined;
 
@@ -197,37 +222,100 @@ export function TripInstanceDetail({
     }
   };
 
-  const handleRouteComplete = async (routeInstanceId: string, completed: boolean) => {
+  const handleStartNextSegment = async () => {
     if (!user?.id) {
       toast.error("Please sign in");
       return;
     }
 
-    setProcessingRouteId(routeInstanceId);
+    setIsRouteProcessing(true);
     try {
-      if (completed) {
-        await uncompleteRouteInstance({
-          driverId: user.id as Id<"users">,
-          routeInstanceId: routeInstanceId as Id<"routeInstances">,
-        });
-        toast.success("Route segment unmarked");
-      } else {
-        await completeRouteInstance({
-          driverId: user.id as Id<"users">,
-          routeInstanceId: routeInstanceId as Id<"routeInstances">,
-        });
-        toast.success("Route segment completed!");
-      }
+      const result = await startNextRouteSegment({
+        driverId: user.id as Id<"users">,
+        tripInstanceId: tripInstanceId as Id<"tripInstances">,
+      });
+      toast.success(result.message);
+      setRouteConfirmDialog({ open: false, action: null });
     } catch (error: any) {
-      toast.error(error.message || "Failed to update route segment");
+      toast.error(error.message || "Failed to advance route segment");
     } finally {
-      setProcessingRouteId(null);
+      setIsRouteProcessing(false);
+    }
+  };
+
+  const handleRevertLastSegment = async () => {
+    if (!user?.id) {
+      toast.error("Please sign in");
+      return;
+    }
+
+    setIsRouteProcessing(true);
+    try {
+      const result = await revertLastRouteCompletion({
+        driverId: user.id as Id<"users">,
+        tripInstanceId: tripInstanceId as Id<"tripInstances">,
+      });
+      toast.success(result.message);
+      setRouteConfirmDialog({ open: false, action: null });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to revert route segment");
+    } finally {
+      setIsRouteProcessing(false);
     }
   };
 
   const openConfirmDialog = (action: "start" | "complete" | "cancel") => {
     setConfirmDialog({ open: true, action });
   };
+
+  const openRouteConfirmDialog = (
+    action: "start_next" | "revert",
+    currentSegment?: string,
+    nextSegment?: string
+  ) => {
+    setRouteConfirmDialog({ open: true, action, currentSegment, nextSegment });
+  };
+
+  const bookings = bookingsData || [];
+  const routes = routeInstances || [];
+
+  const currentRouteIndex = useMemo(() => {
+    return routes.findIndex((r) => !r.completed);
+  }, [routes]);
+
+  const getRouteState = useCallback(
+    (index: number): RouteState => {
+      const route = routes[index];
+      if (!route) return "upcoming";
+      if (route.completed) return "completed";
+      if (index === currentRouteIndex) return "in_progress";
+      return "upcoming";
+    },
+    [routes, currentRouteIndex]
+  );
+
+  const getRouteStateStyles = useCallback((state: RouteState) => {
+    switch (state) {
+      case "completed":
+        return {
+          container: "bg-emerald-50 border-emerald-200",
+          circle: "bg-emerald-500 text-white",
+          text: "text-emerald-700",
+        };
+      case "in_progress":
+        return {
+          container: "bg-amber-50 border-amber-200",
+          circle: "bg-amber-500 text-white",
+          text: "text-amber-700",
+        };
+      default:
+        return {
+          container: "bg-muted/30 border-border",
+          circle: "bg-muted text-muted-foreground",
+          text: "text-muted-foreground",
+        };
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -252,14 +340,21 @@ export function TripInstanceDetail({
     );
   }
 
-  const bookings = bookingsData || [];
-  const routes = routeInstances || [];
   const status = tripInstance.status;
   const canStart = status === "SCHEDULED";
   const canComplete = status === "IN_PROGRESS";
   const canCancel = status === "SCHEDULED" || status === "IN_PROGRESS";
-  const completedRoutes = routes.filter((r) => r.completed).length;
+  const completedRoutesCount = routes.filter((r) => r.completed).length;
   const totalRoutes = routes.length;
+
+  const canShowStartNext =
+    status === "IN_PROGRESS" &&
+    currentRouteIndex !== -1 &&
+    currentRouteIndex < routes.length - 1;
+
+  const canRevert =
+    (status === "IN_PROGRESS" || status === "COMPLETED") &&
+    completedRoutesCount > 0;
 
   return (
     <div className="space-y-4 pb-8">
@@ -309,7 +404,7 @@ export function TripInstanceDetail({
               </Badge>
               {status === "IN_PROGRESS" && totalRoutes > 0 && (
                 <span className="text-sm text-amber-700 font-medium">
-                  {completedRoutes}/{totalRoutes} segments completed
+                  {completedRoutesCount}/{totalRoutes} segments completed
                 </span>
               )}
               {status === "COMPLETED" && (
@@ -383,7 +478,9 @@ export function TripInstanceDetail({
                   <Play className="h-4 w-4" />
                   <span className="text-sm">
                     Started:{" "}
-                    {new Date(tripInstance.actualStartTime).toLocaleTimeString()}
+                    {new Date(
+                      tripInstance.actualStartTime
+                    ).toLocaleTimeString()}
                   </span>
                 </div>
               )}
@@ -434,89 +531,164 @@ export function TripInstanceDetail({
       {routes.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Navigation className="h-4 w-4" />
-              Route Segments ({completedRoutes}/{totalRoutes} completed)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {routes.map((route, index) => (
-              <div
-                key={route._id}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  route.completed
-                    ? "bg-emerald-50 border-emerald-200"
-                    : "bg-muted/30 border-border"
-                }`}
-              >
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      route.completed
-                        ? "bg-emerald-500 text-white"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {route.completed ? <Check className="h-4 w-4" /> : index + 1}
-                  </div>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span className="font-medium text-sm truncate">
-                      {route.startLocationName}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
-                    <span className="font-medium text-sm truncate">
-                      {route.endLocationName}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {route.seatsOccupied} occupied / {route.seatHeld} held
-                    </span>
-                    <span>${route.charges.toFixed(2)}</span>
-                    {route.eta && (
-                      <span className="text-amber-600">ETA: {route.eta}</span>
-                    )}
-                  </div>
-                </div>
-
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Navigation className="h-4 w-4" />
+                  Route Segments ({completedRoutesCount}/{totalRoutes}{" "}
+                  completed)
+                </CardTitle>
                 {status === "IN_PROGRESS" && (
-                  <Button
-                    size="sm"
-                    variant={route.completed ? "outline" : "default"}
-                    onClick={() => handleRouteComplete(route._id, route.completed)}
-                    disabled={processingRouteId === route._id}
-                    className={
-                      route.completed
-                        ? "border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-                        : "bg-emerald-600 hover:bg-emerald-700"
-                    }
-                  >
-                    {processingRouteId === route._id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : route.completed ? (
-                      <>
-                        <Check className="h-4 w-4 mr-1" />
-                        Done
-                      </>
-                    ) : (
-                      "Complete"
-                    )}
-                  </Button>
-                )}
-
-                {status !== "IN_PROGRESS" && route.completed && (
-                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
-                    Completed
-                  </Badge>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {isETAUpdating ? (
+                      <span className="flex items-center gap-1 text-blue-600">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Updating ETA...
+                      </span>
+                    ) : etaError ? (
+                      <span className="flex items-center gap-1 text-red-500">
+                        <WifiOff className="h-3 w-3" />
+                        ETA offline
+                      </span>
+                    ) : etaLastUpdate ? (
+                      <span className="flex items-center gap-1 text-emerald-600">
+                        <Wifi className="h-3 w-3" />
+                        ETA live
+                      </span>
+                    ) : null}
+                  </div>
                 )}
               </div>
-            ))}
+              {canRevert && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const lastCompleted = routes
+                      .filter((r) => r.completed)
+                      .pop();
+                    openRouteConfirmDialog(
+                      "revert",
+                      lastCompleted
+                        ? `${lastCompleted.startLocationName} → ${lastCompleted.endLocationName}`
+                        : undefined
+                    );
+                  }}
+                  disabled={isRouteProcessing}
+                  className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Revert Last
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {routes.map((route, index) => {
+              const routeState = getRouteState(index);
+              const styles = getRouteStateStyles(routeState);
+              const isNextSegment =
+                status === "IN_PROGRESS" && index === currentRouteIndex + 1;
+
+              return (
+                <div
+                  key={route._id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${styles.container}`}
+                >
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${styles.circle}`}
+                    >
+                      {routeState === "completed" ? (
+                        <Check className="h-4 w-4" />
+                      ) : routeState === "in_progress" ? (
+                        <Play className="h-4 w-4" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="font-medium text-sm truncate">
+                        {route.startLocationName}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
+                      <span className="font-medium text-sm truncate">
+                        {route.endLocationName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {route.seatsOccupied} occupied / {route.seatHeld} held
+                      </span>
+                      <span>${route.charges.toFixed(2)}</span>
+                      {route.eta && (
+                        <span className="text-amber-600">ETA: {route.eta}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {routeState === "in_progress" &&
+                        status === "IN_PROGRESS" && (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                            🚗 Currently traveling
+                          </Badge>
+                        )}
+                      {route.canBeSkipped && status === "IN_PROGRESS" && (
+                        <Badge
+                          variant="outline"
+                          className="text-slate-500 border-slate-300"
+                        >
+                          No bookings - can skip
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {routeState === "completed" && (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                      <Check className="h-3 w-3 mr-1" />
+                      Done
+                    </Badge>
+                  )}
+
+                  {isNextSegment && canShowStartNext && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const currentRoute = routes[currentRouteIndex];
+                        openRouteConfirmDialog(
+                          "start_next",
+                          currentRoute
+                            ? `${currentRoute.startLocationName} → ${currentRoute.endLocationName}`
+                            : undefined,
+                          `${route.startLocationName} → ${route.endLocationName}`
+                        );
+                      }}
+                      disabled={isRouteProcessing}
+                      className="bg-amber-600 hover:bg-amber-700 gap-1"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      Start Next
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+
+            {status === "IN_PROGRESS" &&
+              currentRouteIndex === routes.length - 1 && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                  <p className="text-sm text-blue-700">
+                    This is the final segment. Use &quot;Complete Trip&quot;
+                    when you arrive at the destination.
+                  </p>
+                </div>
+              )}
           </CardContent>
         </Card>
       )}
@@ -565,14 +737,16 @@ export function TripInstanceDetail({
                           </div>
                         )}
 
-                        {(booking as any).fromLocation && (booking as any).toLocation && (
-                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span>
-                              {(booking as any).fromLocation} → {(booking as any).toLocation}
-                            </span>
-                          </div>
-                        )}
+                        {(booking as any).fromLocation &&
+                          (booking as any).toLocation && (
+                            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              <span>
+                                {(booking as any).fromLocation} →{" "}
+                                {(booking as any).toLocation}
+                              </span>
+                            </div>
+                          )}
 
                         {booking.notes && (
                           <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
@@ -674,6 +848,67 @@ export function TripInstanceDetail({
               {confirmDialog.action === "start" && "Start Trip"}
               {confirmDialog.action === "complete" && "Complete Trip"}
               {confirmDialog.action === "cancel" && "Cancel Trip"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={routeConfirmDialog.open}
+        onOpenChange={(open) => setRouteConfirmDialog({ open, action: null })}
+      >
+        <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {routeConfirmDialog.action === "start_next" &&
+                "Start next segment?"}
+              {routeConfirmDialog.action === "revert" &&
+                "Revert last completion?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {routeConfirmDialog.action === "start_next" && (
+                <>
+                  Starting <strong>{routeConfirmDialog.nextSegment}</strong>{" "}
+                  will mark <strong>{routeConfirmDialog.currentSegment}</strong>{" "}
+                  as completed. Passengers ending at that stop will be released.
+                </>
+              )}
+              {routeConfirmDialog.action === "revert" && (
+                <>
+                  This will undo the completion of{" "}
+                  <strong>{routeConfirmDialog.currentSegment}</strong> and
+                  restore any seats that were released.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel
+              disabled={isRouteProcessing}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (routeConfirmDialog.action === "start_next") {
+                  handleStartNextSegment();
+                } else if (routeConfirmDialog.action === "revert") {
+                  handleRevertLastSegment();
+                }
+              }}
+              disabled={isRouteProcessing}
+              className={`w-full sm:w-auto ${
+                routeConfirmDialog.action === "start_next"
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-orange-600 hover:bg-orange-700"
+              }`}
+            >
+              {isRouteProcessing ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              {routeConfirmDialog.action === "start_next" && "Start Next"}
+              {routeConfirmDialog.action === "revert" && "Revert"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

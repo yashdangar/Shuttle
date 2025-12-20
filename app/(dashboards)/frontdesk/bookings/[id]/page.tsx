@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useBookingETA } from "@/hooks/use-trip-eta";
 import {
   ArrowLeft,
   CalendarClock,
@@ -35,6 +36,7 @@ import {
   X,
   Users,
   Mail,
+  Clock,
 } from "lucide-react";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
@@ -70,6 +72,12 @@ export default function FrontdeskBookingDetailPage() {
   const booking = useQuery(api.bookings.index.getBookingById, {
     bookingId: bookingId as Id<"bookings">,
   });
+
+  const { eta, pickupLocationName, isCompleted: pickupCompleted } = useBookingETA(
+    booking?.tripInstanceId
+      ? (bookingId as Id<"bookings">)
+      : null
+  );
 
   const isLoading = booking === undefined;
 
@@ -340,6 +348,22 @@ export default function FrontdeskBookingDetailPage() {
                     ? `Driver: ${trip.driver.name}`
                     : "No driver assigned"
                 }
+              />
+            )}
+            {trip?.status === "IN_PROGRESS" && eta && !pickupCompleted && (
+              <InfoBlock
+                icon={<Clock className="h-4 w-4 text-orange-600" />}
+                label="ETA to Pickup"
+                value={eta}
+                helper={pickupLocationName ? `At ${pickupLocationName}` : undefined}
+              />
+            )}
+            {trip?.status === "IN_PROGRESS" && pickupCompleted && (
+              <InfoBlock
+                icon={<Check className="h-4 w-4 text-emerald-600" />}
+                label="Pickup Status"
+                value="Shuttle arrived"
+                helper="The shuttle has reached your pickup location"
               />
             )}
           </div>

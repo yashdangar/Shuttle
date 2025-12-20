@@ -19,7 +19,10 @@ import {
   Loader2,
   Luggage,
   CreditCard,
+  Clock,
+  Check,
 } from "lucide-react";
+import { useBookingETA } from "@/hooks/use-trip-eta";
 import QRCode from "qrcode";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
@@ -51,6 +54,12 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
     bookingId: bookingId as Id<"bookings">,
   });
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  const { eta, pickupLocationName, isCompleted: pickupCompleted } = useBookingETA(
+    booking?.tripInstanceId
+      ? (bookingId as Id<"bookings">)
+      : null
+  );
 
   useEffect(() => {
     const generate = async () => {
@@ -211,6 +220,44 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
                 icon={<Phone className="h-4 w-4 text-emerald-600" />}
               />
             )}
+          </div>
+        )}
+
+        {trip?.status === "IN_PROGRESS" && eta && !pickupCompleted && (
+          <div className="rounded-xl border-2 border-amber-200 bg-amber-50 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <Clock className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  Shuttle arriving in {eta}
+                </p>
+                {pickupLocationName && (
+                  <p className="text-xs text-amber-700">
+                    At {pickupLocationName}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {trip?.status === "IN_PROGRESS" && pickupCompleted && (
+          <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                <Check className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">
+                  Shuttle has arrived!
+                </p>
+                <p className="text-xs text-emerald-700">
+                  Please proceed to your pickup location
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
