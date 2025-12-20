@@ -6,6 +6,7 @@ import { IconRoute } from "@tabler/icons-react";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { TripRecord } from "@/convex/trips";
 
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -39,6 +40,30 @@ import {
 } from "@/components/ui/table";
 
 const PAGE_SIZE = 10;
+
+function formatTripRoute(trip: TripRecord): string {
+  if (!trip.routes || trip.routes.length === 0) {
+    return "No route defined";
+  }
+  const stops = [trip.routes[0].startLocationName];
+  for (const route of trip.routes) {
+    stops.push(route.endLocationName);
+  }
+  return stops.join(" → ");
+}
+
+function getSourceAndDestination(trip: TripRecord): {
+  source: string;
+  destination: string;
+} {
+  if (!trip.routes || trip.routes.length === 0) {
+    return { source: "N/A", destination: "N/A" };
+  }
+  return {
+    source: trip.routes[0].startLocationName,
+    destination: trip.routes[trip.routes.length - 1].endLocationName,
+  };
+}
 
 export function AdminTripTable() {
   const router = useRouter();
@@ -145,62 +170,65 @@ export function AdminTripTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Charges</TableHead>
+                <TableHead>Route</TableHead>
+                <TableHead>Stops</TableHead>
+                <TableHead>Total Charges</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trips.map((trip) => (
-                <TableRow key={trip.id}>
-                  <TableCell className="font-medium">{trip.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {trip.sourceLocationName}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {trip.destinationLocationName}
-                  </TableCell>
-                  <TableCell>${trip.charges.toFixed(2)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatTimestamp(trip.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Edit ${trip.name}`}
-                        onClick={() => handleEdit(trip.id)}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Delete ${trip.name}`}
-                        className="text-destructive hover:text-destructive"
-                        onClick={() =>
-                          handleDeleteRequest({
-                            id: trip.id,
-                            name: trip.name,
-                          })
-                        }
-                        disabled={deletingId === trip.id}
-                      >
-                        {deletingId === trip.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {trips.map((trip) => {
+                const { source, destination } = getSourceAndDestination(trip);
+                return (
+                  <TableRow key={trip.id}>
+                    <TableCell className="font-medium">{trip.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                      {source} → {destination}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {trip.routes?.length ? trip.routes.length + 1 : 0}
+                    </TableCell>
+                    <TableCell>${trip.totalCharges?.toFixed(2) ?? "0.00"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatTimestamp(trip.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Edit ${trip.name}`}
+                          onClick={() => handleEdit(trip.id)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Delete ${trip.name}`}
+                          className="text-destructive hover:text-destructive"
+                          onClick={() =>
+                            handleDeleteRequest({
+                              id: trip.id,
+                              name: trip.name,
+                            })
+                          }
+                          disabled={deletingId === trip.id}
+                        >
+                          {deletingId === trip.id ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

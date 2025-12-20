@@ -37,11 +37,13 @@ import {
   QrCode,
   CheckCircle,
   XCircle,
+  MapPin,
+  ArrowRight,
+  Check,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { QRScannerModal } from "./qr-scanner-modal";
 
-// Parse ISO time string
 function formatISOTime(isoTimeStr: string): string {
   try {
     if (isoTimeStr.includes("T")) {
@@ -86,6 +88,7 @@ export function TripInstanceDetail({
   const router = useRouter();
   const { user } = useAuthSession();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingRouteId, setProcessingRouteId] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -103,6 +106,13 @@ export function TripInstanceDetail({
       : "skip"
   );
 
+  const routeInstances = useQuery(
+    api.routeInstances.queries.getRouteInstancesByTripInstance,
+    tripInstance?._id
+      ? { tripInstanceId: tripInstance._id as Id<"tripInstances"> }
+      : "skip"
+  );
+
   const bookingsData = useQuery(
     api.bookings.index.getBookingsByTripInstance,
     tripInstance?._id
@@ -116,6 +126,12 @@ export function TripInstanceDetail({
   );
   const cancelTrip = useMutation(
     api.tripInstances.mutations.cancelTripInstance
+  );
+  const completeRouteInstance = useMutation(
+    api.routeInstances.mutations.completeRouteInstance
+  );
+  const uncompleteRouteInstance = useMutation(
+    api.routeInstances.mutations.uncompleteRouteInstance
   );
 
   const isLoading = tripInstance === undefined;
@@ -181,6 +197,34 @@ export function TripInstanceDetail({
     }
   };
 
+  const handleRouteComplete = async (routeInstanceId: string, completed: boolean) => {
+    if (!user?.id) {
+      toast.error("Please sign in");
+      return;
+    }
+
+    setProcessingRouteId(routeInstanceId);
+    try {
+      if (completed) {
+        await uncompleteRouteInstance({
+          driverId: user.id as Id<"users">,
+          routeInstanceId: routeInstanceId as Id<"routeInstances">,
+        });
+        toast.success("Route segment unmarked");
+      } else {
+        await completeRouteInstance({
+          driverId: user.id as Id<"users">,
+          routeInstanceId: routeInstanceId as Id<"routeInstances">,
+        });
+        toast.success("Route segment completed!");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update route segment");
+    } finally {
+      setProcessingRouteId(null);
+    }
+  };
+
   const openConfirmDialog = (action: "start" | "complete" | "cancel") => {
     setConfirmDialog({ open: true, action });
   };
@@ -199,7 +243,7 @@ export function TripInstanceDetail({
         <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
         <h2 className="mt-4 text-xl font-semibold">Trip not found</h2>
         <p className="text-muted-foreground mt-2">
-          This trip instance doesn't exist or has been removed.
+          This trip instance doesn&apos;t exist or has been removed.
         </p>
         <Link href="/driver/trips">
           <Button className="mt-4">Back to Trips</Button>
@@ -209,14 +253,16 @@ export function TripInstanceDetail({
   }
 
   const bookings = bookingsData || [];
+  const routes = routeInstances || [];
   const status = tripInstance.status;
   const canStart = status === "SCHEDULED";
   const canComplete = status === "IN_PROGRESS";
   const canCancel = status === "SCHEDULED" || status === "IN_PROGRESS";
+  const completedRoutes = routes.filter((r) => r.completed).length;
+  const totalRoutes = routes.length;
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -252,7 +298,6 @@ export function TripInstanceDetail({
         </Button>
       </div>
 
-      {/* Action Buttons Card */}
       <Card className={`border-2 ${getStatusBgColor(status)}`}>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -262,9 +307,9 @@ export function TripInstanceDetail({
               >
                 {status === "IN_PROGRESS" ? "🚗 In Progress" : status}
               </Badge>
-              {status === "IN_PROGRESS" && (
+              {status === "IN_PROGRESS" && totalRoutes > 0 && (
                 <span className="text-sm text-amber-700 font-medium">
-                  Trip is ongoing...
+                  {completedRoutes}/{totalRoutes} segments completed
                 </span>
               )}
               {status === "COMPLETED" && (
@@ -316,7 +361,6 @@ export function TripInstanceDetail({
         </CardContent>
       </Card>
 
-      {/* Status & Time Card */}
       <Card>
         <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -339,9 +383,7 @@ export function TripInstanceDetail({
                   <Play className="h-4 w-4" />
                   <span className="text-sm">
                     Started:{" "}
-                    {new Date(
-                      tripInstance.actualStartTime
-                    ).toLocaleTimeString()}
+                    {new Date(tripInstance.actualStartTime).toLocaleTimeString()}
                   </span>
                 </div>
               )}
@@ -389,48 +431,96 @@ export function TripInstanceDetail({
         </CardContent>
       </Card>
 
-      {/* Route Card */}
-      {tripDetails && (
+      {routes.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Navigation className="h-4 w-4" />
-              Route
+              Route Segments ({completedRoutes}/{totalRoutes} completed)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                  <div>
-                    <p className="font-medium text-sm">
-                      {tripDetails.sourceLocationName || "Source"}
-                    </p>
+          <CardContent className="space-y-3">
+            {routes.map((route, index) => (
+              <div
+                key={route._id}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                  route.completed
+                    ? "bg-emerald-50 border-emerald-200"
+                    : "bg-muted/30 border-border"
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      route.completed
+                        ? "bg-emerald-500 text-white"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {route.completed ? <Check className="h-4 w-4" /> : index + 1}
                   </div>
                 </div>
-                <div className="ml-1.5 h-8 w-0.5 bg-linear-to-b from-emerald-500 to-blue-500 my-1" />
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-blue-500" />
-                  <div>
-                    <p className="font-medium text-sm">
-                      {tripDetails.destinationLocationName || "Destination"}
-                    </p>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span className="font-medium text-sm truncate">
+                      {route.startLocationName}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
+                    <span className="font-medium text-sm truncate">
+                      {route.endLocationName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {route.seatsOccupied} occupied / {route.seatHeld} held
+                    </span>
+                    <span>${route.charges.toFixed(2)}</span>
+                    {route.eta && (
+                      <span className="text-amber-600">ETA: {route.eta}</span>
+                    )}
                   </div>
                 </div>
+
+                {status === "IN_PROGRESS" && (
+                  <Button
+                    size="sm"
+                    variant={route.completed ? "outline" : "default"}
+                    onClick={() => handleRouteComplete(route._id, route.completed)}
+                    disabled={processingRouteId === route._id}
+                    className={
+                      route.completed
+                        ? "border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                        : "bg-emerald-600 hover:bg-emerald-700"
+                    }
+                  >
+                    {processingRouteId === route._id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : route.completed ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1" />
+                        Done
+                      </>
+                    ) : (
+                      "Complete"
+                    )}
+                  </Button>
+                )}
+
+                {status !== "IN_PROGRESS" && route.completed && (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                    Completed
+                  </Badge>
+                )}
               </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">
-                  ${tripDetails.charges.toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground">per seat</p>
-              </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      {/* Bookings List */}
       <div>
         <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
           <Ticket className="h-4 w-4" />
@@ -472,6 +562,15 @@ export function TripInstanceDetail({
                             >
                               {booking.guestPhone}
                             </a>
+                          </div>
+                        )}
+
+                        {(booking as any).fromLocation && (booking as any).toLocation && (
+                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            <span>
+                              {(booking as any).fromLocation} → {(booking as any).toLocation}
+                            </span>
                           </div>
                         )}
 
@@ -529,7 +628,6 @@ export function TripInstanceDetail({
         )}
       </div>
 
-      {/* Confirmation Dialog */}
       <AlertDialog
         open={confirmDialog.open}
         onOpenChange={(open) => setConfirmDialog({ open, action: null })}
@@ -543,9 +641,9 @@ export function TripInstanceDetail({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog.action === "start" &&
-                "This will mark the trip as in progress. New bookings will be assigned to the next available time slot."}
+                "This will mark the trip as in progress. You can then complete individual route segments as you reach each destination."}
               {confirmDialog.action === "complete" &&
-                "This will mark the trip as completed. Make sure all passengers have reached their destination."}
+                "This will mark the trip and all route segments as completed. Make sure all passengers have reached their destination."}
               {confirmDialog.action === "cancel" &&
                 "This will cancel the trip. All passengers will need to be rebooked or notified."}
             </AlertDialogDescription>

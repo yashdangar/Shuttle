@@ -2,9 +2,27 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 
-// Helper to get current UTC date string
 function getUTCDateString(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+async function getMaxUsedSeatsForTripInstance(
+  ctx: any,
+  tripInstanceId: Id<"tripInstances">
+): Promise<number> {
+  const routeInstances = await ctx.db
+    .query("routeInstances")
+    .withIndex("by_trip_instance", (q: any) =>
+      q.eq("tripInstanceId", tripInstanceId)
+    )
+    .collect();
+
+  let maxUsed = 0;
+  for (const ri of routeInstances) {
+    const used = Number(ri.seatsOccupied) + Number(ri.seatHeld);
+    maxUsed = Math.max(maxUsed, used);
+  }
+  return maxUsed;
 }
 
 export const getAvailableShuttle = internalQuery({
@@ -14,6 +32,8 @@ export const getAvailableShuttle = internalQuery({
     scheduledStartTime: v.string(),
     scheduledEndTime: v.string(),
     requiredSeats: v.number(),
+    fromRouteIndex: v.optional(v.number()),
+    toRouteIndex: v.optional(v.number()),
   },
   async handler(ctx, args): Promise<Id<"shuttles"> | null> {
     const shuttles = await ctx.db
@@ -42,8 +62,6 @@ export const getAvailableShuttle = internalQuery({
           instance.scheduledEndTime === args.scheduledEndTime
       );
 
-      // Skip if trip instance exists and is IN_PROGRESS (driver started the trip)
-      // or COMPLETED/CANCELLED - don't assign new bookings to these
       if (
         matchingInstance &&
         (matchingInstance.status === "IN_PROGRESS" ||
@@ -53,10 +71,26 @@ export const getAvailableShuttle = internalQuery({
         continue;
       }
 
-      const usedSeats = matchingInstance
-        ? Number(matchingInstance.seatsOccupied) +
-          Number(matchingInstance.seatHeld)
-        : 0;
+      let usedSeats = 0;
+      if (matchingInstance) {
+        const routeInstances = await ctx.db
+          .query("routeInstances")
+          .withIndex("by_trip_instance", (q) =>
+            q.eq("tripInstanceId", matchingInstance._id)
+          )
+          .collect();
+
+        const fromIdx = args.fromRouteIndex ?? 0;
+        const toIdx = args.toRouteIndex ?? routeInstances.length - 1;
+
+        for (const ri of routeInstances) {
+          const orderIdx = Number(ri.orderIndex);
+          if (orderIdx >= fromIdx && orderIdx <= toIdx) {
+            const used = Number(ri.seatsOccupied) + Number(ri.seatHeld);
+            usedSeats = Math.max(usedSeats, used);
+          }
+        }
+      }
 
       const availableSeats = Number(shuttle.totalSeats) - usedSeats;
 
@@ -95,7 +129,6 @@ export const getAvailableShuttlesForDriver = query({
       )
       .collect();
 
-    // Use UTC date for consistency
     const today = getUTCDateString();
 
     const results = await Promise.all(
@@ -116,14 +149,15 @@ export const getAvailableShuttlesForDriver = query({
           currentDriverName = currentDriver?.name;
         }
 
-        // Calculate total bookings and seats for today
         let totalBookings = 0;
         let totalSeatsBooked = 0;
 
         for (const instance of todayInstances) {
           totalBookings += instance.bookingIds.length;
-          totalSeatsBooked +=
-            Number(instance.seatsOccupied) + Number(instance.seatHeld);
+          totalSeatsBooked += await getMaxUsedSeatsForTripInstance(
+            ctx,
+            instance._id
+          );
         }
 
         return {

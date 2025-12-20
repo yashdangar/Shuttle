@@ -89,10 +89,7 @@ export default defineSchema({
     isParkSleepFly: v.boolean(),
 
     qrCodePath: v.string(),
-    qrCodeStatus : v.union(
-      v.literal("UNVERIFIED"),
-      v.literal("VERIFIED"),
-    ),
+    qrCodeStatus: v.union(v.literal("UNVERIFIED"), v.literal("VERIFIED")),
     encryptionKey: v.string(),
 
     totalPrice: v.float64(),
@@ -117,6 +114,9 @@ export default defineSchema({
     ),
 
     tripInstanceId: v.optional(v.id("tripInstances")), // who is driver , which shuttle it is , where to where info allw ill be there here
+
+    fromRouteIndex: v.optional(v.int64()), // Index of first route segment in trip
+    toRouteIndex: v.optional(v.int64()), // Index of last route segment (inclusive)
 
     verifiedAt: v.optional(v.string()),
     verifiedBy: v.optional(v.id("users")),
@@ -144,17 +144,22 @@ export default defineSchema({
     .index("by_confirmation", ["confirmationNum"])
     .index("by_hotel_status", ["hotelId", "bookingStatus"]),
 
+  routes: defineTable({
+    tripId: v.id("trips"),
+    startLocationId: v.id("locations"),
+    endLocationId: v.id("locations"),
+    charges: v.float64(),
+    orderIndex: v.int64(),
+  })
+    .index("by_trip", ["tripId"])
+    .index("by_trip_order", ["tripId", "orderIndex"]),
+
   trips: defineTable({
     name: v.string(),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    charges: v.float64(),
+    routeIds: v.array(v.id("routes")),
     tripTimesIds: v.array(v.id("tripTimes")),
     hotelId: v.id("hotels"),
-  })
-    .index("by_source_location", ["sourceLocationId"])
-    .index("by_destination_location", ["destinationLocationId"])
-    .index("by_hotel", ["hotelId"]),
+  }).index("by_hotel", ["hotelId"]),
 
   tripTimes: defineTable({
     tripId: v.id("trips"),
@@ -183,12 +188,7 @@ export default defineSchema({
     actualStartTime: v.optional(v.string()),
     actualEndTime: v.optional(v.string()),
 
-    seatsOccupied: v.int64(),
-    seatHeld: v.int64(),
-
     bookingIds: v.array(v.id("bookings")),
-
-    eta : v.optional(v.string()),
   })
     .index("by_trip", ["tripId"])
     .index("by_shuttle", ["shuttleId"])
@@ -200,6 +200,19 @@ export default defineSchema({
     ])
     .index("by_shuttle_date", ["shuttleId", "scheduledDate"])
     .index("by_date", ["scheduledDate"]),
+
+  routeInstances: defineTable({
+    tripInstanceId: v.id("tripInstances"),
+    routeId: v.id("routes"),
+    orderIndex: v.int64(),
+    seatsOccupied: v.int64(),
+    seatHeld: v.int64(),
+    completed: v.boolean(),
+    eta: v.optional(v.string()),
+  })
+    .index("by_trip_instance", ["tripInstanceId"])
+    .index("by_trip_instance_order", ["tripInstanceId", "orderIndex"])
+    .index("by_route", ["routeId"]),
 
   notifications: defineTable({
     title: v.string(),

@@ -20,8 +20,10 @@ export async function POST(request: NextRequest) {
     const {
       guestId,
       tripId,
+      fromLocationId,
+      toLocationId,
       scheduledDate,
-      desiredTime, // e.g., "07:45" - the time user wants to travel
+      desiredTime,
       seats,
       bags,
       hotelId,
@@ -32,7 +34,15 @@ export async function POST(request: NextRequest) {
       paymentMethod,
     } = body;
 
-    if (!guestId || !tripId || !scheduledDate || !desiredTime || !hotelId) {
+    if (
+      !guestId ||
+      !tripId ||
+      !fromLocationId ||
+      !toLocationId ||
+      !scheduledDate ||
+      !desiredTime ||
+      !hotelId
+    ) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -63,6 +73,8 @@ export async function POST(request: NextRequest) {
     const result = await convex.mutation(api.bookings.index.createBooking, {
       guestId: guestId as Id<"users">,
       tripId: tripId as Id<"trips">,
+      fromLocationId: fromLocationId as Id<"locations">,
+      toLocationId: toLocationId as Id<"locations">,
       scheduledDate,
       desiredTime,
       seats,

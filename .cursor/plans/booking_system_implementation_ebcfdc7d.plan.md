@@ -49,9 +49,7 @@ todos:
 
 ### 1.1 TripInstances Table - Missing Fields
 
-**Current Problem:** Cannot query tripInstances by date/time slot, cannot deduplicate slots.
-
-**Add these fields:**
+**Current Problem:** Cannot query tripInstances by date/time slot, cannot deduplicate slots.**Add these fields:**
 
 ```typescript
 scheduledDate: v.string(),        // "2025-12-12" (ISO date in UTC)
@@ -77,9 +75,7 @@ status: v.union(
 
 ### 1.2 Bookings Table - Required Fields Should Be Optional
 
-**Current Problem:** `verifiedAt`, `verifiedBy`, `cancellationReason`, `cancelledBy` are required but don't exist at creation.
-
-**Change to optional:**
+**Current Problem:** `verifiedAt`, `verifiedBy`, `cancellationReason`, `cancelledBy` are required but don't exist at creation.**Change to optional:**
 
 ```typescript
 verifiedAt: v.optional(v.string()),
@@ -88,13 +84,13 @@ cancellationReason: v.optional(v.string()),
 cancelledBy: v.optional(v.union(...)),
 ```
 
-**For auto-cancel:** Use existing `cancelledBy: "AUTO_CANCEL"` + `cancellationReason: "No shuttle available"` (NO new field needed)
-
-**Add new index:**
+**For auto-cancel:** Use existing `cancelledBy: "AUTO_CANCEL"` + `cancellationReason: "No shuttle available"` (NO new field needed)**Add new index:**
 
 ```typescript
 .index("by_hotel_status", ["hotelId", "bookingStatus"])
 ```
+
+
 
 ### 1.3 Shuttles Table - Add Driver Assignment Field
 
@@ -103,6 +99,8 @@ cancelledBy: v.optional(v.union(...)),
 ```typescript
 currentlyAssignedTo: v.optional(v.id("users")), // Driver currently assigned to this shuttle for today
 ```
+
+
 
 ### 1.4 Notifications Table - Add Type
 
@@ -119,11 +117,11 @@ type: v.optional(v.union(
 relatedBookingId: v.optional(v.id("bookings")),
 ```
 
+
+
 ### 1.5 TripTimes - Validation Required
 
-**Decision:** TripTimes is REQUIRED for validation. User can ONLY book at predefined tripTimes slots. Backend MUST validate that the selected time slot exists in tripTimes for that trip.
-
----
+**Decision:** TripTimes is REQUIRED for validation. User can ONLY book at predefined tripTimes slots. Backend MUST validate that the selected time slot exists in tripTimes for that trip.---
 
 ## Part 2: Core Functions to Implement
 
@@ -168,11 +166,11 @@ export interface ShuttleWithAvailability {
 }
 ```
 
+
+
 ### 2.1 `validateTripTime` (Helper function - NOT a query)
 
-**Location:** `convex/lib/tripTimeUtils.ts`
-
-**Type:**
+**Location:** `convex/lib/tripTimeUtils.ts`**Type:**
 
 ```typescript
 export async function validateTripTime(
@@ -194,9 +192,7 @@ export async function validateTripTime(
 
 ### 2.2 `getAvailableShuttle` - **internalQuery**
 
-**Location:** `convex/shuttles/queries.ts`
-
-**Type:**
+**Location:** `convex/shuttles/queries.ts`**Type:**
 
 ```typescript
 export const getAvailableShuttle = internalQuery({
@@ -217,10 +213,10 @@ export const getAvailableShuttle = internalQuery({
 1. Get all shuttles where `hotelId === hotelId` AND `isActive === true`
 2. For each shuttle:
 
-   - Find tripInstance for this shuttle on `scheduledDate` with matching `scheduledStartTime` and `scheduledEndTime`
-   - If tripInstance exists: `usedSeats = Number(seatsOccupied) + Number(seatHeld)`
-   - If no tripInstance: `usedSeats = 0` (shuttle is free for this slot)
-   - Calculate `availableSeats = Number(totalSeats) - usedSeats`
+- Find tripInstance for this shuttle on `scheduledDate` with matching `scheduledStartTime` and `scheduledEndTime`
+- If tripInstance exists: `usedSeats = Number(seatsOccupied) + Number(seatHeld)`
+- If no tripInstance: `usedSeats = 0` (shuttle is free for this slot)
+- Calculate `availableSeats = Number(totalSeats) - usedSeats`
 
 3. Filter shuttles where `availableSeats >= requiredSeats`
 4. **Sort by `availableSeats` ASCENDING** (greedy: pick LEAST available that fits)
@@ -235,9 +231,7 @@ export const getAvailableShuttle = internalQuery({
 
 ### 2.3 `getOrCreateTripInstance` - **internalMutation**
 
-**Location:** `convex/tripInstances/mutations.ts`
-
-**Type:**
+**Location:** `convex/tripInstances/mutations.ts`**Type:**
 
 ```typescript
 export const getOrCreateTripInstance = internalMutation({
@@ -259,20 +253,18 @@ export const getOrCreateTripInstance = internalMutation({
 2. If exists with SAME shuttleId: return existing tripInstance ID
 3. If not exists: create new tripInstance with:
 
-   - `tripId, scheduledDate, scheduledStartTime, scheduledEndTime, shuttleId`
-   - `driverId: undefined`
-   - `seatsOccupied: 0n` (BigInt)
-   - `seatHeld: 0n` (BigInt)
-   - `status: "SCHEDULED"`
-   - `bookingIds: []`
+- `tripId, scheduledDate, scheduledStartTime, scheduledEndTime, shuttleId`
+- `driverId: undefined`
+- `seatsOccupied: 0n` (BigInt)
+- `seatHeld: 0n` (BigInt)
+- `status: "SCHEDULED"`
+- `bookingIds: []`
 
 **Note:** Two tripInstances CAN exist for same trip/date/time if they have DIFFERENT shuttleIds.
 
 ### 2.4 `createBooking` - **mutation** (public)
 
-**Location:** `convex/bookings/mutations.ts`
-
-**Type:**
+**Location:** `convex/bookings/mutations.ts`**Type:**
 
 ```typescript
 export const createBooking = mutation({
@@ -307,25 +299,23 @@ export const createBooking = mutation({
 4. Call `ctx.runQuery(internal.shuttles.queries.getAvailableShuttle, {...})` - find shuttle
 5. **If shuttle found:**
 
-   - Call `ctx.runMutation(internal.tripInstances.mutations.getOrCreateTripInstance, {...})`
-   - Increment `seatHeld` on tripInstance by `BigInt(seats)`
-   - Create booking with `bookingStatus: "PENDING"`, link to tripInstance
-   - Add bookingId to tripInstance.bookingIds
-   - Call `ctx.runMutation(internal.notifications.mutations.createNotification, {...})`
+- Call `ctx.runMutation(internal.tripInstances.mutations.getOrCreateTripInstance, {...})`
+- Increment `seatHeld` on tripInstance by `BigInt(seats)`
+- Create booking with `bookingStatus: "PENDING"`, link to tripInstance
+- Add bookingId to tripInstance.bookingIds
+- Call `ctx.runMutation(internal.notifications.mutations.createNotification, {...})`
 
 6. **If NO shuttle found:**
 
-   - Create tripInstance with `shuttleId: undefined`
-   - Create booking with `bookingStatus: "REJECTED"`, `cancelledBy: "AUTO_CANCEL"`, `cancellationReason: "No shuttle available"`
-   - Create notification for frontdesk
+- Create tripInstance with `shuttleId: undefined`
+- Create booking with `bookingStatus: "REJECTED"`, `cancelledBy: "AUTO_CANCEL"`, `cancellationReason: "No shuttle available"`
+- Create notification for frontdesk
 
 7. Return `{ bookingId, success, message }`
 
 ### 2.5 `confirmBooking` - **mutation** (public)
 
-**Location:** `convex/bookings/mutations.ts`
-
-**Type:**
+**Location:** `convex/bookings/mutations.ts`**Type:**
 
 ```typescript
 export const confirmBooking = mutation({
@@ -344,22 +334,20 @@ export const confirmBooking = mutation({
 3. Get tripInstance
 4. Update booking:
 
-   - `bookingStatus: "CONFIRMED"`
-   - `verifiedAt: new Date().toISOString()`
-   - `verifiedBy: frontdeskUserId`
+- `bookingStatus: "CONFIRMED"`
+- `verifiedAt: new Date().toISOString()`
+- `verifiedBy: frontdeskUserId`
 
 5. Update tripInstance:
 
-   - Decrement `seatHeld` by booking.seats
-   - Increment `seatsOccupied` by booking.seats
+- Decrement `seatHeld` by booking.seats
+- Increment `seatsOccupied` by booking.seats
 
 6. Create notification for guest
 
 ### 2.6 `rejectBooking` - **mutation** (public)
 
-**Location:** `convex/bookings/mutations.ts`
-
-**Type:**
+**Location:** `convex/bookings/mutations.ts`**Type:**
 
 ```typescript
 export const rejectBooking = mutation({
@@ -379,22 +367,20 @@ export const rejectBooking = mutation({
 3. Get tripInstance
 4. Update booking:
 
-   - `bookingStatus: "REJECTED"`
-   - `cancellationReason: reason`
-   - `cancelledBy: "FRONTDESK"`
+- `bookingStatus: "REJECTED"`
+- `cancellationReason: reason`
+- `cancelledBy: "FRONTDESK"`
 
 5. Update tripInstance:
 
-   - Decrement `seatHeld` by booking.seats
-   - Remove bookingId from bookingIds array
+- Decrement `seatHeld` by booking.seats
+- Remove bookingId from bookingIds array
 
 6. Create notification for guest
 
 ### 2.7 `assignDriverToShuttle` - **mutation** (public)
 
-**Location:** `convex/shuttles/mutations.ts`
-
-**Type:**
+**Location:** `convex/shuttles/mutations.ts`**Type:**
 
 ```typescript
 export const assignDriverToShuttle = mutation({
@@ -414,17 +400,15 @@ export const assignDriverToShuttle = mutation({
 3. **Update shuttle:** set `currentlyAssignedTo: driverId`
 4. Query all tripInstances where:
 
-   - `shuttleId === shuttleId`
-   - `scheduledDate === currentDate`
+- `shuttleId === shuttleId`
+- `scheduledDate === currentDate`
 
 5. Update each tripInstance: set `driverId`
 6. Return `{ assignedCount }`
 
 ### 2.8 `createNotification` - **internalMutation**
 
-**Location:** `convex/notifications/mutations.ts`
-
-**Type:**
+**Location:** `convex/notifications/mutations.ts`**Type:**
 
 ```typescript
 export const createNotification = internalMutation({
@@ -472,6 +456,8 @@ export const getPendingBookingsForHotel = query({
 });
 ```
 
+
+
 ### 3.2 `getDriverTripInstances` - **query** (public)
 
 **Location:** `convex/tripInstances/queries.ts`
@@ -496,6 +482,8 @@ export const getDriverTripInstances = query({
 });
 ```
 
+
+
 ### 3.3 `getAvailableShuttlesForDriver` - **query** (public)
 
 **Location:** `convex/shuttles/queries.ts`
@@ -514,6 +502,8 @@ export const getAvailableShuttlesForDriver = query({
   handler: async (ctx, args) => { ... }
 });
 ```
+
+
 
 ### 3.4 `getTripInstanceAvailability` - **query** (public)
 
@@ -543,7 +533,7 @@ export const getTripInstanceAvailability = query({
 
 ## Part 4: File Structure
 
-```
+```javascript
 convex/
 ├── lib/
 │   ├── types.ts              # Type definitions (CreateBookingArgs, etc.)
@@ -561,37 +551,11 @@ convex/
     └── mutations.ts          # createNotification (internalMutation)
 ```
 
+
+
 ### Function Access Summary
 
-| Function                        | Type             | Access                                     |
-
-| ------------------------------- | ---------------- | ------------------------------------------ |
-
-| `validateTripTime`              | Helper           | Internal (ctx.db)                          |
-
-| `getAvailableShuttle`           | internalQuery    | Called via `ctx.runQuery(internal....)`    |
-
-| `getOrCreateTripInstance`       | internalMutation | Called via `ctx.runMutation(internal....)` |
-
-| `createNotification`            | internalMutation | Called via `ctx.runMutation(internal....)` |
-
-| `createBooking`                 | mutation         | Public (client callable)                   |
-
-| `confirmBooking`                | mutation         | Public (frontdesk only)                    |
-
-| `rejectBooking`                 | mutation         | Public (frontdesk only)                    |
-
-| `assignDriverToShuttle`         | mutation         | Public (driver only)                       |
-
-| `getPendingBookingsForHotel`    | query            | Public (frontdesk only)                    |
-
-| `getDriverTripInstances`        | query            | Public (driver only)                       |
-
-| `getAvailableShuttlesForDriver` | query            | Public (driver only)                       |
-
-| `getTripInstanceAvailability`   | query            | Public (guest UI)                          |
-
----
+| Function                        | Type             | Access                                     || ------------------------------- | ---------------- | ------------------------------------------ || `validateTripTime`              | Helper           | Internal (ctx.db)                          || `getAvailableShuttle`           | internalQuery    | Called via `ctx.runQuery(internal....)`    || `getOrCreateTripInstance`       | internalMutation | Called via `ctx.runMutation(internal....)` || `createNotification`            | internalMutation | Called via `ctx.runMutation(internal....)` || `createBooking`                 | mutation         | Public (client callable)                   || `confirmBooking`                | mutation         | Public (frontdesk only)                    || `rejectBooking`                 | mutation         | Public (frontdesk only)                    || `assignDriverToShuttle`         | mutation         | Public (driver only)                       || `getPendingBookingsForHotel`    | query            | Public (frontdesk only)                    || `getDriverTripInstances`        | query            | Public (driver only)                       || `getAvailableShuttlesForDriver` | query            | Public (driver only)                       || `getTripInstanceAvailability`   | query            | Public (guest UI)                          |---
 
 ## Part 5: Edge Cases to Handle
 
@@ -668,5 +632,3 @@ File chnaged till now :
 68. convex/shuttles/queries.ts
 69. convex/tripInstances/mutations.ts
 70. convex/tripInstances/queries.ts
-71. 
-72. ~/Documents/Code/shuttle-2 %

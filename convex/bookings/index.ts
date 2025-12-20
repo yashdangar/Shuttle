@@ -3,21 +3,24 @@ import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import { findBestAvailableSlot } from "../lib/slotFinder";
+import {
+  getRouteSegmentsForBooking,
+  calculateTotalCharges,
+  getRoutesForTrip,
+} from "../lib/routeUtils";
 import { Id } from "../_generated/dataModel";
 
 const generateToken = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 
-// ============================================
-// PUBLIC MUTATIONS
-// ============================================
-
 export const createBooking = mutation({
   args: {
     guestId: v.id("users"),
     tripId: v.id("trips"),
+    fromLocationId: v.id("locations"),
+    toLocationId: v.id("locations"),
     scheduledDate: v.string(),
-    desiredTime: v.string(), // e.g., "07:45" or "1970-01-01T07:45:00.000Z"
+    desiredTime: v.string(),
     seats: v.number(),
     bags: v.number(),
     hotelId: v.id("hotels"),
@@ -56,6 +59,21 @@ export const createBooking = mutation({
       throw new ConvexError("Trip does not belong to the specified hotel");
     }
 
+    const routeSegments = await getRouteSegmentsForBooking(
+      ctx,
+      args.tripId,
+      args.fromLocationId,
+      args.toLocationId
+    );
+
+    if (!routeSegments) {
+      throw new ConvexError(
+        "Invalid route: selected locations are not valid stops on this trip"
+      );
+    }
+
+    const { fromIndex, toIndex, routes } = routeSegments;
+
     const bookingDate = new Date(args.scheduledDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -64,7 +82,6 @@ export const createBooking = mutation({
       throw new ConvexError("Cannot book for a past date");
     }
 
-    // Validate seats don't exceed any shuttle capacity
     const shuttles = await ctx.db
       .query("shuttles")
       .withIndex("by_hotel_active", (q) =>
@@ -86,23 +103,25 @@ export const createBooking = mutation({
       );
     }
 
-    // Find the best available slot using the smart slot finder
+    const allRoutes = await getRoutesForTrip(ctx, args.tripId);
+    const totalPrice =
+      calculateTotalCharges(allRoutes, fromIndex, toIndex) * args.seats;
+
     const slotResult = await findBestAvailableSlot(
       ctx,
       args.tripId,
       args.hotelId,
       args.scheduledDate,
       args.desiredTime,
-      args.seats
+      args.seats,
+      fromIndex,
+      toIndex
     );
-
-    const totalPrice = trip.charges * args.seats;
 
     if (slotResult.found && slotResult.slot) {
       const { slot } = slotResult;
       let tripInstanceId = slot.existingTripInstanceId;
 
-      // Create new TripInstance if one doesn't exist
       if (!tripInstanceId) {
         tripInstanceId = await ctx.runMutation(
           internal.tripInstances.mutations.getOrCreateTripInstance,
@@ -133,13 +152,17 @@ export const createBooking = mutation({
         paymentStatus: "UNPAID",
         qrCodeStatus: "UNVERIFIED",
         tripInstanceId,
+        fromRouteIndex: BigInt(fromIndex),
+        toRouteIndex: BigInt(toIndex),
       });
 
       await ctx.runMutation(
-        internal.tripInstances.mutations.updateTripInstanceSeats,
+        internal.routeInstances.mutations.updateMultipleRouteInstanceSeats,
         {
           tripInstanceId,
-          seatsHeldDelta: args.seats,
+          fromIndex,
+          toIndex,
+          seatHeldDelta: args.seats,
           seatsOccupiedDelta: 0,
         }
       );
@@ -184,17 +207,15 @@ export const createBooking = mutation({
           startTime: slot.startTime,
           endTime: slot.endTime,
         },
+        totalPrice,
       };
     } else {
-      // No slot available - create rejected booking
-      // We still need to create a tripInstance for record-keeping
-      // Get the first TripTime for this trip to store the booking
       const tripTimes = [];
       for (const tripTimeId of trip.tripTimesIds) {
         const tripTime = await ctx.db.get(tripTimeId);
         if (tripTime) {
           tripTimes.push(tripTime);
-          break; // Just need one for record keeping
+          break;
         }
       }
 
@@ -229,6 +250,8 @@ export const createBooking = mutation({
         paymentStatus: "UNPAID",
         qrCodeStatus: "UNVERIFIED",
         tripInstanceId,
+        fromRouteIndex: BigInt(fromIndex),
+        toRouteIndex: BigInt(toIndex),
         cancelledBy: "AUTO_CANCEL",
         cancellationReason: slotResult.reason || "No shuttle available",
       });
@@ -304,6 +327,11 @@ export const confirmBooking = mutation({
       throw new ConvexError("Booking has no associated trip instance");
     }
 
+    const fromIndex =
+      booking.fromRouteIndex !== undefined ? Number(booking.fromRouteIndex) : 0;
+    const toIndex =
+      booking.toRouteIndex !== undefined ? Number(booking.toRouteIndex) : 0;
+
     await ctx.db.patch(args.bookingId, {
       bookingStatus: "CONFIRMED",
       verifiedAt: new Date().toISOString(),
@@ -312,10 +340,12 @@ export const confirmBooking = mutation({
     });
 
     await ctx.runMutation(
-      internal.tripInstances.mutations.updateTripInstanceSeats,
+      internal.routeInstances.mutations.updateMultipleRouteInstanceSeats,
       {
         tripInstanceId: booking.tripInstanceId,
-        seatsHeldDelta: -Number(booking.seats),
+        fromIndex,
+        toIndex,
+        seatHeldDelta: -Number(booking.seats),
         seatsOccupiedDelta: Number(booking.seats),
       }
     );
@@ -397,11 +427,20 @@ export const rejectBooking = mutation({
     });
 
     if (booking.tripInstanceId) {
+      const fromIndex =
+        booking.fromRouteIndex !== undefined
+          ? Number(booking.fromRouteIndex)
+          : 0;
+      const toIndex =
+        booking.toRouteIndex !== undefined ? Number(booking.toRouteIndex) : 0;
+
       await ctx.runMutation(
-        internal.tripInstances.mutations.updateTripInstanceSeats,
+        internal.routeInstances.mutations.updateMultipleRouteInstanceSeats,
         {
           tripInstanceId: booking.tripInstanceId,
-          seatsHeldDelta: -Number(booking.seats),
+          fromIndex,
+          toIndex,
+          seatHeldDelta: -Number(booking.seats),
           seatsOccupiedDelta: 0,
         }
       );
@@ -464,21 +503,32 @@ export const cancelBooking = mutation({
     });
 
     if (booking.tripInstanceId) {
+      const fromIndex =
+        booking.fromRouteIndex !== undefined
+          ? Number(booking.fromRouteIndex)
+          : 0;
+      const toIndex =
+        booking.toRouteIndex !== undefined ? Number(booking.toRouteIndex) : 0;
+
       if (booking.bookingStatus === "PENDING") {
         await ctx.runMutation(
-          internal.tripInstances.mutations.updateTripInstanceSeats,
+          internal.routeInstances.mutations.updateMultipleRouteInstanceSeats,
           {
             tripInstanceId: booking.tripInstanceId,
-            seatsHeldDelta: -Number(booking.seats),
+            fromIndex,
+            toIndex,
+            seatHeldDelta: -Number(booking.seats),
             seatsOccupiedDelta: 0,
           }
         );
       } else if (booking.bookingStatus === "CONFIRMED") {
         await ctx.runMutation(
-          internal.tripInstances.mutations.updateTripInstanceSeats,
+          internal.routeInstances.mutations.updateMultipleRouteInstanceSeats,
           {
             tripInstanceId: booking.tripInstanceId,
-            seatsHeldDelta: 0,
+            fromIndex,
+            toIndex,
+            seatHeldDelta: 0,
             seatsOccupiedDelta: -Number(booking.seats),
           }
         );
@@ -507,10 +557,6 @@ export const cancelBooking = mutation({
   },
 });
 
-// ============================================
-// PUBLIC QUERIES
-// ============================================
-
 export const getPendingBookingsForHotel = query({
   args: {
     frontdeskUserId: v.id("users"),
@@ -534,6 +580,8 @@ export const getPendingBookingsForHotel = query({
         let tripName = "Unknown Trip";
         let scheduledDate = "";
         let scheduledTime = "";
+        let fromLocation = "Unknown";
+        let toLocation = "Unknown";
 
         if (booking.tripInstanceId) {
           const tripInstance = await ctx.db.get(booking.tripInstanceId);
@@ -541,6 +589,34 @@ export const getPendingBookingsForHotel = query({
             const trip = await ctx.db.get(tripInstance.tripId);
             if (trip) {
               tripName = trip.name;
+
+              const routes = await ctx.db
+                .query("routes")
+                .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+                .collect();
+              const sortedRoutes = routes.sort(
+                (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+              );
+
+              const fromIdx =
+                booking.fromRouteIndex !== undefined
+                  ? Number(booking.fromRouteIndex)
+                  : 0;
+              const toIdx =
+                booking.toRouteIndex !== undefined
+                  ? Number(booking.toRouteIndex)
+                  : sortedRoutes.length - 1;
+
+              if (sortedRoutes[fromIdx]) {
+                const loc = await ctx.db.get(
+                  sortedRoutes[fromIdx].startLocationId
+                );
+                fromLocation = loc?.name ?? "Unknown";
+              }
+              if (sortedRoutes[toIdx]) {
+                const loc = await ctx.db.get(sortedRoutes[toIdx].endLocationId);
+                toLocation = loc?.name ?? "Unknown";
+              }
             }
             scheduledDate = tripInstance.scheduledDate;
             scheduledTime = `${tripInstance.scheduledStartTime} - ${tripInstance.scheduledEndTime}`;
@@ -553,6 +629,8 @@ export const getPendingBookingsForHotel = query({
           guestName: guest?.name ?? "Unknown Guest",
           seats: Number(booking.seats),
           tripName,
+          fromLocation,
+          toLocation,
           scheduledDate,
           scheduledTime,
           createdAt: new Date(booking._creationTime).toISOString(),
@@ -574,19 +652,44 @@ export const getBookingById = query({
       return null;
     }
 
-    const guest = (await ctx.db.get(
-      booking.guestId as Id<"users">
-    )) as any;
+    const guest = await ctx.db.get(booking.guestId);
     let tripDetails = null;
 
     if (booking.tripInstanceId) {
       const tripInstance = await ctx.db.get(booking.tripInstanceId);
       if (tripInstance) {
         const trip = await ctx.db.get(tripInstance.tripId);
-        const [sourceLocation, destinationLocation] = await Promise.all([
-          trip ? ctx.db.get(trip.sourceLocationId) : null,
-          trip ? ctx.db.get(trip.destinationLocationId) : null,
-        ]);
+
+        let fromLocation = "Unknown";
+        let toLocation = "Unknown";
+
+        if (trip) {
+          const routes = await ctx.db
+            .query("routes")
+            .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+            .collect();
+          const sortedRoutes = routes.sort(
+            (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+          );
+
+          const fromIdx =
+            booking.fromRouteIndex !== undefined
+              ? Number(booking.fromRouteIndex)
+              : 0;
+          const toIdx =
+            booking.toRouteIndex !== undefined
+              ? Number(booking.toRouteIndex)
+              : sortedRoutes.length - 1;
+
+          if (sortedRoutes[fromIdx]) {
+            const loc = await ctx.db.get(sortedRoutes[fromIdx].startLocationId);
+            fromLocation = loc?.name ?? "Unknown";
+          }
+          if (sortedRoutes[toIdx]) {
+            const loc = await ctx.db.get(sortedRoutes[toIdx].endLocationId);
+            toLocation = loc?.name ?? "Unknown";
+          }
+        }
 
         let shuttleDetails = null;
         if (tripInstance.shuttleId) {
@@ -599,7 +702,6 @@ export const getBookingById = query({
           }
         }
 
-        // Get driver from shuttle's currentlyAssignedTo field
         let driverDetails = null;
         if (tripInstance.shuttleId) {
           const shuttle = await ctx.db.get(tripInstance.shuttleId);
@@ -607,8 +709,8 @@ export const getBookingById = query({
             const driver = await ctx.db.get(shuttle.currentlyAssignedTo);
             if (driver) {
               driverDetails = {
-                name: (driver as any).name,
-                phoneNumber: (driver as any).phoneNumber,
+                name: driver.name,
+                phoneNumber: driver.phoneNumber,
               };
             }
           }
@@ -617,8 +719,8 @@ export const getBookingById = query({
         tripDetails = {
           tripId: tripInstance.tripId,
           tripName: trip?.name ?? "Unknown",
-          sourceLocation: sourceLocation?.name ?? "Unknown",
-          destinationLocation: destinationLocation?.name ?? "Unknown",
+          fromLocation,
+          toLocation,
           scheduledDate: tripInstance.scheduledDate,
           scheduledStartTime: tripInstance.scheduledStartTime,
           scheduledEndTime: tripInstance.scheduledEndTime,
@@ -654,6 +756,14 @@ export const getBookingById = query({
       cancellationReason: booking.cancellationReason,
       cancelledBy: booking.cancelledBy,
       createdAt: new Date(booking._creationTime).toISOString(),
+      fromRouteIndex:
+        booking.fromRouteIndex !== undefined
+          ? Number(booking.fromRouteIndex)
+          : undefined,
+      toRouteIndex:
+        booking.toRouteIndex !== undefined
+          ? Number(booking.toRouteIndex)
+          : undefined,
       tripDetails,
     };
   },
@@ -689,15 +799,44 @@ export const getGuestBookings = query({
           const tripInstance = await ctx.db.get(booking.tripInstanceId);
           if (tripInstance) {
             const trip = await ctx.db.get(tripInstance.tripId);
-            const [sourceLocation, destinationLocation] = await Promise.all([
-              trip ? ctx.db.get(trip.sourceLocationId) : null,
-              trip ? ctx.db.get(trip.destinationLocationId) : null,
-            ]);
+
+            let fromLocation = "Unknown";
+            let toLocation = "Unknown";
+
+            if (trip) {
+              const routes = await ctx.db
+                .query("routes")
+                .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+                .collect();
+              const sortedRoutes = routes.sort(
+                (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+              );
+
+              const fromIdx =
+                booking.fromRouteIndex !== undefined
+                  ? Number(booking.fromRouteIndex)
+                  : 0;
+              const toIdx =
+                booking.toRouteIndex !== undefined
+                  ? Number(booking.toRouteIndex)
+                  : sortedRoutes.length - 1;
+
+              if (sortedRoutes[fromIdx]) {
+                const loc = await ctx.db.get(
+                  sortedRoutes[fromIdx].startLocationId
+                );
+                fromLocation = loc?.name ?? "Unknown";
+              }
+              if (sortedRoutes[toIdx]) {
+                const loc = await ctx.db.get(sortedRoutes[toIdx].endLocationId);
+                toLocation = loc?.name ?? "Unknown";
+              }
+            }
 
             tripDetails = {
               tripName: trip?.name ?? "Unknown",
-              sourceLocation: sourceLocation?.name ?? "Unknown",
-              destinationLocation: destinationLocation?.name ?? "Unknown",
+              fromLocation,
+              toLocation,
               scheduledDate: tripInstance.scheduledDate,
               scheduledStartTime: tripInstance.scheduledStartTime,
               scheduledEndTime: tripInstance.scheduledEndTime,
@@ -744,9 +883,47 @@ export const getBookingsByTripInstance = query({
       )
       .collect();
 
+    const tripInstance = await ctx.db.get(args.tripInstanceId);
+    let sortedRoutes: any[] = [];
+
+    if (tripInstance) {
+      const routes = await ctx.db
+        .query("routes")
+        .withIndex("by_trip", (q) => q.eq("tripId", tripInstance.tripId))
+        .collect();
+      sortedRoutes = routes.sort(
+        (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+      );
+    }
+
     const results = await Promise.all(
       bookings.map(async (booking) => {
         const guest = await ctx.db.get(booking.guestId);
+
+        let fromLocation = "Unknown";
+        let toLocation = "Unknown";
+
+        const fromIdx =
+          booking.fromRouteIndex !== undefined
+            ? Number(booking.fromRouteIndex)
+            : 0;
+        const toIdx =
+          booking.toRouteIndex !== undefined
+            ? Number(booking.toRouteIndex)
+            : sortedRoutes.length - 1;
+
+        if (sortedRoutes[fromIdx]) {
+          const loc = await ctx.db.get(
+            sortedRoutes[fromIdx].startLocationId as Id<"locations">
+          );
+          fromLocation = (loc as any)?.name ?? "Unknown";
+        }
+        if (sortedRoutes[toIdx]) {
+          const loc = await ctx.db.get(
+            sortedRoutes[toIdx].endLocationId as Id<"locations">
+          );
+          toLocation = (loc as any)?.name ?? "Unknown";
+        }
 
         return {
           _id: booking._id,
@@ -765,6 +942,10 @@ export const getBookingsByTripInstance = query({
           qrCodeStatus: booking.qrCodeStatus,
           verifiedAt: booking.verifiedAt,
           verifiedBy: booking.verifiedBy,
+          fromLocation,
+          toLocation,
+          fromRouteIndex: fromIdx,
+          toRouteIndex: toIdx,
         };
       })
     );
@@ -861,10 +1042,6 @@ export const getHotelBookings = query({
   },
 });
 
-// ===========================================================
-// DRIVER QR VERIFICATION
-// ===========================================================
-
 const ensureDriver = async (ctx: any, driverId: Id<"users">) => {
   const driver = await ctx.db.get(driverId);
   if (!driver || driver.role !== "driver") {
@@ -938,9 +1115,7 @@ export const checkQrCode = mutation({
       throw new ConvexError("Booking already verified");
     }
 
-    const guest = (await ctx.db.get(
-      booking.guestId as Id<"users">
-    )) as any;
+    const guest = await ctx.db.get(booking.guestId as Id<"users">);
 
     return {
       success: true,
@@ -979,9 +1154,7 @@ export const confirmCheckIn = mutation({
       verifiedBy: driver._id,
     });
 
-    const guest = (await ctx.db.get(
-      booking.guestId as Id<"users">
-    )) as any;
+    const guest = await ctx.db.get(booking.guestId as Id<"users">);
 
     return {
       success: true,

@@ -17,6 +17,17 @@ export type TripTimeRecord = {
   endTimeDisplay: string;
 };
 
+export type RouteRecord = {
+  id: Id<"routes">;
+  tripId: Id<"trips">;
+  startLocationId: Id<"locations">;
+  endLocationId: Id<"locations">;
+  startLocationName: string;
+  endLocationName: string;
+  charges: number;
+  orderIndex: number;
+};
+
 function timeToUTCString(timeString: string): string {
   const [hours, minutes] = timeString.split(":").map(Number);
   const date = new Date(Date.UTC(1970, 0, 1, hours, minutes || 0, 0, 0));
@@ -33,13 +44,10 @@ function utcStringToTime(utcString: string): string {
 export type TripRecord = {
   id: Id<"trips">;
   name: string;
-  sourceLocationId: Id<"locations">;
-  destinationLocationId: Id<"locations">;
-  sourceLocationName: string;
-  destinationLocationName: string;
-  charges: number;
   hotelId: Id<"hotels">;
+  routes: RouteRecord[];
   tripSlots: TripTimeRecord[];
+  totalCharges: number;
   createdAt: number;
 };
 
@@ -61,12 +69,37 @@ const formatTrip = async (
   ctx: any,
   trip: Doc<"trips">
 ): Promise<TripRecord> => {
-  const sourceLocation = await ctx.db.get(trip.sourceLocationId);
-  const destinationLocation = await ctx.db.get(trip.destinationLocationId);
+  const routes = await ctx.db
+    .query("routes")
+    .withIndex("by_trip", (q: any) => q.eq("tripId", trip._id))
+    .collect();
 
-  if (!sourceLocation || !destinationLocation) {
-    throw new Error("Location not found");
-  }
+  const sortedRoutes = routes.sort(
+    (a: Doc<"routes">, b: Doc<"routes">) =>
+      Number(a.orderIndex) - Number(b.orderIndex)
+  );
+
+  const routeRecords: RouteRecord[] = await Promise.all(
+    sortedRoutes.map(async (route: Doc<"routes">) => {
+      const [startLoc, endLoc] = await Promise.all([
+        ctx.db.get(route.startLocationId),
+        ctx.db.get(route.endLocationId),
+      ]);
+
+      return {
+        id: route._id,
+        tripId: route.tripId,
+        startLocationId: route.startLocationId,
+        endLocationId: route.endLocationId,
+        startLocationName: startLoc?.name ?? "Unknown",
+        endLocationName: endLoc?.name ?? "Unknown",
+        charges: route.charges,
+        orderIndex: Number(route.orderIndex),
+      };
+    })
+  );
+
+  const totalCharges = routeRecords.reduce((sum, r) => sum + r.charges, 0);
 
   const tripSlotsPromises = trip.tripTimesIds.map(async (tripTimeId) => {
     const tripTime = await ctx.db.get(tripTimeId);
@@ -84,88 +117,12 @@ const formatTrip = async (
   return {
     id: trip._id,
     name: trip.name,
-    sourceLocationId: trip.sourceLocationId,
-    destinationLocationId: trip.destinationLocationId,
-    sourceLocationName: sourceLocation.name,
-    destinationLocationName: destinationLocation.name,
-    charges: trip.charges,
     hotelId: trip.hotelId,
+    routes: routeRecords,
     tripSlots,
+    totalCharges,
     createdAt: trip._creationTime,
   };
-};
-
-const timeStringToMinutes = (timeString?: string): number | null => {
-  if (!timeString) {
-    return null;
-  }
-  const [hoursRaw, minutesRaw] = timeString.split(":");
-  const hours = Number(hoursRaw);
-  const minutes = Number(minutesRaw);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return null;
-  }
-  return hours * 60 + minutes;
-};
-
-const isTimeWithinSlot = (
-  slot: TripRecord["tripSlots"][number],
-  timeMinutes: number
-): boolean => {
-  const slotStart = timeStringToMinutes(slot.startTimeDisplay);
-  const slotEnd = timeStringToMinutes(slot.endTimeDisplay);
-  if (slotStart === null || slotEnd === null) {
-    return false;
-  }
-  if (slotEnd === slotStart) {
-    return timeMinutes === slotStart;
-  }
-  if (slotEnd < slotStart) {
-    return timeMinutes >= slotStart || timeMinutes < slotEnd;
-  }
-  return timeMinutes >= slotStart && timeMinutes < slotEnd;
-};
-
-const getCurrentMinutes = () => {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
-};
-
-type TripSlotUTC = {
-  startTime: string;
-  endTime: string;
-};
-
-const ensureNoConflictingTripSlots = async (
-  ctx: any,
-  params: {
-    hotelId: Id<"hotels">;
-    sourceLocationId: Id<"locations">;
-    destinationLocationId: Id<"locations">;
-    tripSlots: TripSlotUTC[];
-    excludeTripId?: Id<"trips">;
-  }
-) => {
-  if (params.tripSlots.length === 0) {
-    return;
-  }
-
-  const conflict = await ctx.runQuery(
-    internal.trips.index.findConflictingTripSlotInternal,
-    {
-      hotelId: params.hotelId,
-      sourceLocationId: params.sourceLocationId,
-      destinationLocationId: params.destinationLocationId,
-      tripSlots: params.tripSlots,
-      excludeTripId: params.excludeTripId,
-    }
-  );
-
-  if (conflict) {
-    const start = utcStringToTime(conflict.startTime);
-    const end = utcStringToTime(conflict.endTime);
-    throw new Error(`Trip slot ${start}-${end} already exists for this route.`);
-  }
 };
 
 export const listAdminTrips = query({
@@ -251,6 +208,8 @@ export const getAvailableSlotsForTrip = query({
     hotelId: v.id("hotels"),
     scheduledDate: v.string(),
     requiredSeats: v.number(),
+    fromRouteIndex: v.optional(v.number()),
+    toRouteIndex: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const trip = await ctx.db.get(args.tripId);
@@ -258,7 +217,18 @@ export const getAvailableSlotsForTrip = query({
       return [];
     }
 
-    // Get all TripTimes for this trip
+    const routes = await ctx.db
+      .query("routes")
+      .withIndex("by_trip", (q) => q.eq("tripId", args.tripId))
+      .collect();
+
+    if (routes.length === 0) {
+      return [];
+    }
+
+    const fromIndex = args.fromRouteIndex ?? 0;
+    const toIndex = args.toRouteIndex ?? routes.length - 1;
+
     const tripTimes: Doc<"tripTimes">[] = [];
     for (const tripTimeId of trip.tripTimesIds) {
       const tripTime = await ctx.db.get(tripTimeId);
@@ -271,7 +241,6 @@ export const getAvailableSlotsForTrip = query({
       return [];
     }
 
-    // Get all active shuttles for this hotel
     const shuttles = await ctx.db
       .query("shuttles")
       .withIndex("by_hotel_active", (q) =>
@@ -283,17 +252,14 @@ export const getAvailableSlotsForTrip = query({
       return [];
     }
 
-    // Check if any shuttle can accommodate the required seats
     const maxShuttleCapacity = Math.max(
       ...shuttles.map((s) => Number(s.totalSeats))
     );
 
     if (args.requiredSeats > maxShuttleCapacity) {
-      // No shuttle can accommodate this many seats - return empty array
       return [];
     }
 
-    // Parse time string to get hour
     const parseTimeToHour = (timeStr: string): number => {
       if (timeStr.includes("T")) {
         const date = new Date(timeStr);
@@ -305,29 +271,17 @@ export const getAvailableSlotsForTrip = query({
       return parseInt(timeStr, 10);
     };
 
-    // Convert hour to ISO time string
     const hourToISOTime = (hour: number): string => {
       const paddedHour = String(hour).padStart(2, "0");
       return `1970-01-01T${paddedHour}:00:00.000Z`;
     };
 
-    // Convert ISO time to display format
-    const utcStringToTime = (utcString: string): string => {
-      const date = new Date(utcString);
-      const hours = String(date.getUTCHours()).padStart(2, "0");
-      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-      return `${hours}:${minutes}`;
-    };
-
-    // Check if slot is available
     const checkSlotAvailability = async (
       slotStartTime: string,
       slotEndTime: string
     ): Promise<boolean> => {
       for (const shuttle of shuttles) {
-        // First check if shuttle can even accommodate the required seats
         if (Number(shuttle.totalSeats) < args.requiredSeats) {
-          // This shuttle doesn't have enough total capacity
           continue;
         }
 
@@ -348,21 +302,30 @@ export const getAvailableSlotsForTrip = query({
         );
 
         if (!matchingInstance) {
-          // No TripInstance exists - slot is available (we already checked total capacity)
           return true;
         }
 
         if (matchingInstance.status !== "SCHEDULED") {
-          // Status is IN_PROGRESS, COMPLETED, or CANCELLED - skip this shuttle
           continue;
         }
 
-        // Check seat availability
-        const usedSeats =
-          Number(matchingInstance.seatsOccupied) +
-          Number(matchingInstance.seatHeld);
-        const availableSeats = Number(shuttle.totalSeats) - usedSeats;
+        const routeInstances = await ctx.db
+          .query("routeInstances")
+          .withIndex("by_trip_instance", (q) =>
+            q.eq("tripInstanceId", matchingInstance._id)
+          )
+          .collect();
 
+        let maxUsed = 0;
+        for (const ri of routeInstances) {
+          const orderIdx = Number(ri.orderIndex);
+          if (orderIdx >= fromIndex && orderIdx <= toIndex) {
+            const used = Number(ri.seatsOccupied) + Number(ri.seatHeld);
+            maxUsed = Math.max(maxUsed, used);
+          }
+        }
+
+        const availableSeats = Number(shuttle.totalSeats) - maxUsed;
         if (availableSeats >= args.requiredSeats) {
           return true;
         }
@@ -371,7 +334,6 @@ export const getAvailableSlotsForTrip = query({
       return false;
     };
 
-    // Generate all 1-hour slots from tripTimes
     const allSlots: Array<{
       startTime: string;
       endTime: string;
@@ -383,7 +345,6 @@ export const getAvailableSlotsForTrip = query({
       const startHour = parseTimeToHour(tripTime.startTime);
       const endHour = parseTimeToHour(tripTime.endTime);
 
-      // Generate 1-hour slots
       for (let hour = startHour; hour < endHour; hour++) {
         const slotStartTime = hourToISOTime(hour);
         const slotEndTime = hourToISOTime(hour + 1);
@@ -396,24 +357,18 @@ export const getAvailableSlotsForTrip = query({
       }
     }
 
-    // Check current time if scheduled date is today
     const today = new Date().toISOString().split("T")[0];
     const isToday = args.scheduledDate === today;
     const currentHour = isToday ? new Date().getHours() : -1;
 
-    // Filter and check availability for each slot
     const availableSlots = [];
     for (const slot of allSlots) {
       const slotHour = parseTimeToHour(slot.startTime);
 
-      // Skip past slots if today (only skip if slot hour is before current hour)
-      // If current time is 5:30, we still want to check the 5-6 slot (slotHour = 5)
-      // The availability check will filter out IN_PROGRESS slots
       if (isToday && slotHour < currentHour) {
         continue;
       }
 
-      // Check if slot is available
       const isAvailable = await checkSlotAvailability(
         slot.startTime,
         slot.endTime
@@ -444,9 +399,7 @@ export const getMaxShuttleCapacity = query({
       return { maxCapacity: 0 };
     }
 
-    const maxCapacity = Math.max(
-      ...shuttles.map((s) => Number(s.totalSeats))
-    );
+    const maxCapacity = Math.max(...shuttles.map((s) => Number(s.totalSeats)));
 
     return { maxCapacity };
   },
@@ -459,6 +412,8 @@ export const getSlotCapacity = query({
     scheduledDate: v.string(),
     slotStartTime: v.string(),
     slotEndTime: v.string(),
+    fromRouteIndex: v.optional(v.number()),
+    toRouteIndex: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const trip = await ctx.db.get(args.tripId);
@@ -466,7 +421,14 @@ export const getSlotCapacity = query({
       return { maxCapacity: 0, availableCapacity: 0 };
     }
 
-    // Get all active shuttles for this hotel
+    const routes = await ctx.db
+      .query("routes")
+      .withIndex("by_trip", (q) => q.eq("tripId", args.tripId))
+      .collect();
+
+    const fromIndex = args.fromRouteIndex ?? 0;
+    const toIndex = args.toRouteIndex ?? routes.length - 1;
+
     const shuttles = await ctx.db
       .query("shuttles")
       .withIndex("by_hotel_active", (q) =>
@@ -503,14 +465,25 @@ export const getSlotCapacity = query({
       );
 
       if (!matchingInstance) {
-        // No TripInstance exists - full capacity available
         maxAvailableCapacity = Math.max(maxAvailableCapacity, totalSeats);
       } else {
-        // Check seat availability
-        const usedSeats =
-          Number(matchingInstance.seatsOccupied) +
-          Number(matchingInstance.seatHeld);
-        const availableSeats = totalSeats - usedSeats;
+        const routeInstances = await ctx.db
+          .query("routeInstances")
+          .withIndex("by_trip_instance", (q) =>
+            q.eq("tripInstanceId", matchingInstance._id)
+          )
+          .collect();
+
+        let maxUsed = 0;
+        for (const ri of routeInstances) {
+          const orderIdx = Number(ri.orderIndex);
+          if (orderIdx >= fromIndex && orderIdx <= toIndex) {
+            const used = Number(ri.seatsOccupied) + Number(ri.seatHeld);
+            maxUsed = Math.max(maxUsed, used);
+          }
+        }
+
+        const availableSeats = totalSeats - maxUsed;
         maxAvailableCapacity = Math.max(maxAvailableCapacity, availableSeats);
       }
     }
@@ -526,9 +499,12 @@ export const createTrip = action({
   args: {
     currentUserId: v.id("users"),
     name: v.string(),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    charges: v.number(),
+    stops: v.array(
+      v.object({
+        locationId: v.id("locations"),
+        charges: v.number(),
+      })
+    ),
     tripSlots: v.array(
       v.object({
         startTime: v.string(),
@@ -568,47 +544,29 @@ export const createTrip = action({
       throw new Error("Hotel not found");
     }
 
-    if (args.sourceLocationId === args.destinationLocationId) {
-      throw new Error("Source and destination must be different");
-    }
-
-    if (args.charges <= 0) {
-      throw new Error("Charges must be a positive number");
+    if (args.stops.length < 2) {
+      throw new Error("At least 2 stops are required to create a trip");
     }
 
     if (args.tripSlots.length === 0) {
       throw new Error("At least one trip slot is required");
     }
 
-    // Parallelize location queries
-    const [sourceLocation, destinationLocation] = await Promise.all([
-      ctx.runQuery(api.locations.index.getLocationById, {
-        locationId: args.sourceLocationId,
-      }),
-      ctx.runQuery(api.locations.index.getLocationById, {
-        locationId: args.destinationLocationId,
-      }),
-    ]);
+    for (const stop of args.stops) {
+      const location = await ctx.runQuery(api.locations.index.getLocationById, {
+        locationId: stop.locationId,
+      });
 
-    if (!sourceLocation) {
-      throw new Error("Source location not found");
+      if (!location) {
+        throw new Error("Location not found");
+      }
+
+      if (location.hotelId !== hotel.id) {
+        throw new Error("Location does not belong to your hotel");
+      }
     }
 
-    if (sourceLocation.hotelId !== hotel.id) {
-      throw new Error("Source location does not belong to your hotel");
-    }
-
-    if (!destinationLocation) {
-      throw new Error("Destination location not found");
-    }
-
-    if (destinationLocation.hotelId !== hotel.id) {
-      throw new Error("Destination location does not belong to your hotel");
-    }
-
-    // Validate time formats
     const timeRegex = /^([0-1][0-9]|2[0-3]):00$/;
-
     const seenSlots = new Set<string>();
 
     for (const slot of args.tripSlots) {
@@ -652,20 +610,10 @@ export const createTrip = action({
       endTime: timeToUTCString(slot.endTime),
     }));
 
-    await ensureNoConflictingTripSlots(ctx, {
-      hotelId: hotel.id,
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      tripSlots: utcTripSlots,
-    });
-
     const tripId = await ctx.runMutation(
       internal.trips.index.createTripInternal,
       {
         name: args.name.trim(),
-        sourceLocationId: args.sourceLocationId,
-        destinationLocationId: args.destinationLocationId,
-        charges: args.charges,
         hotelId: hotel.id,
       }
     );
@@ -673,6 +621,27 @@ export const createTrip = action({
     await ctx.runMutation(internal.hotels.index.addTripToHotelInternal, {
       hotelId: hotel.id,
       tripId,
+    });
+
+    const routeIds: Id<"routes">[] = [];
+
+    for (let i = 0; i < args.stops.length - 1; i++) {
+      const routeId = await ctx.runMutation(
+        internal.routes.index.createRouteInternal,
+        {
+          tripId,
+          startLocationId: args.stops[i].locationId,
+          endLocationId: args.stops[i + 1].locationId,
+          charges: args.stops[i].charges,
+          orderIndex: i,
+        }
+      );
+      routeIds.push(routeId);
+    }
+
+    await ctx.runMutation(internal.trips.index.updateTripRouteIdsInternal, {
+      tripId,
+      routeIds,
     });
 
     const tripTimeIds: Id<"tripTimes">[] = [];
@@ -711,9 +680,12 @@ export const updateTrip = action({
     currentUserId: v.id("users"),
     tripId: v.id("trips"),
     name: v.string(),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    charges: v.number(),
+    stops: v.array(
+      v.object({
+        locationId: v.id("locations"),
+        charges: v.number(),
+      })
+    ),
     tripSlots: v.array(
       v.object({
         startTime: v.string(),
@@ -765,47 +737,29 @@ export const updateTrip = action({
       throw new Error("Trip does not belong to your hotel");
     }
 
-    if (args.sourceLocationId === args.destinationLocationId) {
-      throw new Error("Source and destination must be different");
-    }
-
-    if (args.charges <= 0) {
-      throw new Error("Charges must be a positive number");
+    if (args.stops.length < 2) {
+      throw new Error("At least 2 stops are required");
     }
 
     if (args.tripSlots.length === 0) {
       throw new Error("At least one trip slot is required");
     }
 
-    // Parallelize location queries
-    const [sourceLocation, destinationLocation] = await Promise.all([
-      ctx.runQuery(api.locations.index.getLocationById, {
-        locationId: args.sourceLocationId,
-      }),
-      ctx.runQuery(api.locations.index.getLocationById, {
-        locationId: args.destinationLocationId,
-      }),
-    ]);
+    for (const stop of args.stops) {
+      const location = await ctx.runQuery(api.locations.index.getLocationById, {
+        locationId: stop.locationId,
+      });
 
-    if (!sourceLocation) {
-      throw new Error("Source location not found");
+      if (!location) {
+        throw new Error("Location not found");
+      }
+
+      if (location.hotelId !== hotel.id) {
+        throw new Error("Location does not belong to your hotel");
+      }
     }
 
-    if (sourceLocation.hotelId !== hotel.id) {
-      throw new Error("Source location does not belong to your hotel");
-    }
-
-    if (!destinationLocation) {
-      throw new Error("Destination location not found");
-    }
-
-    if (destinationLocation.hotelId !== hotel.id) {
-      throw new Error("Destination location does not belong to your hotel");
-    }
-
-    // Validate time formats
     const timeRegex = /^([0-1][0-9]|2[0-3]):00$/;
-
     const seenSlots = new Set<string>();
 
     for (const slot of args.tripSlots) {
@@ -849,14 +803,6 @@ export const updateTrip = action({
       endTime: timeToUTCString(slot.endTime),
     }));
 
-    await ensureNoConflictingTripSlots(ctx, {
-      hotelId: hotel.id,
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      tripSlots: utcTripSlots,
-      excludeTripId: args.tripId,
-    });
-
     const existingTripDoc = await ctx.runQuery(
       internal.trips.index.getTripByIdInternal,
       {
@@ -868,20 +814,40 @@ export const updateTrip = action({
       throw new Error("Trip not found");
     }
 
-    // Parallelize trip time deletions
-    const deletePromises = existingTripDoc.tripTimesIds.map((tripTimeId) =>
-      ctx.runMutation(internal.trips.index.deleteTripTimeInternal, {
+    for (const tripTimeId of existingTripDoc.tripTimesIds) {
+      await ctx.runMutation(internal.trips.index.deleteTripTimeInternal, {
         tripTimeId,
-      })
-    );
-    await Promise.all(deletePromises);
+      });
+    }
+
+    await ctx.runMutation(internal.routes.index.deleteRoutesByTripInternal, {
+      tripId: args.tripId,
+    });
 
     await ctx.runMutation(internal.trips.index.updateTripInternal, {
       tripId: args.tripId,
       name: args.name.trim(),
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      charges: args.charges,
+    });
+
+    const routeIds: Id<"routes">[] = [];
+
+    for (let i = 0; i < args.stops.length - 1; i++) {
+      const routeId = await ctx.runMutation(
+        internal.routes.index.createRouteInternal,
+        {
+          tripId: args.tripId,
+          startLocationId: args.stops[i].locationId,
+          endLocationId: args.stops[i + 1].locationId,
+          charges: args.stops[i].charges,
+          orderIndex: i,
+        }
+      );
+      routeIds.push(routeId);
+    }
+
+    await ctx.runMutation(internal.trips.index.updateTripRouteIdsInternal, {
+      tripId: args.tripId,
+      routeIds,
     });
 
     const tripTimeIds: Id<"tripTimes">[] = [];
@@ -981,6 +947,10 @@ export const deleteTrip = action({
       });
     }
 
+    await ctx.runMutation(internal.routes.index.deleteRoutesByTripInternal, {
+      tripId: args.tripId,
+    });
+
     await ctx.runMutation(internal.hotels.index.removeTripFromHotelInternal, {
       hotelId: hotel.id,
       tripId: args.tripId,
@@ -997,18 +967,13 @@ export const deleteTrip = action({
 export const createTripInternal = internalMutation({
   args: {
     name: v.string(),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    charges: v.float64(),
     hotelId: v.id("hotels"),
   },
   async handler(ctx, args) {
     return await ctx.db.insert("trips", {
       name: args.name,
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      charges: args.charges,
       hotelId: args.hotelId,
+      routeIds: [],
       tripTimesIds: [],
     });
   },
@@ -1033,16 +998,22 @@ export const updateTripInternal = internalMutation({
   args: {
     tripId: v.id("trips"),
     name: v.string(),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    charges: v.float64(),
   },
   async handler(ctx, args) {
     await ctx.db.patch(args.tripId, {
       name: args.name,
-      sourceLocationId: args.sourceLocationId,
-      destinationLocationId: args.destinationLocationId,
-      charges: args.charges,
+    });
+  },
+});
+
+export const updateTripRouteIdsInternal = internalMutation({
+  args: {
+    tripId: v.id("trips"),
+    routeIds: v.array(v.id("routes")),
+  },
+  async handler(ctx, args) {
+    await ctx.db.patch(args.tripId, {
+      routeIds: args.routeIds,
     });
   },
 });
@@ -1090,59 +1061,5 @@ export const getTripByIdInternal = internalQuery({
   },
   async handler(ctx, args) {
     return await ctx.db.get(args.tripId);
-  },
-});
-
-export const findConflictingTripSlotInternal = internalQuery({
-  args: {
-    hotelId: v.id("hotels"),
-    sourceLocationId: v.id("locations"),
-    destinationLocationId: v.id("locations"),
-    tripSlots: v.array(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-      })
-    ),
-    excludeTripId: v.optional(v.id("trips")),
-  },
-  async handler(ctx, args) {
-    if (args.tripSlots.length === 0) {
-      return null;
-    }
-
-    const tripSlotKeys = new Set(
-      args.tripSlots.map((slot) => `${slot.startTime}-${slot.endTime}`)
-    );
-
-    const trips = await ctx.db
-      .query("trips")
-      .withIndex("by_hotel", (q) => q.eq("hotelId", args.hotelId))
-      .collect();
-
-    const relevantTrips = trips.filter(
-      (trip) =>
-        trip.sourceLocationId === args.sourceLocationId &&
-        trip.destinationLocationId === args.destinationLocationId &&
-        (!args.excludeTripId || trip._id !== args.excludeTripId)
-    );
-
-    for (const trip of relevantTrips) {
-      for (const tripTimeId of trip.tripTimesIds) {
-        const tripTime = await ctx.db.get(tripTimeId);
-        if (!tripTime) {
-          continue;
-        }
-        const key = `${tripTime.startTime}-${tripTime.endTime}`;
-        if (tripSlotKeys.has(key)) {
-          return {
-            startTime: tripTime.startTime,
-            endTime: tripTime.endTime,
-          };
-        }
-      }
-    }
-
-    return null;
   },
 });

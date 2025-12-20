@@ -1,5 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
+import { internal } from "../_generated/api";
 
 export const getOrCreateTripInstance = internalMutation({
   args: {
@@ -37,36 +38,19 @@ export const getOrCreateTripInstance = internalMutation({
       scheduledStartTime: args.scheduledStartTime,
       scheduledEndTime: args.scheduledEndTime,
       shuttleId: args.shuttleId,
-      seatsOccupied: BigInt(0),
-      seatHeld: BigInt(0),
       status: "SCHEDULED",
       bookingIds: [],
     });
 
+    await ctx.runMutation(
+      internal.routeInstances.mutations.createRouteInstancesForTripInstance,
+      {
+        tripInstanceId,
+        tripId: args.tripId,
+      }
+    );
+
     return tripInstanceId;
-  },
-});
-
-export const updateTripInstanceSeats = internalMutation({
-  args: {
-    tripInstanceId: v.id("tripInstances"),
-    seatsHeldDelta: v.number(),
-    seatsOccupiedDelta: v.number(),
-  },
-  async handler(ctx, args) {
-    const tripInstance = await ctx.db.get(args.tripInstanceId);
-    if (!tripInstance) {
-      throw new Error("TripInstance not found");
-    }
-
-    const newSeatHeld = Number(tripInstance.seatHeld) + args.seatsHeldDelta;
-    const newSeatsOccupied =
-      Number(tripInstance.seatsOccupied) + args.seatsOccupiedDelta;
-
-    await ctx.db.patch(args.tripInstanceId, {
-      seatHeld: BigInt(Math.max(0, newSeatHeld)),
-      seatsOccupied: BigInt(Math.max(0, newSeatsOccupied)),
-    });
   },
 });
 
@@ -141,9 +125,17 @@ export const updateTripInstanceStatus = internalMutation({
   },
 });
 
-// ============================================
-// PUBLIC MUTATIONS (Driver Actions)
-// ============================================
+export const updateTripInstancePriority = internalMutation({
+  args: {
+    tripInstanceId: v.id("tripInstances"),
+    priority: v.number(),
+  },
+  async handler(ctx, args) {
+    await ctx.db.patch(args.tripInstanceId, {
+      tripInstancePriority: BigInt(args.priority),
+    });
+  },
+});
 
 export const startTripInstance = mutation({
   args: {
@@ -161,7 +153,6 @@ export const startTripInstance = mutation({
       throw new ConvexError("Trip instance not found");
     }
 
-    // Verify this driver is assigned to the shuttle
     if (tripInstance.shuttleId) {
       const shuttle = await ctx.db.get(tripInstance.shuttleId);
       if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
@@ -200,7 +191,6 @@ export const completeTripInstance = mutation({
       throw new ConvexError("Trip instance not found");
     }
 
-    // Verify this driver is assigned to the shuttle
     if (tripInstance.shuttleId) {
       const shuttle = await ctx.db.get(tripInstance.shuttleId);
       if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
@@ -212,6 +202,19 @@ export const completeTripInstance = mutation({
       throw new ConvexError(
         `Cannot complete trip. Current status: ${tripInstance.status}. Trip must be IN_PROGRESS first.`
       );
+    }
+
+    const routeInstances = await ctx.db
+      .query("routeInstances")
+      .withIndex("by_trip_instance", (q) =>
+        q.eq("tripInstanceId", args.tripInstanceId)
+      )
+      .collect();
+
+    for (const ri of routeInstances) {
+      if (!ri.completed) {
+        await ctx.db.patch(ri._id, { completed: true });
+      }
     }
 
     await ctx.db.patch(args.tripInstanceId, {
@@ -240,7 +243,6 @@ export const cancelTripInstance = mutation({
       throw new ConvexError("Trip instance not found");
     }
 
-    // Verify this driver is assigned to the shuttle
     if (tripInstance.shuttleId) {
       const shuttle = await ctx.db.get(tripInstance.shuttleId);
       if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
@@ -261,9 +263,38 @@ export const cancelTripInstance = mutation({
       status: "CANCELLED",
     });
 
-    // Optionally notify guests about cancellation
-    // TODO: Add notification logic here if needed
-
     return { success: true, message: "Trip cancelled successfully" };
+  },
+});
+
+export const setTripInstancePriority = mutation({
+  args: {
+    driverId: v.id("users"),
+    tripInstanceId: v.id("tripInstances"),
+    priority: v.number(),
+  },
+  async handler(ctx, args) {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver || driver.role !== "driver") {
+      throw new ConvexError("Only drivers can set trip priority");
+    }
+
+    const tripInstance = await ctx.db.get(args.tripInstanceId);
+    if (!tripInstance) {
+      throw new ConvexError("Trip instance not found");
+    }
+
+    if (tripInstance.shuttleId) {
+      const shuttle = await ctx.db.get(tripInstance.shuttleId);
+      if (!shuttle || shuttle.currentlyAssignedTo !== args.driverId) {
+        throw new ConvexError("You are not assigned to this shuttle");
+      }
+    }
+
+    await ctx.db.patch(args.tripInstanceId, {
+      tripInstancePriority: BigInt(args.priority),
+    });
+
+    return { success: true, message: "Priority updated successfully" };
   },
 });

@@ -123,6 +123,8 @@ function NewBookingContent() {
     form: TransferFormData | ParkFormData
   ): string | null => {
     if (!form.tripId) return "Please select a trip";
+    if (!form.pickupLocation) return "Please select a pickup location";
+    if (!form.destination) return "Please select a destination";
     if (!form.date) return "Please select a date";
     if (!form.time) return "Please select a time";
     if (!form.seats || parseInt(form.seats, 10) <= 0)
@@ -130,7 +132,6 @@ function NewBookingContent() {
     if (!form.firstName && !form.lastName && !form.confirmationNumber)
       return "Please enter guest name or confirmation number";
     
-    // Validate that time slot format is correct
     if (form.time && !form.time.includes("-")) {
       return "Please select a valid time slot";
     }
@@ -172,8 +173,10 @@ function NewBookingContent() {
         body: JSON.stringify({
           guestId: user.id,
           tripId: formData.tripId,
+          fromLocationId: formData.pickupLocation,
+          toLocationId: formData.destination,
           scheduledDate: formData.date,
-          desiredTime, // Send the start time of the selected slot
+          desiredTime,
           seats: parseInt(formData.seats, 10),
           bags: parseInt(formData.bags || "0", 10),
           hotelId: hotel.id,
@@ -235,6 +238,8 @@ function NewBookingContent() {
     const form = getFormData();
     return Boolean(
       form.tripId &&
+        form.pickupLocation &&
+        form.destination &&
         form.date &&
         form.time &&
         form.seats &&
