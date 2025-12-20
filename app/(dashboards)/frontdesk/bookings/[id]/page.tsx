@@ -73,11 +73,11 @@ export default function FrontdeskBookingDetailPage() {
     bookingId: bookingId as Id<"bookings">,
   });
 
-  const { eta, pickupLocationName, isCompleted: pickupCompleted } = useBookingETA(
-    booking?.tripInstanceId
-      ? (bookingId as Id<"bookings">)
-      : null
-  );
+  const {
+    eta,
+    pickupLocationName,
+    isCompleted: pickupCompleted,
+  } = useBookingETA(booking ? (bookingId as Id<"bookings">) : null);
 
   const isLoading = booking === undefined;
 
@@ -223,7 +223,7 @@ export default function FrontdeskBookingDetailPage() {
             </h1>
             {trip && (
               <p className="text-sm text-muted-foreground">
-                {trip.sourceLocation} → {trip.destinationLocation}
+                {trip.fromLocation} → {trip.toLocation}
               </p>
             )}
           </div>
@@ -311,11 +311,7 @@ export default function FrontdeskBookingDetailPage() {
             <InfoBlock
               icon={<MapPin className="h-4 w-4 text-blue-600" />}
               label="Route"
-              value={
-                trip
-                  ? `${trip.sourceLocation} → ${trip.destinationLocation}`
-                  : "N/A"
-              }
+              value={trip ? `${trip.fromLocation} → ${trip.toLocation}` : "N/A"}
               helper={booking.isParkSleepFly ? "Park, Sleep & Fly" : "Transfer"}
             />
             <InfoBlock
@@ -355,7 +351,9 @@ export default function FrontdeskBookingDetailPage() {
                 icon={<Clock className="h-4 w-4 text-orange-600" />}
                 label="ETA to Pickup"
                 value={eta}
-                helper={pickupLocationName ? `At ${pickupLocationName}` : undefined}
+                helper={
+                  pickupLocationName ? `At ${pickupLocationName}` : undefined
+                }
               />
             )}
             {trip?.status === "IN_PROGRESS" && pickupCompleted && (

@@ -72,7 +72,8 @@ const formatTripSlots = (trip: TripRecord): string => {
   }
   return trip.tripSlots
     .map(
-      (slot) => `${slot.startTimeDisplay ?? "--"}-${slot.endTimeDisplay ?? "--"}`
+      (slot) =>
+        `${slot.startTimeDisplay ?? "--"}-${slot.endTimeDisplay ?? "--"}`
     )
     .join(", ");
 };
@@ -120,9 +121,10 @@ export function ParkForm({
       : "skip"
   );
   const slots = availableSlots ?? [];
-  const isLoadingSlots = form.tripId && hotelId && form.date && seatsNumber > 0
-    ? availableSlots === undefined
-    : false;
+  const isLoadingSlots =
+    form.tripId && hotelId && form.date && seatsNumber > 0
+      ? availableSlots === undefined
+      : false;
 
   // Check if seats exceed max shuttle capacity
   const seatsExceedMaxCapacity = useMemo(() => {
@@ -132,13 +134,22 @@ export function ParkForm({
   // Extract slot times from selected time slot (format: "HH:MM-HH:MM")
   const selectedSlotTimes = useMemo(() => {
     if (!form.time || !form.time.includes("-")) return null;
-    const [startTimeDisplay, endTimeDisplay] = form.time.split("-").map((t) => t.trim());
+    const [startTimeDisplay, endTimeDisplay] = form.time
+      .split("-")
+      .map((t) => t.trim());
     // Find the slot in availableSlots to get ISO times
     const slot = availableSlots?.find(
-      (s) => s.startTimeDisplay === startTimeDisplay && s.endTimeDisplay === endTimeDisplay
+      (s) =>
+        s.startTimeDisplay === startTimeDisplay &&
+        s.endTimeDisplay === endTimeDisplay
     );
     return slot
-      ? { startTime: slot.startTime, endTime: slot.endTime, startTimeDisplay, endTimeDisplay }
+      ? {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          startTimeDisplay,
+          endTimeDisplay,
+        }
       : null;
   }, [form.time, availableSlots]);
 
@@ -197,8 +208,13 @@ export function ParkForm({
       return [];
     }
     return trips.filter((trip) => {
-      const source = locationMap.get(trip.sourceLocationId);
-      const destination = locationMap.get(trip.destinationLocationId);
+      if (trip.routes.length === 0) {
+        return false;
+      }
+      const firstRoute = trip.routes[0];
+      const lastRoute = trip.routes[trip.routes.length - 1];
+      const source = locationMap.get(firstRoute.startLocationId);
+      const destination = locationMap.get(lastRoute.endLocationId);
       if (!source || !destination) {
         return false;
       }
@@ -232,16 +248,18 @@ export function ParkForm({
       return;
     }
     const selectedTrip = trips.find((trip) => trip.id === tripId);
-    if (!selectedTrip) {
+    if (!selectedTrip || selectedTrip.routes.length === 0) {
       onChange({
         pickupLocation: "",
         destination: "",
       });
       return;
     }
+    const firstRoute = selectedTrip.routes[0];
+    const lastRoute = selectedTrip.routes[selectedTrip.routes.length - 1];
     onChange({
-      pickupLocation: selectedTrip.sourceLocationId,
-      destination: selectedTrip.destinationLocationId,
+      pickupLocation: firstRoute.startLocationId,
+      destination: lastRoute.endLocationId,
     });
   };
 
@@ -448,7 +466,10 @@ export function ParkForm({
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="park-seats">
-            Number of seats <span className="text-muted-foreground text-xs">(required to show available time slots)</span>
+            Number of seats{" "}
+            <span className="text-muted-foreground text-xs">
+              (required to show available time slots)
+            </span>
           </Label>
           <Input
             id="park-seats"
@@ -478,19 +499,37 @@ export function ParkForm({
           )}
           {form.tripId && form.date && seatsExceedMaxCapacity && (
             <p className="text-sm text-destructive">
-              Cannot book {seatsNumber} seats. Maximum shuttle capacity is {maxShuttleCapacity} seat{maxShuttleCapacity !== 1 ? "s" : ""}. Please reduce the number of seats.
+              Cannot book {seatsNumber} seats. Maximum shuttle capacity is{" "}
+              {maxShuttleCapacity} seat{maxShuttleCapacity !== 1 ? "s" : ""}.
+              Please reduce the number of seats.
             </p>
           )}
-          {form.tripId && form.date && !seatsExceedMaxCapacity && seatsExceedCapacity && selectedSlotTimes && slotCapacity && (
-            <p className="text-sm text-destructive">
-              Maximum {slotCapacity.availableCapacity} seat{slotCapacity.availableCapacity !== 1 ? "s" : ""} available for this slot. Please select fewer seats or choose a different time slot.
-            </p>
-          )}
-          {form.tripId && form.date && !seatsExceedMaxCapacity && !seatsExceedCapacity && seatsNumber > 0 && slots.length === 0 && !isLoadingSlots && (
-            <p className="text-sm text-destructive">
-              No time slots available for {seatsNumber} seat{seatsNumber !== 1 ? "s" : ""}. All slots are fully booked. Please try a different date or reduce the number of seats.
-            </p>
-          )}
+          {form.tripId &&
+            form.date &&
+            !seatsExceedMaxCapacity &&
+            seatsExceedCapacity &&
+            selectedSlotTimes &&
+            slotCapacity && (
+              <p className="text-sm text-destructive">
+                Maximum {slotCapacity.availableCapacity} seat
+                {slotCapacity.availableCapacity !== 1 ? "s" : ""} available for
+                this slot. Please select fewer seats or choose a different time
+                slot.
+              </p>
+            )}
+          {form.tripId &&
+            form.date &&
+            !seatsExceedMaxCapacity &&
+            !seatsExceedCapacity &&
+            seatsNumber > 0 &&
+            slots.length === 0 &&
+            !isLoadingSlots && (
+              <p className="text-sm text-destructive">
+                No time slots available for {seatsNumber} seat
+                {seatsNumber !== 1 ? "s" : ""}. All slots are fully booked.
+                Please try a different date or reduce the number of seats.
+              </p>
+            )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="park-bags">Bags</Label>
@@ -507,58 +546,67 @@ export function ParkForm({
           />
         </div>
       </div>
-      {form.tripId && form.date && seatsNumber > 0 && !seatsExceedMaxCapacity && (
-        <div className="space-y-2">
-          <Label htmlFor="park-time">Time slot</Label>
-          <Select
-            value={form.time || undefined}
-            onValueChange={(value) => {
-              // Validate that selected seats don't exceed capacity for this slot
-              const [startTimeDisplay, endTimeDisplay] = value.split("-").map((t) => t.trim());
-              const slotInList = slots.find(
-                (s) => s.startTimeDisplay === startTimeDisplay && s.endTimeDisplay === endTimeDisplay
-              );
-              
-              if (!slotInList) {
-                // Slot not in available list means it doesn't have enough capacity
-                return;
-              }
-              
-              onChange({
-                time: value,
-              });
-            }}
-            disabled={isLoadingSlots}
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue
-                placeholder={
-                  isLoadingSlots
-                    ? "Loading available slots..."
-                    : slots.length === 0
-                      ? "No slots available"
-                      : "Select time slot"
+      {form.tripId &&
+        form.date &&
+        seatsNumber > 0 &&
+        !seatsExceedMaxCapacity && (
+          <div className="space-y-2">
+            <Label htmlFor="park-time">Time slot</Label>
+            <Select
+              value={form.time || undefined}
+              onValueChange={(value) => {
+                // Validate that selected seats don't exceed capacity for this slot
+                const [startTimeDisplay, endTimeDisplay] = value
+                  .split("-")
+                  .map((t) => t.trim());
+                const slotInList = slots.find(
+                  (s) =>
+                    s.startTimeDisplay === startTimeDisplay &&
+                    s.endTimeDisplay === endTimeDisplay
+                );
+
+                if (!slotInList) {
+                  // Slot not in available list means it doesn't have enough capacity
+                  return;
                 }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {slots.map((slot) => (
-                <SelectItem
-                  key={`${slot.startTime}-${slot.endTime}`}
-                  value={`${slot.startTimeDisplay}-${slot.endTimeDisplay}`}
-                >
-                  {slot.startTimeDisplay} - {slot.endTimeDisplay}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {slots.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Showing {slots.length} available slot{slots.length !== 1 ? "s" : ""} for {seatsNumber} seat{seatsNumber !== 1 ? "s" : ""}
-            </p>
-          )}
-        </div>
-      )}
+
+                onChange({
+                  time: value,
+                });
+              }}
+              disabled={isLoadingSlots}
+            >
+              <SelectTrigger className="h-11">
+                <SelectValue
+                  placeholder={
+                    isLoadingSlots
+                      ? "Loading available slots..."
+                      : slots.length === 0
+                        ? "No slots available"
+                        : "Select time slot"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {slots.map((slot) => (
+                  <SelectItem
+                    key={`${slot.startTime}-${slot.endTime}`}
+                    value={`${slot.startTimeDisplay}-${slot.endTimeDisplay}`}
+                  >
+                    {slot.startTimeDisplay} - {slot.endTimeDisplay}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {slots.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Showing {slots.length} available slot
+                {slots.length !== 1 ? "s" : ""} for {seatsNumber} seat
+                {seatsNumber !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        )}
       <div className="space-y-2">
         <Label htmlFor="park-notes">Notes (optional)</Label>
         <Textarea

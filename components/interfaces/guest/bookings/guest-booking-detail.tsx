@@ -55,11 +55,11 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
   });
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
-  const { eta, pickupLocationName, isCompleted: pickupCompleted } = useBookingETA(
-    booking?.tripInstanceId
-      ? (bookingId as Id<"bookings">)
-      : null
-  );
+  const {
+    eta,
+    pickupLocationName,
+    isCompleted: pickupCompleted,
+  } = useBookingETA(booking ? (bookingId as Id<"bookings">) : null);
 
   useEffect(() => {
     const generate = async () => {
@@ -138,9 +138,7 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
       key: "route",
       icon: <MapPin className="h-4 w-4 text-blue-600" />,
       label: "Route",
-      value: trip
-        ? `${trip.sourceLocation} → ${trip.destinationLocation}`
-        : "N/A",
+      value: trip ? `${trip.fromLocation} → ${trip.toLocation}` : "N/A",
       helper: booking.isParkSleepFly ? "Park, Sleep & Fly" : "Transfer",
     },
     {
@@ -180,9 +178,7 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
       size="full"
       title={trip?.tripName || "Shuttle Transfer"}
       description={
-        trip
-          ? `${trip.sourceLocation} → ${trip.destinationLocation}`
-          : undefined
+        trip ? `${trip.fromLocation} → ${trip.toLocation}` : undefined
       }
       primaryActions={
         <Badge className={`${statusStyle.className} rounded-full border-0`}>
