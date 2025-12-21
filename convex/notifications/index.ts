@@ -117,6 +117,47 @@ export const clearAllNotifications = mutation({
   },
 });
 
+export const sendNotification = internalMutation({
+  args: {
+    title: v.string(),
+    message: v.string(),
+    type: v.union(
+      v.literal("NEW_BOOKING"),
+      v.literal("BOOKING_FAILED"),
+      v.literal("BOOKING_CONFIRMED"),
+      v.literal("BOOKING_REJECTED"),
+      v.literal("GENERAL")
+    ),
+    relatedBookingId: v.optional(v.id("bookings")),
+    userIds: v.array(v.id("users")),
+  },
+  async handler(ctx, args) {
+    const notificationIds: Id<"notifications">[] = [];
+    
+    for (const userId of args.userIds) {
+      const user = await ctx.db.get(userId);
+      if (!user) continue;
+      
+      const notificationId = await ctx.db.insert("notifications", {
+        userId,
+        title: args.title,
+        message: args.message,
+        isRead: false,
+        type: args.type,
+        relatedBookingId: args.relatedBookingId,
+      });
+      
+      notificationIds.push(notificationId);
+      
+      await ctx.db.patch(userId, {
+        notificationIds: [...user.notificationIds, notificationId],
+      });
+    }
+    
+    return notificationIds;
+  },
+});
+
 export const createNotification = internalMutation({
   args: {
     userId: v.id("users"),

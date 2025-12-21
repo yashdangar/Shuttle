@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { IconMapPin } from "@tabler/icons-react";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Eye, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -88,9 +88,14 @@ export function LocationTable() {
     setPageIndex((prev) => prev - 1);
   };
 
+  const handleView = (locationId: Id<"locations">) => {
+    router.push(`/super-admin/locations/${locationId}`);
+  };
+
   const handleEdit = (locationId: Id<"locations">) => {
     router.push(`/super-admin/locations/${locationId}/edit`);
   };
+
 
   const handleDeleteRequest = (location: {
     id: Id<"locations">;
@@ -180,6 +185,15 @@ export function LocationTable() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`View ${location.name}`}
+                        onClick={() => handleView(location.id)}
+                      >
+                        <Eye className="size-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"

@@ -77,32 +77,32 @@ export default function LandingPage() {
       case 0:
         return (
           <div className="text-[#828387] text-sm">
-            Video Meeting Interface - Real-time Collaboration
+            Shuttle Dashboard - Real-time Fleet Management
           </div>
         );
       case 1:
         return (
           <div className="text-[#828387] text-sm">
-            Meeting Dashboard - Schedule and Manage Meetings
+            Booking Management - Streamlined Guest Reservations
           </div>
         );
       case 2:
         return (
           <div className="text-[#828387] text-sm">
-            AI Summaries - Intelligent Meeting Insights
+            Driver Tracking - Live Location & ETA Updates
           </div>
         );
       default:
         return (
           <div className="text-[#828387] text-sm">
-            Video Meeting Interface - Real-time Collaboration
+            Shuttle Dashboard - Real-time Fleet Management
           </div>
         );
     }
   };
 
   return (
-    <div className="w-full min-h-screen relative bg-background overflow-x-hidden flex flex-col justify-start items-center">
+    <div className="w-full min-h-screen relative bg-background overflow-x-hidden flex flex-col justify-start items-center ">
       <div className="relative flex flex-col justify-start items-center w-full">
         {/* Main container with proper margins */}
         <div className="w-full max-w-none px-4 sm:px-6 md:px-8 lg:px-0 lg:max-w-[1060px] lg:w-[1060px] relative flex flex-col justify-start items-start min-h-screen">
@@ -145,15 +145,14 @@ export default function LandingPage() {
               <div className="w-full max-w-[937px] lg:w-[937px] flex flex-col justify-center items-center gap-3 sm:gap-4 md:gap-5 lg:gap-6">
                 <div className="self-stretch rounded-[3px] flex flex-col justify-center items-center gap-4 sm:gap-5 md:gap-6 lg:gap-8">
                   <div className="w-full max-w-[748.71px] lg:w-[748.71px] text-center flex justify-center flex-col text-foreground text-[24px] xs:text-[28px] sm:text-[36px] md:text-[52px] lg:text-[80px] font-normal leading-[1.1] sm:leading-[1.15] md:leading-[1.2] lg:leading-24 font-serif px-2 sm:px-4 md:px-0">
-                    Video meetings with AI-powered
+                    Smart shuttle management for
                     <br />
-                    transcription and summaries
+                    seamless hotel transportation
                   </div>
                   <div className="w-full max-w-[506.08px] lg:w-[506.08px] text-center flex justify-center flex-col text-muted-foreground sm:text-lg md:text-xl leading-[1.4] sm:leading-[1.45] md:leading-normal lg:leading-7 font-sans px-2 sm:px-4 md:px-0 lg:text-lg font-medium text-sm">
-                    Connect with your team through crystal-clear video calls
+                    Streamline your hotel's shuttle operations with real-time tracking,
                     <br className="hidden sm:block" />
-                    with automatic transcription and intelligent meeting
-                    summaries.
+                    automated bookings, and seamless guest experiences.
                   </div>
                 </div>
               </div>
@@ -164,11 +163,8 @@ export default function LandingPage() {
                     onClick={() => router.push("/select-hotels")}
                     className="h-10 sm:h-11 md:h-12 px-6 sm:px-8 md:px-10 lg:px-12 py-2 sm:py-[6px] relative bg-primary shadow-[0px_0px_0px_2.5px_rgba(255,255,255,0.08)_inset] overflow-hidden rounded-full flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity"
                   >
-                    <div className="w-20 sm:w-24 md:w-28 lg:w-44 h-[41px] absolute left-0 top-[-0.5px] bg-linear-to-b from-[rgba(255,255,255,0)] to-[rgba(0,0,0,0.10)] mix-blend-multiply"></div>
-                    <div className="flex flex-col justify-center text-primary-foreground text-sm sm:text-base md:text-[15px] font-medium leading-5 font-sans">
-                      See Listed hotels
+                      Get Started Now
                     </div>
-                  </div>
                 </div>
               </div>
 
@@ -274,22 +270,22 @@ export default function LandingPage() {
                 <div className="flex-1 px-0 sm:px-2 md:px-0 flex flex-col md:flex-row justify-center items-stretch gap-0">
                   {/* Feature Cards */}
                   <FeatureCard
-                    title="HD Video Meetings"
-                    description="Join instant or scheduled meetings with crystal-clear video and audio quality for seamless collaboration."
+                    title="Real-time Fleet Management"
+                    description="Monitor your entire shuttle fleet with live tracking, driver locations, and comprehensive operational insights."
                     isActive={activeCard === 0}
                     progress={activeCard === 0 ? progress : 0}
                     onClick={() => handleCardClick(0)}
                   />
                   <FeatureCard
-                    title="AI Transcription"
-                    description="Automatically transcribe your meetings with advanced AI technology, capturing every word accurately."
+                    title="Smart Booking System"
+                    description="Streamline guest reservations with automated booking management, QR verification, and flexible payment options."
                     isActive={activeCard === 1}
                     progress={activeCard === 1 ? progress : 0}
                     onClick={() => handleCardClick(1)}
                   />
                   <FeatureCard
-                    title="Smart Summaries"
-                    description="Get intelligent meeting summaries with key points, decisions, and action items generated automatically."
+                    title="Driver Tracking & ETA"
+                    description="Track drivers in real-time, provide accurate ETA updates to guests, and optimize route efficiency."
                     isActive={activeCard === 2}
                     progress={activeCard === 2 ? progress : 0}
                     onClick={() => handleCardClick(2)}
@@ -364,13 +360,12 @@ export default function LandingPage() {
                       text="Bento grid"
                     />
                     <div className="w-full max-w-[598.06px] lg:w-[598.06px] text-center flex justify-center flex-col text-foreground text-xl sm:text-2xl md:text-3xl lg:text-5xl font-semibold leading-tight md:leading-[60px] font-sans tracking-tight">
-                      Built for seamless collaboration and intelligent insights
+                      Built for seamless shuttle operations and guest experiences
                     </div>
                     <div className="self-stretch text-center text-muted-foreground text-sm sm:text-base font-normal leading-6 sm:leading-7 font-sans">
-                      Connect with your team through crystal-clear video calls
+                      Manage your hotel's shuttle fleet with real-time tracking
                       <br />
-                      and never miss important details with AI-powered
-                      transcription and summaries.
+                      and provide guests with seamless transportation experiences.
                     </div>
                   </div>
                 </div>
@@ -394,12 +389,11 @@ export default function LandingPage() {
                     <div className="border-b border-r-0 md:border-r border-border p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6">
                       <div className="flex flex-col gap-2">
                         <h3 className="text-foreground text-lg sm:text-xl font-semibold leading-tight font-sans">
-                          HD Video Meetings
+                          Fleet Management
                         </h3>
                         <p className="text-muted-foreground text-sm md:text-base font-normal leading-relaxed font-sans">
-                          Experience crystal-clear video and audio quality that
-                          makes remote collaboration feel natural and
-                          effortless.
+                          Monitor your entire shuttle fleet with real-time tracking,
+                          driver locations, and comprehensive operational insights.
                         </p>
                       </div>
                       <div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex items-center justify-center overflow-hidden">
@@ -416,11 +410,11 @@ export default function LandingPage() {
                     <div className="border-b border-border p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6">
                       <div className="flex flex-col gap-2">
                         <h3 className="text-foreground font-semibold leading-tight font-sans text-lg sm:text-xl">
-                          Automatic Transcription
+                          Guest Bookings
                         </h3>
                         <p className="text-muted-foreground text-sm md:text-base font-normal leading-relaxed font-sans">
-                          Every word is captured accurately with AI-powered
-                          transcription, so you can focus on the conversation.
+                          Streamline guest reservations with automated booking,
+                          QR verification, and flexible payment options.
                         </p>
                       </div>
                       <div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex overflow-hidden text-right items-center justify-center">
@@ -437,11 +431,11 @@ export default function LandingPage() {
                     <div className="border-r-0 md:border-r border-border p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6 bg-transparent">
                       <div className="flex flex-col gap-2">
                         <h3 className="text-foreground text-lg sm:text-xl font-semibold leading-tight font-sans">
-                          Easy Meeting Management
+                          Route Optimization
                         </h3>
                         <p className="text-muted-foreground text-sm md:text-base font-normal leading-relaxed font-sans">
-                          Create instant meetings, schedule ahead, or join with
-                          a simple code. Manage everything in one place.
+                          Create efficient routes, manage trip schedules, and
+                          optimize shuttle utilization for maximum efficiency.
                         </p>
                       </div>
                       <div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex overflow-hidden justify-center items-center relative bg-transparent">
@@ -461,12 +455,11 @@ export default function LandingPage() {
                     <div className="p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6">
                       <div className="flex flex-col gap-2">
                         <h3 className="text-foreground text-lg sm:text-xl font-semibold leading-tight font-sans">
-                          AI-Powered Summaries
+                          Real-time Tracking
                         </h3>
                         <p className="text-muted-foreground text-sm md:text-base font-normal leading-relaxed font-sans">
-                          Get intelligent summaries with key decisions, action
-                          items, and insights automatically generated after
-                          every meeting.
+                          Track drivers live, provide accurate ETA updates,
+                          and keep guests informed every step of the way.
                         </p>
                       </div>
                       <div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex overflow-hidden items-center justify-center relative">

@@ -22,33 +22,33 @@ export default function TestimonialsSection() {
   const testimonials = [
     {
       quote:
-        "Mixora has transformed how we conduct meetings. The AI transcription captures every detail perfectly, and the automatic summaries save us hours of note-taking. It's become essential for our team collaboration.",
-      name: "Prof. Jaydeep Gheewala",
-      company: "Mentor",
+        "Shuttle has transformed how we manage our hotel transportation. The real-time tracking and automated booking system save us hours of manual coordination. Our guests love the seamless experience and accurate ETAs.",
+      name: "Hotel Manager",
+      company: "Grand Plaza Hotel",
       image:
         "/jaydeepsir.png",
     },
     {
       quote:
-        "The video quality is crystal clear, and the AI-powered summaries are incredibly accurate. I never miss important action items anymore. Mixora makes remote collaboration feel seamless.",
-      name: "Nil Bhungaliya",
-      company: "Team Member",
+        "The fleet management features are fantastic. I can monitor all our shuttles, optimize routes, and manage driver schedules efficiently. It's revolutionized our transportation operations.",
+      name: "Operations Director",
+      company: "Luxury Resorts",
       image:
         "/nil.png",
     },
     {
       quote:
-        "What I love most is how Mixora automatically transcribes our meetings and generates intelligent summaries. It's like having a perfect assistant that never forgets anything discussed.",
-      name: "Yash Dangar",
-      company: "Team Member",
+        "What I love most is how Shuttle automatically handles guest bookings and provides real-time updates. Our guests appreciate knowing exactly when their shuttle will arrive.",
+      name: "Guest Services Manager",
+      company: "City Center Hotel",
       image:
         "/yash.png",
     },
     {
       quote:
-        "The meeting management features are fantastic. I can schedule meetings, join instantly, and get AI-generated summaries with key decisions and action items. It's revolutionized our workflow.",
-      name: "Dev Italiya",
-      company: "Team Member",
+        "The driver tracking and route optimization has saved us significant fuel costs while improving guest satisfaction. It's the perfect solution for hotel shuttle management.",
+      name: "Transportation Coordinator",
+      company: "Beachside Resort",
       image:
         "/devitaliya.png",
     },

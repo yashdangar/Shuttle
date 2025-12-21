@@ -34,6 +34,7 @@ import type * as routes_index from "../routes/index.js";
 import type * as shuttles_index from "../shuttles/index.js";
 import type * as shuttles_mutations from "../shuttles/mutations.js";
 import type * as shuttles_queries from "../shuttles/queries.js";
+import type * as superadmin_index from "../superadmin/index.js";
 import type * as tripInstances_mutations from "../tripInstances/mutations.js";
 import type * as tripInstances_queries from "../tripInstances/queries.js";
 import type * as trips_index from "../trips/index.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "shuttles/index": typeof shuttles_index;
   "shuttles/mutations": typeof shuttles_mutations;
   "shuttles/queries": typeof shuttles_queries;
+  "superadmin/index": typeof superadmin_index;
   "tripInstances/mutations": typeof tripInstances_mutations;
   "tripInstances/queries": typeof tripInstances_queries;
   "trips/index": typeof trips_index;

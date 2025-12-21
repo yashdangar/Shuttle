@@ -144,6 +144,14 @@ export function EditLocationForm({ locationId }: EditLocationFormProps) {
 
   useMarker(map, selectedLocation, { title: "Selected location" });
 
+  // Initialize map with location coordinates once location is loaded and map is ready
+  useEffect(() => {
+    if (location && isMapReady && !isInitialized) {
+      const coords = { lat: location.latitude, lng: location.longitude };
+      setSelectedLocation(coords);
+    }
+  }, [location, isMapReady, isInitialized]);
+
   usePlacesAutocomplete({
     inputRef: searchInputRef,
     onPlaceChanged: (place) => {
@@ -181,7 +189,7 @@ export function EditLocationForm({ locationId }: EditLocationFormProps) {
     );
   };
 
-  const handleResetLocation = () => {
+  const handleConfirmLocation = () => {
     if (!location) {
       return;
     }
@@ -387,10 +395,10 @@ export function EditLocationForm({ locationId }: EditLocationFormProps) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={handleResetLocation}
+                  onClick={handleConfirmLocation}
                 >
                   <RefreshCcw className="mr-2 h-4 w-4" />
-                  Reset
+                  Confirm
                 </Button>
               </div>
             </div>
