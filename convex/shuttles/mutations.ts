@@ -1,5 +1,6 @@
 import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 
 // Helper to get current UTC date string
 function getUTCDateString(): string {
@@ -51,6 +52,18 @@ export const assignDriverToShuttle = mutation({
       currentlyAssignedTo: args.driverId,
     });
 
+    // Notify driver of new assignment
+    const assignedShuttle = await ctx.db.get(args.shuttleId);
+    if (assignedShuttle) {
+      await ctx.runMutation(internal.notifications.index.sendNotification, {
+        title: "New Shuttle Assignment",
+        message: `You have been assigned to shuttle ${assignedShuttle.vehicleNumber}. Please check your dashboard for trip assignments.`,
+        type: "GENERAL",
+        relatedBookingId: undefined,
+        userIds: [args.driverId],
+      });
+    }
+
     // Get today's trip instances count for this shuttle (UTC date)
     const today = getUTCDateString();
     const tripInstances = await ctx.db
@@ -92,6 +105,15 @@ export const unassignDriverFromShuttle = mutation({
           currentlyAssignedTo: undefined,
         });
         unassignedFrom = shuttle.vehicleNumber;
+        
+        // Notify driver of unassignment
+        await ctx.runMutation(internal.notifications.index.sendNotification, {
+          title: "Shuttle Unassigned",
+          message: `You have been unassigned from shuttle ${shuttle.vehicleNumber}.`,
+          type: "GENERAL",
+          relatedBookingId: undefined,
+          userIds: [args.driverId],
+        });
       }
     }
 

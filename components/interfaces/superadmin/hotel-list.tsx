@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, ExternalLink, MapPin, Phone, Mail, Users } from "lucide-react";
 import { SuperadminAPI, type SuperadminHotel } from "@/lib/superadmin";
 import { useRouter } from "next/navigation";

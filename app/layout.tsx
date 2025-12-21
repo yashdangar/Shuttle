@@ -6,6 +6,7 @@ import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/lib/provider/theme-provider";
 import SidebarProviderLayout from "@/lib/provider/sidebar-provider";
 import { Toaster } from "sonner";
+import { NotificationProvider } from "@/lib/provider/notification-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,8 +36,10 @@ export default function RootLayout({
         <SessionProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <ConvexClientProvider>
-              <Toaster />
-              <SidebarProviderLayout>{children}</SidebarProviderLayout>
+              <NotificationProvider>
+                <Toaster />
+                <SidebarProviderLayout>{children}</SidebarProviderLayout>
+              </NotificationProvider>
             </ConvexClientProvider>
           </ThemeProvider>
         </SessionProvider>

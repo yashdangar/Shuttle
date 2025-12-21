@@ -171,6 +171,27 @@ export const startTripInstance = mutation({
       actualStartTime: new Date().toISOString(),
     });
 
+    // Notify all guests with confirmed bookings on this trip
+    const bookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_trip_instance", (q) => q.eq("tripInstanceId", args.tripInstanceId))
+      .filter((q) => q.eq(q.field("bookingStatus"), "CONFIRMED"))
+      .collect();
+
+    if (bookings.length > 0) {
+      const guestIds = bookings.map(b => b.guestId);
+      const trip = await ctx.db.get(tripInstance.tripId);
+      const tripName = trip?.name || "Trip";
+      
+      await ctx.runMutation(internal.notifications.index.sendNotification, {
+        title: "Trip Started",
+        message: `Your ${tripName} on ${tripInstance.scheduledDate} has started. Please be ready for pickup.`,
+        type: "GENERAL",
+        relatedBookingId: undefined,
+        userIds: guestIds,
+      });
+    }
+
     return { success: true, message: "Trip started successfully" };
   },
 });
@@ -222,6 +243,27 @@ export const completeTripInstance = mutation({
       actualEndTime: new Date().toISOString(),
     });
 
+    // Notify all guests with confirmed bookings on this trip
+    const bookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_trip_instance", (q) => q.eq("tripInstanceId", args.tripInstanceId))
+      .filter((q) => q.eq(q.field("bookingStatus"), "CONFIRMED"))
+      .collect();
+
+    if (bookings.length > 0) {
+      const guestIds = bookings.map(b => b.guestId);
+      const trip = await ctx.db.get(tripInstance.tripId);
+      const tripName = trip?.name || "Trip";
+      
+      await ctx.runMutation(internal.notifications.index.sendNotification, {
+        title: "Trip Completed",
+        message: `Your ${tripName} on ${tripInstance.scheduledDate} has been completed. Thank you for traveling with us!`,
+        type: "GENERAL",
+        relatedBookingId: undefined,
+        userIds: guestIds,
+      });
+    }
+
     return { success: true, message: "Trip completed successfully" };
   },
 });
@@ -262,6 +304,28 @@ export const cancelTripInstance = mutation({
     await ctx.db.patch(args.tripInstanceId, {
       status: "CANCELLED",
     });
+
+    // Notify all guests with confirmed bookings on this trip
+    const bookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_trip_instance", (q) => q.eq("tripInstanceId", args.tripInstanceId))
+      .filter((q) => q.eq(q.field("bookingStatus"), "CONFIRMED"))
+      .collect();
+
+    if (bookings.length > 0) {
+      const guestIds = bookings.map(b => b.guestId);
+      const trip = await ctx.db.get(tripInstance.tripId);
+      const tripName = trip?.name || "Trip";
+      const reason = args.reason ? ` Reason: ${args.reason}` : "";
+      
+      await ctx.runMutation(internal.notifications.index.sendNotification, {
+        title: "Trip Cancelled",
+        message: `Your ${tripName} on ${tripInstance.scheduledDate} has been cancelled.${reason}`,
+        type: "GENERAL",
+        relatedBookingId: undefined,
+        userIds: guestIds,
+      });
+    }
 
     return { success: true, message: "Trip cancelled successfully" };
   },
