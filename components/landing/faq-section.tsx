@@ -9,34 +9,34 @@ interface FAQItem {
 
 const faqData: FAQItem[] = [
   {
-    question: "What is Mixora and who is it for?",
+    question: "What is Shuttle and who is it for?",
     answer:
-      "Mixora is a video meeting platform with AI-powered transcription and intelligent summaries. It's perfect for teams, businesses, and professionals who want to focus on their conversations while automatically capturing every detail, decision, and action item from their meetings.",
+      "Shuttle is a comprehensive shuttle management platform for hotels and resorts. It's perfect for hospitality businesses that want to streamline their transportation operations, manage fleets efficiently, and provide exceptional guest experiences with real-time tracking and automated bookings.",
   },
   {
-    question: "How does the AI transcription work?",
+    question: "How does real-time tracking work?",
     answer:
-      "Our platform automatically transcribes your meetings in real-time using advanced AI technology. Every word is captured accurately, and the transcription is available immediately after your meeting ends. You can also access live transcriptions during the meeting.",
+      "Our platform provides live GPS tracking for all your shuttles through driver mobile apps. Guests can see real-time shuttle locations and accurate ETAs, while managers can monitor fleet status, driver locations, and route efficiency from their dashboard.",
   },
   {
-    question: "What are AI-powered summaries and how do they help?",
+    question: "What are the booking features and how do they help?",
     answer:
-      "After each meeting, Mixora automatically generates intelligent summaries that include key topics discussed, decisions made, action items with assigned owners, questions and answers, and important context. This helps you quickly review meeting outcomes without watching the entire recording.",
+      "Shuttle offers automated guest booking management with QR code verification, flexible scheduling, and seamless payment integration. This reduces manual work, prevents booking conflicts, and provides guests with a modern, convenient reservation experience.",
   },
   {
-    question: "Can I record my meetings?",
+    question: "Can drivers use the system on mobile devices?",
     answer:
-      "Yes! Mixora allows you to record your video meetings. Recordings are automatically saved and can be accessed from your dashboard. You can download recordings or share them with your team members.",
+      "Yes! Shuttle includes a dedicated mobile app for drivers with route navigation, guest pickup details, schedule management, and real-time communication. The app works offline for route guidance and syncs data when connectivity is available.",
   },
   {
-    question: "How do I join or create a meeting?",
+    question: "How does route optimization work?",
     answer:
-      "You can create instant meetings directly from your dashboard, schedule meetings for later, or join existing meetings using a simple meeting code. All meetings are accessible through your browser - no additional software required.",
+      "Our intelligent route optimization analyzes multiple factors including guest locations, traffic conditions, and vehicle capacity to create efficient routes. This reduces fuel costs, minimizes wait times, and maximizes shuttle utilization.",
   },
   {
-    question: "Is my meeting data secure and private?",
+    question: "Is our guest and operational data secure?",
     answer:
-      "Absolutely. We use enterprise-grade security measures including end-to-end encryption for video calls, secure storage for recordings and transcriptions, and regular security audits. Your meeting data is private and only accessible to authorized participants.",
+      "Absolutely. We use enterprise-grade security measures including end-to-end encryption for data transmission, secure cloud storage, role-based access controls, and regular security audits. Your guest information and operational data remain private and compliant with hospitality industry standards.",
   },
 ]
 
@@ -71,9 +71,9 @@ export default function FAQSection() {
             Frequently Asked Questions
           </div>
           <div className="w-full text-[#605A57] text-base font-normal leading-7 font-sans">
-            Explore your data, build your dashboard,
+            Manage your fleet, track shuttles,
             <br className="hidden md:block" />
-            bring your team together.
+            and delight your guests.
           </div>
         </div>
 

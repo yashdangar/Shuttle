@@ -21,18 +21,18 @@ export default function DocumentationSection() {
 
   const cards = [
     {
-      title: "Plan your schedules",
-      description: "Explore your data, build your dashboard,\nbring your team together.",
+      title: "Fleet Scheduling",
+      description: "Manage shuttle schedules, track driver assignments,\nand optimize routes for maximum efficiency.",
       image: "/modern-dashboard-interface-with-data-visualization.jpg",
     },
     {
-      title: "Data to insights in minutes",
-      description: "Transform raw data into actionable insights\nwith powerful analytics tools.",
+      title: "Real-time Tracking",
+      description: "Monitor shuttle locations, provide accurate ETAs,\nand keep guests informed every step of the way.",
       image: "/analytics-dashboard.png",
     },
     {
-      title: "Collaborate seamlessly",
-      description: "Work together in real-time with your team\nand share insights instantly.",
+      title: "Guest Bookings",
+      description: "Streamline reservations with automated booking,\nQR verification, and seamless guest experiences.",
       image: "/team-collaboration-interface-with-shared-workspace.jpg",
     },
   ]
@@ -63,10 +63,10 @@ export default function DocumentationSection() {
             text="Platform Features"
           />
           <div className="self-stretch text-center flex justify-center flex-col text-[#49423D] text-3xl md:text-5xl font-semibold leading-tight md:leading-[60px] font-sans tracking-tight">
-            Streamline your business operations
+            Streamline your shuttle operations
           </div>
           <div className="self-stretch text-center text-[#605A57] text-base font-normal leading-7 font-sans">
-            Manage schedules, analyze data, and collaborate with your team
+            Manage schedules, track shuttles, and delight guests
             <br />
             all in one powerful platform.
           </div>
