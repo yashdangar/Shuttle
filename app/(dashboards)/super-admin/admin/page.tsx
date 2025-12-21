@@ -9,6 +9,7 @@ export default function AdminManagementPage() {
       title="Admins"
       description="Manage admin users and their permissions"
       primaryActions={<CreateAdminDialog />}
+      size="large"
     >
       <AdminTable />
     </PageLayout>
