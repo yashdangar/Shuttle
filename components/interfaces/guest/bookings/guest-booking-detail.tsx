@@ -227,7 +227,7 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
               </div>
               <div>
                 <p className="text-sm font-semibold text-amber-800">
-                  Shuttle arriving in {eta}
+                  {eta === "At pickup" ? "Shuttle at pickup location" : `Shuttle arriving in ${eta}`}
                 </p>
                 {pickupLocationName && (
                   <p className="text-xs text-amber-700">

@@ -590,6 +590,7 @@ export const updateMultipleRouteInstanceETAs = internalMutation({
       v.object({
         routeInstanceId: v.id("routeInstances"),
         eta: v.string(),
+        distance: v.optional(v.string()),
       })
     ),
   },
@@ -597,6 +598,7 @@ export const updateMultipleRouteInstanceETAs = internalMutation({
     for (const update of args.updates) {
       await ctx.db.patch(update.routeInstanceId, {
         eta: update.eta,
+        ...(update.distance && { distance: update.distance }),
       });
     }
   },

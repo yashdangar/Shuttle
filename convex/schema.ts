@@ -209,6 +209,7 @@ export default defineSchema({
     seatHeld: v.int64(),
     completed: v.boolean(),
     eta: v.optional(v.string()),
+    distance: v.optional(v.string()),
   })
     .index("by_trip_instance", ["tripInstanceId"])
     .index("by_trip_instance_order", ["tripInstanceId", "orderIndex"])

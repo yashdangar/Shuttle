@@ -37,15 +37,54 @@ export function useETAUpdater({
   const getDriverLocation = useCallback((): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported"));
+        reject(new Error("Geolocation is not supported by this browser"));
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000,
-      });
+      const handleError = (geoError: GeolocationPositionError) => {
+        let message: string;
+        switch (geoError.code) {
+          case geoError.PERMISSION_DENIED:
+            message = "Location permission denied. Please enable location access in your browser settings.";
+            break;
+          case geoError.POSITION_UNAVAILABLE:
+            message = "Location information is unavailable. Please check your device's GPS.";
+            break;
+          case geoError.TIMEOUT:
+            message = "Location request timed out. Please try again.";
+            break;
+          default:
+            message = geoError.message || "Failed to get location";
+        }
+        reject(new Error(message));
+      };
+
+      // Try high accuracy first, fallback to low accuracy on timeout
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        (geoError: GeolocationPositionError) => {
+          // If high accuracy times out, try with low accuracy
+          if (geoError.code === geoError.TIMEOUT) {
+            console.log("High accuracy timed out, trying low accuracy...");
+            navigator.geolocation.getCurrentPosition(
+              resolve,
+              handleError,
+              {
+                enableHighAccuracy: false,
+                timeout: 15000,
+                maximumAge: 60000, // Accept cached position up to 1 minute old
+              }
+            );
+          } else {
+            handleError(geoError);
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 30000,
+        }
+      );
     });
   }, []);
 
@@ -106,8 +145,7 @@ export function useETAUpdater({
       return;
     }
 
-    updateETAs();
-
+    // Don't fetch instantly - wait for the first interval or manual trigger
     intervalRef.current = setInterval(() => {
       updateETAs();
     }, ETA_UPDATE_INTERVAL_MS);

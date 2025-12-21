@@ -43,8 +43,8 @@ const statusStyles: Record<
 
 type TripDetails = {
   tripName: string | undefined;
-  sourceLocation: string | undefined;
-  destinationLocation: string | undefined;
+  fromLocation: string | undefined;
+  toLocation: string | undefined;
   scheduledDate: string | undefined;
   scheduledStartTime: string | undefined;
   scheduledEndTime: string | undefined;
@@ -82,8 +82,8 @@ export function GuestBookingsList() {
     return bookings.filter((booking) =>
       [
         booking.tripDetails?.tripName,
-        booking.tripDetails?.sourceLocation,
-        booking.tripDetails?.destinationLocation,
+        booking.tripDetails?.fromLocation,
+        booking.tripDetails?.toLocation,
         booking.tripDetails?.scheduledDate,
       ].some((field) => field?.toLowerCase().includes(term))
     );
@@ -262,7 +262,7 @@ export function GuestBookingsList() {
                       <>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {trip.sourceLocation} → {trip.destinationLocation}
+                          {trip.fromLocation} → {trip.toLocation}
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CalendarClock className="h-4 w-4 text-muted-foreground" />

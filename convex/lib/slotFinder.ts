@@ -123,17 +123,31 @@ async function checkSlotAvailabilityForRoutes(
       .collect();
 
     if (matchingInstance.status === "IN_PROGRESS") {
-      let anySegmentCompleted = false;
-      for (const ri of routeInstances) {
-        const orderIdx = Number(ri.orderIndex);
-        if (orderIdx >= fromRouteIndex && orderIdx <= toRouteIndex) {
-          if (ri.completed) {
-            anySegmentCompleted = true;
-            break;
-          }
-        }
+      // Find the current in-progress route index (first incomplete route)
+      const sortedRouteInstances = routeInstances.sort(
+        (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+      );
+      const currentInProgressIndex = sortedRouteInstances.findIndex(
+        (ri) => !ri.completed
+      );
+
+      // If all routes are completed, this trip can't accept bookings
+      if (currentInProgressIndex === -1) {
+        continue;
       }
-      if (anySegmentCompleted) {
+
+      const currentRouteOrderIndex = Number(
+        sortedRouteInstances[currentInProgressIndex].orderIndex
+      );
+
+      // REJECT if the booking's pickup point (fromRouteIndex) is at or before
+      // the current in-progress route. This means the driver has already
+      // left that location or is currently there.
+      // Example: Trip H->C->A, driver is on H->C (index 0)
+      // - Booking H->C (from=0): REJECT (driver already left H)
+      // - Booking H->A (from=0): REJECT (driver already left H)
+      // - Booking C->A (from=1): ALLOW (driver hasn't reached C yet)
+      if (fromRouteIndex <= currentRouteOrderIndex) {
         continue;
       }
     }

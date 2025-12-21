@@ -156,23 +156,25 @@ function ChatPageContent() {
               </div>
             )}
           </div>
-          <ChatList
-            chats={chat.chats}
-            selectedChatId={chat.selectedChatId}
-            currentUserId={userId!}
-            currentUserRole={
-              (user?.role as
-                | "admin"
-                | "frontdesk"
-                | "driver"
-                | "superadmin"
-                | "guest") || "guest"
-            }
-            onSelectChat={(chatId) => {
-              chat.setSelectedChatId(chatId);
-              updateChatQuery(chatId);
-            }}
-          />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ChatList
+              chats={chat.chats}
+              selectedChatId={chat.selectedChatId}
+              currentUserId={userId!}
+              currentUserRole={
+                (user?.role as
+                  | "admin"
+                  | "frontdesk"
+                  | "driver"
+                  | "superadmin"
+                  | "guest") || "guest"
+              }
+              onSelectChat={(chatId) => {
+                chat.setSelectedChatId(chatId);
+                updateChatQuery(chatId);
+              }}
+            />
+          </div>
         </div>
         <div className="flex-1 flex flex-col">
           {chat.selectedChatId ? (

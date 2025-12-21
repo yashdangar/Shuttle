@@ -150,6 +150,7 @@ export function TripInstanceDetail({
     isUpdating: isETAUpdating,
     lastUpdate: etaLastUpdate,
     error: etaError,
+    triggerUpdate: refreshETA,
   } = useETAUpdater({
     tripInstanceId:
       tripInstance?.status === "IN_PROGRESS"
@@ -543,44 +544,62 @@ export function TripInstanceDetail({
                     {isETAUpdating ? (
                       <span className="flex items-center gap-1 text-blue-600">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        Updating ETA...
+                        Updating...
                       </span>
                     ) : etaError ? (
                       <span className="flex items-center gap-1 text-red-500">
                         <WifiOff className="h-3 w-3" />
-                        ETA offline
+                        Offline
                       </span>
                     ) : etaLastUpdate ? (
                       <span className="flex items-center gap-1 text-emerald-600">
                         <Wifi className="h-3 w-3" />
-                        ETA live
+                        Live
                       </span>
                     ) : null}
                   </div>
                 )}
               </div>
-              {canRevert && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const lastCompleted = routes
-                      .filter((r) => r.completed)
-                      .pop();
-                    openRouteConfirmDialog(
-                      "revert",
-                      lastCompleted
-                        ? `${lastCompleted.startLocationName} → ${lastCompleted.endLocationName}`
-                        : undefined
-                    );
-                  }}
-                  disabled={isRouteProcessing}
-                  className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Revert Last
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {status === "IN_PROGRESS" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={refreshETA}
+                    disabled={isETAUpdating}
+                    className="gap-1"
+                  >
+                    {isETAUpdating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Navigation className="h-3.5 w-3.5" />
+                    )}
+                    Refresh ETA
+                  </Button>
+                )}
+                {canRevert && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const lastCompleted = routes
+                        .filter((r) => r.completed)
+                        .pop();
+                      openRouteConfirmDialog(
+                        "revert",
+                        lastCompleted
+                          ? `${lastCompleted.startLocationName} → ${lastCompleted.endLocationName}`
+                          : undefined
+                      );
+                    }}
+                    disabled={isRouteProcessing}
+                    className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Revert Last
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -627,8 +646,11 @@ export function TripInstanceDetail({
                         {route.seatsOccupied} occupied / {route.seatHeld} held
                       </span>
                       <span>${route.charges.toFixed(2)}</span>
+                      {route.distance && (
+                        <span className="text-blue-600">{route.distance}</span>
+                      )}
                       {route.eta && (
-                        <span className="text-amber-600">ETA: {route.eta}</span>
+                        <span className="text-amber-600 font-medium">ETA: {route.eta}</span>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2">

@@ -297,6 +297,7 @@ export const getRouteInstancesWithSkipInfo = query({
           seatHeld: Number(ri.seatHeld),
           completed: ri.completed,
           eta: ri.eta,
+          distance: ri.distance,
           startLocationName,
           endLocationName,
           charges: route?.charges ?? 0,

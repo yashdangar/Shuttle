@@ -40,6 +40,13 @@ function formatETA(seconds: number): string {
   return `${hours}h ${remainingMins}m`;
 }
 
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  const km = meters / 1000;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
+}
+
 async function fetchETAsFromGoogle(
   driverLat: number,
   driverLng: number,
@@ -120,7 +127,7 @@ export const calculateAndUpdateETAs = action({
     );
 
     if (incompleteRoutes.length === 0) {
-      return { success: true, message: "No incomplete routes to update" };
+      return { success: true, message: "No incomplete routes to update", debug: null };
     }
 
     const destinations: DestinationInfo[] = incompleteRoutes
@@ -133,7 +140,7 @@ export const calculateAndUpdateETAs = action({
       }));
 
     if (destinations.length === 0) {
-      return { success: true, message: "No valid destinations found" };
+      return { success: true, message: "No valid destinations found", debug: null };
     }
 
     try {
@@ -147,12 +154,25 @@ export const calculateAndUpdateETAs = action({
       const updates: Array<{
         routeInstanceId: Id<"routeInstances">;
         eta: string;
+        rawDurationSeconds: number;
+        distanceMeters: number | undefined;
       }> = [];
 
       let cumulativeSeconds = 0;
       const sortedDestinations = [...destinations].sort(
         (a, b) => a.orderIndex - b.orderIndex
       );
+
+      // Build raw response data for debugging
+      const googleApiRawResponse = results.map((r) => ({
+        destinationIndex: r.destinationIndex,
+        duration: r.duration,
+        durationParsedSeconds: parseDuration(r.duration),
+        distanceMeters: r.distanceMeters,
+        distanceKm: r.distanceMeters ? (r.distanceMeters / 1000).toFixed(2) + " km" : null,
+        condition: r.condition,
+        status: r.status,
+      }));
 
       for (let i = 0; i < sortedDestinations.length; i++) {
         const dest = sortedDestinations[i];
@@ -169,6 +189,8 @@ export const calculateAndUpdateETAs = action({
           updates.push({
             routeInstanceId: dest.routeInstanceId,
             eta: formatETA(cumulativeSeconds),
+            rawDurationSeconds: durationSeconds,
+            distanceMeters: result.distanceMeters,
           });
         }
       }
@@ -176,7 +198,11 @@ export const calculateAndUpdateETAs = action({
       if (updates.length > 0) {
         await ctx.runMutation(
           internal.routeInstances.mutations.updateMultipleRouteInstanceETAs,
-          { updates }
+          { updates: updates.map((u) => ({ 
+            routeInstanceId: u.routeInstanceId, 
+            eta: u.eta,
+            distance: u.distanceMeters ? formatDistance(u.distanceMeters) : undefined,
+          })) }
         );
       }
 
@@ -184,6 +210,26 @@ export const calculateAndUpdateETAs = action({
         success: true,
         message: `Updated ETAs for ${updates.length} route segments`,
         updatedCount: updates.length,
+        debug: {
+          requestSent: {
+            driverLocation: {
+              lat: args.driverLatitude,
+              lng: args.driverLongitude,
+            },
+            destinationsCount: sortedDestinations.length,
+            destinations: sortedDestinations.map((d) => ({
+              orderIndex: d.orderIndex,
+              lat: d.lat.toFixed(6),
+              lng: d.lng.toFixed(6),
+            })),
+          },
+          googleApiRawResponse,
+          calculatedETAs: updates.map((u) => ({
+            eta: u.eta,
+            rawSeconds: u.rawDurationSeconds,
+            distanceKm: u.distanceMeters ? (u.distanceMeters / 1000).toFixed(2) : null,
+          })),
+        },
       };
     } catch (error: unknown) {
       const errorMessage =
@@ -240,6 +286,7 @@ export const calculateAndUpdateETAsInternal = internalAction({
       const updates: Array<{
         routeInstanceId: Id<"routeInstances">;
         eta: string;
+        distance?: string;
       }> = [];
 
       let cumulativeSeconds = 0;
@@ -262,6 +309,7 @@ export const calculateAndUpdateETAsInternal = internalAction({
           updates.push({
             routeInstanceId: dest.routeInstanceId,
             eta: formatETA(cumulativeSeconds),
+            distance: result.distanceMeters ? formatDistance(result.distanceMeters) : undefined,
           });
         }
       }
