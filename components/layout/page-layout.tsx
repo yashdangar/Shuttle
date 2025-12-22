@@ -2,8 +2,6 @@
 
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 export interface PageLayoutProps {
   children?: ReactNode;

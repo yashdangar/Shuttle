@@ -300,4 +300,3 @@ Update `rejectBooking`:
 
 - Show route segments with completion status
 - Allow marking individual routes as completed
-- Show ETA per route segment

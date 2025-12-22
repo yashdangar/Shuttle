@@ -20,8 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusIcon, Users, Settings } from "lucide-react";
+import { PlusIcon, Users, Settings, ArrowLeft } from "lucide-react";
 import PageLayout from "@/components/layout/page-layout";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { Id } from "@/convex/_generated/dataModel";
 
 const rolePriority: Record<
@@ -41,10 +42,12 @@ function ChatPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isMobile = useIsMobile();
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [showChatList, setShowChatList] = useState(true);
 
   const chat = useChat(userId);
   const chatIdFromQuery = searchParams.get("chatId") as Id<"chats"> | null;
@@ -65,6 +68,18 @@ function ChatPageContent() {
       chat.setSelectedChatId(chatIdFromQuery);
     }
   }, [chatIdFromQuery, chat.selectedChatId, chat, userId]);
+
+  useEffect(() => {
+    if (isMobile) {
+      if (chat.selectedChatId) {
+        setShowChatList(false);
+      } else {
+        setShowChatList(true);
+      }
+    } else {
+      setShowChatList(true);
+    }
+  }, [isMobile, chat.selectedChatId]);
 
   const updateChatQuery = (chatId: Id<"chats"> | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -127,12 +142,29 @@ function ChatPageContent() {
     await chat.deleteChat(chat.selectedChatId);
     updateChatQuery(null);
     setConfirmDeleteOpen(false);
+    if (isMobile) {
+      setShowChatList(true);
+    }
+  };
+
+  const handleBackToChatList = () => {
+    chat.setSelectedChatId(null);
+    updateChatQuery(null);
+    setShowChatList(true);
   };
 
   return (
     <PageLayout>
-      <div className="flex h-[calc(100vh-4rem)] border rounded-lg overflow-hidden">
-        <div className="w-80 border-r flex flex-col">
+      <div className="flex h-[calc(100vh-4rem)] border rounded-lg overflow-hidden relative">
+        <div
+          className={`${
+            isMobile
+              ? showChatList
+                ? "absolute inset-0 z-10"
+                : "hidden"
+              : "w-80 border-r"
+          } flex flex-col bg-background`}
+        >
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold text-lg">Chats</h2>
             {showNewChatButton && (
@@ -156,7 +188,7 @@ function ChatPageContent() {
               </div>
             )}
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-scroll">
             <ChatList
               chats={chat.chats}
               selectedChatId={chat.selectedChatId}
@@ -172,22 +204,42 @@ function ChatPageContent() {
               onSelectChat={(chatId) => {
                 chat.setSelectedChatId(chatId);
                 updateChatQuery(chatId);
+                if (isMobile) {
+                  setShowChatList(false);
+                }
               }}
             />
           </div>
         </div>
-        <div className="flex-1 flex flex-col">
+        <div
+          className={`${
+            isMobile && showChatList ? "hidden" : "flex-1"
+          } flex flex-col`}
+        >
           {chat.selectedChatId ? (
             <>
               <div className="p-4 border-b flex items-center justify-between">
-                <h3 className="font-semibold">
-                  {chat.selectedChat?.isGroupChat && chat.selectedChat.chatName
-                    ? chat.selectedChat.chatName
-                    : chat.selectedChat?.participants
-                        .filter((p: { id: Id<"users"> }) => p.id !== userId)
-                        .map((p: { name: string }) => p.name)
-                        .join(", ") || "Chat"}
-                </h3>
+                <div className="flex items-center gap-2">
+                  {isMobile && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleBackToChatList}
+                      className="mr-2"
+                    >
+                      <ArrowLeft className="size-4" />
+                    </Button>
+                  )}
+                  <h3 className="font-semibold">
+                    {chat.selectedChat?.isGroupChat &&
+                    chat.selectedChat.chatName
+                      ? chat.selectedChat.chatName
+                      : chat.selectedChat?.participants
+                          .filter((p: { id: Id<"users"> }) => p.id !== userId)
+                          .map((p: { name: string }) => p.name)
+                          .join(", ") || "Chat"}
+                  </h3>
+                </div>
                 <div className="flex items-center gap-2">
                   {chat.selectedChat?.isGroupChat && (
                     <Button
@@ -224,7 +276,9 @@ function ChatPageContent() {
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              Select a chat to start messaging
+              {isMobile
+                ? "Select a chat to start messaging"
+                : "Select a chat to start messaging"}
             </div>
           )}
         </div>

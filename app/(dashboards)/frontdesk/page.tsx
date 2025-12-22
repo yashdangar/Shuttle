@@ -13,7 +13,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar, Clock, AlertCircle, Car } from "lucide-react";
+import { StatsCard } from "@/components/interfaces/admin/dashboard/stats-card";
+import {
+  RecentBookings,
+  ActiveTrips,
+  BookingsChart,
+} from "@/components/interfaces/frontdesk/dashboard";
 
 export default function FrontdeskPage() {
   const { user: sessionUser, status } = useAuthSession();
@@ -31,8 +37,32 @@ export default function FrontdeskPage() {
     api.hotels.index.getHotelByUserId,
     hotelArgs ?? "skip"
   );
+
+  const dashboardArgs = useMemo(
+    () =>
+      isFrontdesk && sessionUser?.id
+        ? { frontdeskId: sessionUser.id as Id<"users"> }
+        : "skip",
+    [isFrontdesk, sessionUser?.id]
+  );
+
+  const dashboardStats = useQuery(
+    api.dashboard.queries.getFrontdeskDashboardStats,
+    dashboardArgs
+  );
+  const recentBookings = useQuery(
+    api.dashboard.queries.getFrontdeskRecentBookings,
+    dashboardArgs
+  );
+  const activeTrips = useQuery(
+    api.dashboard.queries.getFrontdeskActiveTrips,
+    dashboardArgs
+  );
+
   const isLoading =
-    status === "loading" || (isFrontdesk && hotel === undefined);
+    status === "loading" ||
+    (isFrontdesk && hotel === undefined) ||
+    (isFrontdesk && dashboardStats === undefined);
 
   if (!isFrontdesk && status !== "loading") {
     return (
@@ -75,45 +105,66 @@ export default function FrontdeskPage() {
     );
   }
 
+  if (!dashboardStats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard Unavailable</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            Unable to load dashboard statistics. Please try again later.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <PageLayout
-      title={hotel.name}
-      description="View your hotel information and manage bookings."
+      title="Dashboard"
+      description={`Overview of ${hotel.name} operations and bookings`}
       size="large"
     >
       <div className="space-y-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Hotel Details</CardTitle>
-            <CardDescription>{hotel.address}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-start justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Phone
-                </span>
-                <span className="text-sm text-foreground">
-                  {hotel.phoneNumber}
-                </span>
-              </div>
-              <div className="flex items-start justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Email
-                </span>
-                <span className="text-sm text-foreground">{hotel.email}</span>
-              </div>
-              <div className="flex items-start justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Time Zone
-                </span>
-                <span className="text-sm text-foreground">
-                  {hotel.timeZone}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Key Statistics Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Today's Bookings"
+            value={dashboardStats.today.bookings}
+            icon={Calendar}
+            description="New bookings today"
+          />
+          <StatsCard
+            title="Today's Trips"
+            value={dashboardStats.today.trips}
+            icon={Clock}
+            description="Scheduled for today"
+          />
+          <StatsCard
+            title="Pending Bookings"
+            value={dashboardStats.overview.pendingBookings}
+            icon={AlertCircle}
+            description="Requiring action"
+          />
+          <StatsCard
+            title="Active Trips"
+            value={dashboardStats.overview.inProgressTrips}
+            icon={Car}
+            description={`${dashboardStats.overview.totalTrips} total trips`}
+          />
+        </div>
+
+        {/* Bookings Chart */}
+        <BookingsChart data={dashboardStats.dailyBookings} />
+
+        {/* Recent Activity */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <RecentBookings bookings={recentBookings ?? []} />
+          <ActiveTrips trips={activeTrips ?? []} />
+        </div>
+
+       
       </div>
     </PageLayout>
   );

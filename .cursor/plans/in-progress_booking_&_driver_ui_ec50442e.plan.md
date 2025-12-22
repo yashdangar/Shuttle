@@ -188,7 +188,3 @@ This is correct but could be enhanced to show:
 - Show "Start Next" button only on next segment
 - Add "Revert Last" button
 - Add confirmation modal with AlertDialog
-
-### Task 4: Verify seat math
-
-1. Test scenario:

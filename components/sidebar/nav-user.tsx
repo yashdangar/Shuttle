@@ -163,7 +163,7 @@ export function NavUser() {
                 <IconUser className="mr-2 size-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme(themeToggleTarget)}>
+              {/* <DropdownMenuItem onClick={() => setTheme(themeToggleTarget)}>
                 {themeIcon}
                 <div className="flex flex-col">
                   <span>{themeLabel}</span>
@@ -171,7 +171,7 @@ export function NavUser() {
                     {themeDescription}
                   </span>
                 </div>
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
               <DropdownMenuItem
                 onClick={() => router.push("/notifications")}
                 className="cursor-pointer"
