@@ -121,6 +121,7 @@ const frontdeskSidebarData: SidebarData = {
     { title: "Drivers", url: "/frontdesk/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/frontdesk/frontdesks", icon: CalendarPlus },
     { title: "Shuttles", url: "/frontdesk/shuttles", icon: MapPin },
+    { title: "Trips", url: "/frontdesk/trips", icon: MapPin },
     { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],
