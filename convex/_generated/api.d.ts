@@ -10,6 +10,7 @@
 
 import type * as admins_index from "../admins/index.js";
 import type * as auth from "../auth.js";
+import type * as bookings_alerts from "../bookings/alerts.js";
 import type * as bookings_index from "../bookings/index.js";
 import type * as chats_index from "../chats/index.js";
 import type * as cron from "../cron.js";
@@ -49,6 +50,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "admins/index": typeof admins_index;
   auth: typeof auth;
+  "bookings/alerts": typeof bookings_alerts;
   "bookings/index": typeof bookings_index;
   "chats/index": typeof chats_index;
   cron: typeof cron;

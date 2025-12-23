@@ -6,3 +6,4 @@ export * from "./trips/trips-list";
 export * from "./trips/trip-instance-detail";
 export * from "./trips/trip-table";
 export * from "./trips/trip-detail";
+export * from "./booking-alert";
