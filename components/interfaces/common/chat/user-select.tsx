@@ -66,16 +66,16 @@ export function UserSelect({
   }, [chattableUsers, searchQuery]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="p-2 shrink-0">
         <Input
           placeholder="Search users..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <ScrollArea className="flex-1">
-        <div className="p-2">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-2 pt-0">
           {filteredUsers.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               {searchQuery ? "No users found" : "No users available"}
@@ -92,7 +92,7 @@ export function UserSelect({
                     type="button"
                     onClick={() => onUserToggle(user.id)}
                     disabled={isDisabled}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
                       isSelected
                         ? "bg-primary/10 border border-primary"
                         : isDisabled
@@ -104,14 +104,14 @@ export function UserSelect({
                       fileId={user.profilePictureId}
                       name={user.name}
                     />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="font-medium truncate">{user.name}</div>
+                      <div className="text-sm text-muted-foreground truncate">
                         {user.email}
                       </div>
                     </div>
                     {isSelected && (
-                      <div className="size-5 rounded-full bg-primary flex items-center justify-center">
+                      <div className="size-5 rounded-full bg-primary flex items-center justify-center shrink-0">
                         <span className="text-primary-foreground text-xs">
                           ✓
                         </span>

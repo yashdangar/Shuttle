@@ -40,6 +40,11 @@ export default auth((req) => {
   const role = toRole(session.user.role);
   const roleHome = roleHomes[role];
 
+  // Redirect guest from /dashboard to /bookings
+  if (role === "guest" && pathname === "/dashboard") {
+    return NextResponse.redirect(new URL("/bookings", nextUrl));
+  }
+
   if (isAuthRoute(pathname)) {
     return NextResponse.redirect(new URL(roleHome, nextUrl));
   }

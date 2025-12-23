@@ -79,8 +79,8 @@ export function NewChatModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md h-[600px] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="w-[95vw] max-w-md max-h-[90vh] sm:max-h-[600px] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>
             {mode === "group" ? "New Group Chat" : "New Chat"}
           </DialogTitle>
@@ -97,7 +97,7 @@ export function NewChatModal({
           </p>
         </DialogHeader>
         {mode === "group" && (
-          <div className="px-1 pb-2">
+          <div className="shrink-0">
             <Label htmlFor="chatName">Group Name *</Label>
             <Input
               id="chatName"
@@ -108,15 +108,15 @@ export function NewChatModal({
             />
           </div>
         )}
-        <div className="px-1 pb-2">
+        <div className="shrink-0">
           <Label>Participants *</Label>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {mode === "group"
               ? "Search and select at least 2 users"
               : "Search and select one user"}
           </p>
         </div>
-        <div className="flex-1 min-h-0 rounded-md border p-2">
+        <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
           <UserSelect
             userId={userId}
             selectedUserIds={selectedUserIds}
@@ -124,7 +124,7 @@ export function NewChatModal({
             allowMultiple={mode === "group"}
           />
         </div>
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-end gap-2 pt-4 border-t shrink-0">
           <Button
             variant="outline"
             onClick={() => {

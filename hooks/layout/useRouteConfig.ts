@@ -36,21 +36,21 @@ const guestSidebarData: SidebarData = {
     icon: LayoutDashboard,
   },
   navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
+    // {
+    //   title: "Dashboard",
+    //   url: "/dashboard",
+    //   icon: LayoutDashboard,
+    // },
+     {
+      title: "Bookings",
+      url: "/bookings",
+      icon: CalendarPlus,
     },
     {
       title: "New booking",
       url: "/select-hotels",
       icon: CalendarPlus,
       matchPaths: ["/select-hotels", "/new-booking"],
-    },
-    {
-      title: "Bookings",
-      url: "/bookings",
-      icon: CalendarPlus,
     },
     {
       title: "Chat",
