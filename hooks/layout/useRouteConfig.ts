@@ -31,7 +31,7 @@ export interface RouteConfig {
 
 const guestSidebarData: SidebarData = {
   organization: {
-    name: "Shuttle OPS",
+    name: "Shuttle User",
     url: "/dashboard",
     icon: LayoutDashboard,
   },

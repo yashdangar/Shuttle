@@ -320,23 +320,34 @@ export function TripInstanceDetail({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground">Loading trip details...</p>
+        </div>
       </div>
     );
   }
 
   if (!tripInstance) {
     return (
-      <div className="text-center py-12">
-        <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-        <h2 className="mt-4 text-xl font-semibold">Trip not found</h2>
-        <p className="text-muted-foreground mt-2">
-          This trip instance doesn&apos;t exist or has been removed.
-        </p>
-        <Link href="/driver/trips">
-          <Button className="mt-4">Back to Trips</Button>
-        </Link>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+            <FileText className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">Trip not found</h2>
+            <p className="text-sm text-muted-foreground">
+              This trip doesn&apos;t exist or has been removed.
+            </p>
+          </div>
+          <Link href="/driver/trips">
+            <Button className="mt-2">Back to Trips</Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -358,64 +369,54 @@ export function TripInstanceDetail({
     completedRoutesCount > 0;
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-6 pb-8">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.back()}
-          className="h-9 w-9"
+          className="h-10 w-10 rounded-full"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Link href="/driver" className="hover:underline">
-              Dashboard
-            </Link>
-            <span>/</span>
-            <Link href="/driver/trips" className="hover:underline">
-              Trips
-            </Link>
-            <span>/</span>
-            <span>Details</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold mt-1">
-            {tripDetails?.name || "Trip Instance"}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">
+            {tripDetails?.name || "Trip Details"}
           </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {formatDate(tripInstance.scheduledDate)}
+          </p>
         </div>
         <Button
           variant="outline"
+          size="sm"
           onClick={() => setQrOpen(true)}
-          className="gap-2"
+          className="gap-2 rounded-full"
         >
           <QrCode className="h-4 w-4" />
-          Scan QR
+          <span className="hidden sm:inline">Scan</span>
         </Button>
       </div>
 
-      <Card className={`border-2 ${getStatusBgColor(status)}`}>
+      {/* Status & Actions */}
+      <Card className="border shadow-sm">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Badge
-                className={`${getStatusColor(status)} border text-sm px-3 py-1`}
+                className={`${getStatusColor(status)} border-0 text-xs px-2.5 py-1`}
               >
-                {status === "IN_PROGRESS" ? "🚗 In Progress" : status}
+                <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
+                  status === "IN_PROGRESS" ? "bg-amber-500 animate-pulse" :
+                  status === "COMPLETED" ? "bg-emerald-500" :
+                  status === "CANCELLED" ? "bg-rose-500" : "bg-primary"
+                }`} />
+                {status === "IN_PROGRESS" ? "In Progress" : status.charAt(0) + status.slice(1).toLowerCase()}
               </Badge>
               {status === "IN_PROGRESS" && totalRoutes > 0 && (
-                <span className="text-sm text-amber-700 font-medium">
-                  {completedRoutesCount}/{totalRoutes} segments completed
-                </span>
-              )}
-              {status === "COMPLETED" && (
-                <span className="text-sm text-emerald-700 font-medium">
-                  Trip completed ✓
-                </span>
-              )}
-              {status === "CANCELLED" && (
-                <span className="text-sm text-rose-700 font-medium">
-                  Trip was cancelled
+                <span className="text-xs text-muted-foreground">
+                  {completedRoutesCount}/{totalRoutes} segments
                 </span>
               )}
             </div>
@@ -425,9 +426,10 @@ export function TripInstanceDetail({
                 <Button
                   onClick={() => openConfirmDialog("start")}
                   disabled={isProcessing}
+                  size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700 gap-2"
                 >
-                  <Play className="h-4 w-4" />
+                  <Play className="h-3.5 w-3.5" />
                   Start Trip
                 </Button>
               )}
@@ -435,21 +437,23 @@ export function TripInstanceDetail({
                 <Button
                   onClick={() => openConfirmDialog("complete")}
                   disabled={isProcessing}
-                  className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  size="sm"
+                  className="gap-2"
                 >
-                  <CheckCircle className="h-4 w-4" />
-                  Complete Trip
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Complete
                 </Button>
               )}
               {canCancel && (
                 <Button
-                  variant="destructive"
+                  variant="outline"
+                  size="sm"
                   onClick={() => openConfirmDialog("cancel")}
                   disabled={isProcessing}
-                  className="gap-2"
+                  className="gap-2 text-destructive hover:bg-destructive/10"
                 >
-                  <XCircle className="h-4 w-4" />
-                  Cancel Trip
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancel
                 </Button>
               )}
             </div>
@@ -457,68 +461,46 @@ export function TripInstanceDetail({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span className="text-sm">
-                  {formatDate(tripInstance.scheduledDate)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {formatISOTime(tripInstance.scheduledStartTime)} -{" "}
-                  {formatISOTime(tripInstance.scheduledEndTime)}
-                </span>
+      {/* Trip Info */}
+      <Card className="border shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4">
+            {/* Time Info */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {formatISOTime(tripInstance.scheduledStartTime)} - {formatISOTime(tripInstance.scheduledEndTime)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Scheduled time</p>
+                </div>
               </div>
               {tripInstance.actualStartTime && (
-                <div className="flex items-center gap-2 text-emerald-600">
-                  <Play className="h-4 w-4" />
-                  <span className="text-sm">
-                    Started:{" "}
-                    {new Date(
-                      tripInstance.actualStartTime
-                    ).toLocaleTimeString()}
-                  </span>
-                </div>
-              )}
-              {tripInstance.actualEndTime && (
-                <div className="flex items-center gap-2 text-blue-600">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm">
-                    Ended:{" "}
-                    {new Date(tripInstance.actualEndTime).toLocaleTimeString()}
-                  </span>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-emerald-600">
+                    {new Date(tripInstance.actualStartTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Started</p>
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                  <Users className="h-4 w-4" />
-                </div>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold">
-                  {tripInstance.seatsOccupied}/{tripInstance.seatHeld || 0}
+                  {tripInstance.seatsOccupied}<span className="text-sm text-muted-foreground">/{tripInstance.seatHeld || 0}</span>
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Occupied/Held
-                </p>
+                <p className="text-[10px] text-muted-foreground">Seats</p>
               </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                  <Ticket className="h-4 w-4" />
-                </div>
+              <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold">{bookings.length}</p>
                 <p className="text-[10px] text-muted-foreground">Bookings</p>
               </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                  <Bus className="h-4 w-4" />
-                </div>
+              <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <p className="text-sm font-bold truncate">
                   {tripInstance.driverInfo?.name || "—"}
                 </p>
@@ -529,58 +511,53 @@ export function TripInstanceDetail({
         </CardContent>
       </Card>
 
+      {/* Route Segments */}
       {routes.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="border shadow-sm">
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Navigation className="h-4 w-4" />
-                  Route Segments ({completedRoutesCount}/{totalRoutes}{" "}
-                  completed)
-                </CardTitle>
-                {status === "IN_PROGRESS" && (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    {isETAUpdating ? (
-                      <span className="flex items-center gap-1 text-blue-600">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Updating...
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Navigation className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Route</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    {completedRoutesCount}/{totalRoutes} completed
+                    {status === "IN_PROGRESS" && (
+                      <span className="ml-2">
+                        {isETAUpdating ? (
+                          <span className="text-primary">• Updating</span>
+                        ) : etaError ? (
+                          <span className="text-destructive">• Offline</span>
+                        ) : etaLastUpdate ? (
+                          <span className="text-emerald-600">• Live</span>
+                        ) : null}
                       </span>
-                    ) : etaError ? (
-                      <span className="flex items-center gap-1 text-red-500">
-                        <WifiOff className="h-3 w-3" />
-                        Offline
-                      </span>
-                    ) : etaLastUpdate ? (
-                      <span className="flex items-center gap-1 text-emerald-600">
-                        <Wifi className="h-3 w-3" />
-                        Live
-                      </span>
-                    ) : null}
-                  </div>
-                )}
+                    )}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {status === "IN_PROGRESS" && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={refreshETA}
                     disabled={isETAUpdating}
-                    className="gap-1"
+                    className="h-8 w-8 p-0"
                   >
                     {isETAUpdating ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Navigation className="h-3.5 w-3.5" />
+                      <Navigation className="h-4 w-4" />
                     )}
-                    Refresh ETA
                   </Button>
                 )}
                 {canRevert && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
                       const lastCompleted = routes
                         .filter((r) => r.completed)
@@ -593,90 +570,63 @@ export function TripInstanceDetail({
                       );
                     }}
                     disabled={isRouteProcessing}
-                    className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                    className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Revert Last
+                    <RotateCcw className="h-4 w-4" />
                   </Button>
                 )}
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2 pt-0">
             {routes.map((route, index) => {
               const routeState = getRouteState(index);
-              const styles = getRouteStateStyles(routeState);
               const isNextSegment =
                 status === "IN_PROGRESS" && index === currentRouteIndex + 1;
 
               return (
                 <div
                   key={route._id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border ${styles.container}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    routeState === "completed" ? "bg-emerald-50/50 border-emerald-200" :
+                    routeState === "in_progress" ? "bg-amber-50/50 border-amber-200" :
+                    "bg-muted/30 border-transparent"
+                  }`}
                 >
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${styles.circle}`}
-                    >
-                      {routeState === "completed" ? (
-                        <Check className="h-4 w-4" />
-                      ) : routeState === "in_progress" ? (
-                        <Play className="h-4 w-4" />
-                      ) : (
-                        index + 1
-                      )}
-                    </div>
+                  <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                    routeState === "completed" ? "bg-emerald-500 text-white" :
+                    routeState === "in_progress" ? "bg-amber-500 text-white" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {routeState === "completed" ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : routeState === "in_progress" ? (
+                      <Play className="h-3.5 w-3.5" />
+                    ) : (
+                      index + 1
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-emerald-500 shrink-0" />
-                      <span className="font-medium text-sm truncate">
-                        {route.startLocationName}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
-                      <span className="font-medium text-sm truncate">
-                        {route.endLocationName}
-                      </span>
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span className="font-medium truncate">{route.startLocationName}</span>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="font-medium truncate">{route.endLocationName}</span>
                     </div>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {route.seatsOccupied} occupied / {route.seatHeld} held
-                      </span>
-                      <span>${route.charges.toFixed(2)}</span>
-                      {route.distance && (
-                        <span className="text-blue-600">{route.distance}</span>
-                      )}
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                      <span>{route.seatsOccupied} pax</span>
+                      {route.distance && <span>{route.distance}</span>}
                       {route.eta && (
-                        <span className="text-amber-600 font-medium">ETA: {route.eta}</span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {routeState === "in_progress" &&
-                        status === "IN_PROGRESS" && (
-                          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                            🚗 Currently traveling
-                          </Badge>
-                        )}
-                      {route.canBeSkipped && status === "IN_PROGRESS" && (
-                        <Badge
-                          variant="outline"
-                          className="text-slate-500 border-slate-300"
-                        >
-                          No bookings - can skip
-                        </Badge>
+                        <span className={`font-medium ${
+                          routeState === "completed" ? "text-emerald-600" :
+                          routeState === "in_progress" ? "text-amber-600" :
+                          "text-muted-foreground"
+                        }`}>
+                          ETA: {route.eta}
+                        </span>
                       )}
                     </div>
                   </div>
-
-                  {routeState === "completed" && (
-                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
-                      <Check className="h-3 w-3 mr-1" />
-                      Done
-                    </Badge>
-                  )}
 
                   {isNextSegment && canShowStartNext && (
                     <Button
@@ -692,10 +642,9 @@ export function TripInstanceDetail({
                         );
                       }}
                       disabled={isRouteProcessing}
-                      className="bg-amber-600 hover:bg-amber-700 gap-1"
+                      className="h-7 text-xs bg-amber-600 hover:bg-amber-700"
                     >
-                      <Play className="h-3.5 w-3.5" />
-                      Start Next
+                      Next
                     </Button>
                   )}
                 </div>
@@ -704,10 +653,9 @@ export function TripInstanceDetail({
 
             {status === "IN_PROGRESS" &&
               currentRouteIndex === routes.length - 1 && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                  <p className="text-sm text-blue-700">
-                    This is the final segment. Use &quot;Complete Trip&quot;
-                    when you arrive at the destination.
+                <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-lg text-center">
+                  <p className="text-xs text-primary">
+                    Final segment. Tap &quot;Complete&quot; when you arrive.
                   </p>
                 </div>
               )}
@@ -715,103 +663,84 @@ export function TripInstanceDetail({
         </Card>
       )}
 
+      {/* Passengers */}
       <div>
-        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-          <Ticket className="h-4 w-4" />
-          Passengers ({bookings.length})
-        </h2>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Users className="h-4 w-4 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold">Passengers</h2>
+          <Badge variant="secondary" className="font-normal">{bookings.length}</Badge>
+        </div>
 
         {bookings.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <Users className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-4 font-semibold">No passengers yet</p>
-              <p className="text-sm text-muted-foreground">
-                Bookings will appear here when guests reserve seats
+          <Card className="border-dashed border-2 bg-muted/20">
+            <CardContent className="py-10 text-center">
+              <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+                <Users className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="mt-4 font-semibold">No passengers</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Bookings will appear here
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {bookings.map((booking) => {
               const verified = (booking as any).qrCodeStatus === "VERIFIED";
               return (
-                <Card key={booking._id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
+                <Card key={booking._id} className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+                        verified ? "bg-emerald-100" : "bg-muted"
+                      }`}>
+                        {verified ? (
+                          <Check className="h-5 w-5 text-emerald-600" />
+                        ) : (
+                          <User className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
                           <span className="font-medium truncate">
                             {booking.guestName || "Guest"}
                           </span>
-                        </div>
-
-                        {booking.guestPhone && (
-                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5 shrink-0" />
-                            <a
-                              href={`tel:${booking.guestPhone}`}
-                              className="hover:underline"
-                            >
-                              {booking.guestPhone}
-                            </a>
-                          </div>
-                        )}
-
-                        {(booking as any).fromLocation &&
-                          (booking as any).toLocation && (
-                            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                              <MapPin className="h-3.5 w-3.5 shrink-0" />
-                              <span>
-                                {(booking as any).fromLocation} →{" "}
-                                {(booking as any).toLocation}
-                              </span>
-                            </div>
+                          {!verified && (
+                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                              Unverified
+                            </Badge>
                           )}
-
-                        {booking.notes && (
-                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
-                            <span className="font-medium">Notes:</span>{" "}
-                            {booking.notes}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1 text-sm">
-                        <Badge
-                          variant={
-                            booking.bookingStatus === "CONFIRMED"
-                              ? "default"
-                              : booking.bookingStatus === "PENDING"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                          className="text-xs"
-                        >
-                          {booking.bookingStatus}
-                        </Badge>
-                        <Badge
-                          variant={verified ? "default" : "secondary"}
-                          className={`text-[11px] ${
-                            verified
-                              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                              : "bg-amber-100 text-amber-800 border-amber-200"
-                          }`}
-                        >
-                          {verified ? "Verified" : "Unverified"}
-                        </Badge>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                           <span className="flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5" />
+                            <Users className="h-3 w-3" />
                             {booking.seats}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Luggage className="h-3.5 w-3.5" />
+                            <Luggage className="h-3 w-3" />
                             {booking.bags}
                           </span>
+                          {(booking as any).fromLocation && (booking as any).toLocation && (
+                            <span className="truncate">
+                              {(booking as any).fromLocation} → {(booking as any).toLocation}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
+                        {booking.guestPhone && (
+                          <a
+                            href={`tel:${booking.guestPhone}`}
+                            className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+                          >
+                            <Phone className="h-4 w-4 text-primary" />
+                          </a>
+                        )}
+                        <span className="text-xs font-medium">
                           ${booking.totalPrice.toFixed(2)}
                         </span>
                       </div>
@@ -824,30 +753,39 @@ export function TripInstanceDetail({
         )}
       </div>
 
+      {/* Dialogs */}
       <AlertDialog
         open={confirmDialog.open}
         onOpenChange={(open) => setConfirmDialog({ open, action: null })}
       >
-        <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmDialog.action === "start" && "Start this trip?"}
-              {confirmDialog.action === "complete" && "Complete this trip?"}
-              {confirmDialog.action === "cancel" && "Cancel this trip?"}
+        <AlertDialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
+          <AlertDialogHeader className="text-center sm:text-left">
+            <div className={`mx-auto sm:mx-0 h-12 w-12 rounded-full flex items-center justify-center mb-2 ${
+              confirmDialog.action === "start" ? "bg-emerald-100" :
+              confirmDialog.action === "complete" ? "bg-primary/10" : "bg-destructive/10"
+            }`}>
+              {confirmDialog.action === "start" && <Play className="h-6 w-6 text-emerald-600" />}
+              {confirmDialog.action === "complete" && <CheckCircle className="h-6 w-6 text-primary" />}
+              {confirmDialog.action === "cancel" && <XCircle className="h-6 w-6 text-destructive" />}
+            </div>
+            <AlertDialogTitle className="text-xl">
+              {confirmDialog.action === "start" && "Start Trip?"}
+              {confirmDialog.action === "complete" && "Complete Trip?"}
+              {confirmDialog.action === "cancel" && "Cancel Trip?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               {confirmDialog.action === "start" &&
-                "This will mark the trip as in progress. You can then complete individual route segments as you reach each destination."}
+                "The trip will be marked as in progress. Complete route segments as you reach each stop."}
               {confirmDialog.action === "complete" &&
-                "This will mark the trip and all route segments as completed. Make sure all passengers have reached their destination."}
+                "All route segments will be marked complete. Ensure all passengers have arrived."}
               {confirmDialog.action === "cancel" &&
-                "This will cancel the trip. All passengers will need to be rebooked or notified."}
+                "This will cancel the trip. Passengers will need to be notified."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 mt-2">
             <AlertDialogCancel
               disabled={isProcessing}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto rounded-xl"
             >
               Go Back
             </AlertDialogCancel>
@@ -856,20 +794,16 @@ export function TripInstanceDetail({
                 confirmDialog.action && handleAction(confirmDialog.action)
               }
               disabled={isProcessing}
-              className={`w-full sm:w-auto ${
+              className={`w-full sm:w-auto rounded-xl ${
                 confirmDialog.action === "start"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : confirmDialog.action === "complete"
-                    ? "bg-blue-600 hover:bg-blue-700"
-                    : "bg-red-600 hover:bg-red-700"
+                    ? ""
+                    : "bg-destructive hover:bg-destructive/90"
               }`}
             >
-              {isProcessing ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              {confirmDialog.action === "start" && "Start Trip"}
-              {confirmDialog.action === "complete" && "Complete Trip"}
-              {confirmDialog.action === "cancel" && "Cancel Trip"}
+              {isProcessing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -879,35 +813,31 @@ export function TripInstanceDetail({
         open={routeConfirmDialog.open}
         onOpenChange={(open) => setRouteConfirmDialog({ open, action: null })}
       >
-        <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {routeConfirmDialog.action === "start_next" &&
-                "Start next segment?"}
-              {routeConfirmDialog.action === "revert" &&
-                "Revert last completion?"}
+        <AlertDialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
+          <AlertDialogHeader className="text-center sm:text-left">
+            <div className={`mx-auto sm:mx-0 h-12 w-12 rounded-full flex items-center justify-center mb-2 ${
+              routeConfirmDialog.action === "start_next" ? "bg-amber-100" : "bg-orange-100"
+            }`}>
+              {routeConfirmDialog.action === "start_next" && <Play className="h-6 w-6 text-amber-600" />}
+              {routeConfirmDialog.action === "revert" && <RotateCcw className="h-6 w-6 text-orange-600" />}
+            </div>
+            <AlertDialogTitle className="text-xl">
+              {routeConfirmDialog.action === "start_next" && "Start Next Segment?"}
+              {routeConfirmDialog.action === "revert" && "Revert Completion?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               {routeConfirmDialog.action === "start_next" && (
-                <>
-                  Starting <strong>{routeConfirmDialog.nextSegment}</strong>{" "}
-                  will mark <strong>{routeConfirmDialog.currentSegment}</strong>{" "}
-                  as completed. Passengers ending at that stop will be released.
-                </>
+                <>This will complete the current segment and start <strong>{routeConfirmDialog.nextSegment}</strong>.</>
               )}
               {routeConfirmDialog.action === "revert" && (
-                <>
-                  This will undo the completion of{" "}
-                  <strong>{routeConfirmDialog.currentSegment}</strong> and
-                  restore any seats that were released.
-                </>
+                <>This will undo <strong>{routeConfirmDialog.currentSegment}</strong> and restore released seats.</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 mt-2">
             <AlertDialogCancel
               disabled={isRouteProcessing}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto rounded-xl"
             >
               Cancel
             </AlertDialogCancel>
@@ -920,17 +850,14 @@ export function TripInstanceDetail({
                 }
               }}
               disabled={isRouteProcessing}
-              className={`w-full sm:w-auto ${
+              className={`w-full sm:w-auto rounded-xl ${
                 routeConfirmDialog.action === "start_next"
                   ? "bg-amber-600 hover:bg-amber-700"
                   : "bg-orange-600 hover:bg-orange-700"
               }`}
             >
-              {isRouteProcessing ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              {routeConfirmDialog.action === "start_next" && "Start Next"}
-              {routeConfirmDialog.action === "revert" && "Revert"}
+              {isRouteProcessing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

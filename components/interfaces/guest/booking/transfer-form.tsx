@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -351,14 +352,9 @@ export function TransferForm({
   const tripSelectDisabled = isLoadingTrips || !hotelId;
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-4 rounded-2xl border border-border/80 bg-background/40 p-4">
-        <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>Guest identity</span>
-          <span className="text-[10px] font-normal tracking-[0.4em] text-muted-foreground/70">
-            Choose one option below
-          </span>
-        </div>
+    <div className="space-y-6">
+      {/* Guest Identity Section */}
+      <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={fieldId("firstName")}>First name</Label>
@@ -379,19 +375,22 @@ export function TransferForm({
             />
           </div>
         </div>
-        <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          or
-          <span className="h-px flex-1 bg-border" />
+
+        <div className="flex items-center gap-4">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground font-medium">OR</span>
+          <Separator className="flex-1" />
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor={fieldId("confirmationNumber")}>
+          <Label htmlFor={fieldId("confirmationNumber")} className="text-muted-foreground">
             Confirmation number
           </Label>
           <Input
             id={fieldId("confirmationNumber")}
             value={form.confirmationNumber}
-            placeholder="ABC12345"
+            placeholder="ABC123"
+            className="max-w-xs"
             onChange={(event) =>
               onChange("confirmationNumber", event.target.value)
             }
@@ -399,13 +398,8 @@ export function TransferForm({
         </div>
       </div>
 
-      {fullName && (
-        <div className="rounded-xl border border-border bg-muted/30 p-3 text-sm text-foreground">
-          Passenger name preview:{" "}
-          <span className="font-semibold">{fullName}</span>
-        </div>
-      )}
 
+      {/* Trip Selection Section */}
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Trip</Label>
@@ -502,43 +496,19 @@ export function TransferForm({
         )}
 
         {isRouteValid && calculatedPrice > 0 && (
-          <div className="rounded-xl border border-border bg-muted/30 p-3 text-sm text-foreground">
-            Estimated price:{" "}
-            <span className="font-semibold">${calculatedPrice.toFixed(2)}</span>
-            <span className="text-muted-foreground ml-1">
-              ({seatsNumber} seat{seatsNumber !== 1 ? "s" : ""})
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={fieldId("date")}>Pickup date</Label>
-        <Input
-          id={fieldId("date")}
-          type="date"
-          value={form.date}
-          disabled={!isRouteValid}
-          onChange={(event) => {
-            onChange("date", event.target.value);
-            onChange("time", "");
-          }}
-        />
-        {!isRouteValid && form.tripId && (
           <p className="text-sm text-muted-foreground">
-            Please select pickup and destination first
+            Estimated price:{" "}
+            <span className="font-semibold text-foreground">${calculatedPrice.toFixed(2)}</span>
+            <span className="ml-1">
+              for {seatsNumber} seat{seatsNumber !== 1 ? "s" : ""}
+            </span>
           </p>
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor={fieldId("seats")}>
-            Number of seats{" "}
-            <span className="text-muted-foreground text-xs">
-              (required to show available time slots)
-            </span>
-          </Label>
+          <Label htmlFor={fieldId("seats")}>Seats</Label>
           <Input
             id={fieldId("seats")}
             type="number"
@@ -552,34 +522,18 @@ export function TransferForm({
             }}
             disabled={!isRouteValid || !form.date}
           />
-          {!isRouteValid && (
-            <p className="text-sm text-muted-foreground">
-              Please select pickup and destination first
-            </p>
-          )}
-          {isRouteValid && !form.date && (
-            <p className="text-sm text-muted-foreground">
-              Please select a date first
-            </p>
-          )}
           {isRouteValid && form.date && seatsExceedMaxCapacity && (
-            <p className="text-sm text-destructive">
-              Cannot book {seatsNumber} seats. Maximum shuttle capacity is{" "}
-              {maxShuttleCapacity} seat{maxShuttleCapacity !== 1 ? "s" : ""}.
-              Please reduce the number of seats.
+            <p className="text-xs text-destructive">
+              Max {maxShuttleCapacity} seats
             </p>
           )}
           {isRouteValid &&
             form.date &&
             !seatsExceedMaxCapacity &&
             seatsExceedCapacity &&
-            selectedSlotTimes &&
             slotCapacity && (
-              <p className="text-sm text-destructive">
-                Maximum {slotCapacity.availableCapacity} seat
-                {slotCapacity.availableCapacity !== 1 ? "s" : ""} available for
-                this slot. Please select fewer seats or choose a different time
-                slot.
+              <p className="text-xs text-destructive">
+                Only {slotCapacity.availableCapacity} available
               </p>
             )}
           {isRouteValid &&
@@ -589,10 +543,8 @@ export function TransferForm({
             seatsNumber > 0 &&
             slots.length === 0 &&
             !isLoadingSlots && (
-              <p className="text-sm text-destructive">
-                No time slots available for {seatsNumber} seat
-                {seatsNumber !== 1 ? "s" : ""}. All slots are fully booked.
-                Please try a different date or reduce the number of seats.
+              <p className="text-xs text-destructive">
+                No slots available
               </p>
             )}
         </div>
@@ -604,6 +556,19 @@ export function TransferForm({
             min={0}
             value={form.bags}
             onChange={(event) => onChange("bags", event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={fieldId("date")}>Date</Label>
+          <Input
+            id={fieldId("date")}
+            type="date"
+            value={form.date}
+            disabled={!isRouteValid}
+            onChange={(event) => {
+              onChange("date", event.target.value);
+              onChange("time", "");
+            }}
           />
         </div>
       </div>
@@ -654,13 +619,6 @@ export function TransferForm({
                 ))}
               </SelectContent>
             </Select>
-            {slots.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Showing {slots.length} available slot
-                {slots.length !== 1 ? "s" : ""} for {seatsNumber} seat
-                {seatsNumber !== 1 ? "s" : ""}
-              </p>
-            )}
           </div>
         )}
 
@@ -674,33 +632,22 @@ export function TransferForm({
         />
       </div>
 
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-          Payment methods
-        </p>
-        <div className="space-y-3">
-          {paymentOptions.map((option) => (
-            <div
-              key={option.value}
-              className="flex items-center justify-between rounded-2xl border border-dashed border-border px-4 py-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {option.label}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Collect payment at the front desk
-                </p>
-              </div>
-              <Checkbox
-                checked={form.paymentMethods[option.value]}
-                onCheckedChange={(checked) =>
-                  onPaymentChange(option.value, checked)
-                }
-              />
-            </div>
-          ))}
-        </div>
+      {/* Payment Section */}
+      <div className="space-y-2">
+        {paymentOptions.map((option) => (
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-center gap-2"
+          >
+            <Checkbox
+              checked={form.paymentMethods[option.value]}
+              onCheckedChange={(checked) =>
+                onPaymentChange(option.value, checked)
+              }
+            />
+            <span className="text-sm">Pay at {option.label.toLowerCase()}</span>
+          </label>
+        ))}
       </div>
     </div>
   );

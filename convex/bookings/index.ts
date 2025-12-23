@@ -731,6 +731,11 @@ export const getBookingById = query({
       }
     }
 
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
+      .first();
+
     return {
       _id: booking._id,
       guestId: booking.guestId,
@@ -756,6 +761,7 @@ export const getBookingById = query({
       cancellationReason: booking.cancellationReason,
       cancelledBy: booking.cancelledBy,
       createdAt: new Date(booking._creationTime).toISOString(),
+      chatId: chat?._id ?? null,
       fromRouteIndex:
         booking.fromRouteIndex !== undefined
           ? Number(booking.fromRouteIndex)
@@ -1009,8 +1015,35 @@ export const getHotelBookings = query({
           const tripInstance = await ctx.db.get(booking.tripInstanceId);
           if (tripInstance) {
             const trip = await ctx.db.get(tripInstance.tripId);
+
+            let sourceLocation: string | undefined;
+            let destinationLocation: string | undefined;
+
+            if (trip) {
+              const routes = await ctx.db
+                .query("routes")
+                .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+                .collect();
+
+              if (routes.length > 0) {
+                const sortedRoutes = routes.sort(
+                  (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+                );
+                const firstRoute = sortedRoutes[0];
+                const lastRoute = sortedRoutes[sortedRoutes.length - 1];
+                const [src, dest] = await Promise.all([
+                  ctx.db.get(firstRoute.startLocationId),
+                  ctx.db.get(lastRoute.endLocationId),
+                ]);
+                sourceLocation = src?.name ?? "Unknown";
+                destinationLocation = dest?.name ?? "Unknown";
+              }
+            }
+
             tripDetails = {
               tripName: trip?.name ?? "Unknown",
+              sourceLocation,
+              destinationLocation,
               scheduledDate: tripInstance.scheduledDate,
               scheduledStartTime: tripInstance.scheduledStartTime,
               scheduledEndTime: tripInstance.scheduledEndTime,

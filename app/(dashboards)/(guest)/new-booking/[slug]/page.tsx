@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, Plane, Car } from "lucide-react";
 import { HotelCard } from "@/components/interfaces/guest/booking/hotel-card";
 import { TransferForm } from "@/components/interfaces/guest/booking/transfer-form";
 import { ParkForm } from "@/components/interfaces/guest/booking/park-form";
@@ -66,9 +67,27 @@ function NewBookingContent() {
   const isLoading = hotelData === undefined;
 
   const tabs = [
-    { id: "hotelToAirport", label: "Hotel → Airport", type: "transfer" },
-    { id: "airportToHotel", label: "Airport → Hotel", type: "transfer" },
-    { id: "parkSleepFly", label: "Park, Sleep & Fly", type: "park" },
+    {
+      id: "hotelToAirport",
+      label: "Hotel → Airport",
+      shortLabel: "To Airport",
+      type: "transfer",
+      icon: Plane,
+    },
+    {
+      id: "airportToHotel",
+      label: "Airport → Hotel",
+      shortLabel: "To Hotel",
+      type: "transfer",
+      icon: Building2,
+    },
+    {
+      id: "parkSleepFly",
+      label: "Park, Sleep & Fly",
+      shortLabel: "Park & Fly",
+      type: "park",
+      icon: Car,
+    },
   ] as const;
 
   const createTransferForm = (): TransferFormData => {
@@ -91,7 +110,7 @@ function NewBookingContent() {
       tripId: "" as Id<"trips"> | "",
       notes: "",
       paymentMethods: {
-        frontDesk: false,
+        frontDesk: true,
       },
     };
   };
@@ -105,6 +124,33 @@ function NewBookingContent() {
     ...createTransferForm(),
     direction: "hotelToAirport" as "hotelToAirport" | "airportToHotel",
   });
+
+  useEffect(() => {
+    if (user?.name) {
+      const nameParts = user.name.trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      setTransferForms((prev) => ({
+        hotelToAirport: {
+          ...prev.hotelToAirport,
+          firstName: prev.hotelToAirport.firstName || firstName,
+          lastName: prev.hotelToAirport.lastName || lastName,
+        },
+        airportToHotel: {
+          ...prev.airportToHotel,
+          firstName: prev.airportToHotel.firstName || firstName,
+          lastName: prev.airportToHotel.lastName || lastName,
+        },
+      }));
+
+      setParkForm((prev) => ({
+        ...prev,
+        firstName: prev.firstName || firstName,
+        lastName: prev.lastName || lastName,
+      }));
+    }
+  }, [user?.name]);
 
   const tripsData = useQuery(
     api.trips.index.listHotelTrips,
@@ -131,11 +177,11 @@ function NewBookingContent() {
       return "Please enter valid number of seats";
     if (!form.firstName && !form.lastName && !form.confirmationNumber)
       return "Please enter guest name or confirmation number";
-    
+
     if (form.time && !form.time.includes("-")) {
       return "Please select a valid time slot";
     }
-    
+
     return null;
   };
 
@@ -306,19 +352,41 @@ function NewBookingContent() {
               onValueChange={setActiveTab}
               className="space-y-6"
             >
-              <div className="-mx-4 flex overflow-x-auto px-4 pb-1">
-                <TabsList className="flex w-full min-w-full flex-col gap-2 rounded-2xl bg-muted/60 p-1 sm:grid sm:grid-cols-3">
-                  {tabs.map((tab) => (
+              {/* Mobile Tabs */}
+              <TabsList className="grid h-auto w-full grid-cols-3 gap-2 rounded-xl bg-transparent p-0 sm:hidden">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
                     <TabsTrigger
                       key={tab.id}
                       value={tab.id}
-                      className="rounded-full text-[11px] font-semibold uppercase tracking-[0.2em] data-[state=active]:bg-background"
+                      className="flex h-auto flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-muted-foreground shadow-sm transition-all hover:bg-accent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-md"
                     >
-                      {tab.label}
+                      <Icon className="h-5 w-5" />
+                      <span className="text-[10px] font-medium leading-tight text-center">
+                        {tab.shortLabel}
+                      </span>
                     </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
+                  );
+                })}
+              </TabsList>
+
+              {/* Desktop Tabs */}
+              <TabsList className="hidden h-12 w-full rounded-full bg-muted/60 p-1 sm:grid sm:grid-cols-3">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className="flex items-center justify-center gap-2 rounded-full text-[11px] font-semibold uppercase tracking-widest transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
               {tabs.map((tab) => (
                 <TabsContent key={tab.id} value={tab.id} className="mt-0">
                   <div className="space-y-8">

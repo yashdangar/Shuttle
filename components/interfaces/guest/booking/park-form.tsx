@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -266,46 +267,36 @@ export function ParkForm({
   const tripSelectDisabled = isLoadingTrips || !hotelId;
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4">
-        <div className="space-y-2">
-          <Label>Direction</Label>
-          <Select
-            value={form.direction}
-            onValueChange={(value) =>
-              onChange({
-                direction: value as (typeof directionOptions)[number]["value"],
-                tripId: "",
-                pickupLocation: "",
-                destination: "",
-              })
-            }
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Select direction" />
-            </SelectTrigger>
-            <SelectContent>
-              {directionOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {directionLabel
-              ? `Coordinate shuttles for ${directionLabel.toLowerCase()}.`
-              : "Choose the direction for the Park, Sleep & Fly shuttle."}
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Direction Section */}
+      <div className="space-y-2">
+        <Label>Direction</Label>
+        <Select
+          value={form.direction}
+          onValueChange={(value) =>
+            onChange({
+              direction: value as (typeof directionOptions)[number]["value"],
+              tripId: "",
+              pickupLocation: "",
+              destination: "",
+            })
+          }
+        >
+          <SelectTrigger className="h-11">
+            <SelectValue placeholder="Select direction" />
+          </SelectTrigger>
+          <SelectContent>
+            {directionOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <div className="space-y-4 rounded-2xl border border-border/80 bg-background/40 p-4">
-        <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>Guest identity</span>
-          <span className="text-[10px] font-normal tracking-[0.4em] text-muted-foreground/70">
-            Choose one option below
-          </span>
-        </div>
+
+      {/* Guest Identity Section */}
+      <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={parkFieldId("firstName")}>First name</Label>
@@ -334,19 +325,22 @@ export function ParkForm({
             />
           </div>
         </div>
-        <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          or
-          <span className="h-px flex-1 bg-border" />
+
+        <div className="flex items-center gap-4">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground font-medium">OR</span>
+          <Separator className="flex-1" />
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor={parkFieldId("confirmationNumber")}>
-            Confirmation number
+          <Label htmlFor={parkFieldId("confirmationNumber")} className="text-muted-foreground">
+            Or Confirmation number 
           </Label>
           <Input
             id={parkFieldId("confirmationNumber")}
             value={form.confirmationNumber}
-            placeholder="ABC12345"
+            placeholder="ABC123"
+            className="max-w-xs"
             onChange={(event) =>
               onChange({
                 confirmationNumber: event.target.value,
@@ -355,12 +349,9 @@ export function ParkForm({
           />
         </div>
       </div>
-      {parkFullName && (
-        <div className="rounded-xl border border-border bg-muted/30 p-3 text-sm text-foreground">
-          Passenger name preview:{" "}
-          <span className="font-semibold">{parkFullName}</span>
-        </div>
-      )}
+
+
+      {/* Trip Selection Section */}
       <div className="flex flex-row flex-wrap gap-6">
         <div className="space-y-2 flex-1 min-w-[220px]">
           <Label>Trip</Label>
@@ -449,28 +440,10 @@ export function ParkForm({
           </Select>
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="park-date">Date</Label>
-        <Input
-          id="park-date"
-          type="date"
-          value={form.date}
-          onChange={(event) =>
-            onChange({
-              date: event.target.value,
-              time: "",
-            })
-          }
-        />
-      </div>
-      <div className="grid gap-6 md:grid-cols-2">
+
+      <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="park-seats">
-            Number of seats{" "}
-            <span className="text-muted-foreground text-xs">
-              (required to show available time slots)
-            </span>
-          </Label>
+          <Label htmlFor="park-seats">Seats</Label>
           <Input
             id="park-seats"
             type="number"
@@ -480,41 +453,24 @@ export function ParkForm({
               onChange({
                 seats: event.target.value,
               });
-              // Clear time slot when seats change to allow re-validation
               if (form.time) {
                 onChange({ time: "" });
               }
             }}
             disabled={!form.tripId || !form.date}
           />
-          {!form.tripId && (
-            <p className="text-sm text-muted-foreground">
-              Please select a trip first
-            </p>
-          )}
-          {form.tripId && !form.date && (
-            <p className="text-sm text-muted-foreground">
-              Please select a date first
-            </p>
-          )}
           {form.tripId && form.date && seatsExceedMaxCapacity && (
-            <p className="text-sm text-destructive">
-              Cannot book {seatsNumber} seats. Maximum shuttle capacity is{" "}
-              {maxShuttleCapacity} seat{maxShuttleCapacity !== 1 ? "s" : ""}.
-              Please reduce the number of seats.
+            <p className="text-xs text-destructive">
+              Max {maxShuttleCapacity} seats
             </p>
           )}
           {form.tripId &&
             form.date &&
             !seatsExceedMaxCapacity &&
             seatsExceedCapacity &&
-            selectedSlotTimes &&
             slotCapacity && (
-              <p className="text-sm text-destructive">
-                Maximum {slotCapacity.availableCapacity} seat
-                {slotCapacity.availableCapacity !== 1 ? "s" : ""} available for
-                this slot. Please select fewer seats or choose a different time
-                slot.
+              <p className="text-xs text-destructive">
+                Only {slotCapacity.availableCapacity} available
               </p>
             )}
           {form.tripId &&
@@ -524,10 +480,8 @@ export function ParkForm({
             seatsNumber > 0 &&
             slots.length === 0 &&
             !isLoadingSlots && (
-              <p className="text-sm text-destructive">
-                No time slots available for {seatsNumber} seat
-                {seatsNumber !== 1 ? "s" : ""}. All slots are fully booked.
-                Please try a different date or reduce the number of seats.
+              <p className="text-xs text-destructive">
+                No slots available
               </p>
             )}
         </div>
@@ -541,6 +495,20 @@ export function ParkForm({
             onChange={(event) =>
               onChange({
                 bags: event.target.value,
+              })
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="park-date">Date</Label>
+          <Input
+            id="park-date"
+            type="date"
+            value={form.date}
+            onChange={(event) =>
+              onChange({
+                date: event.target.value,
+                time: "",
               })
             }
           />
@@ -598,13 +566,6 @@ export function ParkForm({
                 ))}
               </SelectContent>
             </Select>
-            {slots.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Showing {slots.length} available slot
-                {slots.length !== 1 ? "s" : ""} for {seatsNumber} seat
-                {seatsNumber !== 1 ? "s" : ""}
-              </p>
-            )}
           </div>
         )}
       <div className="space-y-2">
@@ -620,33 +581,23 @@ export function ParkForm({
           }
         />
       </div>
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-          Payment methods
-        </p>
-        <div className="space-y-3">
-          {paymentOptions.map((option) => (
-            <div
-              key={option.value}
-              className="flex items-center justify-between rounded-2xl border border-dashed border-border px-4 py-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {option.label}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Collect payment when the guest arrives
-                </p>
-              </div>
-              <Checkbox
-                checked={form.paymentMethods[option.value]}
-                onCheckedChange={(checked) =>
-                  onPaymentChange(option.value, checked)
-                }
-              />
-            </div>
-          ))}
-        </div>
+
+      {/* Payment Section */}
+      <div className="space-y-2">
+        {paymentOptions.map((option) => (
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-center gap-2"
+          >
+            <Checkbox
+              checked={form.paymentMethods[option.value]}
+              onCheckedChange={(checked) =>
+                onPaymentChange(option.value, checked)
+              }
+            />
+            <span className="text-sm">Pay at {option.label.toLowerCase()}</span>
+          </label>
+        ))}
       </div>
     </div>
   );

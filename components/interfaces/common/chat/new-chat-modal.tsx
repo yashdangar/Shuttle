@@ -108,7 +108,15 @@ export function NewChatModal({
             />
           </div>
         )}
-        <div className="flex-1 min-h-0">
+        <div className="px-1 pb-2">
+          <Label>Participants *</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            {mode === "group"
+              ? "Search and select at least 2 users"
+              : "Search and select one user"}
+          </p>
+        </div>
+        <div className="flex-1 min-h-0 rounded-md border p-2">
           <UserSelect
             userId={userId}
             selectedUserIds={selectedUserIds}

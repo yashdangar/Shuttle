@@ -40,6 +40,8 @@ const PAGE_SIZE = 20;
 
 type BookingTripDetails = {
   tripName: string;
+  sourceLocation?: string;
+  destinationLocation?: string;
   scheduledDate: string;
   scheduledStartTime: string;
   scheduledEndTime: string;
@@ -348,7 +350,11 @@ export function FrontdeskBookingsList() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4" />
-                        <span className="text-foreground">{trip.tripName}</span>
+                        <span className="text-foreground">
+                          {trip.sourceLocation && trip.destinationLocation
+                            ? `${trip.sourceLocation} → ${trip.destinationLocation}`
+                            : trip.tripName}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <CalendarClock className="h-4 w-4" />

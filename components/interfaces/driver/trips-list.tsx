@@ -33,13 +33,17 @@ export function DriverTripsList() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <UserRound className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 text-lg font-semibold">Please sign in</p>
-          <p className="text-sm text-muted-foreground">
-            Sign in to view your trips
-          </p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+            <UserRound className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xl font-semibold">Sign in required</p>
+            <p className="text-sm text-muted-foreground">
+              Please sign in to view your trips
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -47,8 +51,13 @@ export function DriverTripsList() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground">Loading trips...</p>
+        </div>
       </div>
     );
   }
@@ -90,70 +99,63 @@ export function DriverTripsList() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/driver">
-          <Button variant="ghost" size="icon" className="h-9 w-9">
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Link href="/driver" className="hover:underline">
-              Dashboard
-            </Link>
-            <span>/</span>
-            <span>All Trips</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold mt-1">Today's Trips</h1>
+        <div className="flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold">Today's Trips</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {new Date(todayDate).toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold">{sortedTrips.length}</p>
+          <p className="text-xs text-muted-foreground">trips</p>
         </div>
       </div>
 
-      {/* Date Info & Status Summary */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <p className="text-sm text-muted-foreground">
-            {new Date(todayDate).toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}{" "}
-            (UTC)
-          </p>
-          <p className="text-sm font-medium">
-            {sortedTrips.length} trip{sortedTrips.length !== 1 ? "s" : ""}
-          </p>
+      {/* Status Summary Pills */}
+      {sortedTrips.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {inProgressCount > 0 && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-700 rounded-full text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+              {inProgressCount} in progress
+            </div>
+          )}
+          {scheduledCount > 0 && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              {scheduledCount} scheduled
+            </div>
+          )}
+          {completedCount > 0 && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-700 rounded-full text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {completedCount} completed
+            </div>
+          )}
         </div>
-        {sortedTrips.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-1">
-            {inProgressCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
-                🚗 {inProgressCount} in progress
-              </span>
-            )}
-            {scheduledCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                📅 {scheduledCount} scheduled
-              </span>
-            )}
-            {completedCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-medium">
-                ✓ {completedCount} completed
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Trips List */}
       {sortedTrips.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <CalendarClock className="mx-auto h-12 w-12 text-muted-foreground" />
-            <p className="mt-4 text-lg font-semibold">No trips scheduled</p>
-            <p className="text-sm text-muted-foreground mt-1">
+        <Card className="border-dashed border-2 bg-muted/20">
+          <CardContent className="py-16 text-center">
+            <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto">
+              <CalendarClock className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="mt-5 text-lg font-semibold">No trips scheduled</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
               You don't have any trips assigned for today
             </p>
             <Link href="/driver">
-              <Button variant="outline" className="mt-4">
+              <Button className="mt-6">
                 <Bus className="h-4 w-4 mr-2" />
                 Select a Shuttle
               </Button>

@@ -69,7 +69,7 @@ export function BookingDetail({ booking }: BookingDetailProps) {
               icon={<UserRound className="h-4 w-4 text-violet-600" />}
               label="Guest"
               value={booking.guestName}
-              helper={`Confirmation #${booking.confirmationNumber}`}
+              helper={`Confirmation Number : ${booking.confirmationNumber}`}
             />
             <InfoBlock
               icon={<MapPin className="h-4 w-4 text-blue-600" />}

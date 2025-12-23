@@ -281,7 +281,7 @@ export default function FrontdeskBookingDetailPage() {
               value={booking.name || booking.guestName}
               helper={
                 booking.confirmationNum
-                  ? `Confirmation #${booking.confirmationNum}`
+                  ? `Confirmation Number: ${booking.confirmationNum}`
                   : undefined
               }
             />
