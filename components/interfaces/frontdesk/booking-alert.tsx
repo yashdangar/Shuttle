@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 
-const STORAGE_KEY = "frontdesk_last_alert_count";
+const STORAGE_KEY = "frontdesk_last_seen_timestamp";
 
 // Create alert sound player using HTML5 Audio - PLAYS YOUR MP3 FILE
 class AlertSoundGenerator {
@@ -117,8 +117,9 @@ export function FrontdeskBookingAlert() {
   const [newBookingCount, setNewBookingCount] = useState(0);
 
   const alertSoundRef = useRef<AlertSoundGenerator | null>(null);
-  const previousCountRef = useRef<number>(0);
+  const lastSeenTimestampRef = useRef<number>(Date.now());
   const hasInitializedRef = useRef(false);
+  const processedBookingIdsRef = useRef<Set<string>>(new Set());
 
   // Query for booking alerts - only for frontdesk users
   const bookingAlerts = useQuery(
@@ -144,7 +145,10 @@ export function FrontdeskBookingAlert() {
   }, []);
 
   const playAlertSound = useCallback(() => {
-    if (!alertSoundRef.current || isPlaying) return;
+    if (!alertSoundRef.current) return;
+    
+    // Don't start if already playing
+    if (alertSoundRef.current.getIsPlaying()) return;
 
     try {
       alertSoundRef.current.startLoop();
@@ -152,7 +156,7 @@ export function FrontdeskBookingAlert() {
     } catch (error) {
       console.error("Could not play alert sound:", error);
     }
-  }, [isPlaying]);
+  }, []);
 
   // Stop alert sound
   const stopAlertSound = useCallback(() => {
@@ -167,47 +171,63 @@ export function FrontdeskBookingAlert() {
     if (!isFrontdesk || status === "loading" || bookingAlerts === undefined)
       return;
 
-    const currentCount = bookingAlerts?.length ?? 0;
-
-    // Initialize previous count from storage on first load
+    // Initialize on first load - set the timestamp to NOW so we only catch new bookings from this point
     if (!hasInitializedRef.current) {
-      const storedCount = localStorage.getItem(STORAGE_KEY);
-      previousCountRef.current = storedCount ? parseInt(storedCount, 10) : 0;
+      // Get stored timestamp or use current time
+      const storedTimestamp = localStorage.getItem(STORAGE_KEY);
+      if (storedTimestamp) {
+        lastSeenTimestampRef.current = parseInt(storedTimestamp, 10);
+      } else {
+        // First time loading - set to now so we don't show alerts for existing bookings
+        lastSeenTimestampRef.current = Date.now();
+        localStorage.setItem(STORAGE_KEY, Date.now().toString());
+      }
       hasInitializedRef.current = true;
+      return; // Skip first render to establish baseline
     }
 
-    // Check if there are new bookings (count increased)
-    if (currentCount > previousCountRef.current && currentCount > 0) {
-      // New booking(s) arrived!
-      const newCount = currentCount - previousCountRef.current;
-      setNewBookingCount(newCount);
+    // Find bookings that arrived AFTER our last seen timestamp and haven't been processed yet
+    const newBookings = bookingAlerts.filter(
+      (alert) => 
+        alert.createdAt > lastSeenTimestampRef.current && 
+        !processedBookingIdsRef.current.has(alert.bookingId)
+    );
+
+    if (newBookings.length > 0) {
+      // Mark these bookings as processed
+      newBookings.forEach((booking) => {
+        processedBookingIdsRef.current.add(booking.bookingId);
+      });
+
+      // Update last seen timestamp to the newest booking's timestamp
+      const newestTimestamp = Math.max(...newBookings.map((b) => b.createdAt));
+      lastSeenTimestampRef.current = newestTimestamp;
+      localStorage.setItem(STORAGE_KEY, newestTimestamp.toString());
+
+      // Show alert for new bookings
+      setNewBookingCount(newBookings.length);
       setIsAlertOpen(true);
 
       // Play sound automatically
       playAlertSound();
 
       toast.info(
-        `${newCount} new booking(s) arrived!`,
+        `${newBookings.length} new booking(s) arrived!`,
         {
           description: "Please check the booking alerts.",
           duration: 5000,
         }
       );
-      
-      // Update previous count immediately so we don't count these again
-      previousCountRef.current = currentCount;
-      localStorage.setItem(STORAGE_KEY, currentCount.toString());
     }
 
     // If alerts are dismissed and count is 0, stop sound
-    if (currentCount === 0 && isPlaying) {
+    if (bookingAlerts.length === 0 && isPlaying) {
       stopAlertSound();
     }
   }, [
     bookingAlerts,
     isFrontdesk,
     status,
-    playAlertSound,
     stopAlertSound,
     isPlaying,
   ]);
@@ -217,6 +237,11 @@ export function FrontdeskBookingAlert() {
     setIsAlertOpen(false);
     stopAlertSound();
     setNewBookingCount(0);
+    
+    // Update the last seen timestamp to now so we don't re-alert for these bookings
+    const now = Date.now();
+    lastSeenTimestampRef.current = now;
+    localStorage.setItem(STORAGE_KEY, now.toString());
   }, [stopAlertSound]);
 
   // Handle going to bookings page
