@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/sidebar/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useRouteConfig } from "@/hooks/layout/useRouteConfig";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { FrontdeskBookingAlert } from "@/components/interfaces/frontdesk/booking-alert";
 
 export default function SidebarProviderLayout({ children }: PropsWithChildren) {
   const routeConfig = useRouteConfig();
@@ -27,6 +28,9 @@ export default function SidebarProviderLayout({ children }: PropsWithChildren) {
         {!routeConfig.hiddenRoutes.includes(routeConfig.pathname) ? <SiteHeader title={routeConfig.headerTitle ?? undefined} /> : null}
           <div className="flex-1">{children}</div>
       </SidebarInset>
+      
+      {/* Frontdesk Booking Alert - Shows on all pages for frontdesk users */}
+      <FrontdeskBookingAlert />
     </SidebarProvider>
   );
 }
