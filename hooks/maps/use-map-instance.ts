@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LatLngLiteral } from "@/types/maps";
 
@@ -25,6 +25,7 @@ export function useMapInstance({
 }: UseMapInstanceOptions) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const [mapState, setMapState] = useState<google.maps.Map | null>(null);
   const lastCenterRef = useRef<LatLngLiteral | null>(null);
   const lastZoomRef = useRef<number | null>(null);
 
@@ -55,31 +56,32 @@ export function useMapInstance({
     });
 
     mapRef.current = map;
+    setMapState(map);
     lastCenterRef.current = center;
     lastZoomRef.current = zoom;
     onReady?.(map);
   }, [center, zoom, isLoaded, maps, onReady]);
 
   useEffect(() => {
-    if (!mapRef.current || !center) return;
+    if (!mapState || !center) return;
     const lastCenter = lastCenterRef.current;
     if (lastCenter && areCoordinatesEqual(lastCenter, center)) return;
 
-    mapRef.current.panTo(center);
+    mapState.panTo(center);
     lastCenterRef.current = center;
-  }, [center]);
+  }, [center, mapState]);
 
   useEffect(() => {
-    if (!mapRef.current || typeof zoom !== "number") return;
+    if (!mapState || typeof zoom !== "number") return;
     if (lastZoomRef.current === zoom) return;
 
-    mapRef.current.setZoom(zoom);
+    mapState.setZoom(zoom);
     lastZoomRef.current = zoom;
-  }, [zoom]);
+  }, [zoom, mapState]);
 
   useEffect(() => {
-    if (!mapRef.current || !onClick) return;
-    const listener = mapRef.current.addListener(
+    if (!mapState || !onClick) return;
+    const listener = mapState.addListener(
       "click",
       (event: google.maps.MapMouseEvent) => {
         const latLng = event.latLng;
@@ -91,11 +93,11 @@ export function useMapInstance({
     return () => {
       listener.remove();
     };
-  }, [onClick]);
+  }, [onClick, mapState]);
 
   return {
     containerRef,
-    map: mapRef.current,
+    map: mapState,
     maps,
     isLoaded,
     isLoading,

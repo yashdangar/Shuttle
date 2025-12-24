@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import Link from "next/link";
@@ -106,6 +106,7 @@ export function TripInstanceDetail({
     currentSegment?: string;
     nextSegment?: string;
   }>({ open: false, action: null });
+  const [initialETAStatus, setInitialETAStatus] = useState<"idle" | "updating" | "success" | "error">("idle");
 
   const tripInstance = useQuery(api.tripInstances.queries.getTripInstanceById, {
     tripInstanceId: tripInstanceId as Id<"tripInstances">,
@@ -145,6 +146,10 @@ export function TripInstanceDetail({
   const revertLastRouteCompletion = useMutation(
     api.routeInstances.mutations.revertLastRouteCompletion
   );
+
+  // Direct ETA action for initial call when starting trip
+  const calculateETAs = useAction(api.eta.actions.calculateAndUpdateETAs);
+  const updateDriverLocation = useMutation(api.users.index.updateDriverLocation);
 
   const {
     isUpdating: isETAUpdating,
@@ -202,6 +207,45 @@ export function TripInstanceDetail({
           tripInstanceId: tripInstanceId as Id<"tripInstances">,
         });
         toast.success("Trip started! Safe travels.");
+        
+        // Trigger initial ETA calculation immediately when trip starts
+        // Call the ETA action directly to bypass hook state sync issues
+        setInitialETAStatus("updating");
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error("Geolocation not supported"));
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0,
+            });
+          });
+          
+          const { latitude, longitude } = position.coords;
+          
+          // Update driver location
+          await updateDriverLocation({
+            driverId: user.id as Id<"users">,
+            latitude,
+            longitude,
+          });
+          
+          // Calculate ETAs
+          await calculateETAs({
+            tripInstanceId: tripInstanceId as Id<"tripInstances">,
+            driverLatitude: latitude,
+            driverLongitude: longitude,
+          });
+          
+          setInitialETAStatus("success");
+        } catch (etaErr) {
+          // Don't fail the trip start if ETA update fails
+          console.warn("Initial ETA update failed:", etaErr);
+          setInitialETAStatus("error");
+        }
       } else if (action === "complete") {
         await completeTrip({
           driverId: user.id as Id<"users">,
@@ -524,13 +568,13 @@ export function TripInstanceDetail({
                   <CardTitle className="text-base">Route</CardTitle>
                   <p className="text-xs text-muted-foreground">
                     {completedRoutesCount}/{totalRoutes} completed
-                    {status === "IN_PROGRESS" && (
+                    {(status === "IN_PROGRESS" || initialETAStatus !== "idle") && (
                       <span className="ml-2">
-                        {isETAUpdating ? (
+                        {isETAUpdating || initialETAStatus === "updating" ? (
                           <span className="text-primary">• Updating</span>
-                        ) : etaError ? (
+                        ) : etaError || initialETAStatus === "error" ? (
                           <span className="text-destructive">• Offline</span>
-                        ) : etaLastUpdate ? (
+                        ) : etaLastUpdate || initialETAStatus === "success" ? (
                           <span className="text-emerald-600">• Live</span>
                         ) : null}
                       </span>
@@ -544,10 +588,10 @@ export function TripInstanceDetail({
                     size="sm"
                     variant="ghost"
                     onClick={refreshETA}
-                    disabled={isETAUpdating}
+                    disabled={isETAUpdating || initialETAStatus === "updating"}
                     className="h-8 w-8 p-0"
                   >
-                    {isETAUpdating ? (
+                    {isETAUpdating || initialETAStatus === "updating" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Navigation className="h-4 w-4" />
