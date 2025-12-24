@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useMemo, useState } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import PageLayout from "@/components/layout/page-layout";
 import {
   Calendar,
@@ -21,13 +23,37 @@ import {
   FileText,
   Wifi,
   WifiOff,
+  CreditCard,
+  Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Id } from "@/convex/_generated/dataModel";
 
 type RouteState = "completed" | "in_progress" | "upcoming";
+type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
+type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
+
+const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
+  UNPAID: { label: "Unpaid", className: "bg-red-100 text-red-800" },
+  PAID: { label: "Paid", className: "bg-emerald-100 text-emerald-800" },
+  REFUNDED: { label: "Refunded", className: "bg-blue-100 text-blue-800" },
+  WAIVED: { label: "Waived", className: "bg-purple-100 text-purple-800" },
+};
+
+const bookingStatusStyles: Record<BookingStatus, { label: string; className: string }> = {
+  PENDING: { label: "Pending", className: "bg-amber-100 text-amber-800" },
+  CONFIRMED: { label: "Confirmed", className: "bg-emerald-100 text-emerald-800" },
+  REJECTED: { label: "Rejected", className: "bg-rose-100 text-rose-800" },
+};
 
 function formatISOTime(isoTimeStr: string): string {
   try {
@@ -68,6 +94,13 @@ export function FrontdeskTripInstanceDetail({
 }: {
   tripInstanceId: string;
 }) {
+  const { user } = useAuthSession();
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+  const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | "ALL">("ALL");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | "ALL">("ALL");
+  
+  const updatePaymentStatus = useMutation(api.bookings.index.updatePaymentStatus);
+  
   const tripInstance = useQuery(api.tripInstances.queries.getTripInstanceById, {
     tripInstanceId: tripInstanceId as Id<"tripInstances">,
   });
@@ -123,6 +156,36 @@ export function FrontdeskTripInstanceDetail({
 
   const routes = routeInstances || [];
   const bookings = bookingsData || [];
+
+  // Filter bookings based on selected filters
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((booking) => {
+      const matchesPayment = paymentFilter === "ALL" || booking.paymentStatus === paymentFilter;
+      const matchesBookingStatus = bookingStatusFilter === "ALL" || booking.bookingStatus === bookingStatusFilter;
+      return matchesPayment && matchesBookingStatus;
+    });
+  }, [bookings, paymentFilter, bookingStatusFilter]);
+
+  const handlePaymentStatusChange = async (
+    bookingId: string,
+    newStatus: "UNPAID" | "PAID" | "REFUNDED" | "WAIVED"
+  ) => {
+    if (!user?.id) return;
+    setUpdatingPaymentId(bookingId);
+
+    try {
+      await updatePaymentStatus({
+        frontdeskUserId: user.id as Id<"users">,
+        bookingId: bookingId as Id<"bookings">,
+        paymentStatus: newStatus,
+      });
+      toast.success("Payment status updated");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update payment status");
+    } finally {
+      setUpdatingPaymentId(null);
+    }
+  };
 
   const currentRouteIndex = useMemo(() => {
     return routes.findIndex((r) => !r.completed);
@@ -414,24 +477,64 @@ export function FrontdeskTripInstanceDetail({
         )}
 
         <div>
-          <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-            <Ticket className="h-4 w-4" />
-            Passengers ({bookings.length})
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <Ticket className="h-4 w-4" />
+              Passengers ({filteredBookings.length}/{bookings.length})
+            </h2>
+            
+            {/* Filters */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={bookingStatusFilter}
+                onValueChange={(value) => setBookingStatusFilter(value as BookingStatus | "ALL")}
+              >
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="Booking Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Bookings</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={paymentFilter}
+                onValueChange={(value) => setPaymentFilter(value as PaymentStatus | "ALL")}
+              >
+                <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Payments</SelectItem>
+                  <SelectItem value="UNPAID">Unpaid</SelectItem>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="REFUNDED">Refunded</SelectItem>
+                  <SelectItem value="WAIVED">Waived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-          {bookings.length === 0 ? (
+          {filteredBookings.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="py-8 text-center">
                 <Users className="mx-auto h-10 w-10 text-muted-foreground" />
-                <p className="mt-4 font-semibold">No passengers yet</p>
+                <p className="mt-4 font-semibold">
+                  {bookings.length === 0 ? "No passengers yet" : "No bookings match filters"}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Bookings will appear here when guests reserve seats
+                  {bookings.length === 0 
+                    ? "Bookings will appear here when guests reserve seats"
+                    : "Try adjusting your filters to see more results"}
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-3">
-              {bookings.map((booking) => (
+              {filteredBookings.map((booking) => (
                 <Card key={booking._id} className="overflow-hidden">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -475,6 +578,10 @@ export function FrontdeskTripInstanceDetail({
                       </div>
 
                       <div className="text-right text-sm text-muted-foreground space-y-1">
+                        {/* Booking Status Badge */}
+                        <Badge className={`${bookingStatusStyles[booking.bookingStatus as BookingStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}>
+                          {bookingStatusStyles[booking.bookingStatus as BookingStatus]?.label || booking.bookingStatus}
+                        </Badge>
                         <div className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs">
                           Seats: {booking.seats}
                         </div>
@@ -485,6 +592,43 @@ export function FrontdeskTripInstanceDetail({
                           </div>
                         )}
                       </div>
+                    </div>
+                    
+                    {/* Payment Status Section */}
+                    <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Badge className={`${paymentStatusStyles[booking.paymentStatus as PaymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}>
+                          {paymentStatusStyles[booking.paymentStatus as PaymentStatus]?.label || booking.paymentStatus}
+                        </Badge>
+                      </div>
+                      {booking.bookingStatus === "CONFIRMED" && (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={booking.paymentStatus}
+                            onValueChange={(value) =>
+                              handlePaymentStatusChange(
+                                booking._id,
+                                value as "UNPAID" | "PAID" | "REFUNDED" | "WAIVED"
+                              )
+                            }
+                            disabled={updatingPaymentId === booking._id}
+                          >
+                            <SelectTrigger className="h-7 w-[110px] text-xs">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="UNPAID">Unpaid</SelectItem>
+                              <SelectItem value="PAID">Paid</SelectItem>
+                              <SelectItem value="REFUNDED">Refunded</SelectItem>
+                              <SelectItem value="WAIVED">Waived</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {updatingPaymentId === booking._id && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
