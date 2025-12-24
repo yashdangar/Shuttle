@@ -70,19 +70,19 @@ export function useETAUpdater({
               resolve,
               handleError,
               {
-                enableHighAccuracy: false,
-                timeout: 15000,
-                maximumAge: 60000, // Accept cached position up to 1 minute old
+                enableHighAccuracy: true,
+                timeout: 5000, // 5 seconds
+                maximumAge: 0, // Accept cached position up to 1 minute old
               }
             );
           } else {
             handleError(geoError);
           }
         },
-        {
+       { 
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 30000,
+          timeout: 5000, // 5 seconds
+          maximumAge: 0,
         }
       );
     });
