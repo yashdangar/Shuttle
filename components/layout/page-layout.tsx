@@ -70,7 +70,7 @@ const PageLayout = ({
                 </h1>
               )}
               {description && (
-                <p className="text-sm text-muted-foreground">{description}</p>
+                <div className="text-sm text-muted-foreground">{description}</div>
               )}
             </div>
             {(primaryActions || secondaryActions) && (
