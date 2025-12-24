@@ -33,7 +33,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider>
+        <SessionProvider refetchOnWindowFocus={false}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem enableColorScheme disableTransitionOnChange forcedTheme="light">
             <ConvexClientProvider>
               {/* <NotificationProvider> */}
