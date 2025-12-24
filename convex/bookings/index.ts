@@ -960,6 +960,280 @@ export const getBookingsByTripInstance = query({
   },
 });
 
+// Get today's bookings for frontdesk live view
+export const getTodayHotelBookings = query({
+  args: {
+    userId: v.id("users"),
+    todayDate: v.string(), // Format: YYYY-MM-DD
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user || !user.hotelId) {
+      return { page: [], isDone: true, continueCursor: null };
+    }
+
+    if (!["admin", "frontdesk"].includes(user.role)) {
+      return { page: [], isDone: true, continueCursor: null };
+    }
+
+    const pageSize = Math.max(1, Math.min(args.limit ?? 50, 100));
+
+    // Get all trip instances for today
+    const todayTripInstances = await ctx.db
+      .query("tripInstances")
+      .filter((q) => q.eq(q.field("scheduledDate"), args.todayDate))
+      .collect();
+
+    const tripInstanceIds = todayTripInstances.map((ti) => ti._id);
+
+    // Get all bookings for this hotel
+    const allBookings = await ctx.db
+      .query("bookings")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", user.hotelId!))
+      .collect();
+
+    // Filter bookings that belong to today's trip instances
+    const todayBookings = allBookings.filter(
+      (booking) =>
+        booking.tripInstanceId &&
+        tripInstanceIds.includes(booking.tripInstanceId)
+    );
+
+    // Sort by creation time descending
+    todayBookings.sort((a, b) => b._creationTime - a._creationTime);
+
+    // Manual pagination
+    const startIndex = 0;
+    const paginatedBookings = todayBookings.slice(startIndex, startIndex + pageSize);
+
+    const results = await Promise.all(
+      paginatedBookings.map(async (booking) => {
+        const guest = await ctx.db.get(booking.guestId);
+        const chat =
+          (
+            await ctx.db
+              .query("chats")
+              .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
+              .collect()
+          )[0] ?? null;
+        let tripDetails = null;
+
+        if (booking.tripInstanceId) {
+          const tripInstance = await ctx.db.get(booking.tripInstanceId);
+          if (tripInstance) {
+            const trip = await ctx.db.get(tripInstance.tripId);
+
+            let sourceLocation: string | undefined;
+            let destinationLocation: string | undefined;
+
+            if (trip) {
+              const routes = await ctx.db
+                .query("routes")
+                .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+                .collect();
+
+              if (routes.length > 0) {
+                const sortedRoutes = routes.sort(
+                  (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+                );
+                const firstRoute = sortedRoutes[0];
+                const lastRoute = sortedRoutes[sortedRoutes.length - 1];
+                const [src, dest] = await Promise.all([
+                  ctx.db.get(firstRoute.startLocationId),
+                  ctx.db.get(lastRoute.endLocationId),
+                ]);
+                sourceLocation = src?.name ?? "Unknown";
+                destinationLocation = dest?.name ?? "Unknown";
+              }
+            }
+
+            tripDetails = {
+              tripName: trip?.name ?? "Unknown",
+              sourceLocation,
+              destinationLocation,
+              scheduledDate: tripInstance.scheduledDate,
+              scheduledStartTime: tripInstance.scheduledStartTime,
+              scheduledEndTime: tripInstance.scheduledEndTime,
+            };
+          }
+        }
+
+        return {
+          _id: booking._id,
+          guestId: booking.guestId,
+          guestName: guest?.name ?? "Unknown",
+          guestEmail: guest?.email ?? "Unknown",
+          seats: Number(booking.seats),
+          bookingStatus: booking.bookingStatus,
+          paymentStatus: booking.paymentStatus,
+          totalPrice: booking.totalPrice,
+          createdAt: new Date(booking._creationTime).toISOString(),
+          chatId: chat?._id ?? null,
+          tripDetails,
+        };
+      })
+    );
+
+    return {
+      page: results,
+      isDone: paginatedBookings.length < pageSize,
+      continueCursor: null,
+      totalCount: todayBookings.length,
+    };
+  },
+});
+
+// Get all bookings with server-side filtering for frontdesk
+export const getAllHotelBookings = query({
+  args: {
+    userId: v.id("users"),
+    bookingStatus: v.optional(
+      v.union(
+        v.literal("PENDING"),
+        v.literal("CONFIRMED"),
+        v.literal("REJECTED")
+      )
+    ),
+    paymentStatus: v.optional(
+      v.union(
+        v.literal("UNPAID"),
+        v.literal("PAID"),
+        v.literal("REFUNDED"),
+        v.literal("WAIVED")
+      )
+    ),
+    searchQuery: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const user = await ctx.db.get(args.userId);
+    if (!user || !user.hotelId) {
+      return { page: [], isDone: true, continueCursor: null };
+    }
+
+    if (!["admin", "frontdesk"].includes(user.role)) {
+      return { page: [], isDone: true, continueCursor: null };
+    }
+
+    const pageSize = Math.max(1, Math.min(args.limit ?? 20, 100));
+
+    let bookingsQuery = ctx.db
+      .query("bookings")
+      .withIndex("by_hotel", (q) => q.eq("hotelId", user.hotelId!));
+
+    // Apply booking status filter
+    if (args.bookingStatus) {
+      bookingsQuery = bookingsQuery.filter((q) =>
+        q.eq(q.field("bookingStatus"), args.bookingStatus!)
+      );
+    }
+
+    // Apply payment status filter
+    if (args.paymentStatus) {
+      bookingsQuery = bookingsQuery.filter((q) =>
+        q.eq(q.field("paymentStatus"), args.paymentStatus!)
+      );
+    }
+
+    const page = await bookingsQuery
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: pageSize });
+
+    const results = await Promise.all(
+      page.page.map(async (booking) => {
+        const guest = await ctx.db.get(booking.guestId);
+        const chat =
+          (
+            await ctx.db
+              .query("chats")
+              .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
+              .collect()
+          )[0] ?? null;
+        let tripDetails = null;
+
+        if (booking.tripInstanceId) {
+          const tripInstance = await ctx.db.get(booking.tripInstanceId);
+          if (tripInstance) {
+            const trip = await ctx.db.get(tripInstance.tripId);
+
+            let sourceLocation: string | undefined;
+            let destinationLocation: string | undefined;
+
+            if (trip) {
+              const routes = await ctx.db
+                .query("routes")
+                .withIndex("by_trip", (q) => q.eq("tripId", trip._id))
+                .collect();
+
+              if (routes.length > 0) {
+                const sortedRoutes = routes.sort(
+                  (a, b) => Number(a.orderIndex) - Number(b.orderIndex)
+                );
+                const firstRoute = sortedRoutes[0];
+                const lastRoute = sortedRoutes[sortedRoutes.length - 1];
+                const [src, dest] = await Promise.all([
+                  ctx.db.get(firstRoute.startLocationId),
+                  ctx.db.get(lastRoute.endLocationId),
+                ]);
+                sourceLocation = src?.name ?? "Unknown";
+                destinationLocation = dest?.name ?? "Unknown";
+              }
+            }
+
+            tripDetails = {
+              tripName: trip?.name ?? "Unknown",
+              sourceLocation,
+              destinationLocation,
+              scheduledDate: tripInstance.scheduledDate,
+              scheduledStartTime: tripInstance.scheduledStartTime,
+              scheduledEndTime: tripInstance.scheduledEndTime,
+            };
+          }
+        }
+
+        // Filter by search query (guest name or email) - done in memory after fetch
+        const searchTerm = args.searchQuery?.toLowerCase().trim();
+        if (searchTerm) {
+          const guestName = guest?.name?.toLowerCase() ?? "";
+          const guestEmail = guest?.email?.toLowerCase() ?? "";
+          if (!guestName.includes(searchTerm) && !guestEmail.includes(searchTerm)) {
+            return null;
+          }
+        }
+
+        return {
+          _id: booking._id,
+          guestId: booking.guestId,
+          guestName: guest?.name ?? "Unknown",
+          guestEmail: guest?.email ?? "Unknown",
+          guestPhone: guest?.phoneNumber ?? null,
+          seats: Number(booking.seats),
+          bags: Number(booking.bags),
+          bookingStatus: booking.bookingStatus,
+          paymentStatus: booking.paymentStatus,
+          paymentMethod: booking.paymentMethod,
+          totalPrice: booking.totalPrice,
+          createdAt: new Date(booking._creationTime).toISOString(),
+          chatId: chat?._id ?? null,
+          tripDetails,
+        };
+      })
+    );
+
+    // Filter out nulls from search
+    const filteredResults = results.filter((r) => r !== null);
+
+    return {
+      page: filteredResults,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
 export const getHotelBookings = query({
   args: {
     userId: v.id("users"),
@@ -1203,5 +1477,39 @@ export const confirmCheckIn = mutation({
         isVerified: true,
       },
     };
+  },
+});
+
+export const updatePaymentStatus = mutation({
+  args: {
+    frontdeskUserId: v.id("users"),
+    bookingId: v.id("bookings"),
+    paymentStatus: v.union(
+      v.literal("UNPAID"),
+      v.literal("PAID"),
+      v.literal("REFUNDED"),
+      v.literal("WAIVED")
+    ),
+  },
+  async handler(ctx, args) {
+    const frontdesk = await ctx.db.get(args.frontdeskUserId);
+    if (!frontdesk || frontdesk.role !== "frontdesk") {
+      throw new ConvexError("Only frontdesk staff can update payment status");
+    }
+
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) {
+      throw new ConvexError("Booking not found");
+    }
+
+    if (booking.hotelId !== frontdesk.hotelId) {
+      throw new ConvexError("Booking does not belong to your hotel");
+    }
+
+    await ctx.db.patch(args.bookingId, {
+      paymentStatus: args.paymentStatus,
+    });
+
+    return { success: true, message: "Payment status updated successfully" };
   },
 });

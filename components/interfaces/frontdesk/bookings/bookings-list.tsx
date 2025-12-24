@@ -30,13 +30,30 @@ import {
   MessageSquare,
   ArrowLeft,
   ArrowRight,
+  Filter,
+  CreditCard,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import PageLayout from "@/components/layout/page-layout";
-import { FrontdeskBookingsSkeleton } from "./frontdesk-bookings-skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LiveBookingsCardsSkeleton } from "./live-bookings-skeleton";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
+type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
 const PAGE_SIZE = 20;
+
+const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
+  UNPAID: { label: "Unpaid", className: "bg-red-100 text-red-800" },
+  PAID: { label: "Paid", className: "bg-emerald-100 text-emerald-800" },
+  REFUNDED: { label: "Refunded", className: "bg-blue-100 text-blue-800" },
+  WAIVED: { label: "Waived", className: "bg-purple-100 text-purple-800" },
+};
 
 type BookingTripDetails = {
   tripName: string;
@@ -98,6 +115,8 @@ export function FrontdeskBookingsList() {
   const router = useRouter();
   const { user } = useAuthSession();
   const [searchQuery, setSearchQuery] = useState("");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | "ALL">("ALL");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatus | "ALL">("ALL");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] =
     useState<Id<"bookings"> | null>(null);
@@ -108,29 +127,44 @@ export function FrontdeskBookingsList() {
     []
   );
 
+  // Get today's date in YYYY-MM-DD format
+  const todayDate = useMemo(() => {
+    const now = new Date();
+    return now.toISOString().split("T")[0];
+  }, []);
+
   const bookingsResponse = useQuery(
-    api.bookings.index.getHotelBookings,
+    api.bookings.index.getTodayHotelBookings,
     user?.id
-      ? { userId: user.id as Id<"users">, limit: PAGE_SIZE, cursor }
+      ? { userId: user.id as Id<"users">, todayDate, limit: PAGE_SIZE, cursor }
       : "skip"
-  ) as BookingsPage | undefined;
+  ) as (BookingsPage & { totalCount?: number }) | undefined;
 
   const isLoading = bookingsResponse === undefined;
   const bookings: HotelBooking[] = bookingsResponse?.page ?? [];
 
   const filtered: HotelBooking[] = useMemo(() => {
     if (!bookings) return [];
-    if (!searchQuery.trim()) return bookings;
-    const term = searchQuery.toLowerCase();
-    return bookings.filter((booking) =>
-      [
+    
+    return bookings.filter((booking) => {
+      // Search filter
+      const term = searchQuery.toLowerCase().trim();
+      const matchesSearch = !term || [
         booking.guestName,
         booking.guestEmail,
         booking.tripDetails?.tripName,
         booking.tripDetails?.scheduledDate,
-      ].some((field) => field?.toLowerCase().includes(term))
-    );
-  }, [searchQuery, bookings]);
+      ].some((field) => field?.toLowerCase().includes(term));
+      
+      // Booking status filter
+      const matchesBookingStatus = bookingStatusFilter === "ALL" || booking.bookingStatus === bookingStatusFilter;
+      
+      // Payment status filter
+      const matchesPaymentStatus = paymentStatusFilter === "ALL" || booking.paymentStatus === paymentStatusFilter;
+      
+      return matchesSearch && matchesBookingStatus && matchesPaymentStatus;
+    });
+  }, [searchQuery, bookings, bookingStatusFilter, paymentStatusFilter]);
 
   const handleConfirm = async (bookingId: Id<"bookings">) => {
     if (!user?.id) return;
@@ -258,7 +292,7 @@ export function FrontdeskBookingsList() {
   if (!user) {
     return (
       <PageLayout
-        title="Booking Requests"
+        title="Live Bookings"
         description="Sign in to review and respond to shuttle bookings."
         icon={<CalendarClock className="h-5 w-5 text-primary" />}
       >
@@ -275,10 +309,6 @@ export function FrontdeskBookingsList() {
         </div>
       </PageLayout>
     );
-  }
-
-  if (isLoading) {
-    return <FrontdeskBookingsSkeleton />;
   }
 
   const pendingBookings = filtered.filter((b) => b.bookingStatus === "PENDING");
@@ -371,9 +401,12 @@ export function FrontdeskBookingsList() {
                     <span>
                       {booking.seats} seat{booking.seats !== 1 ? "s" : ""}
                     </span>
-                    <span className="ml-auto text-xs uppercase text-muted-foreground">
-                      {booking.paymentStatus}
-                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Badge className={`${paymentStatusStyles[booking.paymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}>
+                        {paymentStatusStyles[booking.paymentStatus]?.label || booking.paymentStatus}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
 
@@ -401,12 +434,9 @@ export function FrontdeskBookingsList() {
                       </Button>
                     </div>
                   ) : (
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-dashed text-xs uppercase tracking-wide"
-                    >
-                      {booking.paymentStatus}
-                    </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      {booking.bookingStatus === "CONFIRMED" ? "Ready for service" : "Booking cancelled"}
+                    </div>
                   )}
                   <div className="flex items-center gap-2">
                     <Button
@@ -439,56 +469,102 @@ export function FrontdeskBookingsList() {
 
   return (
     <PageLayout
-      title="Booking Requests"
-      description="Review, confirm, or reject incoming shuttle bookings."
+      title="Live Bookings"
+      description={`Today's shuttle bookings (${todayDate}). Review and manage guest reservations.`}
       isCompact
       size="full"
     >
       <div className="space-y-6">
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:w-80">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by guest, email, or trip"
-                className="h-10 rounded-lg border-border pl-10 focus-visible:ring-primary"
-              />
+          <div className="flex flex-col gap-3">
+            {/* Search and Filters Row */}
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="relative w-full md:w-80">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by guest, email, or trip"
+                  className="h-10 rounded-lg border-border pl-10 focus-visible:ring-primary"
+                />
+              </div>
+              
+              {/* Filters */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select
+                  value={bookingStatusFilter}
+                  onValueChange={(value) => setBookingStatusFilter(value as BookingStatus | "ALL")}
+                >
+                  <SelectTrigger className="h-9 w-[130px] text-xs">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Bookings</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={paymentStatusFilter}
+                  onValueChange={(value) => setPaymentStatusFilter(value as PaymentStatus | "ALL")}
+                >
+                  <SelectTrigger className="h-9 w-[120px] text-xs">
+                    <SelectValue placeholder="Payment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Payments</SelectItem>
+                    <SelectItem value="UNPAID">Unpaid</SelectItem>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                    <SelectItem value="REFUNDED">Refunded</SelectItem>
+                    <SelectItem value="WAIVED">Waived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={handlePrevPage}
-                disabled={cursorHistory.length === 0 || isLoading}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Prev
-              </Button>
+            
+            {/* Pagination Row */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
               <span className="text-sm text-muted-foreground">
-                Page {cursorHistory.length + 1}
+                Showing {filtered.length} of {bookings.length} bookings
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={handleNextPage}
-                disabled={
-                  isLoading ||
-                  bookingsResponse?.isDone ||
-                  !bookingsResponse?.continueCursor
-                }
-              >
-                Next
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={handlePrevPage}
+                  disabled={cursorHistory.length === 0 || isLoading}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Prev
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {cursorHistory.length + 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={handleNextPage}
+                  disabled={
+                    isLoading ||
+                    bookingsResponse?.isDone ||
+                    !bookingsResponse?.continueCursor
+                  }
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <LiveBookingsCardsSkeleton count={6} />
+        ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card px-8 py-12 text-center shadow-sm">
             <Search className="mx-auto h-10 w-10 text-muted-foreground" />
             <p className="mt-3 text-base font-semibold text-foreground">

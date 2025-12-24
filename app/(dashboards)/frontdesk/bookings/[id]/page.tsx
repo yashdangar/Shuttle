@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ReactNode } from "react";
@@ -59,6 +66,30 @@ const statusStyles: Record<
   },
 };
 
+type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
+
+const paymentStatusStyles: Record<
+  PaymentStatus,
+  { label: string; className: string }
+> = {
+  UNPAID: {
+    label: "Unpaid",
+    className: "bg-red-100 text-red-800",
+  },
+  PAID: {
+    label: "Paid",
+    className: "bg-emerald-100 text-emerald-800",
+  },
+  REFUNDED: {
+    label: "Refunded",
+    className: "bg-blue-100 text-blue-800",
+  },
+  WAIVED: {
+    label: "Waived",
+    className: "bg-purple-100 text-purple-800",
+  },
+};
+
 export default function FrontdeskBookingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -68,6 +99,9 @@ export default function FrontdeskBookingDetailPage() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
+
+  const updatePaymentStatus = useMutation(api.bookings.index.updatePaymentStatus);
 
   const booking = useQuery(api.bookings.index.getBookingById, {
     bookingId: bookingId as Id<"bookings">,
@@ -137,6 +171,26 @@ export default function FrontdeskBookingDetailPage() {
       toast.error(error.message || "Failed to reject booking");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handlePaymentStatusChange = async (
+    newStatus: "UNPAID" | "PAID" | "REFUNDED" | "WAIVED"
+  ) => {
+    if (!user?.id) return;
+    setIsUpdatingPayment(true);
+
+    try {
+      await updatePaymentStatus({
+        frontdeskUserId: user.id as Id<"users">,
+        bookingId: bookingId as Id<"bookings">,
+        paymentStatus: newStatus,
+      });
+      toast.success("Payment status updated successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update payment status");
+    } finally {
+      setIsUpdatingPayment(false);
     }
   };
 
@@ -230,6 +284,49 @@ export default function FrontdeskBookingDetailPage() {
           <Badge className={`${statusStyle.className} rounded-full border-0`}>
             {statusStyle.label}
           </Badge>
+        </div>
+
+        {/* Payment Status Section */}
+        <div className="rounded-2xl border border-border bg-card px-6 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                Payment Status
+              </h3>
+              <div className="flex items-center gap-2">
+                <Badge className={`${paymentStatusStyles[booking.paymentStatus as PaymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0`}>
+                  {paymentStatusStyles[booking.paymentStatus as PaymentStatus]?.label || booking.paymentStatus}
+                </Badge>
+                <span className="text-sm text-muted-foreground">• Method: {booking.paymentMethod}</span>
+              </div>
+            </div>
+            {booking.bookingStatus === "CONFIRMED" && (
+              <div className="flex items-center gap-2">
+                <Select
+                  value={booking.paymentStatus}
+                  onValueChange={(value) =>
+                    handlePaymentStatusChange(
+                      value as "UNPAID" | "PAID" | "REFUNDED" | "WAIVED"
+                    )
+                  }
+                  disabled={isUpdatingPayment}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNPAID">Unpaid</SelectItem>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                    <SelectItem value="REFUNDED">Refunded</SelectItem>
+                    <SelectItem value="WAIVED">Waived</SelectItem>
+                  </SelectContent>
+                </Select>
+                {isUpdatingPayment && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {isPending && (

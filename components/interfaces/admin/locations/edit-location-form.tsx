@@ -154,9 +154,16 @@ export function EditAdminLocationForm({
     onClick: handleMapClick,
   });
 
-  useMarker(map, selectedLocation || { lat: 19.076, lng: 72.8777 }, {
+  useMarker(map, selectedLocation, {
     title: "Selected location",
   });
+
+  // Pan to the selected location when it changes
+  useEffect(() => {
+    if (map && selectedLocation) {
+      map.panTo(selectedLocation);
+    }
+  }, [map, selectedLocation]);
 
   usePlacesAutocomplete({
     inputRef: searchInputRef,
