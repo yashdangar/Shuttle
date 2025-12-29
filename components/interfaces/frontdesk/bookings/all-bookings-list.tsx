@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,6 @@ import {
   Eye,
   MessageSquare,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { AllBookingsTableSkeleton } from "./all-bookings-skeleton";
 import type { Id } from "@/convex/_generated/dataModel";
 import PageLayout from "@/components/layout/page-layout";
@@ -43,16 +43,25 @@ type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
 const PAGE_SIZE = 20;
 
-const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
+const paymentStatusStyles: Record<
+  PaymentStatus,
+  { label: string; className: string }
+> = {
   UNPAID: { label: "Unpaid", className: "bg-red-100 text-red-800" },
   PAID: { label: "Paid", className: "bg-emerald-100 text-emerald-800" },
   REFUNDED: { label: "Refunded", className: "bg-blue-100 text-blue-800" },
   WAIVED: { label: "Waived", className: "bg-purple-100 text-purple-800" },
 };
 
-const bookingStatusStyles: Record<BookingStatus, { label: string; className: string }> = {
+const bookingStatusStyles: Record<
+  BookingStatus,
+  { label: string; className: string }
+> = {
   PENDING: { label: "Pending", className: "bg-amber-100 text-amber-800" },
-  CONFIRMED: { label: "Confirmed", className: "bg-emerald-100 text-emerald-800" },
+  CONFIRMED: {
+    label: "Confirmed",
+    className: "bg-emerald-100 text-emerald-800",
+  },
   REJECTED: { label: "Rejected", className: "bg-rose-100 text-rose-800" },
 };
 
@@ -91,19 +100,28 @@ type BookingsPage = {
 export function AllBookingsList() {
   const router = useRouter();
   const { user } = useAuthSession();
+  const { formatScheduledDateTime, formatDate, getOffset } = useHotelTime();
   const [searchQuery, setSearchQuery] = useState("");
-  const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | "ALL">("ALL");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatus | "ALL">("ALL");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<
+    BookingStatus | "ALL"
+  >("ALL");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<
+    PaymentStatus | "ALL"
+  >("ALL");
   const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>(
+    []
+  );
 
   const bookingsResponse = useQuery(
     api.bookings.index.getAllHotelBookings,
     user?.id
       ? {
           userId: user.id as Id<"users">,
-          bookingStatus: bookingStatusFilter === "ALL" ? undefined : bookingStatusFilter,
-          paymentStatus: paymentStatusFilter === "ALL" ? undefined : paymentStatusFilter,
+          bookingStatus:
+            bookingStatusFilter === "ALL" ? undefined : bookingStatusFilter,
+          paymentStatus:
+            paymentStatusFilter === "ALL" ? undefined : paymentStatusFilter,
           searchQuery: searchQuery.trim() || undefined,
           limit: PAGE_SIZE,
           cursor,
@@ -143,29 +161,16 @@ export function AllBookingsList() {
     setCursorHistory([]);
   };
 
-  const formatTime = (timeStr: string) => {
-    try {
-      const date = new Date(timeStr);
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return timeStr;
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
+  // Format scheduled date+time using hotel timezone
+  const formatTripDateTime = (
+    scheduledDate: string,
+    scheduledStartTime: string
+  ) => {
+    const formatted = formatScheduledDateTime(
+      scheduledDate,
+      scheduledStartTime
+    );
+    return { date: formatted.date, time: formatted.time };
   };
 
   if (!user) {
@@ -331,27 +336,41 @@ export function AllBookingsList() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{booking.guestName}</p>
-                        <p className="text-xs text-muted-foreground">{booking.guestEmail}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {booking.guestEmail}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{booking.tripDetails?.tripName || "—"}</p>
-                        {booking.tripDetails?.sourceLocation && booking.tripDetails?.destinationLocation && (
-                          <p className="text-xs text-muted-foreground">
-                            {booking.tripDetails.sourceLocation} → {booking.tripDetails.destinationLocation}
-                          </p>
-                        )}
+                        <p className="font-medium">
+                          {booking.tripDetails?.tripName || "—"}
+                        </p>
+                        {booking.tripDetails?.sourceLocation &&
+                          booking.tripDetails?.destinationLocation && (
+                            <p className="text-xs text-muted-foreground">
+                              {booking.tripDetails.sourceLocation} →{" "}
+                              {booking.tripDetails.destinationLocation}
+                            </p>
+                          )}
                       </div>
                     </TableCell>
                     <TableCell>
                       {booking.tripDetails ? (
-                        <div>
-                          <p className="text-sm">{formatDate(booking.tripDetails.scheduledDate)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatTime(booking.tripDetails.scheduledStartTime)}
-                          </p>
-                        </div>
+                        (() => {
+                          const { date, time } = formatTripDateTime(
+                            booking.tripDetails.scheduledDate,
+                            booking.tripDetails.scheduledStartTime
+                          );
+                          return (
+                            <div>
+                              <p className="text-sm">{date}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {time} ({getOffset()})
+                              </p>
+                            </div>
+                          );
+                        })()
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -360,13 +379,16 @@ export function AllBookingsList() {
                       <span className="text-sm">{booking.seats}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium">${booking.totalPrice.toFixed(2)}</span>
+                      <span className="font-medium">
+                        ${booking.totalPrice.toFixed(2)}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <Badge
                         className={`${bookingStatusStyles[booking.bookingStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}
                       >
-                        {bookingStatusStyles[booking.bookingStatus]?.label || booking.bookingStatus}
+                        {bookingStatusStyles[booking.bookingStatus]?.label ||
+                          booking.bookingStatus}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -375,7 +397,8 @@ export function AllBookingsList() {
                         <Badge
                           className={`${paymentStatusStyles[booking.paymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}
                         >
-                          {paymentStatusStyles[booking.paymentStatus]?.label || booking.paymentStatus}
+                          {paymentStatusStyles[booking.paymentStatus]?.label ||
+                            booking.paymentStatus}
                         </Badge>
                       </div>
                     </TableCell>

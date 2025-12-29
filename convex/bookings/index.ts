@@ -736,6 +736,9 @@ export const getBookingById = query({
       .withIndex("by_booking", (q) => q.eq("bookingId", booking._id))
       .first();
 
+    // Fetch hotel for timezone info
+    const hotel = await ctx.db.get(booking.hotelId);
+
     return {
       _id: booking._id,
       guestId: booking.guestId,
@@ -745,6 +748,8 @@ export const getBookingById = query({
       seats: Number(booking.seats),
       bags: Number(booking.bags),
       hotelId: booking.hotelId,
+      hotelName: hotel?.name ?? "Unknown",
+      hotelTimeZone: hotel?.timeZone ?? "UTC",
       name: booking.name,
       confirmationNum: booking.confirmationNum,
       notes: booking.notes,
@@ -800,6 +805,9 @@ export const getGuestBookings = query({
     const results = await Promise.all(
       filteredBookings.map(async (booking) => {
         let tripDetails = null;
+
+        // Fetch hotel for timezone
+        const hotel = await ctx.db.get(booking.hotelId);
 
         if (booking.tripInstanceId) {
           const tripInstance = await ctx.db.get(booking.tripInstanceId);
@@ -858,6 +866,9 @@ export const getGuestBookings = query({
 
         return {
           _id: booking._id,
+          hotelId: booking.hotelId,
+          hotelName: hotel?.name ?? "Unknown",
+          hotelTimeZone: hotel?.timeZone ?? "UTC",
           seats: Number(booking.seats),
           bags: Number(booking.bags),
           bookingStatus: booking.bookingStatus,
@@ -1006,7 +1017,10 @@ export const getTodayHotelBookings = query({
 
     // Manual pagination
     const startIndex = 0;
-    const paginatedBookings = todayBookings.slice(startIndex, startIndex + pageSize);
+    const paginatedBookings = todayBookings.slice(
+      startIndex,
+      startIndex + pageSize
+    );
 
     const results = await Promise.all(
       paginatedBookings.map(async (booking) => {
@@ -1199,7 +1213,10 @@ export const getAllHotelBookings = query({
         if (searchTerm) {
           const guestName = guest?.name?.toLowerCase() ?? "";
           const guestEmail = guest?.email?.toLowerCase() ?? "";
-          if (!guestName.includes(searchTerm) && !guestEmail.includes(searchTerm)) {
+          if (
+            !guestName.includes(searchTerm) &&
+            !guestEmail.includes(searchTerm)
+          ) {
             return null;
           }
         }
@@ -1250,12 +1267,26 @@ export const getHotelBookings = query({
   async handler(ctx, args) {
     const user = await ctx.db.get(args.userId);
     if (!user || !user.hotelId) {
-      return { page: [], isDone: true, continueCursor: null };
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+        hotelTimeZone: "UTC",
+      };
     }
 
     if (!["admin", "frontdesk"].includes(user.role)) {
-      return { page: [], isDone: true, continueCursor: null };
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: null,
+        hotelTimeZone: "UTC",
+      };
     }
+
+    // Fetch hotel for timezone info
+    const hotel = await ctx.db.get(user.hotelId);
+    const hotelTimeZone = hotel?.timeZone ?? "UTC";
 
     const pageSize = Math.max(1, Math.min(args.limit ?? 20, 100));
 
@@ -1345,6 +1376,7 @@ export const getHotelBookings = query({
       page: results,
       isDone: page.isDone,
       continueCursor: page.continueCursor,
+      hotelTimeZone,
     };
   },
 });

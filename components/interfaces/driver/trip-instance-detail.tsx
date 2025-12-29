@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -50,40 +51,6 @@ import { useETAUpdater } from "@/hooks/maps/use-eta-updater";
 
 type RouteState = "completed" | "in_progress" | "upcoming";
 
-function formatISOTime(isoTimeStr: string): string {
-  try {
-    if (isoTimeStr.includes("T")) {
-      const date = new Date(isoTimeStr);
-      const hours = date.getUTCHours();
-      const minutes = date.getUTCMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-    } else {
-      const [hours, minutes] = isoTimeStr.split(":");
-      const h = parseInt(hours, 10);
-      const ampm = h >= 12 ? "PM" : "AM";
-      const hour12 = h % 12 || 12;
-      return `${hour12}:${minutes} ${ampm}`;
-    }
-  } catch {
-    return isoTimeStr;
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
 interface TripInstanceDetailProps {
   tripInstanceId: string;
 }
@@ -93,6 +60,7 @@ export function TripInstanceDetail({
 }: TripInstanceDetailProps) {
   const router = useRouter();
   const { user } = useAuthSession();
+  const { formatScheduledDateTime, formatTime, getOffset } = useHotelTime();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRouteProcessing, setIsRouteProcessing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -429,7 +397,7 @@ export function TripInstanceDetail({
             {tripDetails?.name || "Trip Details"}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {formatDate(tripInstance.scheduledDate)}
+            {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledStartTime).date} ({getOffset()})
           </p>
         </div>
         <Button
@@ -517,15 +485,15 @@ export function TripInstanceDetail({
                 </div>
                 <div>
                   <p className="font-medium">
-                    {formatISOTime(tripInstance.scheduledStartTime)} - {formatISOTime(tripInstance.scheduledEndTime)}
+                    {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledStartTime).time} - {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledEndTime).time}
                   </p>
-                  <p className="text-xs text-muted-foreground">Scheduled time</p>
+                  <p className="text-xs text-muted-foreground">Scheduled time ({getOffset()})</p>
                 </div>
               </div>
               {tripInstance.actualStartTime && (
                 <div className="text-right">
                   <p className="text-sm font-medium text-emerald-600">
-                    {new Date(tripInstance.actualStartTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    {formatTime(tripInstance.actualStartTime)}
                   </p>
                   <p className="text-xs text-muted-foreground">Started</p>
                 </div>

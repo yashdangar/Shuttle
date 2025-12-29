@@ -14,8 +14,12 @@ export const getDriverTripInstances = query({
   async handler(ctx, args) {
     const driver = await ctx.db.get(args.driverId);
     if (!driver || driver.role !== "driver") {
-      return [];
+      return { trips: [], hotelTimeZone: "UTC" };
     }
+
+    // Fetch hotel for timezone info
+    const hotel = driver.hotelId ? await ctx.db.get(driver.hotelId) : null;
+    const hotelTimeZone = hotel?.timeZone ?? "UTC";
 
     const targetDate = args.date || getUTCDateString();
 
@@ -117,9 +121,14 @@ export const getDriverTripInstances = query({
       })
     );
 
-    return results
-      .filter((r) => r !== null)
-      .sort((a, b) => a.scheduledStartTime.localeCompare(b.scheduledStartTime));
+    return {
+      trips: results
+        .filter((r) => r !== null)
+        .sort((a, b) =>
+          a.scheduledStartTime.localeCompare(b.scheduledStartTime)
+        ),
+      hotelTimeZone,
+    };
   },
 });
 

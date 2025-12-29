@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 
 interface RecentBookingsProps {
   bookings: Array<{
@@ -22,10 +22,12 @@ interface RecentBookingsProps {
 }
 
 export function RecentBookings({ bookings }: RecentBookingsProps) {
-  // Filter bookings to show only today's bookings
-  const today = new Date().toISOString().split('T')[0];
+  const { formatDate, getToday, getOffset } = useHotelTime();
+
+  // Filter bookings to show only today's bookings in hotel timezone
+  const today = getToday();
   const todayBookings = bookings.filter(booking => {
-    const bookingDate = new Date(booking.createdAt).toISOString().split('T')[0];
+    const bookingDate = formatDate(booking.createdAt, { dateFormat: "YYYY-MM-DD" });
     return bookingDate === today;
   });
 
@@ -64,14 +66,6 @@ export function RecentBookings({ bookings }: RecentBookingsProps) {
     }).format(value);
   };
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), "MMM dd, yyyy");
-    } catch {
-      return dateStr;
-    }
-  };
-
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -104,7 +98,7 @@ export function RecentBookings({ bookings }: RecentBookingsProps) {
                       {booking.tripName} • {formatDate(booking.scheduledDate)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {booking.scheduledTime}
+                      {booking.scheduledTime} ({getOffset()})
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2 ml-4">

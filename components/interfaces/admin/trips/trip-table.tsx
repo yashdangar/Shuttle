@@ -10,6 +10,7 @@ import type { TripRecord } from "@/convex/trips";
 
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import { EmptyMuted } from "@/components/interfaces/common/EmptyState";
 import { TableLoader } from "@/components/interfaces/common/TableLoader";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ function getSourceAndDestination(trip: TripRecord): {
 export function AdminTripTable() {
   const router = useRouter();
   const { user } = useAuthSession();
+  const { formatDateTime, getOffset } = useHotelTime();
   const [pageStack, setPageStack] = useState<Array<string | null>>([null]);
   const [pageIndex, setPageIndex] = useState(0);
   const [deletingId, setDeletingId] = useState<Id<"trips"> | null>(null);
@@ -191,7 +193,7 @@ export function AdminTripTable() {
                     </TableCell>
                     <TableCell>${trip.totalCharges?.toFixed(2) ?? "0.00"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatTimestamp(trip.createdAt)}
+                      {formatDateTime(new Date(trip.createdAt))} ({getOffset()})
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -322,15 +324,4 @@ export function AdminTripTable() {
       </AlertDialog>
     </>
   );
-}
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function formatTimestamp(timestamp: number) {
-  return dateFormatter.format(new Date(timestamp));
 }

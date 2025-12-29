@@ -4,11 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MapPin, Users, Calendar, Clock } from "lucide-react";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 
 interface ActiveTripsProps {
   trips: Array<{
     _id: string;
     tripName: string;
+    scheduledDate?: string;
     scheduledStartTime: string;
     scheduledEndTime: string;
     status: string;
@@ -30,6 +32,8 @@ interface ActiveTripsProps {
 }
 
 export function ActiveTrips({ trips }: ActiveTripsProps) {
+  const { formatTime, formatScheduledDateTime, getOffset, getToday } = useHotelTime();
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "SCHEDULED":
@@ -63,16 +67,13 @@ export function ActiveTrips({ trips }: ActiveTripsProps) {
     return Math.round(((occupied + held) / total) * 100);
   };
 
-  const formatTime = (timeStr: string) => {
-    try {
-      const [hours, minutes] = timeStr.split(":");
-      const hour = parseInt(hours);
-      const ampm = hour >= 12 ? "PM" : "AM";
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:${minutes} ${ampm}`;
-    } catch {
-      return timeStr;
+  // Format trip time - if scheduledDate provided, use formatScheduledDateTime, otherwise format UTC time directly
+  const formatTripTime = (scheduledDate: string | undefined, timeStr: string) => {
+    if (scheduledDate) {
+      return formatScheduledDateTime(scheduledDate, timeStr).time;
     }
+    // Fallback for times without date context
+    return formatTime(timeStr);
   };
 
   return (
@@ -107,7 +108,10 @@ export function ActiveTrips({ trips }: ActiveTripsProps) {
                   <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground mb-3">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4" />
-                      <span>{formatTime(trip.scheduledStartTime)} - {formatTime(trip.scheduledEndTime)}</span>
+                      <span>
+                        {formatTripTime(trip.scheduledDate, trip.scheduledStartTime)} - {formatTripTime(trip.scheduledDate, trip.scheduledEndTime)}
+                        <span className="text-xs ml-1 text-muted-foreground/70">({getOffset()})</span>
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4" />

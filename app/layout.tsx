@@ -4,6 +4,7 @@ import { ConvexClientProvider } from "../lib/provider/convex-provider";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/lib/provider/theme-provider";
+import { HotelTimezoneProvider } from "@/lib/provider/hotel-timezone-provider";
 import SidebarProviderLayout from "@/lib/provider/sidebar-provider";
 import { Toaster } from "sonner";
 // import { NotificationProvider } from "@/lib/provider/notification-provider";
@@ -34,12 +35,21 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SessionProvider refetchOnWindowFocus={false}>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem enableColorScheme disableTransitionOnChange forcedTheme="light">
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            enableColorScheme
+            disableTransitionOnChange
+            forcedTheme="light"
+          >
             <ConvexClientProvider>
-              {/* <NotificationProvider> */}
+              <HotelTimezoneProvider>
+                {/* <NotificationProvider> */}
                 <Toaster />
                 <SidebarProviderLayout>{children}</SidebarProviderLayout>
-              {/* </NotificationProvider> */}
+                {/* </NotificationProvider> */}
+              </HotelTimezoneProvider>
             </ConvexClientProvider>
           </ThemeProvider>
         </SessionProvider>

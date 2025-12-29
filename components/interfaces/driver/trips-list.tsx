@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,20 +17,22 @@ import {
 import type { Id } from "@/convex/_generated/dataModel";
 import { TripInstanceCard } from "./trip-instance-card";
 
-function getUTCDateString(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
 export function DriverTripsList() {
   const { user } = useAuthSession();
-  const todayDate = getUTCDateString();
+  const { getToday } = useHotelTime();
+  const todayDate = getToday();
 
-  const tripInstances = useQuery(
+  const tripInstancesData = useQuery(
     api.tripInstances.queries.getDriverTripInstances,
     user?.id ? { driverId: user.id as Id<"users">, date: todayDate } : "skip"
   );
 
-  const isLoading = tripInstances === undefined;
+  const isLoading = tripInstancesData === undefined;
+  // Extract trips array from the response object (handle both old array and new object types)
+  const tripInstances =
+    tripInstancesData && "trips" in tripInstancesData
+      ? tripInstancesData.trips
+      : [];
 
   if (!user) {
     return (
@@ -63,26 +66,24 @@ export function DriverTripsList() {
   }
 
   // Sort: IN_PROGRESS first, then by start time
-  const sortedTrips = tripInstances
-    ? [...tripInstances].sort((a, b) => {
-        // IN_PROGRESS trips come first
-        if (a.status === "IN_PROGRESS" && b.status !== "IN_PROGRESS") return -1;
-        if (a.status !== "IN_PROGRESS" && b.status === "IN_PROGRESS") return 1;
-        // Then SCHEDULED, then COMPLETED, then CANCELLED
-        const statusOrder = {
-          SCHEDULED: 0,
-          IN_PROGRESS: 0,
-          COMPLETED: 1,
-          CANCELLED: 2,
-        };
-        const statusDiff =
-          (statusOrder[a.status as keyof typeof statusOrder] || 0) -
-          (statusOrder[b.status as keyof typeof statusOrder] || 0);
-        if (statusDiff !== 0) return statusDiff;
-        // Within same status, sort by start time
-        return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
-      })
-    : [];
+  const sortedTrips = [...tripInstances].sort((a, b) => {
+    // IN_PROGRESS trips come first
+    if (a.status === "IN_PROGRESS" && b.status !== "IN_PROGRESS") return -1;
+    if (a.status !== "IN_PROGRESS" && b.status === "IN_PROGRESS") return 1;
+    // Then SCHEDULED, then COMPLETED, then CANCELLED
+    const statusOrder = {
+      SCHEDULED: 0,
+      IN_PROGRESS: 0,
+      COMPLETED: 1,
+      CANCELLED: 2,
+    };
+    const statusDiff =
+      (statusOrder[a.status as keyof typeof statusOrder] || 0) -
+      (statusOrder[b.status as keyof typeof statusOrder] || 0);
+    if (statusDiff !== 0) return statusDiff;
+    // Within same status, sort by start time
+    return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
+  });
 
   const inProgressCount = sortedTrips.filter(
     (t) => t.status === "IN_PROGRESS"

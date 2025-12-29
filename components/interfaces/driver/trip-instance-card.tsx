@@ -12,40 +12,7 @@ import {
   Calendar,
   Play,
 } from "lucide-react";
-
-// Parse ISO time string like "1970-01-01T09:00:00.000Z" to display time
-function formatISOTime(isoTimeStr: string): string {
-  try {
-    if (isoTimeStr.includes("T")) {
-      const date = new Date(isoTimeStr);
-      const hours = date.getUTCHours();
-      const minutes = date.getUTCMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-    } else {
-      const [hours, minutes] = isoTimeStr.split(":");
-      const h = parseInt(hours, 10);
-      const ampm = h >= 12 ? "PM" : "AM";
-      const hour12 = h % 12 || 12;
-      return `${hour12}:${minutes} ${ampm}`;
-    }
-  } catch {
-    return isoTimeStr;
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
-}
+import { useHotelTime } from "@/hooks/use-hotel-time";
 
 interface TripInstanceCardProps {
   trip: {
@@ -70,6 +37,18 @@ export function TripInstanceCard({
   trip,
   showDate = false,
 }: TripInstanceCardProps) {
+  const { formatScheduledDateTime, getOffset } = useHotelTime();
+
+  // Format the scheduled date and time using hotel timezone
+  const schedule = formatScheduledDateTime(
+    trip.scheduledDate,
+    trip.scheduledStartTime
+  );
+  const scheduleEnd = formatScheduledDateTime(
+    trip.scheduledDate,
+    trip.scheduledEndTime
+  );
+
   const getStatusStyles = (status: string) => {
     switch (status) {
       case "COMPLETED":
@@ -118,8 +97,12 @@ export function TripInstanceCard({
                 </span>
               </div>
             </div>
-            <Badge className={`text-[10px] shrink-0 font-medium ${statusStyles.badgeClass}`}>
-              <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusStyles.dotColor}`} />
+            <Badge
+              className={`text-[10px] shrink-0 font-medium ${statusStyles.badgeClass}`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full mr-1.5 ${statusStyles.dotColor}`}
+              />
               {statusStyles.label}
             </Badge>
           </div>
@@ -140,26 +123,27 @@ export function TripInstanceCard({
               {showDate && (
                 <div className="flex items-center gap-1.5 text-sm">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs">
-                    {formatDate(trip.scheduledDate)}
-                  </span>
+                  <span className="text-xs">{schedule.date}</span>
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-sm">
                 <Clock className="h-3.5 w-3.5 text-primary" />
-                <span className="font-medium">
-                  {formatISOTime(trip.scheduledStartTime)}
-                </span>
+                <span className="font-medium">{schedule.time}</span>
                 <span className="text-muted-foreground">-</span>
                 <span className="text-muted-foreground">
-                  {formatISOTime(trip.scheduledEndTime)}
+                  {scheduleEnd.time}
+                </span>
+                <span className="text-xs text-muted-foreground/70">
+                  ({getOffset()})
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Users className="h-3.5 w-3.5" />
-                <span className="font-medium text-foreground">{trip.seatsOccupied}</span>
+                <span className="font-medium text-foreground">
+                  {trip.seatsOccupied}
+                </span>
                 <span>/{trip.totalSeats}</span>
               </div>
               <div className="flex items-center gap-1">

@@ -20,6 +20,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { GuestBookingsSkeleton } from "./guest-bookings-skeleton";
 import PageLayout from "@/components/layout/page-layout";
+import { formatScheduledDateTime, getTimezoneOffset } from "@/lib/timezone";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 
@@ -53,6 +54,9 @@ type TripDetails = {
 
 type GuestBooking = {
   _id: Id<"bookings">;
+  hotelId: Id<"hotels">;
+  hotelName: string;
+  hotelTimeZone: string;
   seats: number;
   bags: number;
   bookingStatus: BookingStatus;
@@ -98,29 +102,25 @@ export function GuestBookingsList() {
     router.push(`/chat?chatId=${chatId}`);
   };
 
-  const formatTime = (timeStr: string) => {
-    try {
-      const date = new Date(timeStr);
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return timeStr;
+  // Format date/time in hotel's timezone
+  const formatBookingDateTime = (
+    scheduledDate: string | undefined,
+    scheduledStartTime: string | undefined,
+    timeZone: string
+  ) => {
+    if (!scheduledDate || !scheduledStartTime) {
+      return { date: "", time: "", offset: "" };
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
+    const formatted = formatScheduledDateTime(
+      scheduledDate,
+      scheduledStartTime,
+      timeZone
+    );
+    return {
+      date: formatted.date,
+      time: formatted.time,
+      offset: getTimezoneOffset(timeZone),
+    };
   };
 
   if (!user) {
@@ -235,6 +235,11 @@ export function GuestBookingsList() {
             {filtered.map((booking) => {
               const statusStyle = statusStyles[booking.bookingStatus];
               const trip = booking.tripDetails;
+              const { date, time, offset } = formatBookingDateTime(
+                trip?.scheduledDate,
+                trip?.scheduledStartTime,
+                booking.hotelTimeZone
+              );
               return (
                 <div
                   key={booking._id}
@@ -247,7 +252,7 @@ export function GuestBookingsList() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         ${booking.totalPrice.toFixed(2)} • {booking.seats} seat
-                        {booking.seats !== 1 ? "s" : ""}
+                        {booking.seats !== 1 ? "s" : ""} • {booking.hotelName}
                       </p>
                     </div>
                     <Badge
@@ -266,8 +271,10 @@ export function GuestBookingsList() {
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                          {formatDate(trip.scheduledDate || "")} at{" "}
-                          {formatTime(trip.scheduledStartTime || "")}
+                          {date} at {time}
+                          <span className="text-xs text-muted-foreground/70">
+                            ({offset})
+                          </span>
                         </div>
                       </>
                     )}

@@ -25,6 +25,11 @@ import {
 } from "lucide-react";
 import { useBookingETA } from "@/hooks/use-trip-eta";
 import QRCode from "qrcode";
+import {
+  formatScheduledDateTime,
+  formatDateTime,
+  getTimezoneOffset,
+} from "@/lib/timezone";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 
@@ -103,29 +108,30 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
 
   const status = statusConfig[booking.bookingStatus as BookingStatus];
   const trip = booking.tripDetails;
+  const timeZone = booking.hotelTimeZone || "UTC";
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateStr;
+  // Format date/time in hotel's timezone
+  const getFormattedSchedule = () => {
+    if (!trip?.scheduledDate || !trip?.scheduledStartTime) {
+      return { date: "—", time: "—", offset: "" };
     }
+    const formatted = formatScheduledDateTime(
+      trip.scheduledDate,
+      trip.scheduledStartTime,
+      timeZone
+    );
+    return {
+      date: formatted.date,
+      time: formatted.time,
+      offset: getTimezoneOffset(timeZone),
+    };
   };
 
-  const formatTime = (timeStr: string) => {
-    try {
-      return new Date(timeStr).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return timeStr;
-    }
+  const schedule = getFormattedSchedule();
+
+  // Format creation/verification dates in hotel timezone
+  const formatBookingDate = (dateStr: string) => {
+    return formatDateTime(dateStr, timeZone, { dateFormat: "MM/DD/YYYY" });
   };
 
   const showETA = trip?.status === "IN_PROGRESS" && eta && !pickupCompleted;
@@ -175,10 +181,14 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-amber-800">
-                {eta === "At pickup" ? "Shuttle arriving now" : `Arriving in ${eta}`}
+                {eta === "At pickup"
+                  ? "Shuttle arriving now"
+                  : `Arriving in ${eta}`}
               </p>
               {pickupLocationName && (
-                <p className="truncate text-sm text-amber-700">{pickupLocationName}</p>
+                <p className="truncate text-sm text-amber-700">
+                  {pickupLocationName}
+                </p>
               )}
             </div>
           </div>
@@ -190,8 +200,12 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
               <Check className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <p className="font-semibold text-emerald-800">Shuttle has arrived!</p>
-              <p className="text-sm text-emerald-700">Head to your pickup point</p>
+              <p className="font-semibold text-emerald-800">
+                Shuttle has arrived!
+              </p>
+              <p className="text-sm text-emerald-700">
+                Head to your pickup point
+              </p>
             </div>
           </div>
         )}
@@ -205,9 +219,13 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
                 <MapPin className="h-4 w-4 text-primary" />
               </div>
               <div className="flex flex-1 items-center gap-2 text-sm font-medium">
-                <span className="truncate">{trip?.fromLocation || "Origin"}</span>
+                <span className="truncate">
+                  {trip?.fromLocation || "Origin"}
+                </span>
                 <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{trip?.toLocation || "Destination"}</span>
+                <span className="truncate">
+                  {trip?.toLocation || "Destination"}
+                </span>
               </div>
             </div>
           </div>
@@ -217,12 +235,12 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
             <DetailCell
               icon={<CalendarDays className="h-4 w-4" />}
               label="Date"
-              value={trip ? formatDate(trip.scheduledDate) : "—"}
+              value={schedule.date}
             />
             <DetailCell
               icon={<Clock className="h-4 w-4" />}
-              label="Time"
-              value={trip ? formatTime(trip.scheduledStartTime) : "—"}
+              label={`Time (${schedule.offset})`}
+              value={schedule.time}
             />
             <DetailCell
               icon={<Users className="h-4 w-4" />}
@@ -244,7 +262,9 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
                 <span>{booking.name || booking.guestName}</span>
               </div>
               {booking.guestEmail && (
-                <span className="text-xs text-muted-foreground">{booking.guestEmail}</span>
+                <span className="text-xs text-muted-foreground">
+                  {booking.guestEmail}
+                </span>
               )}
             </div>
             <div className="flex items-center justify-between">
@@ -252,7 +272,9 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
                 <Receipt className="h-4 w-4" />
                 <span>{booking.paymentMethod}</span>
               </div>
-              <span className="text-lg font-semibold">${booking.totalPrice.toFixed(2)}</span>
+              <span className="text-lg font-semibold">
+                ${booking.totalPrice.toFixed(2)}
+              </span>
             </div>
           </div>
 
@@ -262,10 +284,14 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
               <Bus className="h-4 w-4 text-muted-foreground" />
               <div className="flex flex-1 items-center justify-between text-sm">
                 {trip?.shuttle && (
-                  <span className="font-medium">{trip.shuttle.vehicleNumber}</span>
+                  <span className="font-medium">
+                    {trip.shuttle.vehicleNumber}
+                  </span>
                 )}
                 {trip?.driver && (
-                  <span className="text-muted-foreground">Driver: {trip.driver.name}</span>
+                  <span className="text-muted-foreground">
+                    Driver: {trip.driver.name}
+                  </span>
                 )}
               </div>
             </div>
@@ -289,9 +315,13 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
               <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
               <div>
                 <p className="font-medium text-rose-800">Booking Cancelled</p>
-                <p className="mt-1 text-sm text-rose-700">{booking.cancellationReason}</p>
+                <p className="mt-1 text-sm text-rose-700">
+                  {booking.cancellationReason}
+                </p>
                 {booking.cancelledBy && (
-                  <p className="mt-1 text-xs text-rose-600">By: {booking.cancelledBy}</p>
+                  <p className="mt-1 text-xs text-rose-600">
+                    By: {booking.cancelledBy}
+                  </p>
                 )}
               </div>
             </div>
@@ -324,11 +354,11 @@ export function GuestBookingDetail({ bookingId }: GuestBookingDetailProps) {
 
         {/* Timeline */}
         <div className="mt-6 flex items-center justify-center gap-6 text-xs text-muted-foreground">
-          <span>Booked {new Date(booking.createdAt).toLocaleDateString()}</span>
+          <span>Booked {formatBookingDate(booking.createdAt)}</span>
           {booking.verifiedAt && (
             <>
               <span className="h-1 w-1 rounded-full bg-muted-foreground" />
-              <span>Confirmed {new Date(booking.verifiedAt).toLocaleDateString()}</span>
+              <span>Confirmed {formatBookingDate(booking.verifiedAt)}</span>
             </>
           )}
         </div>

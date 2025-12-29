@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,6 @@ import {
   Bus,
   Users,
   CalendarClock,
-  CheckCircle2,
   Loader2,
   UserRound,
   MapPin,
@@ -40,37 +40,10 @@ import {
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 
-function getUTCDateString(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
-// Parse ISO time string like "1970-01-01T09:00:00.000Z" to display time
-function formatISOTime(isoTimeStr: string): string {
-  try {
-    // Handle both ISO format and simple HH:MM format
-    if (isoTimeStr.includes("T")) {
-      const date = new Date(isoTimeStr);
-      const hours = date.getUTCHours();
-      const minutes = date.getUTCMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-    } else {
-      // Simple HH:MM format
-      const [hours, minutes] = isoTimeStr.split(":");
-      const h = parseInt(hours, 10);
-      const ampm = h >= 12 ? "PM" : "AM";
-      const hour12 = h % 12 || 12;
-      return `${hour12}:${minutes} ${ampm}`;
-    }
-  } catch {
-    return isoTimeStr;
-  }
-}
-
 export function DriverShuttleSelection() {
   const router = useRouter();
   const { user } = useAuthSession();
+  const { formatScheduledDateTime, getToday, getOffset } = useHotelTime();
   const [selectedShuttleId, setSelectedShuttleId] =
     useState<Id<"shuttles"> | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -81,13 +54,19 @@ export function DriverShuttleSelection() {
     user?.id ? { driverId: user.id as Id<"users"> } : "skip"
   );
 
-  const todayDate = getUTCDateString();
+  const todayDate = getToday();
 
   const assignedShuttle = shuttles?.find((s) => s.isAssignedToMe);
-  const tripInstances = useQuery(
+  const tripInstancesData = useQuery(
     api.tripInstances.queries.getDriverTripInstances,
     user?.id ? { driverId: user.id as Id<"users">, date: todayDate } : "skip"
   );
+
+  // Extract trips array from the response object (handle both old array and new object types)
+  const tripInstances =
+    tripInstancesData && "trips" in tripInstancesData
+      ? tripInstancesData.trips
+      : [];
 
   const assignShuttle = useMutation(
     api.shuttles.mutations.assignDriverToShuttle
@@ -206,11 +185,9 @@ export function DriverShuttleSelection() {
   }
 
   // Sort trip instances by start time (earliest first)
-  const sortedTripInstances = tripInstances
-    ? [...tripInstances].sort((a, b) =>
-        a.scheduledStartTime.localeCompare(b.scheduledStartTime)
-      )
-    : [];
+  const sortedTripInstances = [...tripInstances].sort((a, b) =>
+    a.scheduledStartTime.localeCompare(b.scheduledStartTime)
+  );
 
   return (
     <div className="space-y-8">
@@ -350,11 +327,14 @@ export function DriverShuttleSelection() {
                           <div className="flex items-center gap-1.5 text-sm">
                             <Clock className="h-3.5 w-3.5 text-primary" />
                             <span className="font-medium">
-                              {formatISOTime(trip.scheduledStartTime)}
+                              {formatScheduledDateTime(trip.scheduledDate, trip.scheduledStartTime).time}
                             </span>
                             <span className="text-muted-foreground">-</span>
                             <span className="text-muted-foreground">
-                              {formatISOTime(trip.scheduledEndTime)}
+                              {formatScheduledDateTime(trip.scheduledDate, trip.scheduledEndTime).time}
+                            </span>
+                            <span className="text-xs text-muted-foreground/70">
+                              ({getOffset()})
                             </span>
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">

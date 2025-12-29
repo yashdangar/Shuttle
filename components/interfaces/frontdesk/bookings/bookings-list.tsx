@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,10 @@ type BookingStatus = "PENDING" | "CONFIRMED" | "REJECTED";
 type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED" | "WAIVED";
 const PAGE_SIZE = 20;
 
-const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
+const paymentStatusStyles: Record<
+  PaymentStatus,
+  { label: string; className: string }
+> = {
   UNPAID: { label: "Unpaid", className: "bg-red-100 text-red-800" },
   PAID: { label: "Paid", className: "bg-emerald-100 text-emerald-800" },
   REFUNDED: { label: "Refunded", className: "bg-blue-100 text-blue-800" },
@@ -114,9 +118,15 @@ const statusStyles: Record<
 export function FrontdeskBookingsList() {
   const router = useRouter();
   const { user } = useAuthSession();
+  const { formatScheduledDateTime, formatDate, getOffset, getToday } =
+    useHotelTime();
   const [searchQuery, setSearchQuery] = useState("");
-  const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | "ALL">("ALL");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatus | "ALL">("ALL");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<
+    BookingStatus | "ALL"
+  >("ALL");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<
+    PaymentStatus | "ALL"
+  >("ALL");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] =
     useState<Id<"bookings"> | null>(null);
@@ -127,11 +137,10 @@ export function FrontdeskBookingsList() {
     []
   );
 
-  // Get today's date in YYYY-MM-DD format
+  // Get today's date in hotel's timezone (YYYY-MM-DD format)
   const todayDate = useMemo(() => {
-    const now = new Date();
-    return now.toISOString().split("T")[0];
-  }, []);
+    return getToday();
+  }, [getToday]);
 
   const bookingsResponse = useQuery(
     api.bookings.index.getTodayHotelBookings,
@@ -145,23 +154,29 @@ export function FrontdeskBookingsList() {
 
   const filtered: HotelBooking[] = useMemo(() => {
     if (!bookings) return [];
-    
+
     return bookings.filter((booking) => {
       // Search filter
       const term = searchQuery.toLowerCase().trim();
-      const matchesSearch = !term || [
-        booking.guestName,
-        booking.guestEmail,
-        booking.tripDetails?.tripName,
-        booking.tripDetails?.scheduledDate,
-      ].some((field) => field?.toLowerCase().includes(term));
-      
+      const matchesSearch =
+        !term ||
+        [
+          booking.guestName,
+          booking.guestEmail,
+          booking.tripDetails?.tripName,
+          booking.tripDetails?.scheduledDate,
+        ].some((field) => field?.toLowerCase().includes(term));
+
       // Booking status filter
-      const matchesBookingStatus = bookingStatusFilter === "ALL" || booking.bookingStatus === bookingStatusFilter;
-      
+      const matchesBookingStatus =
+        bookingStatusFilter === "ALL" ||
+        booking.bookingStatus === bookingStatusFilter;
+
       // Payment status filter
-      const matchesPaymentStatus = paymentStatusFilter === "ALL" || booking.paymentStatus === paymentStatusFilter;
-      
+      const matchesPaymentStatus =
+        paymentStatusFilter === "ALL" ||
+        booking.paymentStatus === paymentStatusFilter;
+
       return matchesSearch && matchesBookingStatus && matchesPaymentStatus;
     });
   }, [searchQuery, bookings, bookingStatusFilter, paymentStatusFilter]);
@@ -264,29 +279,16 @@ export function FrontdeskBookingsList() {
     REJECTED: { dotClass: "bg-slate-400", heading: "Rejected / Cancelled" },
   };
 
-  const formatTime = (timeStr: string) => {
-    try {
-      const date = new Date(timeStr);
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return timeStr;
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
+  // Format scheduled date+time using hotel timezone
+  const formatTripDateTime = (
+    scheduledDate: string,
+    scheduledStartTime: string
+  ) => {
+    const formatted = formatScheduledDateTime(
+      scheduledDate,
+      scheduledStartTime
+    );
+    return `${formatted.date} at ${formatted.time}`;
   };
 
   if (!user) {
@@ -389,8 +391,13 @@ export function FrontdeskBookingsList() {
                       <div className="flex items-center gap-2">
                         <CalendarClock className="h-4 w-4" />
                         <span>
-                          {formatDate(trip.scheduledDate)} at{" "}
-                          {formatTime(trip.scheduledStartTime)}
+                          {formatTripDateTime(
+                            trip.scheduledDate,
+                            trip.scheduledStartTime
+                          )}
+                        </span>
+                        <span className="text-xs text-muted-foreground/70">
+                          ({getOffset()})
                         </span>
                       </div>
                     </div>
@@ -403,8 +410,11 @@ export function FrontdeskBookingsList() {
                     </span>
                     <div className="ml-auto flex items-center gap-1">
                       <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                      <Badge className={`${paymentStatusStyles[booking.paymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}>
-                        {paymentStatusStyles[booking.paymentStatus]?.label || booking.paymentStatus}
+                      <Badge
+                        className={`${paymentStatusStyles[booking.paymentStatus]?.className || "bg-gray-100 text-gray-800"} rounded-full border-0 text-xs`}
+                      >
+                        {paymentStatusStyles[booking.paymentStatus]?.label ||
+                          booking.paymentStatus}
                       </Badge>
                     </div>
                   </div>
@@ -435,7 +445,9 @@ export function FrontdeskBookingsList() {
                     </div>
                   ) : (
                     <div className="text-xs text-muted-foreground">
-                      {booking.bookingStatus === "CONFIRMED" ? "Ready for service" : "Booking cancelled"}
+                      {booking.bookingStatus === "CONFIRMED"
+                        ? "Ready for service"
+                        : "Booking cancelled"}
                     </div>
                   )}
                   <div className="flex items-center gap-2">
@@ -488,13 +500,15 @@ export function FrontdeskBookingsList() {
                   className="h-10 rounded-lg border-border pl-10 focus-visible:ring-primary"
                 />
               </div>
-              
+
               {/* Filters */}
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Select
                   value={bookingStatusFilter}
-                  onValueChange={(value) => setBookingStatusFilter(value as BookingStatus | "ALL")}
+                  onValueChange={(value) =>
+                    setBookingStatusFilter(value as BookingStatus | "ALL")
+                  }
                 >
                   <SelectTrigger className="h-9 w-[130px] text-xs">
                     <SelectValue placeholder="Status" />
@@ -508,7 +522,9 @@ export function FrontdeskBookingsList() {
                 </Select>
                 <Select
                   value={paymentStatusFilter}
-                  onValueChange={(value) => setPaymentStatusFilter(value as PaymentStatus | "ALL")}
+                  onValueChange={(value) =>
+                    setPaymentStatusFilter(value as PaymentStatus | "ALL")
+                  }
                 >
                   <SelectTrigger className="h-9 w-[120px] text-xs">
                     <SelectValue placeholder="Payment" />
@@ -523,7 +539,7 @@ export function FrontdeskBookingsList() {
                 </Select>
               </div>
             </div>
-            
+
             {/* Pagination Row */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
               <span className="text-sm text-muted-foreground">

@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHotelTime } from "@/hooks/use-hotel-time";
 import PageLayout from "@/components/layout/page-layout";
 import {
   Calendar,
@@ -55,46 +56,13 @@ const bookingStatusStyles: Record<BookingStatus, { label: string; className: str
   REJECTED: { label: "Rejected", className: "bg-rose-100 text-rose-800" },
 };
 
-function formatISOTime(isoTimeStr: string): string {
-  try {
-    if (isoTimeStr.includes("T")) {
-      const date = new Date(isoTimeStr);
-      const hours = date.getUTCHours();
-      const minutes = date.getUTCMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-    } else {
-      const [hours, minutes] = isoTimeStr.split(":");
-      const h = parseInt(hours, 10);
-      const ampm = h >= 12 ? "PM" : "AM";
-      const hour12 = h % 12 || 12;
-      return `${hour12}:${minutes} ${ampm}`;
-    }
-  } catch {
-    return isoTimeStr;
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
 export function FrontdeskTripInstanceDetail({
   tripInstanceId,
 }: {
   tripInstanceId: string;
 }) {
   const { user } = useAuthSession();
+  const { formatScheduledDateTime, formatTime, getOffset } = useHotelTime();
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | "ALL">("ALL");
   const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | "ALL">("ALL");
@@ -296,31 +264,28 @@ export function FrontdeskTripInstanceDetail({
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   <span className="text-sm">
-                    {formatDate(tripInstance.scheduledDate)}
+                    {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledStartTime).date}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   <span className="text-sm font-medium">
-                    {formatISOTime(tripInstance.scheduledStartTime)} -{" "}
-                    {formatISOTime(tripInstance.scheduledEndTime)}
+                    {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledStartTime).time} -{" "}
+                    {formatScheduledDateTime(tripInstance.scheduledDate, tripInstance.scheduledEndTime).time}
+                    <span className="ml-1 text-xs text-muted-foreground/70">({getOffset()})</span>
                   </span>
                 </div>
                 {tripInstance.actualStartTime && (
                   <div className="flex items-center gap-2 text-emerald-600">
                     <span className="text-sm">
-                      Started:{" "}
-                      {new Date(
-                        tripInstance.actualStartTime
-                      ).toLocaleTimeString()}
+                      Started: {formatTime(tripInstance.actualStartTime)}
                     </span>
                   </div>
                 )}
                 {tripInstance.actualEndTime && (
                   <div className="flex items-center gap-2 text-blue-600">
                     <span className="text-sm">
-                      Ended:{" "}
-                      {new Date(tripInstance.actualEndTime).toLocaleTimeString()}
+                      Ended: {formatTime(tripInstance.actualEndTime)}
                     </span>
                   </div>
                 )}
