@@ -138,3 +138,25 @@ export const uploadChatFile = mutation({
     return fileId;
   },
 });
+
+// Remove hotel image
+export const removeHotelImage = mutation({
+  args: {
+    hotelId: v.id("hotels"),
+    fileId: v.id("files"),
+  },
+  handler: async (ctx, args) => {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+
+    if (!hotel.imageIds.includes(args.fileId)) {
+      return; // Image not in hotel's images, nothing to do
+    }
+
+    await ctx.db.patch(args.hotelId, {
+      imageIds: hotel.imageIds.filter((id) => id !== args.fileId),
+    });
+  },
+});

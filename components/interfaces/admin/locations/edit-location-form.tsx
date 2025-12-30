@@ -294,8 +294,8 @@ export function EditAdminLocationForm({
             </div>
             <p className="text-sm text-muted-foreground">
               This location was imported from a public location. You can only
-              edit the name and address. Coordinates and location type cannot
-              be changed.
+              edit the name and address. Coordinates and location type cannot be
+              changed.
             </p>
           </div>
         </div>
@@ -375,6 +375,12 @@ export function EditAdminLocationForm({
                   placeholder="Search any place to drop a pin"
                   autoComplete="off"
                   disabled={isImported}
+                  onKeyDown={(e) => {
+                    // Prevent form submission on Enter key
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                    }
+                  }}
                 />
                 <InputGroupAddon>
                   <Search className="h-4 w-4" />

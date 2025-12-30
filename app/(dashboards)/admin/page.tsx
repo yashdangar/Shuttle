@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
@@ -14,20 +15,29 @@ import { BookingsChart } from "@/components/interfaces/admin/dashboard/bookings-
 import { PaymentStats } from "@/components/interfaces/admin/dashboard/payment-stats";
 import { RecentBookings } from "@/components/interfaces/admin/dashboard/recent-bookings";
 import { ActiveTrips } from "@/components/interfaces/admin/dashboard/active-trips";
-import { 
-  DollarSign, 
-  Calendar, 
-  Users, 
-  Car, 
+import {
+  DollarSign,
+  Calendar,
+  Users,
+  Car,
   TrendingUp,
   UserCheck,
   MapPin,
-  Clock
+  Clock,
 } from "lucide-react";
 
 export default function AdminPage() {
   const { user: sessionUser, status } = useAuthSession();
+  const router = useRouter();
   const isAdmin = sessionUser?.role === "admin";
+
+  const hotel = useQuery(
+    api.hotels.index.getHotelByAdmin,
+    isAdmin && sessionUser?.id
+      ? { adminId: sessionUser.id as Id<"users"> }
+      : "skip"
+  );
+
   const dashboardArgs = useMemo(
     () =>
       isAdmin && sessionUser?.id
@@ -36,11 +46,31 @@ export default function AdminPage() {
     [isAdmin, sessionUser?.id]
   );
 
-  const dashboardStats = useQuery(api.dashboard.queries.getDashboardStats, dashboardArgs);
-  const recentBookings = useQuery(api.dashboard.queries.getRecentBookings, dashboardArgs);
-  const activeTrips = useQuery(api.dashboard.queries.getActiveTrips, dashboardArgs);
+  const dashboardStats = useQuery(
+    api.dashboard.queries.getDashboardStats,
+    dashboardArgs
+  );
+  const recentBookings = useQuery(
+    api.dashboard.queries.getRecentBookings,
+    dashboardArgs
+  );
+  const activeTrips = useQuery(
+    api.dashboard.queries.getActiveTrips,
+    dashboardArgs
+  );
 
-  const isLoading = status === "loading" || (isAdmin && dashboardStats === undefined);
+  // Redirect to welcome page if admin doesn't have a hotel
+  useEffect(() => {
+    if (status === "authenticated" && isAdmin && hotel !== undefined) {
+      if (hotel === null) {
+        router.push("/admin/welcome");
+      }
+    }
+  }, [status, isAdmin, hotel, router]);
+
+  const isLoading =
+    status === "loading" ||
+    (isAdmin && (hotel === undefined || dashboardStats === undefined));
 
   if (!isAdmin && status !== "loading") {
     return (
@@ -57,6 +87,7 @@ export default function AdminPage() {
     );
   }
 
+  // Show loading while checking hotel status or dashboard data
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -64,6 +95,11 @@ export default function AdminPage() {
         Loading dashboard...
       </div>
     );
+  }
+
+  // If admin doesn't have a hotel, show nothing (redirect will happen)
+  if (isAdmin && hotel === null) {
+    return null;
   }
 
   if (!dashboardStats) {
@@ -117,7 +153,10 @@ export default function AdminPage() {
           />
           <StatsCard
             title="Total Staff"
-            value={dashboardStats.overview.drivers + dashboardStats.overview.frontdeskStaff}
+            value={
+              dashboardStats.overview.drivers +
+              dashboardStats.overview.frontdeskStaff
+            }
             icon={Users}
             description={`${dashboardStats.overview.drivers} drivers, ${dashboardStats.overview.frontdeskStaff} frontdesk`}
           />
@@ -130,7 +169,7 @@ export default function AdminPage() {
         </div>
 
         {/* Payment Statistics */}
-        <PaymentStats 
+        <PaymentStats
           paymentStats={dashboardStats.paymentStats}
           paymentMethodStats={dashboardStats.paymentMethodStats}
         />

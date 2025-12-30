@@ -333,6 +333,12 @@ export function EditLocationForm({ locationId }: EditLocationFormProps) {
                   ref={searchInputRef}
                   placeholder="Search any place to drop a pin"
                   autoComplete="off"
+                  onKeyDown={(e) => {
+                    // Prevent form submission on Enter key
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                    }
+                  }}
                 />
                 <InputGroupAddon>
                   <Search className="h-4 w-4" />
