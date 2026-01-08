@@ -7,18 +7,50 @@ const LOGIN_ROUTE = "/sign-in";
 const publicRoutes = new Set(["/", "/sign-in", "/sign-up"]);
 const authRoutes = new Set(["/sign-in", "/sign-up"]);
 const roleHomes: Record<Role, string> = {
-  guest: "/dashboard", 
+  guest: "/dashboard",
   admin: "/admin",
   driver: "/driver",
   frontdesk: "/frontdesk",
   superadmin: "/super-admin",
 };
 const roleScopes: Record<Role, string[]> = {
-  guest: ["/dashboard", "/select-hotels", "/new-booking", "/bookings","/profile","/notifications","/chat"],
-  admin: ["/admin", "/admin/drivers", "/admin/frontdesks","/admin/shuttles","/profile","/notifications","/admin/locations","/chat","/admin/trips"],
-  driver: ["/driver","/profile","/notifications","/chat"],
-  frontdesk: ["/frontdesk","/frontdesk/drivers","/frontdesk/frontdesks","/frontdesk/shuttles","/frontdesk/current-trips","/profile","/notifications","/chat","/frontdesk/trips","/frontdesk/all-bookings"  ],
-  superadmin: ["/super-admin","/profile","/notifications","/chat"],
+  guest: [
+    "/dashboard",
+    "/select-hotels",
+    "/new-booking",
+    "/bookings",
+    "/profile",
+    "/notifications",
+    "/chat",
+  ],
+  admin: [
+    "/admin",
+    "/admin/dashboard",
+    "/admin/welcome",
+    "/admin/settings",
+    "/admin/drivers",
+    "/admin/frontdesks",
+    "/admin/shuttles",
+    "/profile",
+    "/notifications",
+    "/admin/locations",
+    "/chat",
+    "/admin/trips",
+  ],
+  driver: ["/driver", "/profile", "/notifications", "/chat"],
+  frontdesk: [
+    "/frontdesk",
+    "/frontdesk/drivers",
+    "/frontdesk/frontdesks",
+    "/frontdesk/shuttles",
+    "/frontdesk/current-trips",
+    "/profile",
+    "/notifications",
+    "/chat",
+    "/frontdesk/trips",
+    "/frontdesk/all-bookings",
+  ],
+  superadmin: ["/super-admin", "/profile", "/notifications", "/chat"],
 };
 
 export default auth((req) => {

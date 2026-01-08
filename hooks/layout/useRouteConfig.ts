@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   MapPin,
   MessageSquare,
+  Settings,
   Shield,
   Users,
 } from "lucide-react";
@@ -41,7 +42,7 @@ const guestSidebarData: SidebarData = {
     //   url: "/dashboard",
     //   icon: LayoutDashboard,
     // },
-     {
+    {
       title: "Bookings",
       url: "/bookings",
       icon: CalendarPlus,
@@ -74,6 +75,7 @@ const adminSidebarData: SidebarData = {
     { title: "Shuttles", url: "/admin/shuttles", icon: MapPin },
     { title: "Locations", url: "/admin/locations", icon: MapPin },
     { title: "Trips", url: "/admin/trips", icon: MapPin },
+    { title: "Settings", url: "/admin/settings", icon: Settings },
     { title: "Chat", url: "/chat", icon: MessageSquare },
   ],
   navSecondary: [],
@@ -117,7 +119,11 @@ const frontdeskSidebarData: SidebarData = {
   navMain: [
     { title: "Dashboard", url: "/frontdesk", icon: LayoutDashboard },
     { title: "Live Bookings", url: "/frontdesk/bookings", icon: CalendarPlus },
-    { title: "All Bookings", url: "/frontdesk/all-bookings", icon: CalendarPlus },
+    {
+      title: "All Bookings",
+      url: "/frontdesk/all-bookings",
+      icon: CalendarPlus,
+    },
     { title: "Current Trips", url: "/frontdesk/current-trips", icon: MapPin },
     { title: "Drivers", url: "/frontdesk/drivers", icon: MapPin },
     { title: "Frontdesk", url: "/frontdesk/frontdesks", icon: CalendarPlus },

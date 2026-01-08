@@ -133,6 +133,7 @@ export const createHotel = action({
     timeZone: v.string(),
     latitude: v.number(),
     longitude: v.number(),
+    imageIds: v.optional(v.array(v.id("files"))),
   },
   async handler(ctx, args): Promise<HotelRecord> {
     const admin = await ctx.runQuery(api.auth.getUserById, {
@@ -180,17 +181,28 @@ export const createHotel = action({
       throw new Error("All fields are required");
     }
 
-    const hotelId = await ctx.runMutation(internal.hotels.index.createHotelInternal, {
-      name: trimmedName,
-      slug: normalizedSlug,
-      address: trimmedAddress,
-      phoneNumber: trimmedPhone,
-      email: trimmedEmail,
-      timeZone: trimmedTimeZone,
-      latitude: args.latitude,
-      longitude: args.longitude,
-      adminId: args.adminId,
-    });
+    const hotelId = await ctx.runMutation(
+      internal.hotels.index.createHotelInternal,
+      {
+        name: trimmedName,
+        slug: normalizedSlug,
+        address: trimmedAddress,
+        phoneNumber: trimmedPhone,
+        email: trimmedEmail,
+        timeZone: trimmedTimeZone,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        adminId: args.adminId,
+      }
+    );
+
+    // Add images if provided
+    if (args.imageIds && args.imageIds.length > 0) {
+      await ctx.runMutation(internal.hotels.index.addImagesToHotelInternal, {
+        hotelId,
+        imageIds: args.imageIds,
+      });
+    }
 
     const hotel = await ctx.runQuery(api.hotels.index.getHotelById, {
       hotelId,
@@ -200,6 +212,156 @@ export const createHotel = action({
     }
 
     return hotel;
+  },
+});
+
+export const updateHotel = action({
+  args: {
+    adminId: v.id("users"),
+    hotelId: v.id("hotels"),
+    name: v.string(),
+    slug: v.optional(v.string()),
+    address: v.string(),
+    phoneNumber: v.string(),
+    email: v.string(),
+    timeZone: v.string(),
+    latitude: v.number(),
+    longitude: v.number(),
+    imageIdsToAdd: v.optional(v.array(v.id("files"))),
+    imageIdsToRemove: v.optional(v.array(v.id("files"))),
+  },
+  async handler(ctx, args): Promise<HotelRecord> {
+    const admin = await ctx.runQuery(api.auth.getUserById, {
+      id: args.adminId,
+    });
+    if (!admin || admin.role !== "admin") {
+      throw new Error("Only administrators can update hotels");
+    }
+
+    // Verify the admin owns this hotel
+    const existingHotel = await ctx.runQuery(api.hotels.index.getHotelByAdmin, {
+      adminId: args.adminId,
+    });
+    if (!existingHotel || existingHotel.id !== args.hotelId) {
+      throw new Error("You can only update your own hotel");
+    }
+
+    const trimmedName = args.name.trim();
+    const trimmedAddress = args.address.trim();
+    const trimmedPhone = args.phoneNumber.trim();
+    const trimmedEmail = args.email.trim().toLowerCase();
+    const trimmedTimeZone = args.timeZone.trim();
+
+    if (
+      !trimmedName ||
+      !trimmedAddress ||
+      !trimmedPhone ||
+      !trimmedEmail ||
+      !trimmedTimeZone
+    ) {
+      throw new Error("All fields are required");
+    }
+
+    // Generate slug from provided slug or name
+    const slugSource = args.slug?.trim().length
+      ? args.slug.trim()
+      : trimmedName;
+    const normalizedSlug = slugify(slugSource);
+    if (!normalizedSlug) {
+      throw new Error("Slug could not be generated from the provided input");
+    }
+
+    // Only check for duplicates if the slug is different from current
+    if (normalizedSlug !== existingHotel.slug) {
+      const duplicateSlug = await ctx.runQuery(
+        api.hotels.index.getHotelBySlug,
+        {
+          slug: normalizedSlug,
+        }
+      );
+      if (duplicateSlug) {
+        throw new Error("A hotel with this slug already exists");
+      }
+    }
+
+    // Handle image removals
+    if (args.imageIdsToRemove && args.imageIdsToRemove.length > 0) {
+      for (const fileId of args.imageIdsToRemove) {
+        await ctx.runMutation(api.files.index.removeHotelImage, {
+          hotelId: args.hotelId,
+          fileId,
+        });
+      }
+    }
+
+    // Handle image additions - use uploadHotelImage for each new image
+    // Note: For edit form, images should be uploaded before calling updateHotel
+    // The imageIdsToAdd should be fileIds that are already uploaded
+    if (args.imageIdsToAdd && args.imageIdsToAdd.length > 0) {
+      const hotel = await ctx.runQuery(api.hotels.index.getHotelById, {
+        hotelId: args.hotelId,
+      });
+      if (hotel) {
+        const currentCount = hotel.imageIds.length;
+        const toAddCount = args.imageIdsToAdd.length;
+        if (currentCount + toAddCount > 10) {
+          throw new Error(
+            `Cannot add ${toAddCount} image(s). Maximum 10 images allowed per hotel. Current: ${currentCount}`
+          );
+        }
+        await ctx.runMutation(internal.hotels.index.addImagesToHotelInternal, {
+          hotelId: args.hotelId,
+          imageIds: args.imageIdsToAdd,
+        });
+      }
+    }
+
+    await ctx.runMutation(internal.hotels.index.updateHotelInternal, {
+      hotelId: args.hotelId,
+      name: trimmedName,
+      slug: normalizedSlug,
+      address: trimmedAddress,
+      phoneNumber: trimmedPhone,
+      email: trimmedEmail,
+      timeZone: trimmedTimeZone,
+      latitude: args.latitude,
+      longitude: args.longitude,
+    });
+
+    const updatedHotel = await ctx.runQuery(api.hotels.index.getHotelById, {
+      hotelId: args.hotelId,
+    });
+    if (!updatedHotel) {
+      throw new Error("Failed to update hotel");
+    }
+
+    return updatedHotel;
+  },
+});
+
+export const updateHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    name: v.string(),
+    slug: v.string(),
+    address: v.string(),
+    phoneNumber: v.string(),
+    email: v.string(),
+    timeZone: v.string(),
+    latitude: v.number(),
+    longitude: v.number(),
+  },
+  async handler(ctx, args) {
+    await ctx.db.patch(args.hotelId, {
+      name: args.name,
+      slug: args.slug,
+      address: args.address,
+      phoneNumber: args.phoneNumber,
+      email: args.email,
+      timeZone: args.timeZone,
+      latitude: args.latitude,
+      longitude: args.longitude,
+    });
   },
 });
 
@@ -411,5 +573,26 @@ export const removeTripFromHotelInternal = internalMutation({
     await ctx.db.patch(args.hotelId, {
       tripIds: hotel.tripIds.filter((id) => id !== args.tripId),
     });
+  },
+});
+
+export const addImagesToHotelInternal = internalMutation({
+  args: {
+    hotelId: v.id("hotels"),
+    imageIds: v.array(v.id("files")),
+  },
+  async handler(ctx, args) {
+    const hotel = await ctx.db.get(args.hotelId);
+    if (!hotel) {
+      throw new Error("Hotel not found");
+    }
+    // Add new image IDs that don't already exist
+    const existingIds = new Set(hotel.imageIds);
+    const newIds = args.imageIds.filter((id) => !existingIds.has(id));
+    if (newIds.length > 0) {
+      await ctx.db.patch(args.hotelId, {
+        imageIds: [...hotel.imageIds, ...newIds],
+      });
+    }
   },
 });

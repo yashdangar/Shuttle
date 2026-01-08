@@ -8,6 +8,7 @@ export * from "./shuttle/create-shuttle-dialog";
 export * from "./shuttle/edit-shuttle-dialog";
 export * from "./shuttle/shuttle-table";
 export * from "./hotel/create-hotel-form";
+export * from "./hotel/edit-hotel-form";
 export * from "./hotel/hotel-setup-required";
 export * from "./locations/location-table";
 export * from "./locations/add-location-form";

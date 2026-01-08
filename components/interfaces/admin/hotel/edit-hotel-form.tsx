@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -80,25 +80,49 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "");
 
 const DEFAULT_CENTER: LatLngLiteral = { lat: 19.076, lng: 72.8777 };
-
 const MAX_IMAGES = 10;
 
-export function CreateHotelForm() {
+export function EditHotelForm() {
   const { user } = useAuthSession();
   const router = useRouter();
-  const createHotel = useAction(api.hotels.index.createHotel);
+  const updateHotel = useAction(api.hotels.index.updateHotel);
   const generateUploadUrl = useMutation(api.files.index.generateUploadUrl);
-  const uploadChatFile = useMutation(api.files.index.uploadChatFile);
+  const uploadHotelImage = useMutation(api.files.index.uploadHotelImage);
+  const removeHotelImage = useMutation(api.files.index.removeHotelImage);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [selectedLocation, setSelectedLocation] =
-    useState<LatLngLiteral>(DEFAULT_CENTER);
+    useState<LatLngLiteral | null>(null);
   const [selectedAddress, setSelectedAddress] = useState("");
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const [imagesToRemove, setImagesToRemove] = useState<Id<"files">[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  const hotel = useQuery(
+    api.hotels.index.getHotelByAdmin,
+    user?.role === "admin" && user?.id
+      ? { adminId: user.id as Id<"users"> }
+      : "skip"
+  );
+
+  const existingImageUrls = useQuery(
+    api.files.index.getHotelImageUrls,
+    hotel && hotel.imageIds.length > 0 ? { fileIds: hotel.imageIds } : "skip"
+  );
+
+  const existingImages = useMemo(() => {
+    if (!hotel || !existingImageUrls) return [];
+    return hotel.imageIds
+      .map((fileId, index) => ({
+        fileId,
+        url: existingImageUrls[index] || null,
+      }))
+      .filter((img) => !imagesToRemove.includes(img.fileId));
+  }, [hotel, existingImageUrls, imagesToRemove]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -109,8 +133,8 @@ export function CreateHotelForm() {
       phoneNumber: "",
       email: "",
       timeZone: "",
-      latitude: DEFAULT_CENTER.lat,
-      longitude: DEFAULT_CENTER.lng,
+      latitude: 0,
+      longitude: 0,
     },
   });
 
@@ -123,18 +147,44 @@ export function CreateHotelForm() {
     []
   );
 
-  const watchedName = form.watch("name");
-
+  // Initialize form with hotel data
   useEffect(() => {
-    if (!slugManuallyEdited) {
-      form.setValue("slug", slugify(watchedName || ""));
+    if (hotel && !isInitialized) {
+      const coords = { lat: hotel.latitude, lng: hotel.longitude };
+      setSelectedLocation(coords);
+      setSelectedAddress(hotel.address);
+
+      // Reset form with hotel data - ensure timeZone is included
+      const formData = {
+        name: hotel.name,
+        slug: hotel.slug,
+        address: hotel.address,
+        phoneNumber: hotel.phoneNumber,
+        email: hotel.email,
+        timeZone: hotel.timeZone || "",
+        latitude: hotel.latitude,
+        longitude: hotel.longitude,
+      };
+
+      form.reset(formData);
+      setIsInitialized(true);
+
+      // Force update timeZone after a brief delay to ensure Select component renders
+      if (hotel.timeZone) {
+        requestAnimationFrame(() => {
+          form.setValue("timeZone", hotel.timeZone, { shouldDirty: false });
+        });
+      }
     }
-  }, [watchedName, slugManuallyEdited, form]);
+  }, [hotel, form, isInitialized]);
 
+  // Update coordinates when map location changes
   useEffect(() => {
-    form.setValue("latitude", selectedLocation.lat);
-    form.setValue("longitude", selectedLocation.lng);
-  }, [form, selectedLocation]);
+    if (selectedLocation && isInitialized) {
+      form.setValue("latitude", selectedLocation.lat);
+      form.setValue("longitude", selectedLocation.lng);
+    }
+  }, [form, selectedLocation, isInitialized]);
 
   const handleMapClick = (coords: LatLngLiteral) => {
     setSelectedLocation(coords);
@@ -148,7 +198,7 @@ export function CreateHotelForm() {
     isLoading: isMapLoading,
     error: mapError,
   } = useMapInstance({
-    center: selectedLocation,
+    center: selectedLocation || DEFAULT_CENTER,
     zoom: 13,
     onClick: handleMapClick,
   });
@@ -162,14 +212,26 @@ export function CreateHotelForm() {
       if (!geometry) return;
       const lat = geometry.lat();
       const lng = geometry.lng();
-      setSelectedLocation({ lat, lng });
-      setSelectedAddress(
+      const newLocation = { lat, lng };
+      setSelectedLocation(newLocation);
+      const address =
         place?.formatted_address ??
-          place?.name ??
-          `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      );
+        place?.name ??
+        `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      setSelectedAddress(address);
+      // Update form fields
+      form.setValue("address", address, { shouldDirty: true });
+      form.setValue("latitude", lat, { shouldDirty: true });
+      form.setValue("longitude", lng, { shouldDirty: true });
     },
   });
+
+  // Pan to the selected location when it changes (including from search)
+  useEffect(() => {
+    if (map && selectedLocation) {
+      map.panTo(selectedLocation);
+    }
+  }, [map, selectedLocation]);
 
   const handleUseCurrentLocation = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -193,8 +255,10 @@ export function CreateHotelForm() {
   };
 
   const handleResetLocation = () => {
-    setSelectedLocation(DEFAULT_CENTER);
-    setSelectedAddress("");
+    if (!hotel) return;
+    const coords = { lat: hotel.latitude, lng: hotel.longitude };
+    setSelectedLocation(coords);
+    setSelectedAddress(hotel.address);
   };
 
   const handleCopyAddress = async () => {
@@ -218,15 +282,15 @@ export function CreateHotelForm() {
     setImageError(null);
 
     // Check if user is trying to add more than allowed
-    const currentCount = selectedImages.length;
-    const totalSelected = currentCount + imageFiles.length;
+    const currentTotal = existingImages.length + newImages.length;
+    const totalSelected = currentTotal + imageFiles.length;
 
     if (totalSelected > MAX_IMAGES) {
-      const remainingSlots = MAX_IMAGES - currentCount;
+      const remainingSlots = MAX_IMAGES - currentTotal;
       if (remainingSlots > 0) {
         // Add what we can and show error
         const toAdd = imageFiles.slice(0, remainingSlots);
-        setSelectedImages((prev) => [...prev, ...toAdd]);
+        setNewImages((prev) => [...prev, ...toAdd]);
         setImageError(
           `You can only add ${MAX_IMAGES} images total. Added ${toAdd.length} of ${imageFiles.length} selected. ${imageFiles.length - toAdd.length} image(s) were not added.`
         );
@@ -238,7 +302,7 @@ export function CreateHotelForm() {
       }
     } else {
       // All images can be added
-      setSelectedImages((prev) => [...prev, ...imageFiles]);
+      setNewImages((prev) => [...prev, ...imageFiles]);
     }
 
     if (fileInputRef.current) {
@@ -246,13 +310,22 @@ export function CreateHotelForm() {
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveNewImage = (index: number) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index));
     setImageError(null); // Clear error when removing images
   };
 
-  const uploadImages = async (): Promise<Id<"files">[]> => {
-    if (!user?.id || selectedImages.length === 0) {
+  const handleRemoveExistingImage = (fileId: Id<"files">) => {
+    setImagesToRemove((prev) => [...prev, fileId]);
+    setImageError(null); // Clear error when removing images
+  };
+
+  const handleUndoRemoveImage = (fileId: Id<"files">) => {
+    setImagesToRemove((prev) => prev.filter((id) => id !== fileId));
+  };
+
+  const uploadNewImages = async (): Promise<Id<"files">[]> => {
+    if (!user?.id || !hotel || newImages.length === 0) {
       return [];
     }
 
@@ -260,7 +333,7 @@ export function CreateHotelForm() {
     const fileIds: Id<"files">[] = [];
 
     try {
-      for (const file of selectedImages) {
+      for (const file of newImages) {
         const uploadUrl = await generateUploadUrl();
         const result = await fetch(uploadUrl, {
           method: "POST",
@@ -273,8 +346,9 @@ export function CreateHotelForm() {
         }
 
         const { storageId } = await result.json();
-        const fileId = await uploadChatFile({
+        const fileId = await uploadHotelImage({
           storageId,
+          hotelId: hotel.id,
           userId: user.id as Id<"users">,
           fileName: file.name,
         });
@@ -288,19 +362,40 @@ export function CreateHotelForm() {
     return fileIds;
   };
 
+  const watchedName = form.watch("name");
+
+  useEffect(() => {
+    if (!slugManuallyEdited && isInitialized) {
+      form.setValue("slug", slugify(watchedName || ""));
+    }
+  }, [watchedName, slugManuallyEdited, form, isInitialized]);
+
   const handleSubmit = form.handleSubmit(async (values) => {
     if (!user?.id) {
-      setRequestError("You must be signed in to create a hotel.");
+      setRequestError("You must be signed in to update a hotel.");
+      return;
+    }
+    if (!hotel) {
+      setRequestError("Hotel not found.");
       return;
     }
     setRequestError(null);
     try {
-      // Upload images first
-      const imageIds = await uploadImages();
+      // Upload new images first
+      const newImageIds = await uploadNewImages();
 
-      // Create hotel with imageIds
-      await createHotel({
+      // Remove images
+      for (const fileId of imagesToRemove) {
+        await removeHotelImage({
+          hotelId: hotel.id,
+          fileId,
+        });
+      }
+
+      // Update hotel with new image IDs (already added via uploadHotelImage)
+      await updateHotel({
         adminId: user.id as Id<"users">,
+        hotelId: hotel.id,
         name: values.name,
         slug: values.slug,
         address: values.address,
@@ -309,27 +404,37 @@ export function CreateHotelForm() {
         timeZone: values.timeZone,
         latitude: values.latitude,
         longitude: values.longitude,
-        imageIds: imageIds.length > 0 ? imageIds : undefined,
+        imageIdsToAdd: newImageIds.length > 0 ? newImageIds : undefined,
+        imageIdsToRemove:
+          imagesToRemove.length > 0 ? imagesToRemove : undefined,
       });
-      form.reset();
-      setSlugManuallyEdited(false);
-      setSelectedImages([]);
-      router.push("/admin");
       router.refresh();
+      setRequestError(null);
+      setNewImages([]);
+      setImagesToRemove([]);
     } catch (error: any) {
-      setRequestError(error.message ?? "Failed to create hotel");
+      setRequestError(error.message ?? "Failed to update hotel");
     }
   });
+
+  if (!hotel) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="mr-2 size-4 animate-spin" />
+        Loading hotel information...
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 rounded-xl border bg-card p-4 md:p-8 shadow-sm">
       <div className="space-y-2">
         <h2 className="text-3xl font-semibold tracking-tight">
-          Create Your Hotel
+          Hotel Settings
         </h2>
         <p className="text-sm text-muted-foreground">
-          Start by adding your hotel&apos;s basic information. You can update
-          these details later.
+          Update your hotel&apos;s information. Changes will be saved
+          immediately.
         </p>
       </div>
       <Form {...form}>
@@ -451,7 +556,10 @@ export function CreateHotelForm() {
                 <FormLabel className="text-base font-medium">
                   Time Zone
                 </FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value || ""}
+                  onValueChange={field.onChange}
+                >
                   <FormControl>
                     <SelectTrigger className="text-left">
                       <SelectValue placeholder="Select a time zone" />
@@ -607,7 +715,7 @@ export function CreateHotelForm() {
               <div>
                 <p className="text-sm font-semibold">Hotel Images</p>
                 <p className="text-xs text-muted-foreground">
-                  Add up to {MAX_IMAGES} images of your hotel
+                  Manage your hotel images (up to {MAX_IMAGES} total)
                 </p>
               </div>
               <input
@@ -626,26 +734,54 @@ export function CreateHotelForm() {
                   fileInputRef.current?.click();
                 }}
                 disabled={
-                  selectedImages.length >= MAX_IMAGES ||
+                  existingImages.length + newImages.length >= MAX_IMAGES ||
                   form.formState.isSubmitting
                 }
                 className="w-full"
               >
                 <ImageIcon className="mr-2 h-4 w-4" />
-                {selectedImages.length >= MAX_IMAGES
+                {existingImages.length + newImages.length >= MAX_IMAGES
                   ? `Maximum ${MAX_IMAGES} images reached`
-                  : `Add Images (${selectedImages.length}/${MAX_IMAGES})`}
+                  : `Add Images (${existingImages.length + newImages.length}/${MAX_IMAGES})`}
               </Button>
               {imageError && (
                 <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {imageError}
                 </div>
               )}
-              {selectedImages.length > 0 && (
+              {(existingImages.length > 0 || newImages.length > 0) && (
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                  {selectedImages.map((file, index) => (
+                  {/* Existing Images */}
+                  {existingImages.map((img) => (
                     <div
-                      key={index}
+                      key={img.fileId}
+                      className="group relative aspect-video overflow-hidden rounded-lg border bg-muted"
+                    >
+                      {img.url ? (
+                        <img
+                          src={img.url}
+                          alt="Hotel image"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          Loading...
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingImage(img.fileId)}
+                        className="absolute right-2 top-2 rounded-full bg-destructive p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        disabled={form.formState.isSubmitting}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {/* New Images */}
+                  {newImages.map((file, index) => (
+                    <div
+                      key={`new-${index}`}
                       className="group relative aspect-video overflow-hidden rounded-lg border bg-muted"
                     >
                       <img
@@ -655,7 +791,7 @@ export function CreateHotelForm() {
                       />
                       <button
                         type="button"
-                        onClick={() => handleRemoveImage(index)}
+                        onClick={() => handleRemoveNewImage(index)}
                         className="absolute right-2 top-2 rounded-full bg-destructive p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
                         disabled={form.formState.isSubmitting}
                       >
@@ -669,6 +805,12 @@ export function CreateHotelForm() {
                     </div>
                   ))}
                 </div>
+              )}
+              {/* Show removed images count */}
+              {imagesToRemove.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {imagesToRemove.length} image(s) will be removed on save
+                </p>
               )}
             </div>
           </section>
@@ -686,10 +828,10 @@ export function CreateHotelForm() {
             {form.formState.isSubmitting || isUploadingImages ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                {isUploadingImages ? "Uploading images..." : "Creating..."}
+                {isUploadingImages ? "Uploading images..." : "Saving..."}
               </>
             ) : (
-              "Create Hotel"
+              "Save Changes"
             )}
           </Button>
         </form>
