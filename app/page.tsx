@@ -179,14 +179,12 @@ export default function LandingPage() {
                 />
               </div> */}
 
-              <div className="w-full max-w-[960px] lg:w-[960px] pt-2 sm:pt-4 pb-6 sm:pb-8 md:pb-10 px-2 sm:px-4 md:px-6 lg:px-11 flex flex-col justify-center items-center gap-2 relative z-5 my-8 sm:my-12 md:my-16 lg:my-16 mb-0 lg:pb-0">
+              {/* <div className="w-full max-w-[960px] lg:w-[960px] pt-2 sm:pt-4 pb-6 sm:pb-8 md:pb-10 px-2 sm:px-4 md:px-6 lg:px-11 flex flex-col justify-center items-center gap-2 relative z-5 my-8 sm:my-12 md:my-16 lg:my-16 mb-0 lg:pb-0">
                 <div className="w-full max-w-[960px] lg:w-[960px] h-[200px] sm:h-[280px] md:h-[450px] lg:h-[695.55px] shadow-[0px_0px_0px_0.9056603908538818px_rgba(0,0,0,0.08)] overflow-hidden rounded-[6px] sm:rounded-[8px] lg:rounded-[9.06px] flex flex-col justify-start items-start">
-                  {/* Dashboard Content */}
+                  
                   <div className="self-stretch flex-1 flex justify-start items-start">
-                    {/* Main Content */}
                     <div className="w-full h-full flex items-center justify-center">
                       <div className="relative w-full h-full overflow-hidden">
-                        {/* Product Image 1 - Plan your schedules */}
                         <div
                           className={`absolute inset-0 ${
                             activeCard === 0
@@ -207,7 +205,6 @@ export default function LandingPage() {
                           />
                         </div>
 
-                        {/* Product Image 2 - Data to insights */}
                         <div
                           className={`absolute inset-0 ${
                             activeCard === 1
@@ -227,8 +224,6 @@ export default function LandingPage() {
                             className="w-full h-full object-contain pointer-events-none"
                           />
                         </div>
-
-                        {/* Product Image 3 - Data visualization */}
                         <div
                           className={`absolute inset-0 ${
                             activeCard === 2
@@ -252,9 +247,9 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
-              <div className="self-stretch border-t border-border border-b  flex justify-center items-start">
+              <div className="self-stretch border-t border-border border-b  mt-8 flex justify-center items-start">
                 <div className="w-4 sm:w-6 md:w-8 lg:w-12 self-stretch relative overflow-hidden">
                   {/* Left decorative pattern */}
                   <div className="w-[120px] sm:w-[140px] md:w-[162px] left-[-40px] sm:left-[-50px] md:left-[-58px] top-[-120px] absolute flex flex-col justify-start items-start">
